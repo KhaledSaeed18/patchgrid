@@ -316,24 +316,49 @@ tenant-owned table.
 
 ## CI (GitHub Actions)
 
-On every PR and on `main`:
+Four jobs, on every PR and on `main`. Superseded runs are cancelled; each job has
+least-privilege permissions and a timeout.
 
-1. `pnpm install --frozen-lockfile`
-2. `turbo lint typecheck` — includes the compile-time Zod↔Prisma enum assertions
-3. `turbo test` — unit + contract tests, no services needed
-4. Integration tests against `postgres` + `redis` service containers, with both database roles created
-   exactly as locally
-5. `pnpm test:tenancy` and `pnpm test:authz` — isolation and authorization suites, treated as release
-   gates, not optional extras
-6. **Schema assertions** as their own job so a failure names the actual problem: RLS policy coverage,
-   composite tenant foreign keys, `timestamptz`-only, `uuid` ids, `patchgrid_app` grants
-7. `turbo build` — all three apps
-8. `prisma migrate diff` to fail on schema/migration drift; migration-safety check (`DROP` without a
-   `-- safe:` annotation fails)
-9. **Security**: `gitleaks` secret scan, `pnpm audit --audit-level=high`, CodeQL for JS/TS
-10. (later) Playwright E2E against the built apps, on `main` only; Docker image builds
+| Job | What it proves |
+| --- | --- |
+| **verify** | `turbo lint typecheck test build`. No services. Fails fastest, so it runs first |
+| **database** | Brings up a bare Postgres service container, runs `db:bootstrap`, then `db:doctor` — and runs both **twice**, because the bootstrap is the recovery path for an existing volume and "safe to run again" is a property, not a nicety |
+| **smoke** | The whole Compose stack, the way a developer starts it, with the API booted against it and `/health/ready` asserted. This is what proves the README's three commands work on a machine that has never seen the project |
+| **security** | `gitleaks` over the full history — a secret that was committed and later "removed" is still in the repository — and `pnpm audit --audit-level=high` |
 
-Node version comes from `.nvmrc`/`engines` (pinned to 24.x). Dependabot for weekly grouped updates.
+CodeQL (`security-extended`) runs in its own workflow, plus weekly, because a rule
+or a dependency can turn existing code into a finding without the code changing.
+Dependabot updates weekly in groups, with majors pinned where we are deliberately
+behind (`@nestjs/*`, `prisma` — see `ARCHITECTURE.md` §Stack).
+
+**Lint can actually fail.** The scaffold's shared config included
+`eslint-plugin-only-warn`, which downgrades every error to a warning — and ESLint
+exits 0 on warnings, so `turbo lint` passed no matter what it found. It is removed,
+and every package lints with `--max-warnings 0`. A boundary rule that only warns is
+not a boundary.
+
+**Architectural boundaries are lint rules**, in `@patchgrid/eslint-config/boundaries`:
+frontends may not import `@patchgrid/database` or Prisma; services may not import
+Prisma (only repositories may); raw SQL is confined to `packages/database` and
+repositories; and `runAsTenant`/`runAsPlatform` are importable only by named
+modules. They are written **before** most of the code they guard, because a rule
+added after the violation is a refactor rather than a rule. Each message names the
+document it comes from, so the error explains itself.
+
+**Deliberately absent until the code exists**, rather than vacuously green — a job
+that passes because it has nothing to check reports a guarantee that does not
+exist:
+
+- `pnpm test:tenancy` — the isolation suite, a release gate (M1)
+- `pnpm test:authz` — the permission matrix and route-coverage test (M1)
+- schema assertions — RLS policy coverage, composite tenant foreign keys,
+  `timestamptz`-only, `uuid` ids (M1, with the first tenant-owned table)
+- `prisma migrate diff` drift and the migration-safety check (M1, once migrations
+  exist)
+- Playwright E2E, on `main` only (M9)
+
+Node version comes from `.nvmrc`; pnpm from the `packageManager` field, so the
+lockfile and CI cannot disagree about which pnpm produced them.
 
 ## Logging and observability
 

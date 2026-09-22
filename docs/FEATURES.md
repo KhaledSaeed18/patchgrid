@@ -36,12 +36,14 @@ CI green on an empty PR; `/health/ready` returns 200 (connectivity only — ther
 - [ ] Root scripts (`test`, `test:tenancy`, `test:authz`, `db:*`, `platform:grant`), Vitest in
       api/app/www/contracts, Playwright installed but empty; integration tests use per-worker template
       database clones
-- [ ] GitHub Actions: lint, typecheck (incl. Zod↔Prisma enum assertions), unit, integration with service
-      containers, schema-assertion job, build all three apps, migration-drift + migration-safety checks,
-      `gitleaks`, `pnpm audit`, CodeQL
-- [ ] ESLint rules: no `@patchgrid/database` outside `apps/api`; no Prisma outside `**/repositories/**`;
+- [x] GitHub Actions: `verify` (lint, typecheck, test, build), `database` (service container →
+      bootstrap → doctor, run twice for idempotency), `smoke` (full Compose stack + API boot +
+      readiness), `security` (gitleaks over full history, `pnpm audit --audit-level=high`); CodeQL
+      `security-extended` and grouped Dependabot. Tenancy/authz suites, schema assertions and
+      migration-drift land with the code they check, in M1
+- [x] ESLint rules: no `@patchgrid/database` outside `apps/api`; no Prisma outside `**/repositories/**`;
       no raw SQL outside `packages/database`; `runAsPlatform`/`runAsTenant` import paths restricted by
-      module (ADR-0022)
+      module (ADR-0022). `eslint-plugin-only-warn` removed and `--max-warnings 0` set, so lint can fail
 - [~] Repo furniture: `.nvmrc` (24.x) + `engines` **done**; `.editorconfig`, `commitlint` + `lefthook`,
       `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template still to do
 - [ ] `apps/app` route groups `(auth)`, `(select)`, `(portal)`, `(console)`, `(admin)` with placeholders

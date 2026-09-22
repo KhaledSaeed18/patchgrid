@@ -156,6 +156,18 @@ two-label host and a malformed slug; an unknown route renders Problem Details wi
 `application/problem+json` and an `x-request-id`; the boot assertion confirms the app role cannot bypass
 RLS.
 
+## Round 5 — CI, 2026-09-22
+
+| # | Finding | Folded into |
+| --- | --- | --- |
+| S-17 | **The lint gate had no teeth.** The scaffold's shared ESLint config included `eslint-plugin-only-warn`, which downgrades every error to a warning; ESLint exits 0 on warnings, so `turbo lint` passed regardless of what it found. Removed, with `--max-warnings 0` everywhere. Discovered while adding the boundary rules — which would have been decorative | `packages/eslint-config/base.js` · `ENGINEERING.md` §CI |
+| S-18 | A fresh install carried **19 high-severity advisories**, so the audit gate would have been red on arrival. Resolved to zero with targeted `pnpm.overrides`, each annotated: `multer` (real, via `@nestjs/platform-express`), and `mysql2`/`deepmerge-ts` (Prisma CLI adapters we never load — unreachable, but an unreachable advisory still fails a gate). Five moderates remain, all transitive build tooling | `package.json` `pnpm.overrides` |
+| S-19 | `docker compose up -d --wait` treats a one-shot initialiser's **clean exit as a failure**, so `minio-init` broke the wait. Long-running services are waited on explicitly and the initialiser runs afterwards in the foreground | `.github/workflows/ci.yml` · `ENGINEERING.md` |
+
+The boundary rules were verified by planting deliberate violations — a frontend
+importing `@patchgrid/database`, and raw SQL in an API service — confirming each
+fails with a message naming the document it comes from, then removing them.
+
 ## Still open
 
 | # | Item | Why it is not closed |
