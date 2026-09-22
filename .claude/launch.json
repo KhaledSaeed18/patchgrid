@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "www",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@patchgrid/www", "dev"],
+      "port": 3000,
+      "url": "http://lvh.me:3000"
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@patchgrid/app", "dev"],
+      "port": 3001,
+      "url": "http://app.lvh.me:3001"
+    }
+  ]
+}

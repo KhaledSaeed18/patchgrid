@@ -2,7 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# pnpm blocks postinstall scripts by default. Anything that genuinely needs one
+# is listed here explicitly — see ENGINEERING.md §Repository hygiene.
 allowBuilds:
   sharp: true
   unrs-resolver: true
+  esbuild: true
   msw: false
