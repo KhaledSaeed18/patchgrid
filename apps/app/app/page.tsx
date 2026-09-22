@@ -1,4 +1,4 @@
-import { Button } from "@workspace/ui/components/button"
+import { Button } from "@patchgrid/ui/components/button"
 
 export default function Page() {
   return (
