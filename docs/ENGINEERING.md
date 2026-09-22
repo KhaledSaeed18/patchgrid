@@ -246,6 +246,7 @@ cp .env.example .env            # ports are overridable; 5432 is often already t
 pnpm install
 docker compose up -d            # postgres, redis, minio, mailpit
 pnpm db:bootstrap               # roles, grants, default privileges, extensions
+pnpm db:generate                # Prisma client — the database package imports it
 pnpm db:doctor                  # asserts the above actually took effect
 pnpm db:migrate && pnpm db:seed # schema + RLS policies + two demo orgs
 pnpm dev                        # www :3000, app :3001, api :4000

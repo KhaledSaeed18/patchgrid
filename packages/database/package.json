@@ -12,11 +12,11 @@
     "bootstrap": "tsx scripts/bootstrap.ts",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
-    "seed": "tsx scripts/seed.ts",
+    "seed": "prisma generate && tsx scripts/seed.ts",
     "studio": "prisma studio",
     "lint": "eslint --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "doctor": "tsx scripts/doctor.ts"
+    "doctor": "prisma generate && tsx scripts/doctor.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
