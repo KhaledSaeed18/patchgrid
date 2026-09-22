@@ -1,3 +1,7 @@
+# Agent instructions
+
+All conventions for AI coding agents live in [`CLAUDE.md`](./CLAUDE.md). Read it, then the docs it points to under `docs/`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
