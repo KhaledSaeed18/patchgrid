@@ -378,14 +378,19 @@ Each is a Nest injection token with a real implementation and a `Noop`/`Fake` on
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `postgres` | `pgvector/pgvector:pg17` | 5432 | main DB + `patchgrid_test`; init script creates extensions, the migration owner, and the `patchgrid_app` non-superuser role, and issues the `GRANT`s + `ALTER DEFAULT PRIVILEGES` the app depends on |
+| `postgres` | `pgvector/pgvector:pg17` | 5432 | main DB + `patchgrid_test`; init script creates extensions, the migration owner (**with** `BYPASSRLS`), and `patchgrid_app` (**without**), transfers database and schema ownership to the owner role, and issues the `GRANT`s + `ALTER DEFAULT PRIVILEGES` the app depends on |
 | `redis` | `redis:7-alpine` | 6379 | BullMQ, throttler, tenant cache, quota counters |
-| `minio` | `minio/minio` | 9000 / 9001 | S3 API / console; bucket `patchgrid-attachments` + CORS via an init container |
+| `minio` | `quay.io/minio/minio` | 9000 / 9001 | S3 API / console. **quay.io, not Docker Hub** — `docker.io/minio/minio` is no longer publicly pullable. Bucket `patchgrid-attachments` created by an init container; **CORS is a server setting** (`MINIO_API_CORS_ALLOW_ORIGIN`), not per-bucket — `mc cors set` reports "functionality that is not implemented" |
 | `mailpit` | `axllent/mailpit` | 1025 / 8025 | SMTP sink + web inbox |
 | `ollama` (later) | `ollama/ollama` | 11434 | triage + embeddings |
 
+Every published port is env-overridable (`POSTGRES_PORT`, `REDIS_PORT`, …) defaulting to the values
+above, because another project already owning 5432 is common and "port is already allocated" is an easy
+error to misread.
+
 The Compose init script only runs against an **empty data volume**, so the same role/grant/extension SQL
-ships as an idempotent file executed by `db:migrate`. Without it, a developer with a pre-existing volume
+ships as `pnpm db:bootstrap`, which shares `packages/database/sql/bootstrap.sql` with it so the two
+cannot drift. Without it, a developer with a pre-existing volume
 gets `permission denied for table …` the first time a migration adds a table — see `ENGINEERING.md`
 §Local development for why `ALTER DEFAULT PRIVILEGES` is the line that matters.
 

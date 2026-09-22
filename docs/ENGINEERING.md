@@ -5,6 +5,9 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
 ## Repository hygiene
 
 - **pnpm only.** `pnpm@10` pinned via `packageManager`. Never commit an npm/yarn lockfile.
+- **Root scripts delegate with an explicit `run`**: `pnpm --filter <pkg> run <script>`. Without it, pnpm
+  resolves its own builtins first — `pnpm --filter x doctor` invokes `pnpm doctor`, not the package's
+  script, and fails with `Unknown option: 'recursive'`. The same trap waits on `test` and `start`.
 - **Pin Prisma to an exact version, never `latest`.** As of 2026-09-22 Prisma's `latest` dist-tag points
   at `8.0.0-rc.15` — a *release candidate* — while the last stable is `7.10.0` (tagged `prev`). A plain
   `pnpm add prisma` installs the RC, and it can resolve to a different major than `@prisma/client`,
@@ -29,7 +32,9 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
   exception and ships built output, because Prisma client generation is a build step regardless. This is
   why `typecheck` depends on `^build` for `database` only.
 - One PR per milestone task, small enough to review in ten minutes. `main` is always green and always deployable-in-principle.
-- `.env.example` in each app is the authoritative list of env vars; `apps/api/src/config/env.ts` validates them with Zod at boot.
+- `.env.example` is the authoritative list of env vars; `apps/api/src/config/env.ts` validates them with
+  Zod at boot. Note that `.gitignore` carries `.env*` **and** a `!.env.example` negation — without the
+  negation the authoritative list is itself ignored, which is easy to miss and annoying to diagnose.
 
 ## TypeScript
 
@@ -216,11 +221,22 @@ Non-negotiable, and the most valuable tests in the repo. Two organizations (`acm
 ## Local development
 
 ```bash
+cp .env.example .env            # ports are overridable; 5432 is often already taken
 pnpm install
 docker compose up -d            # postgres, redis, minio, mailpit
+pnpm db:bootstrap               # roles, grants, default privileges, extensions
+pnpm db:doctor                  # asserts the above actually took effect
 pnpm db:migrate && pnpm db:seed # schema + RLS policies + two demo orgs
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
+
+`db:doctor` is not decoration: it asserts that the app role holds neither `BYPASSRLS` nor `CREATE` on
+the schema, that `ALTER DEFAULT PRIVILEGES` is in place, that pgvector is installed and that the session
+is UTC. Each is a way the isolation model fails *silently* if it drifts, and each is far cheaper to
+learn about at setup time than from a confusing error three hours later.
+
+`db:reset` runs `prisma migrate reset` **then** `db:bootstrap` — in that order, because resetting drops
+and recreates the `public` schema, taking the ownership and default privileges with it.
 
 Local URLs use **`lvh.me`**, a public domain whose wildcard DNS resolves to `127.0.0.1`, so tenant
 subdomains and shared cookies behave exactly as in production with no `/etc/hosts` editing (ADR-0014):

@@ -118,6 +118,28 @@ pointing at an org-A ticket, past `WITH CHECK` and past RLS. The hole ADR-0023 e
 Also noted: pnpm blocks Prisma's postinstall until `allowBuilds` lists it, and Prisma 7 ships an
 agent-consent guard on `db push --accept-data-loss` (it was not needed — the database was empty).
 
+## Round 3 — M0 infrastructure, 2026-09-22
+
+Building Compose and `packages/database` against the real registries and the real toolchain turned up
+six more places where the plan described something that no longer exists. All folded in.
+
+| # | Finding | Folded into |
+| --- | --- | --- |
+| S-6 | **`docker.io/minio/minio` is not publicly pullable** ("pull access denied"). The working source is `quay.io/minio/minio`, and likewise `quay.io/minio/mc` | `ARCHITECTURE.md` §Local infrastructure |
+| S-7 | **MinIO CORS is a server setting, not a bucket one.** `mc cors set` returns "functionality that is not implemented"; a JSON body fails earlier still, since the command expects XML. `MINIO_API_CORS_ALLOW_ORIGIN` works, verified by preflight from a tenant subdomain and rejection of a foreign origin | ADR-0005 erratum · `ARCHITECTURE.md` |
+| S-8 | Prisma's `extensions` datasource property needs a preview feature **and** would emit `CREATE EXTENSION` into migrations run by `patchgrid_owner`, which is not a superuser. Extension lifecycle belongs to the superuser bootstrap | `packages/database/prisma/schema.prisma` |
+| S-9 | **`pnpm --filter <pkg> <name>` resolves pnpm's builtins first.** `--filter x doctor` runs `pnpm doctor` and fails with `Unknown option: 'recursive'`. Every root script uses an explicit `run` | `ENGINEERING.md` §Repository hygiene |
+| S-10 | `globalDotEnv` is not a Turborepo 2 key — it is `globalDependencies`, and env vars that affect task output must be declared in `globalEnv` or the lint plugin flags them | `turbo.json` |
+| S-11 | `.gitignore` carried `.env*`, which silently ignores `.env.example` — the file `ENGINEERING.md` calls the authoritative list of variables | `.gitignore`, `ENGINEERING.md` |
+
+Also corrected: `exactOptionalPropertyTypes` was **missing** from the shared base tsconfig despite
+`ENGINEERING.md` §TypeScript mandating it. Enabling it immediately caught `prisma.config.ts` passing
+`undefined` where the type says "absent" — exactly the class of bug the flag exists for.
+
+The Postgres image creates `POSTGRES_DB` owned by the superuser, so both bootstrap paths now transfer
+database and schema ownership to `patchgrid_owner`; without it `prisma migrate reset` cannot recreate
+the `public` schema.
+
 ## Still open
 
 | # | Item | Why it is not closed |

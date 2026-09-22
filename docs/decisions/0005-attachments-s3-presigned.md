@@ -14,6 +14,14 @@
 > carry `Content-Disposition: attachment` except for a small raster allow-list; attachments are served from
 > a separate origin. The cleanup job deletes the **object** as well as the row, and the storage quota
 > decrements on delete. See `ARCHITECTURE.md` §Security posture.
+>
+> **Verified (2026-09-22).** Consequences claims CORS is "configured on the bucket … by the MinIO init
+> container". It is not: MinIO implements CORS as a **server** setting
+> (`MINIO_API_CORS_ALLOW_ORIGIN`), and `mc cors set` against a current build returns "A header you
+> provided implies functionality that is not implemented" — for an XML body; a JSON one fails earlier
+> with "decoding xml: EOF". The Compose stack sets the server variable and a preflight from
+> `http://acme.lvh.me:3001` is echoed back while `http://evil.example.com` is not. Separately,
+> `docker.io/minio/minio` is no longer publicly pullable; the image comes from quay.io.
 
 ## Context
 

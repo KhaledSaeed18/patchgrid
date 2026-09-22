@@ -17,7 +17,7 @@ CI green on an empty PR; `/health/ready` returns 200 (connectivity only — ther
       `package.json` `name`); scaffold `apps/www` (ADR-0001, ADR-0016)
 - [ ] `apps/api` NestJS 11: Zod-validated config, `nestjs-pino`, Problem Details filter, `nestjs-zod`
       pipe, helmet, slug-aware CORS, `/health` + `/health/ready`, no-op `Tracer` provider
-- [ ] `packages/database`: Prisma **pinned to 7.10.0** (never `latest` — it points at an 8.0 RC), with
+- [x] `packages/database`: Prisma **pinned to 7.10.0** (never `latest` — it points at an 8.0 RC), with
       `prisma.config.ts` holding the connection strings and `@prisma/adapter-pg` driver adapters (Prisma 7
       removed `url` from the datasource block); generator provider `prisma-client`; `prisma`,
       `@prisma/engines` and `esbuild` added to `allowBuilds` in `pnpm-workspace.yaml`;
