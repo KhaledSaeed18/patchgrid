@@ -1,0 +1,22 @@
+{
+  "extends": "@patchgrid/typescript-config/base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    // NestJS is decorator-driven: DI resolves constructor parameter types from
+    // emitted metadata. SWC performs the emit (see .swcrc); tsc here only checks.
+    // The workspace packages are consumed as source and their own imports carry
+    // `.ts`, so tsc must accept the extension when it typechecks them. This
+    // app's OWN relative imports must stay extensionless: SWC emits CommonJS and
+    // preserves whatever extension it is given, so a `.ts` here becomes a
+    // `require("./x.ts")` that does not exist in dist/.
+    "allowImportingTsExtensions": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "target": "ES2022",
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}
