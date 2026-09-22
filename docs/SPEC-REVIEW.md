@@ -164,6 +164,8 @@ RLS.
 | S-18 | A fresh install carried **19 high-severity advisories**, so the audit gate would have been red on arrival. Resolved to zero with targeted `pnpm.overrides`, each annotated: `multer` (real, via `@nestjs/platform-express`), and `mysql2`/`deepmerge-ts` (Prisma CLI adapters we never load — unreachable, but an unreachable advisory still fails a gate). Five moderates remain, all transitive build tooling | `package.json` `pnpm.overrides` |
 | S-19 | `docker compose up -d --wait` treats a one-shot initialiser's **clean exit as a failure**, so `minio-init` broke the wait. Long-running services are waited on explicitly and the initialiser runs afterwards in the foreground | `.github/workflows/ci.yml` · `ENGINEERING.md` |
 
+| S-20 | **The documented onboarding sequence was broken.** `ENGINEERING.md` §Local development listed `install → compose up → db:bootstrap → db:doctor`, with no `db:generate` — so a fresh clone fails on a module-resolution error for the Prisma client. Caught by the CI smoke job on its first real run, which is exactly what a smoke job is for. `db:doctor` and `db:seed` now generate first (it takes ~10ms), and the documented sequence is explicit | `ENGINEERING.md` · `packages/database/package.json` |
+
 The boundary rules were verified by planting deliberate violations — a frontend
 importing `@patchgrid/database`, and raw SQL in an API service — confirming each
 fails with a message naming the document it comes from, then removing them.
