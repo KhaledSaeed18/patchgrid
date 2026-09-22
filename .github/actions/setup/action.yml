@@ -1,0 +1,28 @@
+name: Setup
+description: Install pnpm, Node and dependencies, with the Turborepo cache restored.
+
+runs:
+  using: composite
+  steps:
+    # No version pinned here on purpose: pnpm/action-setup reads the
+    # `packageManager` field, so the lockfile and CI can never disagree about
+    # which pnpm produced them.
+    - uses: pnpm/action-setup@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    # --frozen-lockfile is the point of the whole step: a PR that changes a
+    # dependency without committing the lockfile fails here rather than
+    # resolving to something different from what anyone reviewed.
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+
+    - uses: actions/cache@v4
+      with:
+        path: .turbo
+        key: turbo-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          turbo-${{ runner.os }}-

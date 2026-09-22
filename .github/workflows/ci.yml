@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded run tells you nothing useful and occupies a runner.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Everything that needs no services. Fails fastest, so it goes first.
+  # `typecheck` carries real weight: it is where the Zod↔Prisma enum assertions
+  # live, and where `exactOptionalPropertyTypes` catches an `undefined` being
+  # passed for an absent property.
+  # ───────────────────────────────────────────────────────────────────────────
+  verify:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm turbo lint typecheck test build
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # The two-role database setup, created in CI exactly as it is locally.
+  #
+  # `db:doctor` is the assertion that matters: the application role must hold
+  # neither BYPASSRLS nor CREATE, and ALTER DEFAULT PRIVILEGES must be in place
+  # so that tables a future migration adds are readable. Each is a way the
+  # isolation model fails silently, which is precisely why it is a gate.
+  # ───────────────────────────────────────────────────────────────────────────
+  database:
+    name: Database roles and privileges
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: patchgrid
+          TZ: UTC
+          PGTZ: UTC
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d patchgrid"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # The service container starts bare; `db:bootstrap` does the rest, which
+      # is the same path a developer with a pre-existing volume takes.
+      DATABASE_SUPERUSER_URL: postgresql://postgres:postgres@localhost:5432/patchgrid
+      DATABASE_URL: postgresql://patchgrid_app:app@localhost:5432/patchgrid?schema=public
+      DATABASE_MIGRATION_URL: postgresql://patchgrid_owner:owner@localhost:5432/patchgrid?schema=public
+      PATCHGRID_OWNER_PASSWORD: owner
+      PATCHGRID_APP_PASSWORD: app
+      POSTGRES_DB: patchgrid
+      POSTGRES_TEST_DB: patchgrid_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm db:bootstrap
+      - run: pnpm db:generate
+      - name: Assert the isolation invariants hold
+        run: pnpm db:doctor
+
+      # Re-running must be a no-op. The bootstrap is the recovery path for an
+      # existing volume, so "safe to run twice" is a property, not a nicety.
+      - name: Bootstrap is idempotent
+        run: pnpm db:bootstrap && pnpm db:doctor
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # The whole local stack, brought up the way a developer brings it up, with the
+  # API booted against it. This is what proves the README's three commands work
+  # on a machine that has never seen the project.
+  # ───────────────────────────────────────────────────────────────────────────
+  smoke:
+    name: Stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Use the documented example environment
+        run: cp .env.example .env
+
+      # `--wait` treats an exited container as a failure, and `minio-init` is a
+      # one-shot that exits 0 by design — so the long-running services are waited
+      # on explicitly and the initialiser is run in the foreground after them.
+      - name: Start infrastructure
+        run: |
+          docker compose up -d --wait postgres redis minio mailpit
+          docker compose up minio-init
+
+      - run: pnpm db:bootstrap
+      - run: pnpm db:doctor
+      - run: pnpm --filter @patchgrid/api run build
+
+      - name: Boot the API and assert readiness
+        run: |
+          node apps/api/dist/main.js > /tmp/api.log 2>&1 &
+          for _ in $(seq 1 45); do
+            if curl -fsS http://localhost:4000/health > /dev/null 2>&1; then break; fi
+            sleep 1
+          done
+
+          echo "--- liveness ---"
+          curl -fsS http://localhost:4000/health
+
+          echo "--- readiness ---"
+          body=$(curl -fsS http://localhost:4000/health/ready)
+          echo "$body"
+          echo "$body" | grep -q '"status":"ok"' || { echo "readiness is not ok"; exit 1; }
+
+      - name: API log
+        if: always()
+        run: cat /tmp/api.log || true
+
+      - name: Infrastructure logs
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # ───────────────────────────────────────────────────────────────────────────
+  security:
+    name: Secrets and dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans history, not just the working tree: a secret that was
+          # committed and then "removed" is still in the repository.
+          fetch-depth: 0
+
+      - name: Secret scan
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --redact --no-banner --verbose
+
+      - uses: ./.github/actions/setup
+
+      # Gated at `high`. The moderate findings that remain are transitive build
+      # tooling; pnpm overrides in package.json carry the ones we can pin
+      # forward, each with a note explaining why.
+      - name: Dependency audit
+        run: pnpm audit --audit-level=high
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # TODO (M1), and deliberately absent rather than vacuously green:
+  #
+  #   · pnpm test:tenancy  — the isolation suite (ENGINEERING.md), a release gate
+  #   · pnpm test:authz    — the permission matrix and route-coverage test
+  #   · schema assertions  — RLS policy coverage, composite tenant foreign keys,
+  #                          timestamptz-only, uuid ids
+  #   · prisma migrate diff — schema/migration drift, once migrations exist
+  #   · migration safety   — fail on DROP without a `-- safe:` annotation
+  #
+  # A job that passes because it has nothing to check is worse than no job: it
+  # reports a guarantee that does not exist.
+  # ───────────────────────────────────────────────────────────────────────────

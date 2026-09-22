@@ -1,0 +1,50 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Grouped, because twelve separate PRs for one framework's patch release is
+    # how dependency updates stop being reviewed at all.
+    groups:
+      nestjs:
+        patterns: ["@nestjs/*", "nestjs-*"]
+      prisma:
+        patterns: ["prisma", "@prisma/*"]
+      next:
+        patterns: ["next", "react", "react-dom", "@types/react", "@types/react-dom"]
+      testing:
+        patterns: ["vitest", "@vitest/*", "unplugin-swc", "supertest", "@types/supertest"]
+      linting:
+        patterns: ["eslint", "eslint-*", "@typescript-eslint/*", "prettier", "prettier-*"]
+      types:
+        patterns: ["@types/*"]
+    ignore:
+      # Pinned deliberately, not neglected: nestjs-zod peers @nestjs/common
+      # ^10 || ^11 and does not support Nest 12 (docs/ARCHITECTURE.md §Stack).
+      - dependency-name: "@nestjs/*"
+        update-types: ["version-update:semver-major"]
+      # Prisma's `latest` dist-tag currently points at an 8.0 release candidate;
+      # the major moves when we decide it does (docs/ENGINEERING.md).
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
