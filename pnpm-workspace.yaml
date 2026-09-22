@@ -10,4 +10,5 @@ allowBuilds:
   esbuild: true
   prisma: true
   "@prisma/engines": true
+  "@swc/core": true
   msw: false
