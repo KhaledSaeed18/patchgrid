@@ -2,20 +2,31 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "display": "Default",
   "compilerOptions": {
-    "declaration": true,
-    "declarationMap": true,
     "esModuleInterop": true,
+
+    // Strictness the project actually relies on (docs/ENGINEERING.md §TypeScript).
+    // `exactOptionalPropertyTypes` is the one that fights Prisma's generated types;
+    // it is also the one that stops `{ assigneeMembershipId: undefined }` from
+    // silently meaning "clear the assignee".
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
+
+    // Nothing in this monorepo emits JavaScript. Internal packages are consumed as
+    // SOURCE and transpiled by whatever bundles the consumer — Next for the apps,
+    // SWC for Nest. That is why `.ts` extensions appear in their imports (NodeNext
+    // ESM requires them) and why every consumer must accept those extensions.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+
     "incremental": false,
     "isolatedModules": true,
     "lib": ["es2022", "DOM", "DOM.Iterable"],
     "module": "NodeNext",
     "moduleDetection": "force",
     "moduleResolution": "NodeNext",
-    "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "strict": true,
     "target": "ES2022"
   }
 }
