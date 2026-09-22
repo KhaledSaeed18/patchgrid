@@ -6,7 +6,7 @@
     "dev": "nest start --watch --builder swc",
     "build": "nest build --builder swc",
     "start": "node dist/main.js",
-    "lint": "eslint",
+    "lint": "eslint --max-warnings 0",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
