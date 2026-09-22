@@ -29,32 +29,32 @@ more. **When the "still open" table is empty, delete this file.**
 
 ## Decisions taken
 
-| Fork | Chosen |
-| --- | --- |
-| Q-1 platform scope under RLS | Projection tables, `patchgrid_app` never gets `BYPASSRLS` → **ADR-0022** |
-| Q-2 session cookies | Per-tenant cookie names → **ADR-0024** |
-| Q-3 teams | `TeamMembership` join table → **ADR-0025** |
-| Q-4 person references | `membershipId` everywhere + composite FKs → **ADR-0023** |
-| Q-5 MFA | Build it (TOTP + step-up), M9 → **ADR-0029** |
-| Q-6 plan downgrade | Allow, block new creation, never delete data → `TENANCY.md` §8 |
-| Q-7 released slugs | Permanently reserved, 302 not 301 → `TENANCY.md` §2 |
-| Q-8 DNS/TLS design now | Yes → **`docs/DNS.md`**, ADR-0026, ADR-0027 |
-| Q-9 milestone split | M8 platform / M9 hardening / M10 ship; threat model moved to M1 → `FEATURES.md` |
+| Fork                         | Chosen                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| Q-1 platform scope under RLS | Projection tables, `patchgrid_app` never gets `BYPASSRLS` → **ADR-0022**        |
+| Q-2 session cookies          | Per-tenant cookie names → **ADR-0024**                                          |
+| Q-3 teams                    | `TeamMembership` join table → **ADR-0025**                                      |
+| Q-4 person references        | `membershipId` everywhere + composite FKs → **ADR-0023**                        |
+| Q-5 MFA                      | Build it (TOTP + step-up), M9 → **ADR-0029**                                    |
+| Q-6 plan downgrade           | Allow, block new creation, never delete data → `TENANCY.md` §8                  |
+| Q-7 released slugs           | Permanently reserved, 302 not 301 → `TENANCY.md` §2                             |
+| Q-8 DNS/TLS design now       | Yes → **`docs/DNS.md`**, ADR-0026, ADR-0027                                     |
+| Q-9 milestone split          | M8 platform / M9 hardening / M10 ship; threat model moved to M1 → `FEATURES.md` |
 
 ## New documents
 
-| Document | Covers |
-| --- | --- |
-| [ADR-0022](decisions/0022-platform-scope-access-under-rls.md) | `runAsTenant` vs `runAsPlatform`, `UserOrgIndex`, `ApiTokenIndex`, org-bearing invite tokens, boot assertion |
-| [ADR-0023](decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md) | Composite tenant FKs, membership references, UUIDv7, `@db.Uuid`, `timestamptz`, four CI introspection assertions |
-| [ADR-0024](decisions/0024-per-tenant-cookies-and-api-tenant-resolution.md) | Tenant resolution order, per-tenant cookies, cookie tossing, revocation epoch |
-| [ADR-0025](decisions/0025-multi-team-membership.md) | `TeamMembership`, `isLead`, branch-shaped `ScopeFilter` |
-| [ADR-0026](decisions/0026-wildcard-tls-and-dns-operations.md) | DNS-01, `_acme-challenge` delegation, CAA, CT privacy, the PSL question |
-| [ADR-0027](decisions/0027-email-dns-and-inbound-sender-authentication.md) | SPF/DKIM/DMARC alignment, inbound sender authentication, thread-injection fix |
-| [ADR-0028](decisions/0028-data-protection-export-erasure-retention.md) | Tenant export, pseudonymised erasure, retention windows |
-| [ADR-0029](decisions/0029-mfa-and-step-up-authentication.md) | TOTP, recovery codes, step-up for irreversible actions |
-| [ADR-0030](decisions/0030-observability-opentelemetry-per-tenant.md) | OTel seam from M0, per-tenant spans and metrics, cardinality discipline |
-| [DNS.md](DNS.md) | Zone contents, TLS, mail, custom domains, subdomain takeover, local tiers |
+| Document                                                                   | Covers                                                                                                           |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [ADR-0022](decisions/0022-platform-scope-access-under-rls.md)              | `runAsTenant` vs `runAsPlatform`, `UserOrgIndex`, `ApiTokenIndex`, org-bearing invite tokens, boot assertion     |
+| [ADR-0023](decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md)   | Composite tenant FKs, membership references, UUIDv7, `@db.Uuid`, `timestamptz`, four CI introspection assertions |
+| [ADR-0024](decisions/0024-per-tenant-cookies-and-api-tenant-resolution.md) | Tenant resolution order, per-tenant cookies, cookie tossing, revocation epoch                                    |
+| [ADR-0025](decisions/0025-multi-team-membership.md)                        | `TeamMembership`, `isLead`, branch-shaped `ScopeFilter`                                                          |
+| [ADR-0026](decisions/0026-wildcard-tls-and-dns-operations.md)              | DNS-01, `_acme-challenge` delegation, CAA, CT privacy, the PSL question                                          |
+| [ADR-0027](decisions/0027-email-dns-and-inbound-sender-authentication.md)  | SPF/DKIM/DMARC alignment, inbound sender authentication, thread-injection fix                                    |
+| [ADR-0028](decisions/0028-data-protection-export-erasure-retention.md)     | Tenant export, pseudonymised erasure, retention windows                                                          |
+| [ADR-0029](decisions/0029-mfa-and-step-up-authentication.md)               | TOTP, recovery codes, step-up for irreversible actions                                                           |
+| [ADR-0030](decisions/0030-observability-opentelemetry-per-tenant.md)       | OTel seam from M0, per-tenant spans and metrics, cardinality discipline                                          |
+| [DNS.md](DNS.md)                                                           | Zone contents, TLS, mail, custom domains, subdomain takeover, local tiers                                        |
 
 Nine accepted ADRs (0005, 0012, 0014, 0015, 0017, 0018, 0019, 0020, 0021) carry dated **Erratum** blocks
 under their Status lines. Their bodies are unchanged — the correction convention is now written into
@@ -62,31 +62,31 @@ under their Status lines. Their bodies are unchanged — the correction conventi
 
 ## Where each finding landed
 
-| Findings | Resolved in |
-| --- | --- |
-| P0-1, P0-2, P1-18 | ADR-0024 · `TENANCY.md` §6 · `ARCHITECTURE.md` §Request pipeline |
-| P0-3, P1-36 | ADR-0022 · `TENANCY.md` §7 · ESLint module rule |
-| P0-4, P0-5, P0-8, P0-9 | ADR-0023 · `ARCHITECTURE.md` §Data model |
-| P0-6, P0-7 | ADR-0015 erratum · `ENGINEERING.md` §Local development (grants + `ALTER DEFAULT PRIVILEGES`) |
-| P0-10, P0-11 | `TENANCY.md` §7 (`NULLIF` template) · `ENGINEERING.md` §Transactions (CLS-aware nesting) |
-| P0-12 | `ARCHITECTURE.md` §Data model · `CLAUDE.md` |
-| P0-13, P0-14 | ADR-0005 erratum · `ARCHITECTURE.md` §Security posture · `DOMAIN.md` §7 |
-| P1-1 … P1-10 | `DOMAIN.md` §1, §2, §4, §7 — clock origins, split warnings, transition guards, link directions, comment lifecycle |
-| P1-11, P1-12 | `TENANCY.md` §8 · `ENGINEERING.md` §Transactions (row locks, atomic counters) |
-| P1-13, P1-14 | `TENANCY.md` §2 · `RESERVED_SLUGS` in `@patchgrid/contracts` · `DNS.md` §6 |
-| P1-15, P1-16 | `DOMAIN.md` §9.1 · `ARCHITECTURE.md` §Indexes |
-| P1-17, P1-35 | `ENGINEERING.md` §API conventions (`version`, `Idempotency-Key`) |
-| P1-19 … P1-23 | `DOMAIN.md` §2.1, §4.2, §7, §9.2 · `ARCHITECTURE.md` §Data model |
-| P1-24 | ADR-0027 · `FEATURES.md` M6 |
-| P1-25, P1-26 | `RBAC.md` §8, §9 · ADR-0020 erratum |
-| P1-27 | ADR-0029 · `FEATURES.md` M9 |
-| P1-28 … P1-31 | `RBAC.md` §6 (one table), §7 (`capabilities`), §10 (`SCOPE_GRANTS`) |
-| P1-32 | `ARCHITECTURE.md` §Request pipeline (throttle first, one token verification) |
-| P1-33, P1-34 | `ENGINEERING.md` §Testing (per-worker template clones, owner role, enum assertions) |
-| D-1 … D-15 | Each doc, at the noted line. D-11 remains a repo task |
-| P2-1 … P2-8 | `ARCHITECTURE.md`, `ENGINEERING.md` §Schema changes, ADR-0028/0029/0030, `DNS.md` |
-| P2-9, P2-10 | `FEATURES.md` — M8/M9/M10 split, sequencing, threat model to M1 |
-| P2-11 a–q | Folded into the relevant sections |
+| Findings               | Resolved in                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| P0-1, P0-2, P1-18      | ADR-0024 · `TENANCY.md` §6 · `ARCHITECTURE.md` §Request pipeline                                                  |
+| P0-3, P1-36            | ADR-0022 · `TENANCY.md` §7 · ESLint module rule                                                                   |
+| P0-4, P0-5, P0-8, P0-9 | ADR-0023 · `ARCHITECTURE.md` §Data model                                                                          |
+| P0-6, P0-7             | ADR-0015 erratum · `ENGINEERING.md` §Local development (grants + `ALTER DEFAULT PRIVILEGES`)                      |
+| P0-10, P0-11           | `TENANCY.md` §7 (`NULLIF` template) · `ENGINEERING.md` §Transactions (CLS-aware nesting)                          |
+| P0-12                  | `ARCHITECTURE.md` §Data model · `CLAUDE.md`                                                                       |
+| P0-13, P0-14           | ADR-0005 erratum · `ARCHITECTURE.md` §Security posture · `DOMAIN.md` §7                                           |
+| P1-1 … P1-10           | `DOMAIN.md` §1, §2, §4, §7 — clock origins, split warnings, transition guards, link directions, comment lifecycle |
+| P1-11, P1-12           | `TENANCY.md` §8 · `ENGINEERING.md` §Transactions (row locks, atomic counters)                                     |
+| P1-13, P1-14           | `TENANCY.md` §2 · `RESERVED_SLUGS` in `@patchgrid/contracts` · `DNS.md` §6                                        |
+| P1-15, P1-16           | `DOMAIN.md` §9.1 · `ARCHITECTURE.md` §Indexes                                                                     |
+| P1-17, P1-35           | `ENGINEERING.md` §API conventions (`version`, `Idempotency-Key`)                                                  |
+| P1-19 … P1-23          | `DOMAIN.md` §2.1, §4.2, §7, §9.2 · `ARCHITECTURE.md` §Data model                                                  |
+| P1-24                  | ADR-0027 · `FEATURES.md` M6                                                                                       |
+| P1-25, P1-26           | `RBAC.md` §8, §9 · ADR-0020 erratum                                                                               |
+| P1-27                  | ADR-0029 · `FEATURES.md` M9                                                                                       |
+| P1-28 … P1-31          | `RBAC.md` §6 (one table), §7 (`capabilities`), §10 (`SCOPE_GRANTS`)                                               |
+| P1-32                  | `ARCHITECTURE.md` §Request pipeline (throttle first, one token verification)                                      |
+| P1-33, P1-34           | `ENGINEERING.md` §Testing (per-worker template clones, owner role, enum assertions)                               |
+| D-1 … D-15             | Each doc, at the noted line. D-11 remains a repo task                                                             |
+| P2-1 … P2-8            | `ARCHITECTURE.md`, `ENGINEERING.md` §Schema changes, ADR-0028/0029/0030, `DNS.md`                                 |
+| P2-9, P2-10            | `FEATURES.md` — M8/M9/M10 split, sequencing, threat model to M1                                                   |
+| P2-11 a–q              | Folded into the relevant sections                                                                                 |
 
 ## Round 2 — isolation spike, 2026-09-22
 
@@ -102,18 +102,18 @@ nested-transaction error · `ALTER DEFAULT PRIVILEGES` covering tables created a
 
 **P0-4 proven, including the counterfactual.** Composite FKs generate as
 `FOREIGN KEY ("orgId","ticketId") REFERENCES "Ticket"("orgId", id)` and reject a cross-tenant reference
-with `P2003`. With a **single-column** FK the identical insert *succeeded* — an org-B row written
+with `P2003`. With a **single-column** FK the identical insert _succeeded_ — an org-B row written
 pointing at an org-A ticket, past `WITH CHECK` and past RLS. The hole ADR-0023 exists to close is real.
 
 **Five things the plan had wrong or unstated:**
 
-| # | Finding | Folded into |
-| --- | --- | --- |
-| S-1 | Prisma's `latest` dist-tag points at `8.0.0-rc.15`, a **release candidate**; stable is `7.10.0` (`prev`). `pnpm add prisma` installs the RC, possibly at a different major than `@prisma/client` | `ENGINEERING.md` §Repository hygiene · `FEATURES.md` M0 |
-| S-2 | **Prisma 7 removed `url` from the datasource block.** Connection strings go in `prisma.config.ts`; the client takes a `@prisma/adapter-pg` driver adapter; the generator provider is `prisma-client`. Two adapters give the two roles two pools — better than the old single-URL model | `ARCHITECTURE.md` §Stack · ADR-0023 · `FEATURES.md` M0 |
-| S-3 | **Lazy `PrismaPromise` defeats naive `AsyncLocalStorage`.** `als.run(s, () => repo.find())` loses the context before the extension runs; it must be `als.run(s, async () => await fn())`. Fails closed, but fails — and it is the one thing the spike got wrong on its first run | `ENGINEERING.md` §Transactions · ADR-0015 |
-| S-4 | The extension **cannot** redirect `query(args)` to a transaction client. It batches `$transaction([set_config, query(args)])` per operation and passes through when a transaction is already open | `ENGINEERING.md` §Transactions · ADR-0015 |
-| S-5 | Raw queries reach the extension with `model === undefined`, so **layer 3 is genuinely skipped** for raw SQL — RLS alone catches it. Confirms the ban rather than softening it | `ENGINEERING.md` §Transactions |
+| #   | Finding                                                                                                                                                                                                                                                                                | Folded into                                             |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| S-1 | Prisma's `latest` dist-tag points at `8.0.0-rc.15`, a **release candidate**; stable is `7.10.0` (`prev`). `pnpm add prisma` installs the RC, possibly at a different major than `@prisma/client`                                                                                       | `ENGINEERING.md` §Repository hygiene · `FEATURES.md` M0 |
+| S-2 | **Prisma 7 removed `url` from the datasource block.** Connection strings go in `prisma.config.ts`; the client takes a `@prisma/adapter-pg` driver adapter; the generator provider is `prisma-client`. Two adapters give the two roles two pools — better than the old single-URL model | `ARCHITECTURE.md` §Stack · ADR-0023 · `FEATURES.md` M0  |
+| S-3 | **Lazy `PrismaPromise` defeats naive `AsyncLocalStorage`.** `als.run(s, () => repo.find())` loses the context before the extension runs; it must be `als.run(s, async () => await fn())`. Fails closed, but fails — and it is the one thing the spike got wrong on its first run       | `ENGINEERING.md` §Transactions · ADR-0015               |
+| S-4 | The extension **cannot** redirect `query(args)` to a transaction client. It batches `$transaction([set_config, query(args)])` per operation and passes through when a transaction is already open                                                                                      | `ENGINEERING.md` §Transactions · ADR-0015               |
+| S-5 | Raw queries reach the extension with `model === undefined`, so **layer 3 is genuinely skipped** for raw SQL — RLS alone catches it. Confirms the ban rather than softening it                                                                                                          | `ENGINEERING.md` §Transactions                          |
 
 Also noted: pnpm blocks Prisma's postinstall until `allowBuilds` lists it, and Prisma 7 ships an
 agent-consent guard on `db push --accept-data-loss` (it was not needed — the database was empty).
@@ -123,14 +123,14 @@ agent-consent guard on `db push --accept-data-loss` (it was not needed — the d
 Building Compose and `packages/database` against the real registries and the real toolchain turned up
 six more places where the plan described something that no longer exists. All folded in.
 
-| # | Finding | Folded into |
-| --- | --- | --- |
-| S-6 | **`docker.io/minio/minio` is not publicly pullable** ("pull access denied"). The working source is `quay.io/minio/minio`, and likewise `quay.io/minio/mc` | `ARCHITECTURE.md` §Local infrastructure |
-| S-7 | **MinIO CORS is a server setting, not a bucket one.** `mc cors set` returns "functionality that is not implemented"; a JSON body fails earlier still, since the command expects XML. `MINIO_API_CORS_ALLOW_ORIGIN` works, verified by preflight from a tenant subdomain and rejection of a foreign origin | ADR-0005 erratum · `ARCHITECTURE.md` |
-| S-8 | Prisma's `extensions` datasource property needs a preview feature **and** would emit `CREATE EXTENSION` into migrations run by `patchgrid_owner`, which is not a superuser. Extension lifecycle belongs to the superuser bootstrap | `packages/database/prisma/schema.prisma` |
-| S-9 | **`pnpm --filter <pkg> <name>` resolves pnpm's builtins first.** `--filter x doctor` runs `pnpm doctor` and fails with `Unknown option: 'recursive'`. Every root script uses an explicit `run` | `ENGINEERING.md` §Repository hygiene |
-| S-10 | `globalDotEnv` is not a Turborepo 2 key — it is `globalDependencies`, and env vars that affect task output must be declared in `globalEnv` or the lint plugin flags them | `turbo.json` |
-| S-11 | `.gitignore` carried `.env*`, which silently ignores `.env.example` — the file `ENGINEERING.md` calls the authoritative list of variables | `.gitignore`, `ENGINEERING.md` |
+| #    | Finding                                                                                                                                                                                                                                                                                                   | Folded into                              |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| S-6  | **`docker.io/minio/minio` is not publicly pullable** ("pull access denied"). The working source is `quay.io/minio/minio`, and likewise `quay.io/minio/mc`                                                                                                                                                 | `ARCHITECTURE.md` §Local infrastructure  |
+| S-7  | **MinIO CORS is a server setting, not a bucket one.** `mc cors set` returns "functionality that is not implemented"; a JSON body fails earlier still, since the command expects XML. `MINIO_API_CORS_ALLOW_ORIGIN` works, verified by preflight from a tenant subdomain and rejection of a foreign origin | ADR-0005 erratum · `ARCHITECTURE.md`     |
+| S-8  | Prisma's `extensions` datasource property needs a preview feature **and** would emit `CREATE EXTENSION` into migrations run by `patchgrid_owner`, which is not a superuser. Extension lifecycle belongs to the superuser bootstrap                                                                        | `packages/database/prisma/schema.prisma` |
+| S-9  | **`pnpm --filter <pkg> <name>` resolves pnpm's builtins first.** `--filter x doctor` runs `pnpm doctor` and fails with `Unknown option: 'recursive'`. Every root script uses an explicit `run`                                                                                                            | `ENGINEERING.md` §Repository hygiene     |
+| S-10 | `globalDotEnv` is not a Turborepo 2 key — it is `globalDependencies`, and env vars that affect task output must be declared in `globalEnv` or the lint plugin flags them                                                                                                                                  | `turbo.json`                             |
+| S-11 | `.gitignore` carried `.env*`, which silently ignores `.env.example` — the file `ENGINEERING.md` calls the authoritative list of variables                                                                                                                                                                 | `.gitignore`, `ENGINEERING.md`           |
 
 Also corrected: `exactOptionalPropertyTypes` was **missing** from the shared base tsconfig despite
 `ENGINEERING.md` §TypeScript mandating it. Enabling it immediately caught `prisma.config.ts` passing
@@ -142,13 +142,13 @@ the `public` schema.
 
 ## Round 4 — apps/api, 2026-09-22
 
-| # | Finding | Folded into |
-| --- | --- | --- |
-| S-12 | **NestJS 12 is released, but `nestjs-zod@5.5.0` peers `@nestjs/common ^10 \|\| ^11`.** Staying on Nest 11 is now a recorded decision rather than a stale number. `nestjs-zod` does support Zod 4 | `ARCHITECTURE.md` §Stack |
-| S-13 | **A compiling package must not use `.ts` in its own relative imports.** SWC preserves the extension, so `require("./app.module.ts")` reaches `dist/` and fails at boot. Source-shipped packages still need it. Both rules are true; the distinction is whether the package emits | `ENGINEERING.md` §Repository hygiene |
-| S-14 | `import.meta` is unavailable in CommonJS output — tsc rejects it even though SWC silently rewrites it. `apps/api` uses `__dirname` | `apps/api/src/main.ts` |
+| #    | Finding                                                                                                                                                                                                                                                                                                   | Folded into                                     |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| S-12 | **NestJS 12 is released, but `nestjs-zod@5.5.0` peers `@nestjs/common ^10 \|\| ^11`.** Staying on Nest 11 is now a recorded decision rather than a stale number. `nestjs-zod` does support Zod 4                                                                                                          | `ARCHITECTURE.md` §Stack                        |
+| S-13 | **A compiling package must not use `.ts` in its own relative imports.** SWC preserves the extension, so `require("./app.module.ts")` reaches `dist/` and fails at boot. Source-shipped packages still need it. Both rules are true; the distinction is whether the package emits                          | `ENGINEERING.md` §Repository hygiene            |
+| S-14 | `import.meta` is unavailable in CommonJS output — tsc rejects it even though SWC silently rewrites it. `apps/api` uses `__dirname`                                                                                                                                                                        | `apps/api/src/main.ts`                          |
 | S-15 | **Terminus signals a failed readiness check by throwing a 503 carrying the per-indicator detail.** A global `@Catch()` Problem Details filter swallows it into a generic 500, discarding exactly what an orchestrator needs. Health is now exempt from the filter — found only by actually stopping Redis | `ENGINEERING.md` §API conventions · filter spec |
-| S-16 | Locating the `.env` by a fixed `../../..` worked only because `src/` and `dist/` sit at the same depth. Replaced with an upward search plus an `ENV_FILE` override | `apps/api/src/main.ts` |
+| S-16 | Locating the `.env` by a fixed `../../..` worked only because `src/` and `dist/` sit at the same depth. Replaced with an upward search plus an `ENV_FILE` override                                                                                                                                        | `apps/api/src/main.ts`                          |
 
 Verified against the running stack: liveness stays `200` while Redis is down and readiness returns `503`
 naming it; CORS allows `acme.lvh.me:3001` and blocks `acme.lvh.me.evil.com:3001`, a wrong port, a
@@ -158,11 +158,11 @@ RLS.
 
 ## Round 5 — CI, 2026-09-22
 
-| # | Finding | Folded into |
-| --- | --- | --- |
-| S-17 | **The lint gate had no teeth.** The scaffold's shared ESLint config included `eslint-plugin-only-warn`, which downgrades every error to a warning; ESLint exits 0 on warnings, so `turbo lint` passed regardless of what it found. Removed, with `--max-warnings 0` everywhere. Discovered while adding the boundary rules — which would have been decorative | `packages/eslint-config/base.js` · `ENGINEERING.md` §CI |
-| S-18 | A fresh install carried **19 high-severity advisories**, so the audit gate would have been red on arrival. Resolved to zero with targeted `pnpm.overrides`, each annotated: `multer` (real, via `@nestjs/platform-express`), and `mysql2`/`deepmerge-ts` (Prisma CLI adapters we never load — unreachable, but an unreachable advisory still fails a gate). Five moderates remain, all transitive build tooling | `package.json` `pnpm.overrides` |
-| S-19 | `docker compose up -d --wait` treats a one-shot initialiser's **clean exit as a failure**, so `minio-init` broke the wait. Long-running services are waited on explicitly and the initialiser runs afterwards in the foreground | `.github/workflows/ci.yml` · `ENGINEERING.md` |
+| #    | Finding                                                                                                                                                                                                                                                                                                                                                                                                         | Folded into                                             |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| S-17 | **The lint gate had no teeth.** The scaffold's shared ESLint config included `eslint-plugin-only-warn`, which downgrades every error to a warning; ESLint exits 0 on warnings, so `turbo lint` passed regardless of what it found. Removed, with `--max-warnings 0` everywhere. Discovered while adding the boundary rules — which would have been decorative                                                   | `packages/eslint-config/base.js` · `ENGINEERING.md` §CI |
+| S-18 | A fresh install carried **19 high-severity advisories**, so the audit gate would have been red on arrival. Resolved to zero with targeted `pnpm.overrides`, each annotated: `multer` (real, via `@nestjs/platform-express`), and `mysql2`/`deepmerge-ts` (Prisma CLI adapters we never load — unreachable, but an unreachable advisory still fails a gate). Five moderates remain, all transitive build tooling | `package.json` `pnpm.overrides`                         |
+| S-19 | `docker compose up -d --wait` treats a one-shot initialiser's **clean exit as a failure**, so `minio-init` broke the wait. Long-running services are waited on explicitly and the initialiser runs afterwards in the foreground                                                                                                                                                                                 | `.github/workflows/ci.yml` · `ENGINEERING.md`           |
 
 | S-20 | **The documented onboarding sequence was broken.** `ENGINEERING.md` §Local development listed `install → compose up → db:bootstrap → db:doctor`, with no `db:generate` — so a fresh clone fails on a module-resolution error for the Prisma client. Caught by the CI smoke job on its first real run, which is exactly what a smoke job is for. `db:doctor` and `db:seed` now generate first (it takes ~10ms), and the documented sequence is explicit | `ENGINEERING.md` · `packages/database/package.json` |
 
@@ -170,19 +170,32 @@ The boundary rules were verified by planting deliberate violations — a fronten
 importing `@patchgrid/database`, and raw SQL in an API service — confirming each
 fails with a message naming the document it comes from, then removing them.
 
+## Round 6 — finishing M0, 2026-09-22
+
+| #    | Finding                                                                                                                                                                                                                                                                                                                      | Folded into                     |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| S-21 | `@vitejs/plugin-react@6` peers `vite ^8`, but **Vitest 5 still ships Vite 7** — and Vitest's `latest` is 5, not the 4 the advisory asked for. Upgraded every package to Vitest 5 (which also clears the moderate `vitest`/`@vitest/mocker` advisories) and pinned the React plugin to the 5 line that matches Vite 7         | `apps/*/package.json`           |
+| S-22 | **Testing Library's auto-cleanup only registers when Vitest globals are enabled.** They are off here, so `render` appended to the same `document.body` every time and the second test in a file saw the first test's DOM — surfacing as a confusing "found multiple elements". `afterEach(cleanup)` is registered explicitly | `apps/app/test/setup.ts`        |
+| S-23 | `exactOptionalPropertyTypes` caught a third instance of the same class of bug: `workers: undefined` in the Playwright config is not the same as omitting `workers`                                                                                                                                                           | `apps/app/playwright.config.ts` |
+
+The commit-message scope list initially rejected two scopes already in use (`ts`,
+`lint`) — caught by checking the existing log against the rule rather than
+assuming they agreed.
+
 ## Still open
 
-| # | Item | Why it is not closed |
-| --- | --- | --- |
-| **R-4** | `.vscode/` exists but is git-ignored | Decide: commit shared settings, or delete |
-| **D-6** | ADR-0015 lists a `Plan` table that was never built | The closed platform-class list in `TENANCY.md` §7 omits it, so the schema is unambiguous; the ADR body is immutable and this is too minor for an erratum |
+| #           | Item                                                             | Why it is not closed                                                                                                                                                              |
+| ----------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **R-4**     | `.vscode/` exists but is git-ignored                             | Decide: commit shared settings, or delete                                                                                                                                         |
+| **LICENSE** | No licence file, so the work is "all rights reserved" by default | A decision for the author: MIT reads as "please learn from this", which suits a portfolio project; leaving it absent keeps every right reserved. Nothing else in M0 depends on it |
+| **D-6**     | ADR-0015 lists a `Plan` table that was never built               | The closed platform-class list in `TENANCY.md` §7 omits it, so the schema is unambiguous; the ADR body is immutable and this is too minor for an erratum                          |
 
 # Part 0 — What is genuinely good
 
 Worth stating before the criticism, because these should not be "improved" away:
 
 - The four-layer isolation model (`TENANCY.md` §7) with RLS as the backstop is the right call, and
-  layer 2 (explicit `orgId` in every repository method) being *deliberately redundant* is correct
+  layer 2 (explicit `orgId` in every repository method) being _deliberately redundant_ is correct
   reasoning that most people get wrong.
 - `PermissionService.can()` being **pure** is the single best decision in `RBAC.md`. It is what makes
   the exhaustive matrix test possible, and it is what a policy engine would give you anyway.
@@ -213,12 +226,12 @@ These three contradict each other, and the first two are unimplementable. Every 
 
 So the tenant must come from somewhere else, and the three candidate sources behave differently:
 
-| Caller | `Origin` present? | Cookie present? | Notes |
-| --- | --- | --- | --- |
-| Browser, client component (`fetch`/TanStack Query) | yes | yes | `Origin: https://acme.patchgrid.xyz` |
-| Browser, `EventSource` (SSE) | yes | yes | GET only, cannot set headers |
-| Next.js **server** component / server action via `apiFetch` | **no** | forwarded manually | server-to-server fetch sends no `Origin` |
-| API token (curl, monitoring system) | usually no | no | token is the only binding |
+| Caller                                                      | `Origin` present? | Cookie present?    | Notes                                    |
+| ----------------------------------------------------------- | ----------------- | ------------------ | ---------------------------------------- |
+| Browser, client component (`fetch`/TanStack Query)          | yes               | yes                | `Origin: https://acme.patchgrid.xyz`     |
+| Browser, `EventSource` (SSE)                                | yes               | yes                | GET only, cannot set headers             |
+| Next.js **server** component / server action via `apiFetch` | **no**            | forwarded manually | server-to-server fetch sends no `Origin` |
+| API token (curl, monitoring system)                         | usually no        | no                 | token is the only binding                |
 
 `ADR-0007` makes server components first-class callers, so the "no `Origin`" row is not an edge case —
 it is the majority of page loads.
@@ -270,7 +283,7 @@ recently used tenant cookies on mint) so a user in 30 orgs does not blow the 4 K
 budget. Note the consequence for `apps/www`: it reads `pg_id`, not a tenant cookie, to decide whether
 to show "Go to your workspace".
 
-Also record the residual risk: any tenant subdomain can *set* cookies for `.patchgrid.xyz`
+Also record the residual risk: any tenant subdomain can _set_ cookies for `.patchgrid.xyz`
 ("cookie tossing"), so a malicious tenant can overwrite another's cookie. Per-tenant names plus signed
 tokens reduce this to a denial-of-service, not a takeover. `__Host-` prefixes cannot be used because
 they forbid a `Domain` attribute.
@@ -284,16 +297,16 @@ zero rows and every write is rejected by `WITH CHECK`.
 
 Everything that actually needs the escape hatch touches tenant-owned tables:
 
-| Operation | Table | Class | Org known in advance? |
-| --- | --- | --- | --- |
-| Org picker: list my memberships | `Membership` | T | **no** — that's the question being asked |
-| Accept an invite from `app.patchgrid.xyz` | `Invitation` | T | **no** — only the token is known |
-| Authenticate `Authorization: Bearer pg_…` | `ApiToken` | T | **no** — only the prefix is known |
-| Support session lookup for the banner | `SupportSession` | T | yes |
-| `org-purge` hard delete | all T tables | T | yes |
-| Platform admin reading content in a session | all T tables | T | yes |
+| Operation                                   | Table            | Class | Org known in advance?                    |
+| ------------------------------------------- | ---------------- | ----- | ---------------------------------------- |
+| Org picker: list my memberships             | `Membership`     | T     | **no** — that's the question being asked |
+| Accept an invite from `app.patchgrid.xyz`   | `Invitation`     | T     | **no** — only the token is known         |
+| Authenticate `Authorization: Bearer pg_…`   | `ApiToken`       | T     | **no** — only the prefix is known        |
+| Support session lookup for the banner       | `SupportSession` | T     | yes                                      |
+| `org-purge` hard delete                     | all T tables     | T     | yes                                      |
+| Platform admin reading content in a session | all T tables     | T     | yes                                      |
 
-The last three are fine — the org is known, so `runAsPlatform` can simply *set the context to that org*
+The last three are fine — the org is known, so `runAsPlatform` can simply _set the context to that org_
 and everything works with no bypass at all. The first three are genuine chicken-and-egg: you need a
 cross-tenant read to discover which tenant you are in.
 
@@ -305,26 +318,26 @@ cross-tenant read to discover which tenant you are in.
   places".
 - **The three lookup problems are solved by making the org discoverable from the credential**, not by a
   bypass:
-  - *Invitations*: token is `<orgId-b36>.<secret>`; the API parses the org, calls
+  - _Invitations_: token is `<orgId-b36>.<secret>`; the API parses the org, calls
     `runAsTenant(orgId, …)`, then verifies the secret against `tokenHash`. Wrong org ⇒ no row ⇒ generic
     "invalid or expired invite".
-  - *API tokens*: same shape — `pg_<orgSlugOrId>_<prefix>_<secret>`, or keep `pg_<prefix>_<secret>` and
+  - _API tokens_: same shape — `pg_<orgSlugOrId>_<prefix>_<secret>`, or keep `pg_<prefix>_<secret>` and
     add a tiny **platform-class** index table `ApiTokenIndex { prefix (unique), orgId }` written in the
     same transaction as the `ApiToken` row. The index leaks nothing (a prefix and an org id), and
     `ApiToken` itself stays tenant-owned with its policy intact.
-  - *Membership list for the org picker*: this one genuinely needs a cross-tenant read of a tenant-owned
+  - _Membership list for the org picker_: this one genuinely needs a cross-tenant read of a tenant-owned
     table. Cleanest fix: **reclassify `Membership` as platform-class with a policy** —
     `USING (orgId = current_setting(...)::uuid OR current_setting('app.platform_scope', true) = 'membership')`
     is ugly. Better: keep `Membership` tenant-owned and add a narrow platform-class projection
     `UserOrgIndex { userId, orgId, role, status }` maintained in the same transaction as `Membership`.
-    Login reads only that. It is denormalisation, but it is the *only* denormalisation, it is 4 columns,
+    Login reads only that. It is denormalisation, but it is the _only_ denormalisation, it is 4 columns,
     and it keeps `patchgrid_app` free of `BYPASSRLS` — which is the property the whole ADR-0015 story
     rests on.
 
 If you would rather not carry two projection tables, the alternative is a second DB role
 `patchgrid_platform` **with** `BYPASSRLS`, used by exactly one injectable (`PlatformRepository`), on a
 separate connection pool, with an ESLint rule and a CI test on its call sites. That is the pragmatic
-industry answer. It is weaker — the app *can* now disable its own isolation — so it needs its own ADR
+industry answer. It is weaker — the app _can_ now disable its own isolation — so it needs its own ADR
 stating that trade honestly.
 
 **Either way this needs an ADR (0022) before M1.** It is the single largest unresolved question in the
@@ -374,7 +387,7 @@ model Comment {
 }
 ```
 
-Now the database *structurally* cannot hold a cross-tenant reference — no policy, no trigger, no
+Now the database _structurally_ cannot hold a cross-tenant reference — no policy, no trigger, no
 application code involved. This is the piece that turns "four layers of filtering" into "the shape of
 the data is correct by construction", and it is exactly the advanced-schema-design work you asked for.
 
@@ -384,8 +397,8 @@ Apply it to: `Comment`, `Attachment`, `TicketLink` (both ends), `TicketAsset`, `
 `Invitation.teamId`, `Notification.ticketId`, `KnowledgeArticle.categoryId`, `ApiToken.membershipId`,
 and every later-milestone table keyed by `ticketId`.
 
-Add assertion #10 to the isolation suite: *every FK between two tenant-owned tables is composite on
-`orgId`* — enumerable from `information_schema`, so it is a one-off test that can never silently rot.
+Add assertion #10 to the isolation suite: _every FK between two tenant-owned tables is composite on
+`orgId`_ — enumerable from `information_schema`, so it is a one-off test that can never silently rot.
 
 ## P0-5 · People are referenced by `User.id`, so nothing enforces "is a member of this org"
 
@@ -403,8 +416,8 @@ Two consequences:
 2. **Any join to `User` is unprotected.** A forgotten `where` on a `User` query returns every user of
    every customer, with emails. `User` is the one table where a leak is maximally embarrassing.
 
-**Recommendation.** Reference **`Membership`**, not `User`, wherever the field means "a person *in this
-org*" — which is all of them except `AuditLog.actorId` when the actor is a platform admin:
+**Recommendation.** Reference **`Membership`**, not `User`, wherever the field means "a person _in this
+org_" — which is all of them except `AuditLog.actorId` when the actor is a platform admin:
 
 - `Ticket.requesterMembershipId`, `assigneeMembershipId` → composite FK `(orgId, id)` on `Membership`.
 - Same for `Comment.authorMembershipId`, `TicketWatcher.membershipId`, `ChangeApproval.approverMembershipId`,
@@ -424,7 +437,7 @@ list queries — and that also fixes the "deleted user" display problem.
 **This and P0-4 together are the single highest-value change in this review.** They convert two whole
 classes of bug from "caught by tests if we remember" to "rejected by the database".
 
-## P0-6 · `FORCE ROW LEVEL SECURITY` means the owner does *not* bypass RLS
+## P0-6 · `FORCE ROW LEVEL SECURITY` means the owner does _not_ bypass RLS
 
 `ADR-0015:48` — "Migrations and seeds run as the owner role, **which bypasses RLS by ownership**".
 
@@ -437,7 +450,7 @@ Consequences if left as written:
 - Any data migration (backfill, column rename with a copy step) silently affects **zero rows**.
 - `TRUNCATE` in the integration-test harness (`ENGINEERING.md:50`) fails or no-ops.
 - The seed works only because `ADR-0015:48` also says it sets tenant context per org — but the
-  justification given for why it *could* work without that is wrong, and someone will rely on it.
+  justification given for why it _could_ work without that is wrong, and someone will rely on it.
 
 **Recommendation.** Fix the sentence, and decide explicitly:
 
@@ -455,8 +468,8 @@ That boot assertion is cheap and turns a catastrophic misconfiguration into a st
 
 Nowhere in `ARCHITECTURE.md:254`, `ENGINEERING.md:106` or `ADR-0015`.
 
-The app role owns nothing, so it needs explicit `GRANT`s. Grants apply to tables that exist *at the time
-they are issued*. Every `prisma migrate` that adds a table creates it owned by the migration role, with
+The app role owns nothing, so it needs explicit `GRANT`s. Grants apply to tables that exist _at the time
+they are issued_. Every `prisma migrate` that adds a table creates it owned by the migration role, with
 no privileges for `patchgrid_app` — so the app gets `permission denied for table X` the moment the
 feature ships, and only in whichever environment ran the migration.
 
@@ -473,7 +486,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE patchgrid_owner IN SCHEMA public
 ```
 
 `ALTER DEFAULT PRIVILEGES` is the line that makes it survive future migrations, and it must name the
-role that *creates* the objects. Add an isolation-suite assertion: for every tenant-owned table,
+role that _creates_ the objects. Add an isolation-suite assertion: for every tenant-owned table,
 `has_table_privilege('patchgrid_app', t, 'SELECT')` is true — so a missing grant fails CI rather than
 production.
 
@@ -512,7 +525,7 @@ time-ordering that is the entire reason to pick v7) or an app-side generator.
 - Write it up as a short ADR (id strategy + `timestamptz` + `@db.Uuid`) so the three decisions travel
   together.
 
-Also worth stating the *reason* for v7 explicitly, since it is a real design point: time-ordered ids
+Also worth stating the _reason_ for v7 explicitly, since it is a real design point: time-ordered ids
 keep B-tree inserts at the right edge (no page splits across the whole index) and make
 `(orgId, createdAt DESC, id DESC)` cursors monotonic.
 
@@ -551,7 +564,7 @@ outer one".
 
 Prisma's interactive-transaction client (`tx`) does **not** expose `$transaction`. So if the extension
 runs on a tx-scoped client it will try to open a nested transaction and throw at runtime. The docs say
-nesting is reused but never say *how the extension knows*.
+nesting is reused but never say _how the extension knows_.
 
 **Recommendation.** Specify the mechanism in `ADR-0015`:
 
@@ -568,11 +581,11 @@ Three more things to write down while you are there:
    only by RLS. Either way, ban raw SQL outside `packages/database` and the RLS migrations with an ESLint
    rule, and add an isolation-suite case that a raw query without context returns zero rows.
 2. **Connection cost.** One interactive transaction per query means one pooled connection held for the
-   full round trip, and Prisma's defaults (`maxWait: 2000ms`, `timeout: 5000ms`) now apply to *every*
+   full round trip, and Prisma's defaults (`maxWait: 2000ms`, `timeout: 5000ms`) now apply to _every_
    query. An N+1 in a list endpoint becomes N transactions and will exhaust the pool long before it
    becomes slow. Mitigation to state as a rule: **one logical read = one repository call = one
    transaction**; list endpoints use `include`/`select`, never per-row follow-ups. Add `p95 queries per
-   request` to the log line so regressions are visible.
+request` to the log line so regressions are visible.
 3. **Fail-closed property is worth stating.** `set_config(..., true)` outside a transaction applies only
    to the current statement, so if the extension ever fails to open a transaction, the GUC evaporates and
    RLS returns zero rows rather than everything. That is the behaviour you want; say so, so nobody
@@ -599,11 +612,11 @@ CREATE UNIQUE INDEX category_root_name ON "Category" ("orgId", name) WHERE "pare
 Fix the sentence in `ARCHITECTURE.md:214` and in `CLAUDE.md` at the same time — both currently state the
 wrong rule.
 
-## P0-13 · Presigned **PUT** cannot enforce a content-length *range*
+## P0-13 · Presigned **PUT** cannot enforce a content-length _range_
 
 `ADR-0005:21` — "returns a presigned PUT (5-minute TTL, content-type and **content-length conditions**)".
 
-S3 presigned **PUT** URLs sign headers; they cannot express a *range*. `content-length-range` is a
+S3 presigned **PUT** URLs sign headers; they cannot express a _range_. `content-length-range` is a
 condition of a presigned **POST policy** (the multipart form flavour), not of `PUT`. As written, the
 plan implies a guarantee the mechanism cannot give: a client can PUT a 5 GB file to a URL issued for a
 2 MB upload, and you discover it at the `HEAD` in step 3 — after the bytes are already stored and paid
@@ -617,7 +630,7 @@ for.
 - Or switch to **presigned POST** with a real `content-length-range` policy.
 
 Keep the `HEAD` verification in step 3 regardless. Also add: the `PENDING`-cleanup job must delete the
-*object* as well as the row, and the storage `UsageCounter` must decrement on attachment delete and on
+_object_ as well as the row, and the storage `UsageCounter` must decrement on attachment delete and on
 ticket/org purge — neither is currently specified anywhere.
 
 ## P0-14 · The attachment MIME allow-list permits stored XSS
@@ -627,7 +640,7 @@ ticket/org purge — neither is currently specified anywhere.
 
 `image/svg+xml` is an image. An SVG is an HTML document that can execute script. Served from the MinIO /
 S3 origin with a presigned GET and rendered inline, it is stored XSS — and in an ITSM product the
-attachments are, by design, *files users were suspicious of* (see the phishing-report feature).
+attachments are, by design, _files users were suspicious of_ (see the phishing-report feature).
 
 **Recommendation.**
 
@@ -688,11 +701,11 @@ warning as a percentage of target (e.g. 80 %). Percentages scale automatically a
 Suggested defaults if you keep absolute minutes:
 
 | Priority | Response | Resp. warn | Resolution | Res. warn |
-| --- | --- | --- | --- | --- |
-| Critical | 15 min | 5 min | 4 h | 45 min |
-| High | 30 min | 10 min | 8 h | 1 h |
-| Medium | 1 h | 15 min | 24 h | 2 h |
-| Low | 4 h | 1 h | 72 h | 4 h |
+| -------- | -------- | ---------- | ---------- | --------- |
+| Critical | 15 min   | 5 min      | 4 h        | 45 min    |
+| High     | 30 min   | 10 min     | 8 h        | 1 h       |
+| Medium   | 1 h      | 15 min     | 24 h       | 2 h       |
+| Low      | 4 h      | 1 h        | 72 h       | 4 h       |
 
 Also add the guard explicitly: never warn when `warningAt <= createdAt`.
 
@@ -714,7 +727,7 @@ first customisation.
 So an agent who starts work and then discovers the ticket is spam, a duplicate, or was raised by mistake
 has no exit except resolving it — which pollutes SLA and resolution statistics, the exact numbers the
 product exists to report on. Also note that duplicate-merge (`DOMAIN.md:198`) explicitly closes the
-duplicate as `CANCELLED`, and a duplicate is usually spotted *while working it*.
+duplicate as `CANCELLED`, and a duplicate is usually spotted _while working it_.
 
 **Recommendation.** Allow `IN_PROGRESS → CANCELLED` for Agent/Admin with a required reason comment. While
 you are in there, settle the rest of the table's silent denials explicitly rather than by omission:
@@ -749,7 +762,7 @@ Also unspecified: a Change with **no team** has no lead, so only Admins can appr
   the `ChangeApproval` row records `selfApproved: true`. The UI shows it as such; it appears in the audit
   log as a distinct action. That is how real CAB-less shops operate, and it is more honest than a hidden
   bypass.
-- Alternatively, block *submission* with a 409 explaining that a second admin is required. Worse UX;
+- Alternatively, block _submission_ with a 409 explaining that a second admin is required. Worse UX;
   it makes the very first Change in a new workspace fail.
 
 Recommend the first. Either way `DOMAIN.md` §2.3 and the `ticket:approve_change` matrix row must say it.
@@ -841,7 +854,7 @@ the limit, and the two-step ownership transfer.
 
 **Recommendation.** State a general rule in `ENGINEERING.md` §Transactions and apply it consistently:
 
-> Any invariant over a *set* of rows (owner count, seat count, monthly ticket count) is enforced by
+> Any invariant over a _set_ of rows (owner count, seat count, monthly ticket count) is enforced by
 > taking a row lock on the owning `Organization` row (`SELECT … FOR UPDATE`) inside the same transaction
 > as the mutation, or by a deferred constraint. Never by read-then-write.
 
@@ -865,7 +878,7 @@ Two problems:
    effectively unlimited until the nightly reconcile. The spec never says Postgres is authoritative.
 
 **Recommendation.** `UsageCounter` in Postgres is the source of truth; Redis is a read-through cache with
-a short TTL for *display*. The enforcing increment is
+a short TTL for _display_. The enforcing increment is
 `UPDATE "UsageCounter" SET value = value + 1 WHERE … AND value < $limit RETURNING value` inside the
 mutation's transaction — zero rows returned means over limit, `402`, and the transaction rolls back
 atomically with the ticket that was not created. Also specify:
@@ -887,7 +900,7 @@ not say. If freed:
 - Every 301 already cached by a browser is **permanent** — that is what 301 means. A user who visited
   `oldname.patchgrid.xyz` will be redirected to the new org by their own browser cache, forever.
 - Conversely, a third party can register the freed slug and receive traffic, bookmarks and — worse —
-  *emailed deep links* intended for the previous tenant. Combined with the shared `.patchgrid.xyz` cookie
+  _emailed deep links_ intended for the previous tenant. Combined with the shared `.patchgrid.xyz` cookie
   domain, that is a cookie-tossing and phishing position.
 
 **Recommendation.**
@@ -896,7 +909,7 @@ not say. If freed:
   ("this workspace moved to …") rather than a silent redirect.
 - Keep `OrganizationSlugHistory` rows **forever** and exclude them from slug availability, permanently.
   A slug is never reused. Storage cost is nil; the class of bug it prevents is severe.
-- Add `previousSlugRedirectUntil` so the redirect stops after 30 days but the *reservation* does not.
+- Add `previousSlugRedirectUntil` so the redirect stops after 30 days but the _reservation_ does not.
 
 ## P1-14 · `inbound` is used as a hostname but is not reserved
 
@@ -925,13 +938,13 @@ the index plan. It is not a "polish" item.
 **Recommendation.** Decide now, even if you build it in M2/M5:
 
 - `Ticket.searchVector tsvector GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || description))
-  STORED`, GIN index `(orgId, searchVector)`. (A generated column avoids a trigger; note that the
+STORED`, GIN index `(orgId, searchVector)`. (A generated column avoids a trigger; note that the
   `english` config is hard-coded — state that multilingual search is out of scope.)
 - Ticket **number** lookup (`INC-000042`, or bare `42`) short-circuits to a direct index hit.
 - Search results go through the same `scopeFor()` filter as lists — say so explicitly, because a
   search endpoint that forgets it is the classic agent-visibility leak.
 - Ranking + cursor pagination interact badly (`ts_rank` is not a stable sort key). Recommend: search is
-  `ORDER BY ts_rank DESC, id DESC` with an offset cap of 100 results, *not* cursor-paginated, and say so
+  `ORDER BY ts_rank DESC, id DESC` with an offset cap of 100 results, _not_ cursor-paginated, and say so
   in `ADR-0012` as the documented exception.
 
 ## P1-16 · The index plan does not cover the default list query or the audit filters
@@ -1008,7 +1021,7 @@ Undefined: a **watcher** who is a requester (`RBAC.md:62` grants them `comment:c
 comments resume the clock? An agent's public comment while `PENDING` — does that resume it (it should
 not)? A comment posted by an API service account on the requester's behalf?
 
-**Recommendation.** State it as: *the ticket's own requester* (`requesterMembershipId`), and only a
+**Recommendation.** State it as: _the ticket's own requester_ (`requesterMembershipId`), and only a
 `PUBLIC` comment, and only from `PENDING`. Everything else leaves the status alone. One sentence, but it
 is the difference between an SLA number that means something and one that does not.
 
@@ -1107,7 +1120,7 @@ SUPPORT_READ { sessionId, adminId, endpoint, entityType, entityIds[] (capped, e.
 
 One row per API call. `ADR-0020`'s implementation note (a `SupportSessionInterceptor`) is then correct
 and cheap. Also specify: these writes must not be inside the read's transaction (a failed audit write
-must not fail the read — but it *must* fail the session; recommend: buffered write, and the session is
+must not fail the read — but it _must_ fail the session; recommend: buffered write, and the session is
 terminated if the audit sink errors).
 
 ## P1-26 · Platform admin identity, bootstrap and separation of duties are unspecified
@@ -1119,7 +1132,7 @@ Open and unanswered:
 - **How is the first one created?** There is no endpoint. Presumably a seed or CLI — say which.
 - A platform admin is also a normal `User`. If they are also a member of tenant `acme`, do they carry
   platform powers there? (They must not — but nothing says so.)
-- Can a platform admin grant *themselves* a support session? `RBAC.md:165` says only an owner grants —
+- Can a platform admin grant _themselves_ a support session? `RBAC.md:165` says only an owner grants —
   but if the platform admin is also an owner of some org, they can grant themselves access to **that**
   org. Probably fine, worth stating.
 - Nothing requires stronger auth for the account that can suspend every customer.
@@ -1155,16 +1168,16 @@ signal-to-effort security feature left on the table.
 `RBAC.md:66-79` (catalog) vs `RBAC.md:81-125` (matrix). Your own test #1 (`RBAC.md:218`) fails the suite
 when these disagree, so these are build breaks, not nits:
 
-| Problem | Detail |
-| --- | --- |
-| `asset:read_all` | in the catalog (§6), **no row in the matrix** (§7 only has `asset:read`) |
-| `category:read`, `sla:read` | **not in the catalog at all** — but a requester must read the category tree to file a ticket, and the console must read SLA policies to render targets |
-| `automation:read` | in the catalog; the matrix row collapses it into "`automation:*` — read only" for agents, which is not a checkable row |
-| `member:remove` | `MEMBER_REMOVED` is audited (§12) but no permission exists; only `member:disable` |
-| `org:cancel_deletion` | `ORG_DELETION_CANCELLED` is audited; no permission |
-| `support:request_access` | a platform admin "may *request* access" (§165); no permission models it |
-| `notification:read` / `notification:update` | the bell and mark-as-read are endpoints; the route-coverage test will demand a permission or a `@Public` marker for them |
-| `ticket:comment` vs `comment:create_public` | the matrix row for `comment:create_public` is "own, watch" for requesters — but a requester commenting on their own ticket *is* `ticket:read`-gated too. State the composition rule: a comment permission is always evaluated **after** `ticket:read` on the same subject |
+| Problem                                     | Detail                                                                                                                                                                                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `asset:read_all`                            | in the catalog (§6), **no row in the matrix** (§7 only has `asset:read`)                                                                                                                                                                                                  |
+| `category:read`, `sla:read`                 | **not in the catalog at all** — but a requester must read the category tree to file a ticket, and the console must read SLA policies to render targets                                                                                                                    |
+| `automation:read`                           | in the catalog; the matrix row collapses it into "`automation:*` — read only" for agents, which is not a checkable row                                                                                                                                                    |
+| `member:remove`                             | `MEMBER_REMOVED` is audited (§12) but no permission exists; only `member:disable`                                                                                                                                                                                         |
+| `org:cancel_deletion`                       | `ORG_DELETION_CANCELLED` is audited; no permission                                                                                                                                                                                                                        |
+| `support:request_access`                    | a platform admin "may _request_ access" (§165); no permission models it                                                                                                                                                                                                   |
+| `notification:read` / `notification:update` | the bell and mark-as-read are endpoints; the route-coverage test will demand a permission or a `@Public` marker for them                                                                                                                                                  |
+| `ticket:comment` vs `comment:create_public` | the matrix row for `comment:create_public` is "own, watch" for requesters — but a requester commenting on their own ticket _is_ `ticket:read`-gated too. State the composition rule: a comment permission is always evaluated **after** `ticket:read` on the same subject |
 
 **Recommendation.** Regenerate §6 and §7 from one source. The cleanest form: a single table where every
 row is `(permission, requester, agent, admin, owner, notes)` and §6 is derived from its first column.
@@ -1186,8 +1199,8 @@ check") — the UI will be forced to re-derive.
 - `GET /me` → `permissions[]` = the **role-level** capabilities, honestly documented as "what this role
   can ever do", used for navigation and page-level gating only.
 - `GET /tickets/:id` → `availableActions[]` (already specified, ADR-0006) **plus** `capabilities: {
-  editFields: ["title","description"], canCommentPublic: true, canCommentInternal: false,
-  canAddWatcher: true, canDeleteAttachment: false }` — computed by the same `can()` calls the mutation
+editFields: ["title","description"], canCommentPublic: true, canCommentInternal: false,
+canAddWatcher: true, canDeleteAttachment: false }` — computed by the same `can()` calls the mutation
   endpoints will make, on the resolved subject.
 
 Same for list rows if you want per-row affordances. State this in `RBAC.md` §11 and `ADR-0019`, because
@@ -1207,11 +1220,23 @@ There is no `comments:*` or `attachments:*` scope at all.
 
 ```ts
 const SCOPE_GRANTS: Record<Scope, Permission[]> = {
-  "tickets:read":  ["ticket:read", "comment:read_public", "attachment:download", "ticket:read_audit"],
-  "tickets:write": ["ticket:create", "ticket:update", "ticket:transition", "ticket:assign",
-                    "ticket:link", "comment:create_public", "attachment:upload"],
+  "tickets:read": [
+    "ticket:read",
+    "comment:read_public",
+    "attachment:download",
+    "ticket:read_audit",
+  ],
+  "tickets:write": [
+    "ticket:create",
+    "ticket:update",
+    "ticket:transition",
+    "ticket:assign",
+    "ticket:link",
+    "comment:create_public",
+    "attachment:upload",
+  ],
   // …
-};
+}
 ```
 
 and make the matrix test assert the intersection for every `(scope-set, role, permission)` triple, plus
@@ -1239,23 +1264,23 @@ product demos.
 
 These are cheap to fix and each one is a place where an implementer would have to guess.
 
-| # | Where | Conflict | Fix |
-| --- | --- | --- | --- |
-| D-1 | `TENANCY.md:8` vs `ARCHITECTURE.md:148-151` | `Organization` has `ownerCount` + `createdAt` in one, `defaultJoinRole`, `agentVisibility`, `deletionRequestedAt` in the other. Neither is a superset | One canonical entity definition. `ARCHITECTURE.md` owns the schema; `TENANCY.md` should reference it, not restate it |
-| D-2 | `TENANCY.md:30` ("403") vs `ADR-0017:35` ("402/403") | Suspended-org status code | `403` with `type: .../organization-suspended`. `402` is exclusively plan limits (`ENGINEERING.md:34`) |
-| D-3 | `ADR-0012:22` (`https://patchgrid.dev/problems/…`) vs everywhere else (`patchgrid.xyz`) | Problem Details `type` URIs use the wrong domain | `https://patchgrid.xyz/problems/…`. Decide whether those URLs must actually resolve (recommend: yes, a static page per type on `apps/www` — it is a genuinely nice touch and costs one MDX file) |
-| D-4 | `DOMAIN.md:191` vs `ARCHITECTURE.md:196` vs `RBAC.md:74` | KB `isPublished` vs three-tier `visibility` | Three-tier (P1-21) |
-| D-5 | `ARCHITECTURE.md:145` ("Every table has `id`, `createdAt`, `updatedAt`") vs the model itself | `TicketCounter`, `TicketAsset`, `TicketWatcher`, `UsageCounter` have composite PKs and no `id`; several have no `updatedAt` | Restate as "every *entity* table"; list the join/counter exceptions explicitly |
-| D-6 | `ADR-0015:39` lists `Plan` as a platform table | `ARCHITECTURE.md:149` models `plan` as an enum on `Organization` | Drop `Plan` from ADR-0015's list (it was never built) or introduce the table. Recommend the enum; plans are code, not data, until billing exists |
-| D-7 | `PROJECT.md:13` "Three surfaces, three deployables" | The table below it lists five hosts | "Three deployables across five hostnames" |
-| D-8 | `PROJECT.md:29` says team leadership is "a scoped capability rather than a role" — correct — but `TENANCY.md:10` models `Membership.teamId` and `ARCHITECTURE.md:162` models `Team.leadId` | A membership has **one** `teamId`; a lead of team X who is a member of team Y is unrepresentable, and an agent in two teams is unrepresentable | Decide: (a) one team per membership (simple, states it as a product rule), or (b) `TeamMembership` join table (realistic — agents routinely sit in two queues). Recommend (b) and note it changes `scopeFor()` from `teamId = X` to `teamId IN (…)`. **This is a schema decision, so it is effectively P0 if you choose (b)** |
-| D-9 | `ENGINEERING.md:9` lists `test:authz` among root scripts | `FEATURES.md:18` (M0) lists only `test`, `test:tenancy`, `db:*` | Add `test:authz` to the M0 checklist |
-| D-10 | `ENGINEERING.md:143` "ADRs are never edited after acceptance" | ADR-0004's status line *was* edited to record the supersession | Amend the rule: "the Context/Decision/Consequences sections are never edited; the Status line is updated when superseded" |
-| D-11 | `ARCHITECTURE.md:10` "Node 24" | `package.json` `engines.node: ">=20"`, no `.nvmrc` | Pin `24.x` in `engines` and add `.nvmrc`; CI reads it (`ENGINEERING.md:121` already assumes both exist) |
-| D-12 | `ARCHITECTURE.md:104-121` module list | No `health` module, though `/health` and `/health/ready` are M0 (`ENGINEERING.md:127`); no `search` module (P1-15); no `platform-admin` split from `platform` | Add them |
-| D-13 | `RBAC.md:72` `attachment:download` vs `ADR-0005:24` "Downloads are presigned GETs issued only after the RBAC check" | Which permission gates a download of an *internal* comment's attachment? | State: attachment visibility inherits the visibility of its parent comment; a requester can never download an attachment on an `INTERNAL` comment even if they can read the ticket |
-| D-14 | `TENANCY.md:72` lists tenant-owned tables | Misses `TicketCounter`, `ChangeApproval`, `TicketLink`, `ProblemDetails`, `ChangeDetails`, `TicketAsset`, `UsageCounter`, `Comment`, `Ticket`, `Category` (says "everything ticket-related", which the schema-coverage test cannot consume) | Delete the prose list; the schema is the source of truth and the coverage test enumerates it. Keep only the *platform* list, which is short and closed |
-| D-15 | `ADR-0014:37` "rejects unknown/suspended slugs with 404" | `TENANCY.md:31` says `PENDING_DELETION` → 404 and `SUSPENDED` → 403 | Align: unknown → 404, suspended → 403, pending-deletion → 404 |
+| #    | Where                                                                                                                                                                                      | Conflict                                                                                                                                                                                                                                    | Fix                                                                                                                                                                                                                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-1  | `TENANCY.md:8` vs `ARCHITECTURE.md:148-151`                                                                                                                                                | `Organization` has `ownerCount` + `createdAt` in one, `defaultJoinRole`, `agentVisibility`, `deletionRequestedAt` in the other. Neither is a superset                                                                                       | One canonical entity definition. `ARCHITECTURE.md` owns the schema; `TENANCY.md` should reference it, not restate it                                                                                                                                                                                                          |
+| D-2  | `TENANCY.md:30` ("403") vs `ADR-0017:35` ("402/403")                                                                                                                                       | Suspended-org status code                                                                                                                                                                                                                   | `403` with `type: .../organization-suspended`. `402` is exclusively plan limits (`ENGINEERING.md:34`)                                                                                                                                                                                                                         |
+| D-3  | `ADR-0012:22` (`https://patchgrid.dev/problems/…`) vs everywhere else (`patchgrid.xyz`)                                                                                                    | Problem Details `type` URIs use the wrong domain                                                                                                                                                                                            | `https://patchgrid.xyz/problems/…`. Decide whether those URLs must actually resolve (recommend: yes, a static page per type on `apps/www` — it is a genuinely nice touch and costs one MDX file)                                                                                                                              |
+| D-4  | `DOMAIN.md:191` vs `ARCHITECTURE.md:196` vs `RBAC.md:74`                                                                                                                                   | KB `isPublished` vs three-tier `visibility`                                                                                                                                                                                                 | Three-tier (P1-21)                                                                                                                                                                                                                                                                                                            |
+| D-5  | `ARCHITECTURE.md:145` ("Every table has `id`, `createdAt`, `updatedAt`") vs the model itself                                                                                               | `TicketCounter`, `TicketAsset`, `TicketWatcher`, `UsageCounter` have composite PKs and no `id`; several have no `updatedAt`                                                                                                                 | Restate as "every _entity_ table"; list the join/counter exceptions explicitly                                                                                                                                                                                                                                                |
+| D-6  | `ADR-0015:39` lists `Plan` as a platform table                                                                                                                                             | `ARCHITECTURE.md:149` models `plan` as an enum on `Organization`                                                                                                                                                                            | Drop `Plan` from ADR-0015's list (it was never built) or introduce the table. Recommend the enum; plans are code, not data, until billing exists                                                                                                                                                                              |
+| D-7  | `PROJECT.md:13` "Three surfaces, three deployables"                                                                                                                                        | The table below it lists five hosts                                                                                                                                                                                                         | "Three deployables across five hostnames"                                                                                                                                                                                                                                                                                     |
+| D-8  | `PROJECT.md:29` says team leadership is "a scoped capability rather than a role" — correct — but `TENANCY.md:10` models `Membership.teamId` and `ARCHITECTURE.md:162` models `Team.leadId` | A membership has **one** `teamId`; a lead of team X who is a member of team Y is unrepresentable, and an agent in two teams is unrepresentable                                                                                              | Decide: (a) one team per membership (simple, states it as a product rule), or (b) `TeamMembership` join table (realistic — agents routinely sit in two queues). Recommend (b) and note it changes `scopeFor()` from `teamId = X` to `teamId IN (…)`. **This is a schema decision, so it is effectively P0 if you choose (b)** |
+| D-9  | `ENGINEERING.md:9` lists `test:authz` among root scripts                                                                                                                                   | `FEATURES.md:18` (M0) lists only `test`, `test:tenancy`, `db:*`                                                                                                                                                                             | Add `test:authz` to the M0 checklist                                                                                                                                                                                                                                                                                          |
+| D-10 | `ENGINEERING.md:143` "ADRs are never edited after acceptance"                                                                                                                              | ADR-0004's status line _was_ edited to record the supersession                                                                                                                                                                              | Amend the rule: "the Context/Decision/Consequences sections are never edited; the Status line is updated when superseded"                                                                                                                                                                                                     |
+| D-11 | `ARCHITECTURE.md:10` "Node 24"                                                                                                                                                             | `package.json` `engines.node: ">=20"`, no `.nvmrc`                                                                                                                                                                                          | Pin `24.x` in `engines` and add `.nvmrc`; CI reads it (`ENGINEERING.md:121` already assumes both exist)                                                                                                                                                                                                                       |
+| D-12 | `ARCHITECTURE.md:104-121` module list                                                                                                                                                      | No `health` module, though `/health` and `/health/ready` are M0 (`ENGINEERING.md:127`); no `search` module (P1-15); no `platform-admin` split from `platform`                                                                               | Add them                                                                                                                                                                                                                                                                                                                      |
+| D-13 | `RBAC.md:72` `attachment:download` vs `ADR-0005:24` "Downloads are presigned GETs issued only after the RBAC check"                                                                        | Which permission gates a download of an _internal_ comment's attachment?                                                                                                                                                                    | State: attachment visibility inherits the visibility of its parent comment; a requester can never download an attachment on an `INTERNAL` comment even if they can read the ticket                                                                                                                                            |
+| D-14 | `TENANCY.md:72` lists tenant-owned tables                                                                                                                                                  | Misses `TicketCounter`, `ChangeApproval`, `TicketLink`, `ProblemDetails`, `ChangeDetails`, `TicketAsset`, `UsageCounter`, `Comment`, `Ticket`, `Category` (says "everything ticket-related", which the schema-coverage test cannot consume) | Delete the prose list; the schema is the source of truth and the coverage test enumerates it. Keep only the _platform_ list, which is short and closed                                                                                                                                                                        |
+| D-15 | `ADR-0014:37` "rejects unknown/suspended slugs with 404"                                                                                                                                   | `TENANCY.md:31` says `PENDING_DELETION` → 404 and `SUSPENDED` → 403                                                                                                                                                                         | Align: unknown → 404, suspended → 403, pending-deletion → 404                                                                                                                                                                                                                                                                 |
 
 ---
 
@@ -1266,7 +1291,7 @@ These are cheap to fix and each one is a place where an implementer would have t
 `ARCHITECTURE.md:66-76` — throttling is step 6; tenant resolution (a Redis lookup, possibly a DB read on
 miss) is step 4; token verification (Argon2/JWT work) is step 3.
 
-An unauthenticated flood therefore performs a cache lookup and possibly a database query *per request*
+An unauthenticated flood therefore performs a cache lookup and possibly a database query _per request_
 before anything rate-limits it. The cheapest defence must come first.
 
 **Recommendation.** Reorder: helmet → request id/logger → **per-IP throttle** → cookie/token parse →
@@ -1312,9 +1337,9 @@ Zod enum, and the API serialises a status the client cannot parse).
 **Recommendation.** A compile-time assertion in a test file, which costs nothing:
 
 ```ts
-type Assert<A extends B, B> = true;
-type _S1 = Assert<TicketStatus, PrismaTicketStatus>;   // Zod union ⊆ Prisma enum
-type _S2 = Assert<PrismaTicketStatus, TicketStatus>;   // and back
+type Assert<A extends B, B> = true
+type _S1 = Assert<TicketStatus, PrismaTicketStatus> // Zod union ⊆ Prisma enum
+type _S2 = Assert<PrismaTicketStatus, TicketStatus> // and back
 ```
 
 One pair per shared enum (`Role`, `TicketStatus`, `TicketType`, `Impact`, `Urgency`, `Priority`,
@@ -1344,7 +1369,7 @@ Per P0-3, the real call sites are: job dispatcher, auth (login/org picker/invite
 platform admin, **API-token authentication**, **support sessions**, **org purge**, and **email intake
 tenant resolution** (M6 — resolving `<slug>@inbound…` happens before any tenant context exists).
 
-Either the list grows, or (better) it is re-expressed as a rule about *modules* rather than a count:
+Either the list grows, or (better) it is re-expressed as a rule about _modules_ rather than a count:
 
 > Cross-tenant helpers may be imported only by `src/platform/**`, `src/auth/**` and `src/jobs/dispatcher/**`.
 > Every other module reaches other tenants only via `runAsTenant(orgId, …)`, which requires a known org.
@@ -1388,7 +1413,7 @@ you listed:
 - Locally: an OTel collector + Grafana/Tempo/Prometheus in Compose, behind a Compose profile so the
   default `docker compose up` stays light.
 
-Worth an ADR and an M8 item at minimum. Consider pulling the *instrumentation seams* into M0 (a `Tracer`
+Worth an ADR and an M8 item at minimum. Consider pulling the _instrumentation seams_ into M0 (a `Tracer`
 provider, even a no-op) so it is not retrofitted through 200 files.
 
 ## P2-3 · No zero-downtime migration policy
@@ -1428,7 +1453,7 @@ incidents — this is the gap most likely to be noticed by a senior reviewer.
 
 - **Tenant export**: `GET /org/export` (owner-only, async job, produces a signed zip of JSON + attachment
   manifest). It is also the honest answer to "can I leave?", and it is a genuinely useful M8 demo.
-- **Erasure**: a user's account can be deleted; their *content* is **pseudonymised**, not removed —
+- **Erasure**: a user's account can be deleted; their _content_ is **pseudonymised**, not removed —
   `Membership` gains `anonymisedAt`, the display name becomes "Former member", `User.email` is replaced
   by a tombstone hash. Audit rows keep the membership id, so the chain of custody survives while the
   person does not. State the reasoning: audit integrity and erasure are reconciled by pseudonymisation,
@@ -1443,7 +1468,7 @@ incidents — this is the gap most likely to be noticed by a senior reviewer.
 You listed "domain management, DNS" as a top priority. The docs currently contain: "wildcard DNS +
 wildcard TLS (DNS-01)", deferred to M8 (`ARCHITECTURE.md:24`, `ADR-0014` consequences).
 
-There is a lot of genuinely advanced material here that costs nothing to *design* now and is exactly what
+There is a lot of genuinely advanced material here that costs nothing to _design_ now and is exactly what
 distinguishes this project:
 
 - **Wildcard TLS via DNS-01**: why HTTP-01 cannot issue a wildcard, which ACME client, the registrar API
@@ -1456,7 +1481,7 @@ distinguishes this project:
   `inbound.patchgrid.xyz`, and why the tenant's org name in the `From` display name does **not** affect
   alignment.
 - **Per-tenant custom domains** (deferred, but the design matters): `CNAME support.acme.com →
-  cname.patchgrid.xyz`, per-domain certificate issuance with `tls-alpn-01` or DNS-01 delegation, a
+cname.patchgrid.xyz`, per-domain certificate issuance with `tls-alpn-01` or DNS-01 delegation, a
   `Domain` table consulted before slug parsing, ownership verification, and the certificate-storage
   problem.
 - **Public Suffix List**: because tenants control `*.patchgrid.xyz`, the domain arguably belongs on the
@@ -1483,7 +1508,7 @@ holdout). Recommend documenting all three tiers, in order: `lvh.me` (default, pr
 `sslip.io` / `nip.io` as equivalents to `lvh.me`.
 
 One more: `.test` is an IANA-reserved TLD (RFC 6761), which is the correct choice for the hosts-file
-tier — worth saying, because it is *why* `patchgrid.test` was picked over `patchgrid.local` (which
+tier — worth saying, because it is _why_ `patchgrid.test` was picked over `patchgrid.local` (which
 collides with mDNS).
 
 ## P2-8 · CI is missing the security checks the project's own positioning implies
@@ -1513,7 +1538,7 @@ that gets abandoned half-done, and it is the last one — the part a portfolio r
 **Recommendation.** Split:
 
 - **M8 — Platform layer**: back-office, org lifecycle/purge, support sessions, API tokens.
-- **M9 — Hardening**: threat model (move it *earlier* — it should inform design, not certify it),
+- **M9 — Hardening**: threat model (move it _earlier_ — it should inform design, not certify it),
   security review, E2E including the cross-tenant and escalation negatives, OpenAPI polish, dependency
   and secret scanning.
 - **M10 — Ship**: Dockerfiles, Compose prod, Coolify/Hetzner, wildcard DNS + TLS, nightly demo reset,
@@ -1524,37 +1549,37 @@ boundaries, STRIDE per boundary) and every P0 in this review would have been cau
 
 ## P2-10 · Milestone sequencing snags
 
-| Where | Problem |
-| --- | --- |
-| `FEATURES.md:35` | M1 includes "Team lead capabilities (**approve changes**, SLA escalation target…)" — Changes do not exist until M4 and SLA does not exist until M3. Keep only "manage own team's members" in M1 |
-| `FEATURES.md:32,35` | "last-owner protection" appears twice in M1 |
-| `FEATURES.md:36` | M1 plumbs `agentVisibility` "into list queries" — there are no ticket lists until M2. Keep the setting + `scopeFor()` unit tests in M1, plumb in M2 |
-| `FEATURES.md:38` vs `:46` | The authz suite (M1) includes the route-coverage test, which must pass with ~15 routes; fine — but note it must be *maintained* from M1, which is the point |
-| `FEATURES.md:82` | Watchers are M4, but `scopeFor()` (M1) and the requester-scoping tests reference watcher access. Either stub the watcher branch in M1 or move `TicketWatcher` to M2 with the ticket model. Recommend M2 |
-| `FEATURES.md:52` | M2 creates `Comment` and `AuditLog` but not `Notification` (M3) — yet `DOMAIN.md:175` says ticket creation notifies. Fine, but state that M2 emits domain events with no handlers, so M3 is purely additive |
-| `FEATURES.md:11` | M0 exit is "`/health/ready` returns 200" but M0 has no database schema, so readiness can only check connectivity. Fine — just say so |
+| Where                     | Problem                                                                                                                                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FEATURES.md:35`          | M1 includes "Team lead capabilities (**approve changes**, SLA escalation target…)" — Changes do not exist until M4 and SLA does not exist until M3. Keep only "manage own team's members" in M1             |
+| `FEATURES.md:32,35`       | "last-owner protection" appears twice in M1                                                                                                                                                                 |
+| `FEATURES.md:36`          | M1 plumbs `agentVisibility` "into list queries" — there are no ticket lists until M2. Keep the setting + `scopeFor()` unit tests in M1, plumb in M2                                                         |
+| `FEATURES.md:38` vs `:46` | The authz suite (M1) includes the route-coverage test, which must pass with ~15 routes; fine — but note it must be _maintained_ from M1, which is the point                                                 |
+| `FEATURES.md:82`          | Watchers are M4, but `scopeFor()` (M1) and the requester-scoping tests reference watcher access. Either stub the watcher branch in M1 or move `TicketWatcher` to M2 with the ticket model. Recommend M2     |
+| `FEATURES.md:52`          | M2 creates `Comment` and `AuditLog` but not `Notification` (M3) — yet `DOMAIN.md:175` says ticket creation notifies. Fine, but state that M2 emits domain events with no handlers, so M3 is purely additive |
+| `FEATURES.md:11`          | M0 exit is "`/health/ready` returns 200" but M0 has no database schema, so readiness can only check connectivity. Fine — just say so                                                                        |
 
 ## P2-11 · Smaller items, batched
 
-| # | Where | Note |
-| --- | --- | --- |
-| a | `ARCHITECTURE.md:145` | UUID v7 for **every** table means ids are enumerable-adjacent (time-ordered). Not a leak (they are 128-bit random in the low bits), but state that ids are not secrets and authorization never depends on unguessability |
-| b | `ENGINEERING.md:16` | `exactOptionalPropertyTypes: true` fights Prisma's generated types (`field?: T \| null`) constantly. Keep it — it is the right call — but expect a `Prettify`/`Exact` helper and note it so it is not "fixed" by turning the flag off |
-| c | `DOMAIN.md:143` | `Category.depth` is denormalised; re-parenting must recompute it for the whole subtree. State that categories are **never hard-deleted** (only `isActive: false`) because tickets reference them historically |
-| d | `DOMAIN.md:145` | "inherits the nearest ancestor's `defaultTeamId`" needs a recursive walk; at max depth 3 just walk in code. Say what happens when no ancestor has one (recommend: ticket has no team, lands in the "unassigned" queue) |
-| e | `RBAC.md:64` | "The requester and the current assignee are implicit watchers" — implicit watchers are not rows, so notification fan-out is a union and the UI must render them. Also: when the assignee changes, does the previous assignee stop receiving updates? (Recommend: yes, and offer "keep watching" in the UI) |
-| f | `RBAC.md:204` | "`403` never reveals existence: reading a ticket the actor may not see returns `404`" — needs a concrete rule, not a judgement call. Recommend: *reads* of any tenant-owned entity the actor cannot see → `404`; *actions* on an entity the actor can see but may not act on → `403`. One sentence, prevents years of drift |
-| g | `ADR-0009` | The counter row lock serialises ticket creation per `(org, type)` for the **whole** transaction — which now also includes the quota update (P1-12) and the audit write. Take the counter lock **last**, just before insert, to keep the critical section short |
-| h | `TENANCY.md:49` | Verified-domain auto-join: block free/disposable mail domains explicitly (`gmail.com`, `outlook.com`, …). They cannot be DNS-verified in practice, but an explicit denylist documents the intent and guards against a verification bug |
-| i | `TENANCY.md:49` | Two orgs can both verify `acme.com` (each adds its own TXT record). Decide: first verified wins and blocks others, or both allowed and the user picks. Recommend first-wins with an admin-visible conflict message |
-| j | `ARCHITECTURE.md:268` | Presigned uploads: also set a per-request **max declared size** server-side from the plan (`FREE` 1 GB total does not bound a single file); `DOMAIN.md:165` says 10 MB — put that number in one place (contracts) |
-| k | `ENGINEERING.md:125` | "No PII in logs … never emails" conflicts with needing to investigate failed logins. Recommend logging a truncated SHA-256 of the email (`emailHash8`) for correlation without storing the address |
-| l | `ARCHITECTURE.md:256` | MinIO bucket CORS must allow `https://*.patchgrid.xyz`; S3/MinIO support the wildcard form. Note it, because it is the step everyone forgets locally |
-| m | `ARCHITECTURE.md:254` | The Postgres init script only runs on a **fresh volume**. Ship the role/grant/extension SQL as an idempotent file run by `db:migrate` as well, or developers with existing volumes get confusing permission errors |
-| n | `ADR-0002` | Nothing prevents an `INCIDENT` row holding `status: AWAITING_APPROVAL` at the database level. Accepted, and correctly noted — but a `CHECK` constraint enumerating valid `(type, status)` pairs is ~15 lines of SQL and turns a service bug into a database error. Worth it in a system whose selling point is defence in depth |
-| o | `PROJECT.md:81` | "Local LLM … a defensible decision for IT tickets" — true and well argued. Add the operational consequence: prompt-injection via ticket content. An LLM reading attacker-controlled ticket text must never have its output trusted as instructions; suggestions are data that an agent accepts. `DOMAIN.md:196` already says suggestions never auto-apply — good; say *why* in one line |
-| p | `FEATURES.md` / everywhere | i18n is not mentioned at all, not even as a non-goal. Given `apps/www` is SEO-heavy, state it: English only in v1, no `next-intl`, no locale routing — or you will be asked |
-| q | repo | No `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template, `.editorconfig`, or commit linting (`commitlint` + `husky`/`lefthook`), despite `ENGINEERING.md:10` mandating Conventional Commits. Add to M0 — a portfolio repo is judged on these in the first ten seconds |
+| #   | Where                      | Note                                                                                                                                                                                                                                                                                                                                                                                    |
+| --- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a   | `ARCHITECTURE.md:145`      | UUID v7 for **every** table means ids are enumerable-adjacent (time-ordered). Not a leak (they are 128-bit random in the low bits), but state that ids are not secrets and authorization never depends on unguessability                                                                                                                                                                |
+| b   | `ENGINEERING.md:16`        | `exactOptionalPropertyTypes: true` fights Prisma's generated types (`field?: T \| null`) constantly. Keep it — it is the right call — but expect a `Prettify`/`Exact` helper and note it so it is not "fixed" by turning the flag off                                                                                                                                                   |
+| c   | `DOMAIN.md:143`            | `Category.depth` is denormalised; re-parenting must recompute it for the whole subtree. State that categories are **never hard-deleted** (only `isActive: false`) because tickets reference them historically                                                                                                                                                                           |
+| d   | `DOMAIN.md:145`            | "inherits the nearest ancestor's `defaultTeamId`" needs a recursive walk; at max depth 3 just walk in code. Say what happens when no ancestor has one (recommend: ticket has no team, lands in the "unassigned" queue)                                                                                                                                                                  |
+| e   | `RBAC.md:64`               | "The requester and the current assignee are implicit watchers" — implicit watchers are not rows, so notification fan-out is a union and the UI must render them. Also: when the assignee changes, does the previous assignee stop receiving updates? (Recommend: yes, and offer "keep watching" in the UI)                                                                              |
+| f   | `RBAC.md:204`              | "`403` never reveals existence: reading a ticket the actor may not see returns `404`" — needs a concrete rule, not a judgement call. Recommend: _reads_ of any tenant-owned entity the actor cannot see → `404`; _actions_ on an entity the actor can see but may not act on → `403`. One sentence, prevents years of drift                                                             |
+| g   | `ADR-0009`                 | The counter row lock serialises ticket creation per `(org, type)` for the **whole** transaction — which now also includes the quota update (P1-12) and the audit write. Take the counter lock **last**, just before insert, to keep the critical section short                                                                                                                          |
+| h   | `TENANCY.md:49`            | Verified-domain auto-join: block free/disposable mail domains explicitly (`gmail.com`, `outlook.com`, …). They cannot be DNS-verified in practice, but an explicit denylist documents the intent and guards against a verification bug                                                                                                                                                  |
+| i   | `TENANCY.md:49`            | Two orgs can both verify `acme.com` (each adds its own TXT record). Decide: first verified wins and blocks others, or both allowed and the user picks. Recommend first-wins with an admin-visible conflict message                                                                                                                                                                      |
+| j   | `ARCHITECTURE.md:268`      | Presigned uploads: also set a per-request **max declared size** server-side from the plan (`FREE` 1 GB total does not bound a single file); `DOMAIN.md:165` says 10 MB — put that number in one place (contracts)                                                                                                                                                                       |
+| k   | `ENGINEERING.md:125`       | "No PII in logs … never emails" conflicts with needing to investigate failed logins. Recommend logging a truncated SHA-256 of the email (`emailHash8`) for correlation without storing the address                                                                                                                                                                                      |
+| l   | `ARCHITECTURE.md:256`      | MinIO bucket CORS must allow `https://*.patchgrid.xyz`; S3/MinIO support the wildcard form. Note it, because it is the step everyone forgets locally                                                                                                                                                                                                                                    |
+| m   | `ARCHITECTURE.md:254`      | The Postgres init script only runs on a **fresh volume**. Ship the role/grant/extension SQL as an idempotent file run by `db:migrate` as well, or developers with existing volumes get confusing permission errors                                                                                                                                                                      |
+| n   | `ADR-0002`                 | Nothing prevents an `INCIDENT` row holding `status: AWAITING_APPROVAL` at the database level. Accepted, and correctly noted — but a `CHECK` constraint enumerating valid `(type, status)` pairs is ~15 lines of SQL and turns a service bug into a database error. Worth it in a system whose selling point is defence in depth                                                         |
+| o   | `PROJECT.md:81`            | "Local LLM … a defensible decision for IT tickets" — true and well argued. Add the operational consequence: prompt-injection via ticket content. An LLM reading attacker-controlled ticket text must never have its output trusted as instructions; suggestions are data that an agent accepts. `DOMAIN.md:196` already says suggestions never auto-apply — good; say _why_ in one line |
+| p   | `FEATURES.md` / everywhere | i18n is not mentioned at all, not even as a non-goal. Given `apps/www` is SEO-heavy, state it: English only in v1, no `next-intl`, no locale routing — or you will be asked                                                                                                                                                                                                             |
+| q   | repo                       | No `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template, `.editorconfig`, or commit linting (`commitlint` + `husky`/`lefthook`), despite `ENGINEERING.md:10` mandating Conventional Commits. Add to M0 — a portfolio repo is judged on these in the first ten seconds                                                                                                 |
 
 ---
 
@@ -1562,7 +1587,7 @@ boundaries, STRIDE per boundary) and every P0 in this review would have been cau
 
 ## R-1 · The entire specification is untracked
 
-`git status` shows `?? docs/`. Commit `041cfaa` was literally *"chore: add docs to the .gitignore"*; the
+`git status` shows `?? docs/`. Commit `041cfaa` was literally _"chore: add docs to the .gitignore"_; the
 working tree reverses that but the change is uncommitted.
 
 Right now, thirty documents representing all of the design work exist **only** on this disk, with no
@@ -1606,29 +1631,29 @@ Confirmed from `apps/web/package.json`. `CLAUDE.md`'s warning is appropriate; no
 
 These need your decision; I have a recommendation for each, but they are genuine forks.
 
-| # | Question | Recommendation |
-| --- | --- | --- |
-| **Q-1** | **P0-3**: `runAsPlatform` vs RLS — projection tables (`UserOrgIndex`, `ApiTokenIndex`) and org-bearing tokens, so `patchgrid_app` *never* gets `BYPASSRLS`; or a second `patchgrid_platform` role with `BYPASSRLS` confined to one repository? | The projection-table route. It preserves the strongest claim in the whole design ("the application literally cannot disable its own isolation"), and the cost is two tiny tables |
-| **Q-2** | **P0-2**: per-tenant cookie names (`pg_at_<slug>`), or accept single-tenant-per-browser and drop the "two tabs" claim from ADR-0014? | Per-tenant cookie names. The multi-org user is your own seeded demo account |
-| **Q-3** | **D-8**: one team per membership, or a `TeamMembership` join table? | Join table. Agents sitting in two queues is normal, and it is a schema change you cannot make cheaply in M4 |
-| **Q-4** | **P0-5**: reference people by `membershipId` everywhere (with a `Membership.displayName` denormalisation), or keep `userId` and accept application-level enforcement? | `membershipId`. This is the change that pays for itself the most |
-| **Q-5** | **P1-27**: TOTP MFA in M8/M9, or an explicit non-goal? | Build it. Highest security signal per hour of work left in the plan |
-| **Q-6** | **P1-12**: what happens on a plan **downgrade** below current usage — block the downgrade, grandfather existing rows read-only, or allow and block new creation? | Allow the downgrade, block *new* creation with `402`, and show an "over limit" banner. Never delete customer data on a downgrade |
-| **Q-7** | **P1-13**: is a released slug permanently reserved? | Yes, permanently. Store history forever, 302 (not 301) for 30 days |
-| **Q-8** | **P2-6**: do you want the DNS/TLS/email-DNS design written now (`docs/DNS.md` + two ADRs) even though it ships in M8? | Yes — it is one of your stated learning goals and currently the thinnest section |
-| **Q-9** | **P2-9**: split M8 into M8/M9/M10, and move the threat model to M1? | Yes to both |
+| #       | Question                                                                                                                                                                                                                                       | Recommendation                                                                                                                                                                   |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Q-1** | **P0-3**: `runAsPlatform` vs RLS — projection tables (`UserOrgIndex`, `ApiTokenIndex`) and org-bearing tokens, so `patchgrid_app` _never_ gets `BYPASSRLS`; or a second `patchgrid_platform` role with `BYPASSRLS` confined to one repository? | The projection-table route. It preserves the strongest claim in the whole design ("the application literally cannot disable its own isolation"), and the cost is two tiny tables |
+| **Q-2** | **P0-2**: per-tenant cookie names (`pg_at_<slug>`), or accept single-tenant-per-browser and drop the "two tabs" claim from ADR-0014?                                                                                                           | Per-tenant cookie names. The multi-org user is your own seeded demo account                                                                                                      |
+| **Q-3** | **D-8**: one team per membership, or a `TeamMembership` join table?                                                                                                                                                                            | Join table. Agents sitting in two queues is normal, and it is a schema change you cannot make cheaply in M4                                                                      |
+| **Q-4** | **P0-5**: reference people by `membershipId` everywhere (with a `Membership.displayName` denormalisation), or keep `userId` and accept application-level enforcement?                                                                          | `membershipId`. This is the change that pays for itself the most                                                                                                                 |
+| **Q-5** | **P1-27**: TOTP MFA in M8/M9, or an explicit non-goal?                                                                                                                                                                                         | Build it. Highest security signal per hour of work left in the plan                                                                                                              |
+| **Q-6** | **P1-12**: what happens on a plan **downgrade** below current usage — block the downgrade, grandfather existing rows read-only, or allow and block new creation?                                                                               | Allow the downgrade, block _new_ creation with `402`, and show an "over limit" banner. Never delete customer data on a downgrade                                                 |
+| **Q-7** | **P1-13**: is a released slug permanently reserved?                                                                                                                                                                                            | Yes, permanently. Store history forever, 302 (not 301) for 30 days                                                                                                               |
+| **Q-8** | **P2-6**: do you want the DNS/TLS/email-DNS design written now (`docs/DNS.md` + two ADRs) even though it ships in M8?                                                                                                                          | Yes — it is one of your stated learning goals and currently the thinnest section                                                                                                 |
+| **Q-9** | **P2-9**: split M8 into M8/M9/M10, and move the threat model to M1?                                                                                                                                                                            | Yes to both                                                                                                                                                                      |
 
 ---
 
 # Appendix — suggested new ADRs
 
-| # | Title | Driven by |
-| --- | --- | --- |
-| 0022 | Platform-scope access under RLS: projections, not bypass | P0-3, P1-36 |
+| #    | Title                                                                           | Driven by        |
+| ---- | ------------------------------------------------------------------------------- | ---------------- |
+| 0022 | Platform-scope access under RLS: projections, not bypass                        | P0-3, P1-36      |
 | 0023 | Identity keys: UUIDv7, `@db.Uuid`, `timestamptz`, composite tenant foreign keys | P0-4, P0-8, P0-9 |
-| 0024 | Session cookies are per tenant | P0-2, P1-18 |
-| 0025 | Wildcard TLS and DNS operations | P2-6 |
-| 0026 | Email DNS: SPF, DKIM, DMARC, MX, and inbound sender authentication | P1-24, P2-6 |
-| 0027 | Data protection: tenant export, pseudonymised erasure, retention | P2-5 |
-| 0028 | MFA (TOTP) and step-up authentication | P1-27 |
-| 0029 | Observability: OpenTelemetry, per-tenant metrics | P2-2 |
+| 0024 | Session cookies are per tenant                                                  | P0-2, P1-18      |
+| 0025 | Wildcard TLS and DNS operations                                                 | P2-6             |
+| 0026 | Email DNS: SPF, DKIM, DMARC, MX, and inbound sender authentication              | P1-24, P2-6      |
+| 0027 | Data protection: tenant export, pseudonymised erasure, retention                | P2-5             |
+| 0028 | MFA (TOTP) and step-up authentication                                           | P1-27            |
+| 0029 | Observability: OpenTelemetry, per-tenant metrics                                | P2-2             |

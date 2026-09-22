@@ -10,8 +10,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## M0 — Foundation
 
-*Exit: `docker compose up` + `pnpm dev` serves `lvh.me:3000`, `app.lvh.me:3001` and `api.lvh.me:4000`;
-CI green on an empty PR; `/health/ready` returns 200 (connectivity only — there is no schema yet).*
+_Exit: `docker compose up` + `pnpm dev` serves `lvh.me:3000`, `app.lvh.me:3001` and `api.lvh.me:4000`;
+CI green on an empty PR; `/health/ready` returns 200 (connectivity only — there is no schema yet)._
+
+**Met on 2026-09-22.** All three hosts serve from one `pnpm dev`; `/health/ready` reports database,
+redis and object-storage up; all four CI jobs pass on GitHub's runners. The one open item is the
+`LICENSE` choice, which is a decision, not work.
 
 - [x] Rename scope `@workspace/*` → `@patchgrid/*`; rename `apps/web` → `apps/app` (including its
       `package.json` `name`); scaffold `apps/www` (ADR-0001, ADR-0016)
@@ -44,19 +48,23 @@ CI green on an empty PR; `/health/ready` returns 200 (connectivity only — ther
 - [x] ESLint rules: no `@patchgrid/database` outside `apps/api`; no Prisma outside `**/repositories/**`;
       no raw SQL outside `packages/database`; `runAsPlatform`/`runAsTenant` import paths restricted by
       module (ADR-0022). `eslint-plugin-only-warn` removed and `--max-warnings 0` set, so lint can fail
-- [~] Repo furniture: `.nvmrc` (24.x) + `engines` **done**; `.editorconfig`, `commitlint` + `lefthook`,
-      `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template still to do
-- [ ] `apps/app` route groups `(auth)`, `(select)`, `(portal)`, `(console)`, `(admin)` with placeholders
+- [~] Repo furniture: `.nvmrc` + `engines`, `.editorconfig`, `commitlint` + `lefthook` (commit-msg and
+  pre-commit hooks), `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template, issue config —
+  **all done except `LICENSE`**, which is a decision rather than a task
+- [x] `apps/app` route groups `(auth)`, `(select)`, `(portal)`, `(console)`, `(admin)` with placeholders
+      that name the milestone each screen arrives in. The tenant-scoped groups declare
+      `force-dynamic` at the _layout_, so a page added below cannot silently render one tenant's data
+      into the build output (ADR-0016)
 - [x] `apps/www` landing placeholder + `/problems/*` pages for Problem Details `type` URIs — 13 types,
       statically prerendered; the registry moves to `@patchgrid/contracts` when that package exists
 
 ## M1 — Tenancy and identity (the foundation everything else sits on)
 
-*Exit: a stranger signs up on `lvh.me:3000`, picks a slug, lands in a provisioned workspace at
+_Exit: a stranger signs up on `lvh.me:3000`, picks a slug, lands in a provisioned workspace at
 `acme.lvh.me:3001`, invites an agent who accepts and logs in; a second org exists; the dual-member
 account holds both workspaces open in two tabs; the isolation suite proves RLS blocks cross-tenant reads
 at the database level and that composite keys make cross-tenant references impossible; the authorization
-suite proves every route asserts a permission.*
+suite proves every route asserts a permission._
 
 - [ ] **Threat model** (`docs/THREAT-MODEL.md`): assets, actors, trust boundaries, STRIDE per boundary.
       Written **first** — it informs the design rather than certifying it, and it is a one-page document
@@ -101,10 +109,10 @@ suite proves every route asserts a permission.*
 
 ## M2 — Incident lifecycle (the heart)
 
-*Exit: a requester submits an Incident from the portal; it gets a per-org number, computed priority, SLA
+_Exit: a requester submits an Incident from the portal; it gets a per-org number, computed priority, SLA
 deadlines and a routed team; an agent assigns, replies publicly, adds an internal note, moves to pending
 and back, resolves; the requester closes or reopens; two agents editing the same ticket get a clean
-conflict; every step is audit-logged; transition table, priority matrix and SLA clock are unit-tested.*
+conflict; every step is audit-logged; transition table, priority matrix and SLA clock are unit-tested._
 
 - [ ] Data: `TicketCounter`, `Ticket` (with clock origins, `version`, `searchVector`), `Category`,
       `SLAPolicy`, `Comment`, `TicketWatcher`, `AuditLog` (partitioned) — all tenant-owned, all with
@@ -129,9 +137,9 @@ conflict; every step is audit-logged; transition table, priority matrix and SLA 
 
 ## M3 — Time and attention
 
-*Exit: SLA warnings and breaches fire from the per-tenant dispatcher, arrive live over SSE and as email in
+_Exit: SLA warnings and breaches fire from the per-tenant dispatcher, arrive live over SSE and as email in
 Mailpit; resolved tickets auto-close after 7 days under an injected clock; the notification bell works and
-never shows another tenant's events — nor a ticket the agent may not read.*
+never shows another tenant's events — nor a ticket the agent may not read._
 
 - [ ] BullMQ: `tenant-dispatch` dispatcher, per-tenant `sla-scan` and `auto-close`, `Clock` provider,
       `WORKER_MODE` (ADR-0018)
@@ -145,9 +153,9 @@ never shows another tenant's events — nor a ticket the agent may not read.*
 
 ## M4 — Four record types
 
-*Exit: Service Requests, Problems and Changes each work end to end with their own state machines; a
+_Exit: Service Requests, Problems and Changes each work end to end with their own state machines; a
 Problem links incidents; a Change goes submit → approve/reject by a team lead → implement → close, and a
-single-admin workspace can still ship one.*
+single-admin workspace can still ship one._
 
 - [ ] `ProblemDetails`, `ChangeDetails`, `ChangeApproval`, `TicketLink`
 - [ ] Transition tables for SR / Problem / Change; approval rules including the documented last-approver
@@ -160,9 +168,9 @@ single-admin workspace can still ship one.*
 
 ## M5 — Context: assets, knowledge, attachments
 
-*Exit: assets link to tickets with a "tickets for this asset" view; KB articles are searchable and
+_Exit: assets link to tickets with a "tickets for this asset" view; KB articles are searchable and
 suggested while a requester types; files attach to tickets and comments through presigned MinIO uploads,
-stored under the tenant's key prefix and served so an uploaded file can never execute in the app's origin.*
+stored under the tenant's key prefix and served so an uploaded file can never execute in the app's origin._
 
 - [ ] `Asset`, `TicketAsset`; asset CRUD, picker on tickets, asset detail with ticket history, requesters
       see their own
@@ -176,9 +184,9 @@ stored under the tenant's key prefix and served so an uploaded file can never ex
 
 ## M6 — Email intake
 
-*Exit: mail to a tenant's inbound address creates a ticket in that tenant, attributed only to a verified
+_Exit: mail to a tenant's inbound address creates a ticket in that tenant, attributed only to a verified
 sender; a reply threads onto the existing ticket; an unresolvable tenant or an unauthenticated sender is
-dropped, never guessed.*
+dropped, never guessed._
 
 - [ ] `InboundEmail`, signature-verified webhook, `mailparser`, tenant resolution from the recipient
       address **before** anything else (ADR-0018)
@@ -193,9 +201,9 @@ dropped, never guessed.*
 
 ## M7 — Differentiators
 
-*Exit: new tickets get an LLM suggestion an agent can accept; a phishing report is scored and lands in the
+_Exit: new tickets get an LLM suggestion an agent can accept; a phishing report is scored and lands in the
 Security queue; likely duplicates surface with a merge action; admins define automation rules that
-demonstrably fire — all per tenant, none blocking ticket creation.*
+demonstrably fire — all per tenant, none blocking ticket creation._
 
 - [ ] `ollama` in Compose, `TicketClassifier` + Ollama impl, per-tenant `triage` queue, `TicketTriage`,
       accept/dismiss UI, `Noop` impl for tests, gated on plan
@@ -210,9 +218,9 @@ demonstrably fire — all per tenant, none blocking ticket creation.*
 
 ## M8 — Platform layer
 
-*Exit: an operator can run the platform without being able to read anyone's mail; an owner can grant a
+_Exit: an operator can run the platform without being able to read anyone's mail; an owner can grant a
 time-boxed read-only support session and see exactly what was looked at; a monitoring system can raise
-incidents through a scoped token.*
+incidents through a scoped token._
 
 - [ ] Platform back-office (`admin.patchgrid.xyz`): org list, suspend/unsuspend, set plan,
       request/restore deletion; metadata only, no tenant content (`RBAC.md` §8). Platform admins created
@@ -230,8 +238,8 @@ incidents through a scoped token.*
 
 ## M9 — Hardening
 
-*Exit: the security review has no open findings; E2E covers the core flows across two tenants in a real
-browser, including the negative cases; observability answers "which tenant is slow" without grepping.*
+_Exit: the security review has no open findings; E2E covers the core flows across two tenants in a real
+browser, including the negative cases; observability answers "which tenant is slow" without grepping._
 
 - [ ] **MFA (TOTP)** (ADR-0029): mandatory for `PlatformAdmin`, optional-but-enforceable per org, with
       recovery codes and step-up re-authentication for `org:delete`, `org:transfer_ownership`,
@@ -250,8 +258,8 @@ browser, including the negative cases; observability answers "which tenant is sl
 
 ## M10 — Ship
 
-*Exit: a stranger clones the repo, runs three commands, signs up, and uses a realistic system; the public
-demo is live; the README explains the decisions.*
+_Exit: a stranger clones the repo, runs three commands, signs up, and uses a realistic system; the public
+demo is live; the README explains the decisions._
 
 - [ ] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, rules; idempotent
       `db:reset`
