@@ -1,0 +1,27 @@
+// Patchgrid schema.
+//
+// Conventions enforced by CI introspection tests (ADR-0023):
+//   · every id is UUID v7, `String @db.Uuid`, and is NOT a secret
+//   · every datetime is `@db.Timestamptz(3)` — Prisma's default is naive `timestamp`
+//   · every tenant-owned parent declares `@@unique([orgId, id])`
+//   · every FK between two tenant-owned tables references the PAIR `(orgId, id)`,
+//     because PostgreSQL runs referential-integrity checks with row security OFF
+//   · people are referenced by `membershipId`, never `userId`
+//
+// Models land in M1 (tenancy and identity). M0 establishes the wiring only:
+// two roles, grants, generation, and the migration path.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/client"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Extensions are NOT declared here. Prisma's `extensions` property (a preview
+// feature) emits `CREATE EXTENSION` into migrations, which run as patchgrid_owner
+// — not a superuser, so it would fail. pgvector is created by the bootstrap,
+// which runs as the superuser and is the only thing that can (sql/bootstrap.sql).
