@@ -5,6 +5,15 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
 ## Repository hygiene
 
 - **pnpm only.** `pnpm@10` pinned via `packageManager`. Never commit an npm/yarn lockfile.
+- **Pin Prisma to an exact version, never `latest`.** As of 2026-09-22 Prisma's `latest` dist-tag points
+  at `8.0.0-rc.15` — a *release candidate* — while the last stable is `7.10.0` (tagged `prev`). A plain
+  `pnpm add prisma` installs the RC, and it can resolve to a different major than `@prisma/client`,
+  which fails in confusing ways (`prisma validate` does not exist in the 8 RC). `prisma` and
+  `@prisma/client` are pinned to the same exact version, upgraded deliberately.
+- **pnpm blocks postinstall scripts by default.** Prisma's engines will not download until `prisma`,
+  `@prisma/engines` and `esbuild` are listed under `allowBuilds` in `pnpm-workspace.yaml` — the same
+  place `sharp` and `unrs-resolver` already are. Symptom without it: `ERR_PNPM_IGNORED_BUILDS`, then
+  every Prisma command failing for an unrelated-looking reason.
 - Package scope `@patchgrid/*`. Internal deps use `workspace:*`.
 - Root scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `test:tenancy`, `test:authz`, `test:e2e`,
   `format`, `db:migrate`, `db:seed`, `db:studio`, `db:reset`, `platform:grant`. Every one runs through
@@ -90,15 +99,25 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
   is already active it passes through untouched; only with no active transaction does it open its own.
   Prisma's transaction client does not expose `$transaction`, so an extension that wrapped
   unconditionally would throw at runtime.
+- **Await inside the tenant context, never outside it.** Prisma model calls return *lazy*
+  `PrismaPromise`s: the client extension's callback fires when the promise is **awaited**, not when the
+  method is called. So `als.run({ orgId }, () => repo.findMany())` — a synchronous callback returning an
+  un-awaited promise — exits the context the instant it returns, and the extension sees no tenant. The
+  helper must be `als.run({ orgId }, async () => await fn())`. This is verified behaviour, not caution:
+  it is the one thing the isolation spike got wrong on the first run, and it fails **closed** (the
+  extension throws `NO_TENANT_CONTEXT`) rather than leaking — which is why the design survives the
+  mistake. `nestjs-cls` wraps a whole request so the hazard does not arise there; it arises in
+  `runAsTenant`, in job processors, and in tests.
 - The `true` in `set_config` makes the setting transaction-local. It must never be "optimised" to
   session level — that breaks under connection pooling — and the code carries a comment pointing at
   ADR-0015. The fail-closed property is deliberate: outside a transaction the setting applies only to the
   current statement, so if the extension ever failed to open one, RLS would return zero rows rather than
   everything.
 - **Raw SQL is banned outside `packages/database` and the hand-written policy migrations**, enforced by
-  ESLint. `$queryRaw`/`$executeRaw` may not pass through the client extension depending on the Prisma
-  version, in which case raw SQL silently skips layer 3 and is protected only by RLS. The isolation suite
-  asserts that a raw query with no tenant context returns zero rows either way.
+  ESLint. Confirmed by spike: a raw query reaches the extension with `model === undefined`, so the
+  tenant-model guard cannot fire and **layer 3 is genuinely skipped**. RLS still returns zero rows, so
+  the failure is safe — but raw SQL is protected by one layer instead of two, which is the whole reason
+  for the ban. The isolation suite asserts the zero-row result.
 - **One logical read is one repository call is one transaction.** Because every query runs in its own
   transaction, an N+1 in a list endpoint becomes N transactions, each holding a pooled connection for a
   full round trip, each subject to Prisma's `maxWait`/`timeout`. List endpoints use `include`/`select`;
