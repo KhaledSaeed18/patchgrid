@@ -52,3 +52,6 @@ next-env.d.ts
 
 # local data volumes
 .docker-data/
+
+# nest build output
+dist/
