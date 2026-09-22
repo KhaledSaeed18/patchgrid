@@ -1,0 +1,13 @@
+# Everything, by default.
+*                           @KhaledSaeed18
+
+# The files where a mistake leaks one company's data into another's workspace.
+# Listing them separately is not ceremony: it is a reminder, at review time, that
+# these changes are not ordinary ones.
+/docs/TENANCY.md            @KhaledSaeed18
+/docs/RBAC.md               @KhaledSaeed18
+/docs/decisions/            @KhaledSaeed18
+/packages/database/sql/     @KhaledSaeed18
+/docker/postgres/           @KhaledSaeed18
+/packages/eslint-config/boundaries.js  @KhaledSaeed18
+/.github/workflows/         @KhaledSaeed18
