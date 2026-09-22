@@ -14,8 +14,8 @@ _Exit: `docker compose up` + `pnpm dev` serves `lvh.me:3000`, `app.lvh.me:3001` 
 CI green on an empty PR; `/health/ready` returns 200 (connectivity only — there is no schema yet)._
 
 **Met on 2026-09-22.** All three hosts serve from one `pnpm dev`; `/health/ready` reports database,
-redis and object-storage up; all four CI jobs pass on GitHub's runners. The one open item is the
-`LICENSE` choice, which is a decision, not work.
+redis and object-storage up; all four CI jobs pass on GitHub's runners. 105 tests across four packages.
+Licensed MIT: the value of this repository is that people read it.
 
 - [x] Rename scope `@workspace/*` → `@patchgrid/*`; rename `apps/web` → `apps/app` (including its
       `package.json` `name`); scaffold `apps/www` (ADR-0001, ADR-0016)

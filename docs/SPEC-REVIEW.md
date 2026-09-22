@@ -184,11 +184,10 @@ assuming they agreed.
 
 ## Still open
 
-| #           | Item                                                             | Why it is not closed                                                                                                                                                              |
-| ----------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **R-4**     | `.vscode/` exists but is git-ignored                             | Decide: commit shared settings, or delete                                                                                                                                         |
-| **LICENSE** | No licence file, so the work is "all rights reserved" by default | A decision for the author: MIT reads as "please learn from this", which suits a portfolio project; leaving it absent keeps every right reserved. Nothing else in M0 depends on it |
-| **D-6**     | ADR-0015 lists a `Plan` table that was never built               | The closed platform-class list in `TENANCY.md` §7 omits it, so the schema is unambiguous; the ADR body is immutable and this is too minor for an erratum                          |
+| #       | Item                                               | Why it is not closed                                                                                                                                     |
+| ------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **R-4** | `.vscode/` exists but is git-ignored               | Decide: commit shared settings, or delete                                                                                                                |
+| **D-6** | ADR-0015 lists a `Plan` table that was never built | The closed platform-class list in `TENANCY.md` §7 omits it, so the schema is unambiguous; the ADR body is immutable and this is too minor for an erratum |
 
 # Part 0 — What is genuinely good
 
