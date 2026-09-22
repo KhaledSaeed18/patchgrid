@@ -9,7 +9,7 @@ Tenancy rules live in `TENANCY.md`, ITSM rules in `DOMAIN.md`, working conventio
 | Language | TypeScript, `strict`, no `any` | Everywhere, including scripts and config |
 | Runtime / tooling | Node 24, pnpm 10, Turborepo 2 | pnpm only — never npm/yarn |
 | Frontends | Next.js 16 (App Router), React 19, Tailwind 4, shadcn/ui (base-nova, hugeicons) | `apps/www` + `apps/app`. **Next 16 differs from training data** — read `node_modules/next/dist/docs/` before writing routing/caching code (`proxy.ts` replaces `middleware.ts`) |
-| Backend | NestJS 11 | `apps/api` — the only process that talks to the database |
+| Backend | NestJS **11**, deliberately | `apps/api` — the only process that talks to the database. Nest 12 exists, but `nestjs-zod` peers `@nestjs/common ^10 \|\| ^11` and does not support it; staying on 11 is a decision, not neglect. Built with SWC, CommonJS output |
 | Database | PostgreSQL 17 + Prisma **7.10.0, pinned exactly**, **Row-Level Security** + composite tenant keys | `packages/database`. **Prisma 7 removed `url` from the datasource block**: connection strings live in `prisma.config.ts` and the client takes a `@prisma/adapter-pg` driver adapter. Two adapters = two pools = the two roles. `pgvector` from day one; UUIDv7 + `timestamptz` (ADR-0023) |
 | Tenant context | `nestjs-cls` (`AsyncLocalStorage`) + a Prisma client extension | ADR-0015, ADR-0022 |
 | Queue / cache | Redis 7 + BullMQ | tenant-dispatched jobs, quota counters, tenant lookup cache, throttling |

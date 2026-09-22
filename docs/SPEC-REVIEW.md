@@ -140,6 +140,22 @@ The Postgres image creates `POSTGRES_DB` owned by the superuser, so both bootstr
 database and schema ownership to `patchgrid_owner`; without it `prisma migrate reset` cannot recreate
 the `public` schema.
 
+## Round 4 — apps/api, 2026-09-22
+
+| # | Finding | Folded into |
+| --- | --- | --- |
+| S-12 | **NestJS 12 is released, but `nestjs-zod@5.5.0` peers `@nestjs/common ^10 \|\| ^11`.** Staying on Nest 11 is now a recorded decision rather than a stale number. `nestjs-zod` does support Zod 4 | `ARCHITECTURE.md` §Stack |
+| S-13 | **A compiling package must not use `.ts` in its own relative imports.** SWC preserves the extension, so `require("./app.module.ts")` reaches `dist/` and fails at boot. Source-shipped packages still need it. Both rules are true; the distinction is whether the package emits | `ENGINEERING.md` §Repository hygiene |
+| S-14 | `import.meta` is unavailable in CommonJS output — tsc rejects it even though SWC silently rewrites it. `apps/api` uses `__dirname` | `apps/api/src/main.ts` |
+| S-15 | **Terminus signals a failed readiness check by throwing a 503 carrying the per-indicator detail.** A global `@Catch()` Problem Details filter swallows it into a generic 500, discarding exactly what an orchestrator needs. Health is now exempt from the filter — found only by actually stopping Redis | `ENGINEERING.md` §API conventions · filter spec |
+| S-16 | Locating the `.env` by a fixed `../../..` worked only because `src/` and `dist/` sit at the same depth. Replaced with an upward search plus an `ENV_FILE` override | `apps/api/src/main.ts` |
+
+Verified against the running stack: liveness stays `200` while Redis is down and readiness returns `503`
+naming it; CORS allows `acme.lvh.me:3001` and blocks `acme.lvh.me.evil.com:3001`, a wrong port, a
+two-label host and a malformed slug; an unknown route renders Problem Details with
+`application/problem+json` and an `x-request-id`; the boot assertion confirms the app role cannot bypass
+RLS.
+
 ## Still open
 
 | # | Item | Why it is not closed |

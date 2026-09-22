@@ -15,8 +15,11 @@ CI green on an empty PR; `/health/ready` returns 200 (connectivity only — ther
 
 - [x] Rename scope `@workspace/*` → `@patchgrid/*`; rename `apps/web` → `apps/app` (including its
       `package.json` `name`); scaffold `apps/www` (ADR-0001, ADR-0016)
-- [ ] `apps/api` NestJS 11: Zod-validated config, `nestjs-pino`, Problem Details filter, `nestjs-zod`
-      pipe, helmet, slug-aware CORS, `/health` + `/health/ready`, no-op `Tracer` provider
+- [x] `apps/api` NestJS 11: Zod-validated config that refuses to boot on a bad environment,
+      `nestjs-pino` with per-request ids, Problem Details filter, `nestjs-zod` pipe throwing typed
+      problems, helmet, slug-aware CORS, `/health` + `/health/ready` over Postgres/Redis/MinIO, no-op
+      `Tracer` and `Clock` providers, `@Public`/`@TenantOptional` markers, boot assertion that the
+      database role cannot bypass RLS
 - [x] `packages/database`: Prisma **pinned to 7.10.0** (never `latest` — it points at an 8.0 RC), with
       `prisma.config.ts` holding the connection strings and `@prisma/adapter-pg` driver adapters (Prisma 7
       removed `url` from the datasource block); generator provider `prisma-client`; `prisma`,

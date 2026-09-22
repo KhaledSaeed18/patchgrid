@@ -33,11 +33,18 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
   step; it is not, because Prisma 7's `prisma-client` generator **emits TypeScript**. Generation is still
   a build step, so `typecheck`, `test` and `build` depend on a `generate` task — but the *output* is
   source like everything else.
-- **Nothing in this monorepo emits JavaScript**, so the shared base sets `noEmit` and
-  `allowImportingTsExtensions`. Source-shipped packages carry explicit `.ts` extensions in their imports
-  (NodeNext ESM requires them), which means every *consumer* has to accept those extensions too — that
-  is the price of the source-consumption decision, and it belongs in the base rather than being
-  rediscovered per package.
+- **Source-shipped packages emit nothing**, so the shared base sets `noEmit` and
+  `allowImportingTsExtensions`. They carry explicit `.ts` extensions in their imports (NodeNext ESM
+  requires them), which means every *consumer* must accept those extensions too — the price of the
+  source-consumption decision, and it belongs in the base rather than being rediscovered per package.
+- **A package that actually compiles must not use `.ts` in its own relative imports.** `apps/api` builds
+  to CommonJS with SWC, and SWC preserves whatever extension it is given: a `.ts` import becomes
+  `require("./x.ts")`, which does not exist in `dist/`. The app still needs the flag — it typechecks the
+  source packages — but its own imports stay extensionless. The two rules coexist; the distinction is
+  "does this package emit?", and it is the kind of thing that only surfaces the first time you run the
+  built output.
+- `apps/api` is **CommonJS**, Nest's best-supported output. Node 24's `require(esm)` lets it consume the
+  ESM TypeScript workspace packages unchanged — verified, not assumed.
 - One PR per milestone task, small enough to review in ten minutes. `main` is always green and always deployable-in-principle.
 - `.env.example` is the authoritative list of env vars; `apps/api/src/config/env.ts` validates them with
   Zod at boot. Note that `.gitignore` carries `.env*` **and** a `!.env.example` negation — without the
@@ -98,6 +105,13 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
   `409` invalid transition, uniqueness conflict or stale write.
 - OpenAPI is generated from the Zod schemas (`nestjs-zod` + `@nestjs/swagger`) and served at `/api/docs`
   in non-production.
+- **`/health` and `/health/ready` are outside the contract.** They sit outside the `/api/v1` prefix and
+  are exempt from Problem Details: a failed readiness check is a `503` whose body names the indicator
+  that is down, which is what an orchestrator reads. Rewriting that as a Problem Details `500` discards
+  the detail and says "the app is broken" when the truth is "do not route here yet".
+- **Liveness touches nothing external.** A dependency outage must never fail liveness, because that turns
+  one outage into a crash loop. Readiness checks everything a request needs and, when it fails, removes
+  the instance from rotation while leaving it running.
 
 ## Transactions and side effects
 
