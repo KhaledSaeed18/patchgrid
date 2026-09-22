@@ -10,8 +10,8 @@
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
-    "@workspace/eslint-config": "workspace:*",
-    "@workspace/typescript-config": "workspace:*",
+    "@patchgrid/eslint-config": "workspace:*",
+    "@patchgrid/typescript-config": "workspace:*",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "turbo": "^2.9.18",
@@ -19,6 +19,7 @@
   },
   "packageManager": "pnpm@10.33.4",
   "engines": {
-    "node": ">=20"
+    "node": ">=24.0.0",
+    "pnpm": ">=10"
   }
 }

@@ -1,3 +1,3 @@
-# `@workspace/typescript-config`
+# `@patchgrid/typescript-config`
 
 Shared typescript configuration for the workspace.
