@@ -1,0 +1,27 @@
+# Git hooks. Deliberately thin: a hook that takes thirty seconds is a hook people
+# disable, and everything expensive already runs in CI.
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{ts,tsx,js,jsx,mjs,json,md,css,yml,yaml}"
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
+
+# Linting is NOT here, on purpose.
+#
+# ESLint is installed per package, with a flat config per package, so there is no
+# working directory from which one `eslint` invocation covers a set of staged
+# files spanning several of them. Making it work would mean a root-level config
+# that duplicates what the packages already declare.
+#
+# The trade is fine: `turbo lint` runs in CI with `--max-warnings 0`, including the
+# architectural boundary rules, so nothing reaches `main` unlinted. A hook that
+# catches it three seconds earlier is not worth a second source of truth for the
+# lint configuration.

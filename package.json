@@ -18,8 +18,11 @@
     "db:doctor": "pnpm --filter @patchgrid/database run doctor"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
     "@patchgrid/eslint-config": "workspace:*",
     "@patchgrid/typescript-config": "workspace:*",
+    "lefthook": "^2.1.14",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "turbo": "^2.9.18",

@@ -11,4 +11,5 @@ allowBuilds:
   prisma: true
   "@prisma/engines": true
   "@swc/core": true
+  lefthook: true
   msw: false
