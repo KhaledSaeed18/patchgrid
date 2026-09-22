@@ -27,10 +27,17 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
 - Repo furniture is part of the deliverable, not an afterthought: `LICENSE`, `SECURITY.md`,
   `CONTRIBUTING.md`, `CODEOWNERS`, a PR template, `.editorconfig`, `.nvmrc`. A portfolio repository is
   judged on these in the first ten seconds.
-- **Internal packages are consumed as source** (`contracts`, `ui`, `eslint-config`, `typescript-config`)
-  via `exports` pointing at `.ts`, with `transpilePackages` in Next and SWC in Nest. `database` is the
-  exception and ships built output, because Prisma client generation is a build step regardless. This is
-  why `typecheck` depends on `^build` for `database` only.
+- **Every internal package is consumed as source** — `contracts`, `ui`, `database`, and the config
+  packages — via `exports` pointing at `.ts`, with `transpilePackages` in Next and SWC in Nest.
+  `database` was expected to be the exception, shipping built output because Prisma generation is a build
+  step; it is not, because Prisma 7's `prisma-client` generator **emits TypeScript**. Generation is still
+  a build step, so `typecheck`, `test` and `build` depend on a `generate` task — but the *output* is
+  source like everything else.
+- **Nothing in this monorepo emits JavaScript**, so the shared base sets `noEmit` and
+  `allowImportingTsExtensions`. Source-shipped packages carry explicit `.ts` extensions in their imports
+  (NodeNext ESM requires them), which means every *consumer* has to accept those extensions too — that
+  is the price of the source-consumption decision, and it belongs in the base rather than being
+  rediscovered per package.
 - One PR per milestone task, small enough to review in ten minutes. `main` is always green and always deployable-in-principle.
 - `.env.example` is the authoritative list of env vars; `apps/api/src/config/env.ts` validates them with
   Zod at boot. Note that `.gitignore` carries `.env*` **and** a `!.env.example` negation — without the

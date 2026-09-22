@@ -25,8 +25,9 @@ CI green on an empty PR; `/health/ready` returns 200 (connectivity only — ther
       (owner **with** `BYPASSRLS`, `patchgrid_app` **without**) created by the Postgres init script,
       including `GRANT`s and `ALTER DEFAULT PRIVILEGES`; the same SQL as an idempotent file run by
       `db:migrate`; boot assertion that the app's role lacks `BYPASSRLS`
-- [ ] `packages/contracts`: skeleton, shared primitives (ids, pagination, Problem Details, slug schema,
-      `RESERVED_SLUGS`, `formatTicketNumber`, size/limit constants)
+- [x] `packages/contracts`: shared primitives — ids, cursor pagination, Problem Details, slug schema,
+      `RESERVED_SLUGS`, `formatTicketNumber` / `parseTicketNumber`, limit constants. 59 round-trip tests;
+      `apps/www` renders its problem pages from the registry rather than a copy of it
 - [ ] `docker-compose.yml`: postgres (pgvector, init script), redis, minio (+ bucket & CORS init for
       `https://*.patchgrid.xyz` and the local equivalents), mailpit
 - [ ] Root scripts (`test`, `test:tenancy`, `test:authz`, `db:*`, `platform:grant`), Vitest in
