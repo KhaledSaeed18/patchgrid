@@ -3,11 +3,19 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "build": "turbo build",
     "dev": "turbo dev",
+    "build": "turbo build",
     "lint": "turbo lint",
     "format": "turbo format",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "db:bootstrap": "pnpm --filter @patchgrid/database run bootstrap",
+    "db:generate": "pnpm --filter @patchgrid/database run generate",
+    "db:migrate": "pnpm --filter @patchgrid/database run migrate",
+    "db:seed": "pnpm --filter @patchgrid/database run seed",
+    "db:studio": "pnpm --filter @patchgrid/database run studio",
+    "db:reset": "pnpm --filter @patchgrid/database exec prisma migrate reset --force --skip-seed && pnpm db:bootstrap && pnpm db:seed",
+    "db:doctor": "pnpm --filter @patchgrid/database run doctor"
   },
   "devDependencies": {
     "@patchgrid/eslint-config": "workspace:*",
