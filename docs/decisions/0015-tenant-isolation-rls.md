@@ -13,6 +13,19 @@
 > tenant-owned tables at all (see ADR-0022), and the policy expression must be
 > `NULLIF(current_setting('app.current_org_id', true), '')::uuid` — an empty-string GUC would raise
 > rather than filter (see `TENANCY.md` §7).
+>
+> **Verified (2026-09-22)** by a throwaway spike against PostgreSQL 17 / Prisma 7.10.0. Layers 3 and 4
+> behave as designed: cross-tenant reads return nothing; a foreign-tenant write is rejected by
+> `WITH CHECK` with `42501 new row violates row-level security policy`; a tenant-owned model queried
+> with no context throws instead of running unscoped; the `NULLIF` policy template returns zero rows
+> for an empty GUC instead of raising; `ALTER DEFAULT PRIVILEGES` lets the app role read tables created
+> after the grants; and the app role's `rolbypassrls` is `false`.
+>
+> Two implementation facts the Decision did not state. (1) The extension cannot redirect `query(args)`
+> to a transaction client, so it batches `$transaction([set_config, query(args)])` for a single
+> operation and **passes through untouched** when an explicit transaction is already open. (2) Prisma
+> promises are lazy, so the tenant context must be *awaited inside* — `als.run(s, async () => await fn())`
+> — or the extension sees no store. It fails closed, but it fails. See `ENGINEERING.md` §Transactions.
 
 ## Context
 

@@ -1,7 +1,26 @@
 # 0023 — Identity keys, timestamps, and tenant-safe foreign keys
 
-- **Status:** Accepted
+- **Status:** Accepted — **verified empirically 2026-09-22**
 - **Date:** 2026-09-22
+
+> **Verified (2026-09-22)** by a throwaway isolation spike against PostgreSQL 17 and Prisma 7.10.0.
+> Recorded here because the Decision below left two things as instructions rather than facts.
+>
+> - `@default(uuid(7))` **is** supported. The open question in §3 is closed; use it, no `uuidv7`
+>   package needed.
+> - Composite foreign keys generate exactly as intended —
+>   `FOREIGN KEY ("orgId","ticketId") REFERENCES "Ticket"("orgId", id)` — and a cross-tenant reference
+>   is rejected with `P2003 / Comment_orgId_ticketId_fkey`, while a same-tenant one succeeds.
+> - **The counterfactual was reproduced.** With a single-column FK on `ticketId`, the same insert
+>   *succeeded*: a row carrying org B's `orgId` was written pointing at org A's ticket, past `WITH CHECK`
+>   and past RLS. The hole this ADR exists to close is real, not theoretical.
+> - `@db.Timestamptz(3)` produces zero `timestamp without time zone` columns.
+>
+> One correction to the environment this assumes: **Prisma 7 removed `url` from the datasource block.**
+> Connection strings live in `prisma.config.ts`, the client takes a driver adapter
+> (`@prisma/adapter-pg`), and the generator provider is now `prisma-client`, not `prisma-client-js`.
+> Two adapters give the two roles two independent pools, which suits the design better than the old
+> single-URL model did.
 - **Refines:** [0015](0015-tenant-isolation-rls.md) — adds the structural layer the four-layer model was missing
 
 ## Context
