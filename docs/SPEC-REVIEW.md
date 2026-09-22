@@ -15,6 +15,7 @@ Severity:
 - **Q — open question.** Needs a decision from you; I have a recommendation for each.
 
 Counts: **14 P0** · **36 P1** · **15 cross-document contradictions** · **11 P2** (plus 17 minor) · **6 repo-state** · **9 open questions**.
+Round 2 (isolation spike, same date) added **5 findings** and closed the `uuid(7)` question empirically.
 
 ---
 
@@ -87,15 +88,43 @@ under their Status lines. Their bodies are unchanged — the correction conventi
 | P2-9, P2-10 | `FEATURES.md` — M8/M9/M10 split, sequencing, threat model to M1 |
 | P2-11 a–q | Folded into the relevant sections |
 
+## Round 2 — isolation spike, 2026-09-22
+
+A throwaway spike against PostgreSQL 17 + Prisma 7.10.0 exercised the mechanism the plan rests on.
+Eleven assertions, all passing, each confirmed against the actual database error rather than a loose
+regex. Findings folded into the docs; the spike itself was deleted, as a spike should be.
+
+**Confirmed as designed** — RLS read filtering · `WITH CHECK` rejecting a foreign-tenant write
+(`42501`) · no-context queries throwing rather than running unscoped · the `NULLIF` policy template
+returning zero rows for an empty GUC instead of raising · `withTransaction` nesting without a
+nested-transaction error · `ALTER DEFAULT PRIVILEGES` covering tables created after the grants ·
+`@db.Timestamptz(3)` leaving zero naive timestamps · the app role's `rolbypassrls` being `false`.
+
+**P0-4 proven, including the counterfactual.** Composite FKs generate as
+`FOREIGN KEY ("orgId","ticketId") REFERENCES "Ticket"("orgId", id)` and reject a cross-tenant reference
+with `P2003`. With a **single-column** FK the identical insert *succeeded* — an org-B row written
+pointing at an org-A ticket, past `WITH CHECK` and past RLS. The hole ADR-0023 exists to close is real.
+
+**Five things the plan had wrong or unstated:**
+
+| # | Finding | Folded into |
+| --- | --- | --- |
+| S-1 | Prisma's `latest` dist-tag points at `8.0.0-rc.15`, a **release candidate**; stable is `7.10.0` (`prev`). `pnpm add prisma` installs the RC, possibly at a different major than `@prisma/client` | `ENGINEERING.md` §Repository hygiene · `FEATURES.md` M0 |
+| S-2 | **Prisma 7 removed `url` from the datasource block.** Connection strings go in `prisma.config.ts`; the client takes a `@prisma/adapter-pg` driver adapter; the generator provider is `prisma-client`. Two adapters give the two roles two pools — better than the old single-URL model | `ARCHITECTURE.md` §Stack · ADR-0023 · `FEATURES.md` M0 |
+| S-3 | **Lazy `PrismaPromise` defeats naive `AsyncLocalStorage`.** `als.run(s, () => repo.find())` loses the context before the extension runs; it must be `als.run(s, async () => await fn())`. Fails closed, but fails — and it is the one thing the spike got wrong on its first run | `ENGINEERING.md` §Transactions · ADR-0015 |
+| S-4 | The extension **cannot** redirect `query(args)` to a transaction client. It batches `$transaction([set_config, query(args)])` per operation and passes through when a transaction is already open | `ENGINEERING.md` §Transactions · ADR-0015 |
+| S-5 | Raw queries reach the extension with `model === undefined`, so **layer 3 is genuinely skipped** for raw SQL — RLS alone catches it. Confirms the ban rather than softening it | `ENGINEERING.md` §Transactions |
+
+Also noted: pnpm blocks Prisma's postinstall until `allowBuilds` lists it, and Prisma 7 ships an
+agent-consent guard on `db push --accept-data-loss` (it was not needed — the database was empty).
+
 ## Still open
 
 | # | Item | Why it is not closed |
 | --- | --- | --- |
-| **R-1** | `docs/` is untracked (`git status` shows `?? docs/`; commit `041cfaa` added it to `.gitignore`) | Needs a commit — **the highest-risk open item; every document exists only on one disk** |
 | **R-2** | Scope is still `@workspace/*`, `apps/web` not renamed | M0 task |
 | **R-3 / D-11** | `engines.node: ">=20"`, no `.nvmrc`, docs say Node 24 | M0 task |
 | **R-4** | `.vscode/` exists but is git-ignored | Decide: commit shared settings, or delete |
-| **P0-9a** | Whether the pinned Prisma version supports `@default(uuid(7))` | Verify against the installed version in M0; fall back to the `uuidv7` package in the repository layer |
 | **D-6** | ADR-0015 lists a `Plan` table that was never built | The closed platform-class list in `TENANCY.md` §7 omits it, so the schema is unambiguous; the ADR body is immutable and this is too minor for an erratum |
 
 # Part 0 — What is genuinely good
