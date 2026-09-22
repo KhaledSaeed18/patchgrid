@@ -49,9 +49,9 @@ Licensed MIT: the value of this repository is that people read it.
 - [x] ESLint rules: no `@patchgrid/database` outside `apps/api`; no Prisma outside `**/repositories/**`;
       no raw SQL outside `packages/database`; `runAsPlatform`/`runAsTenant` import paths restricted by
       module (ADR-0022). `eslint-plugin-only-warn` removed and `--max-warnings 0` set, so lint can fail
-- [~] Repo furniture: `.nvmrc` + `engines`, `.editorconfig`, `commitlint` + `lefthook` (commit-msg and
-  pre-commit hooks), `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template, issue config —
-  **all done except `LICENSE`**, which is a decision rather than a task
+- [x] Repo furniture: `.nvmrc` + `engines`, `.editorconfig`, `commitlint` + `lefthook` (commit-msg and
+      pre-commit hooks), `LICENSE` (MIT), `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template,
+      issue config
 - [x] `apps/app` route groups `(auth)`, `(select)`, `(portal)`, `(console)`, `(admin)` with placeholders
       that name the milestone each screen arrives in. The tenant-scoped groups declare
       `force-dynamic` at the _layout_, so a page added below cannot silently render one tenant's data
