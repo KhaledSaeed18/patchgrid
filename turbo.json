@@ -26,7 +26,9 @@
     "S3_SECRET_ACCESS_KEY",
     "SMTP_HOST",
     "SMTP_PORT",
-    "MAIL_FROM"
+    "MAIL_FROM",
+    "CI",
+    "E2E_BASE_URL"
   ],
   "globalDependencies": [".env", ".nvmrc"],
   "tasks": {
