@@ -12,13 +12,13 @@ It is also a learning project. Every non-obvious decision is written down in `do
 
 Three deployables across five hostnames, one monorepo (ADR-0014, ADR-0016):
 
-| Host | App | What it is |
-| --- | --- | --- |
-| `patchgrid.xyz` | `apps/www` | Public marketing site: landing, pricing, docs, blog, sign-up |
-| `<slug>.patchgrid.xyz` | `apps/app` | A single tenant's workspace — the product |
-| `app.patchgrid.xyz` | `apps/app` | Tenant-less entry: login, org picker, accept invite, create workspace |
-| `api.patchgrid.xyz` | `apps/api` | NestJS — all business logic and data access |
-| `admin.patchgrid.xyz` | *(reserved)* | Platform back-office, later |
+| Host                   | App          | What it is                                                            |
+| ---------------------- | ------------ | --------------------------------------------------------------------- |
+| `patchgrid.xyz`        | `apps/www`   | Public marketing site: landing, pricing, docs, blog, sign-up          |
+| `<slug>.patchgrid.xyz` | `apps/app`   | A single tenant's workspace — the product                             |
+| `app.patchgrid.xyz`    | `apps/app`   | Tenant-less entry: login, org picker, accept invite, create workspace |
+| `api.patchgrid.xyz`    | `apps/api`   | NestJS — all business logic and data access                           |
+| `admin.patchgrid.xyz`  | _(reserved)_ | Platform back-office, later                                           |
 
 A company signs up on the marketing site, picks a slug, and lands in its own workspace at `acme.patchgrid.xyz` with teams, a category tree, SLA policies and starter knowledge-base articles already provisioned.
 
@@ -27,7 +27,7 @@ A company signs up on the marketing site, picks a slug, and lands in its own wor
 - A **tenant** is an `Organization`, addressed by its subdomain slug.
 - A **user** is a global identity (one email, one account) who belongs to organizations through **memberships**. The same person can be an Admin at one company and a Requester at another.
 - Roles live on the membership: `OWNER | ADMIN | AGENT | REQUESTER`, with team leadership as a scoped capability rather than a role. Machines act through scoped API tokens bound to service-account memberships, so one authorization model covers humans and integrations (`RBAC.md`).
-- Every tenant-owned row is isolated at the **database** level by Postgres Row-Level Security, not merely by application filtering (ADR-0015). Isolation is defended in five independent layers — starting with a schema shape in which a cross-tenant reference is *unrepresentable* (ADR-0023) — and proven by a dedicated test suite.
+- Every tenant-owned row is isolated at the **database** level by Postgres Row-Level Security, not merely by application filtering (ADR-0015). Isolation is defended in five independent layers — starting with a schema shape in which a cross-tenant reference is _unrepresentable_ (ADR-0023) — and proven by a dedicated test suite.
 
 ## Domain grounding (ITIL)
 
@@ -51,19 +51,20 @@ The resulting Priority (Low / Medium / High / Critical) selects the SLA policy. 
 
 ## Document map
 
-| File | Purpose |
-| --- | --- |
-| `PROJECT.md` (this file) | What we are building, for whom, and what we are *not* building |
-| `TENANCY.md` | The multi-tenant model: identity, membership, isolation, provisioning, limits |
-| `RBAC.md` | Authorization: actors, permission catalog, matrix, platform admin, support access, API tokens |
-| `DOMAIN.md` | ITSM business rules: record types, state machines, priority, SLA |
-| `ARCHITECTURE.md` | Stack, monorepo layout, layering, data model, request pipeline, integrations |
-| `ENGINEERING.md` | Conventions, API rules, testing, CI, local development |
-| `FEATURES.md` | Scope as milestones — the working backlog |
-| `DNS.md` | Hostnames, wildcard TLS, mail DNS, and the custom-domain path |
-| `decisions/` | One ADR per non-obvious decision |
-| `SPEC-REVIEW.md` | Working review log — findings burn down into the docs above, then the file is deleted |
-| `../CLAUDE.md` | Rules for AI coding agents working in this repo |
+| File                     | Purpose                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `PROJECT.md` (this file) | What we are building, for whom, and what we are _not_ building                                |
+| `TENANCY.md`             | The multi-tenant model: identity, membership, isolation, provisioning, limits                 |
+| `RBAC.md`                | Authorization: actors, permission catalog, matrix, platform admin, support access, API tokens |
+| `DOMAIN.md`              | ITSM business rules: record types, state machines, priority, SLA                              |
+| `ARCHITECTURE.md`        | Stack, monorepo layout, layering, data model, request pipeline, integrations                  |
+| `ENGINEERING.md`         | Conventions, API rules, testing, CI, local development                                        |
+| `FEATURES.md`            | Scope as milestones — the working backlog                                                     |
+| `DNS.md`                 | Hostnames, wildcard TLS, mail DNS, and the custom-domain path                                 |
+| `decisions/`             | One ADR per non-obvious decision                                                              |
+| `SPEC-REVIEW.md`         | Working review log — findings burn down into the docs above, then the file is deleted         |
+| `HANDOFF.md`             | State of play at the current milestone boundary — read first when picking the work back up    |
+| `../CLAUDE.md`           | Rules for AI coding agents working in this repo                                               |
 
 ## Explicit non-goals
 
@@ -71,7 +72,7 @@ The resulting Priority (Low / Medium / High / Critical) selects the SLA policy. 
 - Not a customer-facing support suite (no live chat widget, no multi-brand customer inboxes)
 - Not ServiceNow-scale configurability (no custom form builder, no workflow DSL) — automation is condition/action pairs, not a general rules engine
 - No payment processing or self-serve billing in v1; plans exist, a platform admin sets them
-- No SSO/SAML, SCIM, or per-tenant custom domains in v1 (all are designed *for*, deferred by ADR)
+- No SSO/SAML, SCIM, or per-tenant custom domains in v1 (all are designed _for_, deferred by ADR)
 - No platform-operator impersonation, ever: support access is owner-granted, read-only, time-boxed and audited into the customer's own log (ADR-0020)
 - No business-hours SLA calendars in v1 — clocks run 24×7 (ADR-0003)
 - No internationalisation: English only, no locale routing, no `next-intl`. Search is `english`-configured Postgres full-text
