@@ -13,7 +13,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 *Exit: `docker compose up` + `pnpm dev` serves `lvh.me:3000`, `app.lvh.me:3001` and `api.lvh.me:4000`;
 CI green on an empty PR; `/health/ready` returns 200 (connectivity only — there is no schema yet).*
 
-- [ ] Rename scope `@workspace/*` → `@patchgrid/*`; rename `apps/web` → `apps/app` (including its
+- [x] Rename scope `@workspace/*` → `@patchgrid/*`; rename `apps/web` → `apps/app` (including its
       `package.json` `name`); scaffold `apps/www` (ADR-0001, ADR-0016)
 - [ ] `apps/api` NestJS 11: Zod-validated config, `nestjs-pino`, Problem Details filter, `nestjs-zod`
       pipe, helmet, slug-aware CORS, `/health` + `/health/ready`, no-op `Tracer` provider
@@ -38,10 +38,11 @@ CI green on an empty PR; `/health/ready` returns 200 (connectivity only — ther
 - [ ] ESLint rules: no `@patchgrid/database` outside `apps/api`; no Prisma outside `**/repositories/**`;
       no raw SQL outside `packages/database`; `runAsPlatform`/`runAsTenant` import paths restricted by
       module (ADR-0022)
-- [ ] Repo furniture: `.nvmrc` (24.x) + `engines`, `.editorconfig`, `commitlint` + `lefthook`, `LICENSE`,
-      `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template
-- [ ] `apps/app` route groups `(auth)`, `(select)`, `(portal)`, `(console)`, `(admin)` with placeholders;
-      `apps/www` landing placeholder + `/problems/*` pages for Problem Details `type` URIs
+- [~] Repo furniture: `.nvmrc` (24.x) + `engines` **done**; `.editorconfig`, `commitlint` + `lefthook`,
+      `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, PR template still to do
+- [ ] `apps/app` route groups `(auth)`, `(select)`, `(portal)`, `(console)`, `(admin)` with placeholders
+- [x] `apps/www` landing placeholder + `/problems/*` pages for Problem Details `type` URIs — 13 types,
+      statically prerendered; the registry moves to `@patchgrid/contracts` when that package exists
 
 ## M1 — Tenancy and identity (the foundation everything else sits on)
 

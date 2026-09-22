@@ -122,8 +122,6 @@ agent-consent guard on `db push --accept-data-loss` (it was not needed — the d
 
 | # | Item | Why it is not closed |
 | --- | --- | --- |
-| **R-2** | Scope is still `@workspace/*`, `apps/web` not renamed | M0 task |
-| **R-3 / D-11** | `engines.node: ">=20"`, no `.nvmrc`, docs say Node 24 | M0 task |
 | **R-4** | `.vscode/` exists but is git-ignored | Decide: commit shared settings, or delete |
 | **D-6** | ADR-0015 lists a `Plan` table that was never built | The closed platform-class list in `TENANCY.md` §7 omits it, so the schema is unambiguous; the ADR body is immutable and this is too minor for an erratum |
 
