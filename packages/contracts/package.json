@@ -1,0 +1,25 @@
+{
+  "name": "@patchgrid/contracts",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@patchgrid/eslint-config": "workspace:*",
+    "@patchgrid/typescript-config": "workspace:*",
+    "@types/node": "^24",
+    "eslint": "^9",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}
