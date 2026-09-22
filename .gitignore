@@ -48,5 +48,5 @@ next-env.d.ts
 .idea
 .vscode
 
-# documentation
-docs/
+# local data volumes
+.docker-data/
