@@ -16,27 +16,50 @@ export const PROBLEM_BASE_URL = "https://patchgrid.xyz/problems"
  * stable part of the wire contract — renaming one is a breaking change.
  */
 export const PROBLEM_TYPES = {
-  "validation-failed": 400,
-  "not-authenticated": 401,
-  "plan-limit-reached": 402,
-  "not-permitted": 403,
-  "tenant-mismatch": 403,
-  "organization-suspended": 403,
-  "not-found": 404,
-  "invalid-transition": 409,
-  "stale-write": 409,
-  "change-window-early": 409,
-  conflict: 409,
-  "rate-limited": 429,
-  "internal-error": 500,
-} as const satisfies Record<string, number>
+  "validation-failed": { status: 400, title: "Validation failed" },
+  "not-authenticated": { status: 401, title: "Not authenticated" },
+  "plan-limit-reached": { status: 402, title: "Plan limit reached" },
+  "not-permitted": { status: 403, title: "Not permitted" },
+  "tenant-mismatch": { status: 403, title: "Tenant mismatch" },
+  "organization-suspended": { status: 403, title: "Organization suspended" },
+  "not-found": { status: 404, title: "Not found" },
+  "invalid-transition": { status: 409, title: "Invalid transition" },
+  "stale-write": { status: 409, title: "Stale write" },
+  "change-window-early": { status: 409, title: "Change window has not opened" },
+  conflict: { status: 409, title: "Conflict" },
+  "rate-limited": { status: 429, title: "Rate limited" },
+  "internal-error": { status: 500, title: "Internal error" },
+} as const satisfies Record<string, { status: number; title: string }>
 
 export type ProblemTypeSlug = keyof typeof PROBLEM_TYPES
 
 export const PROBLEM_TYPE_SLUGS = Object.keys(PROBLEM_TYPES) as ProblemTypeSlug[]
 
 export function problemStatus(slug: ProblemTypeSlug): number {
-  return PROBLEM_TYPES[slug]
+  return PROBLEM_TYPES[slug].status
+}
+
+/** The short summary that goes in the `title` field. */
+export function problemTitle(slug: ProblemTypeSlug): string {
+  return PROBLEM_TYPES[slug].title
+}
+
+/**
+ * Maps a bare HTTP status onto a problem type, for errors that did not originate
+ * as one — a framework 404, say. Anything unrecognised is an internal error,
+ * because an unmapped status means we did not intend it.
+ */
+export function problemTypeForStatus(status: number): ProblemTypeSlug {
+  switch (status) {
+    case 400: return "validation-failed"
+    case 401: return "not-authenticated"
+    case 402: return "plan-limit-reached"
+    case 403: return "not-permitted"
+    case 404: return "not-found"
+    case 409: return "conflict"
+    case 429: return "rate-limited"
+    default: return "internal-error"
+  }
 }
 
 /** The `type` URI. These resolve — `apps/www` serves a page per type. */
