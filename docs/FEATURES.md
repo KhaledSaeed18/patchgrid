@@ -35,11 +35,12 @@ redis and object-storage up; all four CI jobs pass on GitHub's runners. The one 
 - [x] `packages/contracts`: shared primitives — ids, cursor pagination, Problem Details, slug schema,
       `RESERVED_SLUGS`, `formatTicketNumber` / `parseTicketNumber`, limit constants. 59 round-trip tests;
       `apps/www` renders its problem pages from the registry rather than a copy of it
-- [ ] `docker-compose.yml`: postgres (pgvector, init script), redis, minio (+ bucket & CORS init for
-      `https://*.patchgrid.xyz` and the local equivalents), mailpit
-- [ ] Root scripts (`test`, `test:tenancy`, `test:authz`, `db:*`, `platform:grant`), Vitest in
-      api/app/www/contracts, Playwright installed but empty; integration tests use per-worker template
-      database clones
+- [x] `docker-compose.yml`: postgres (pgvector, init script), redis, minio (+ bucket; **CORS is a
+      server setting**, `MINIO_API_CORS_ALLOW_ORIGIN`, not a bucket one), mailpit — all four
+      healthchecked, every published port env-overridable
+- [x] Root scripts (`test`, `db:*`), Vitest in api/app/www/contracts — 105 tests; Playwright installed
+      and configured but deliberately empty until M9. `test:tenancy`, `test:authz`, `platform:grant` and
+      per-worker template database clones arrive with the code they serve, in M1
 - [x] GitHub Actions: `verify` (lint, typecheck, test, build), `database` (service container →
       bootstrap → doctor, run twice for idempotency), `smoke` (full Compose stack + API boot +
       readiness), `security` (gitleaks over full history, `pnpm audit --audit-level=high`); CodeQL
