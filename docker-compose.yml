@@ -1,0 +1,110 @@
+# Local development infrastructure. The three apps run on the host via `pnpm dev`
+# for fast HMR; only their dependencies live here (docs/ARCHITECTURE.md).
+#
+# Ports are env-overridable because another project's Postgres on 5432 is common
+# and "port is already allocated" is an easy error to misread.
+
+name: patchgrid
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-patchgrid}
+      POSTGRES_TEST_DB: ${POSTGRES_TEST_DB:-patchgrid_test}
+      PATCHGRID_OWNER_PASSWORD: ${PATCHGRID_OWNER_PASSWORD:-owner}
+      PATCHGRID_APP_PASSWORD: ${PATCHGRID_APP_PASSWORD:-app}
+      # Everything is UTC on the wire and in the database (ADR-0023).
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Runs ONCE, against an empty volume only. The same SQL is available as
+      # `pnpm db:bootstrap` for volumes that already exist.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./packages/database/sql:/opt/patchgrid/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-patchgrid}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    # quay.io, not Docker Hub: MinIO's docker.io/minio/minio tags are no longer
+    # publicly pullable ("pull access denied"). quay.io is the working source.
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-patchgrid}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-patchgrid-local-dev}
+      # CORS is a SERVER setting in MinIO, not a per-bucket one: `mc cors set`
+      # returns "functionality that is not implemented" against this build.
+      # The browser PUTs directly to storage with a presigned URL (ADR-0005),
+      # so the tenant origins have to be allowed here.
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ALLOW_ORIGIN:-http://*.lvh.me:3001,http://lvh.me:3000,http://*.localhost:3001,http://localhost:3001}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: create the bucket and set CORS so the browser can PUT directly to
+  # storage with a presigned URL (ADR-0005). Exits 0 and stays exited.
+  minio-init:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-patchgrid}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-patchgrid-local-dev}
+      S3_BUCKET: ${S3_BUCKET:-patchgrid-attachments}
+    volumes:
+      - ./docker/minio:/opt/patchgrid/minio:ro
+    entrypoint: ["/bin/sh", "/opt/patchgrid/minio/init.sh"]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
