@@ -53,7 +53,7 @@
       "dependsOn": ["^typecheck", "generate"]
     },
     "test": {
-      "dependsOn": ["generate"],
+      "dependsOn": ["generate", "^generate"],
       "outputs": ["coverage/**"]
     },
     "dev": {
