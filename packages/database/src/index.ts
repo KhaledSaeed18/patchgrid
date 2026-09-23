@@ -4,6 +4,9 @@ import { PrismaClient } from "../generated/client/client.ts"
 
 export { PrismaClient }
 export type { Prisma } from "../generated/client/client.ts"
+// Storage enums. apps/api asserts each is identical to its wire twin in
+// @patchgrid/contracts (enum-parity.spec.ts); only repositories should need them.
+export * from "../generated/client/enums.ts"
 
 export type PrismaClientOptions = {
   /** A libpq connection string. The application always passes DATABASE_URL. */
