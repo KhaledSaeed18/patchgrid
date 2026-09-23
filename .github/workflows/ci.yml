@@ -223,6 +223,12 @@ jobs:
       - name: Assert the physical schema
         run: pnpm test:schema
 
+      # The tenant client extension (isolation layer 3) with RLS live underneath:
+      # no context throws, a context sees only its org, a foreign orgId is
+      # refused, and the tenant setting never outlives its transaction.
+      - name: Tenant client against the live schema
+        run: pnpm --filter @patchgrid/database run test:integration
+
       # The migrations, replayed into the shadow database, must produce exactly
       # schema.prisma. A schema edit without its migration fails here.
       - name: Migrations match schema.prisma
