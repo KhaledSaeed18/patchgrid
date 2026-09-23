@@ -9,6 +9,7 @@ set -euo pipefail
 OWNER_PASSWORD="${PATCHGRID_OWNER_PASSWORD:?PATCHGRID_OWNER_PASSWORD is required}"
 APP_PASSWORD="${PATCHGRID_APP_PASSWORD:?PATCHGRID_APP_PASSWORD is required}"
 TEST_DB="${POSTGRES_TEST_DB:-patchgrid_test}"
+SHADOW_DB="${POSTGRES_SHADOW_DB:-patchgrid_shadow}"
 
 psql() { command psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" "$@"; }
 
@@ -36,6 +37,13 @@ psql --dbname "$POSTGRES_DB" -c "ALTER DATABASE ${POSTGRES_DB} OWNER TO patchgri
 echo "[patchgrid] creating ${TEST_DB}"
 psql --dbname "$POSTGRES_DB" -tc "SELECT 1 FROM pg_database WHERE datname = '${TEST_DB}'" \
   | grep -q 1 || psql --dbname "$POSTGRES_DB" -c "CREATE DATABASE ${TEST_DB} OWNER patchgrid_owner"
+
+# Prisma diffs migrations against a scratch database it wipes at will. The owner
+# role has no CREATEDB, so it gets one to own instead. Not bootstrapped: Prisma
+# resets it, and nothing but the migration engine ever connects.
+echo "[patchgrid] creating ${SHADOW_DB}"
+psql --dbname "$POSTGRES_DB" -tc "SELECT 1 FROM pg_database WHERE datname = '${SHADOW_DB}'" \
+  | grep -q 1 || psql --dbname "$POSTGRES_DB" -c "CREATE DATABASE ${SHADOW_DB} OWNER patchgrid_owner"
 
 for db in "$POSTGRES_DB" "$TEST_DB"; do
   echo "[patchgrid] bootstrapping ${db}"

@@ -22,11 +22,19 @@ try {
 // matters here: `prisma generate` needs no database, so CI must be able to run it
 // without one.
 const migrationUrl = process.env.DATABASE_MIGRATION_URL
+// A scratch database Prisma wipes while diffing (`migrate dev`, the CI drift
+// check). The owner role lacks CREATEDB, so the bootstrap provisions one for it.
+const shadowUrl = process.env.DATABASE_SHADOW_URL
 
 export default defineConfig({
   schema: path.join("prisma", "schema.prisma"),
   migrations: { path: path.join("prisma", "migrations") },
   ...(migrationUrl === undefined || migrationUrl === ""
     ? {}
-    : { datasource: { url: migrationUrl } }),
+    : {
+        datasource: {
+          url: migrationUrl,
+          ...(shadowUrl === undefined || shadowUrl === "" ? {} : { shadowDatabaseUrl: shadowUrl }),
+        },
+      }),
 })

@@ -15,6 +15,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-patchgrid}
       POSTGRES_TEST_DB: ${POSTGRES_TEST_DB:-patchgrid_test}
+      POSTGRES_SHADOW_DB: ${POSTGRES_SHADOW_DB:-patchgrid_shadow}
       PATCHGRID_OWNER_PASSWORD: ${PATCHGRID_OWNER_PASSWORD:-owner}
       PATCHGRID_APP_PASSWORD: ${PATCHGRID_APP_PASSWORD:-app}
       # Everything is UTC on the wire and in the database (ADR-0023).

@@ -27,6 +27,7 @@ const ownerPassword = requireEnv("PATCHGRID_OWNER_PASSWORD")
 const appPassword = requireEnv("PATCHGRID_APP_PASSWORD")
 const mainDb = process.env.POSTGRES_DB ?? "patchgrid"
 const testDb = process.env.POSTGRES_TEST_DB ?? "patchgrid_test"
+const shadowDb = process.env.POSTGRES_SHADOW_DB ?? "patchgrid_shadow"
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -71,18 +72,11 @@ async function main(): Promise<void> {
       `ALTER DATABASE ${quoteIdent(mainDb)} OWNER TO ${quoteIdent("patchgrid_owner")}`,
     )
 
-    const exists = await admin.query<{ one: number }>(
-      "SELECT 1 AS one FROM pg_database WHERE datname = $1",
-      [testDb],
-    )
-    if (exists.rowCount === 0) {
-      await admin.query(
-        `CREATE DATABASE ${quoteIdent(testDb)} OWNER ${quoteIdent("patchgrid_owner")}`,
-      )
-      console.log(`  created database ${testDb}`)
-    } else {
-      console.log(`  database ${testDb} already present`)
-    }
+    await ensureDatabase(admin, testDb)
+    // Prisma diffs migrations against a scratch database it wipes at will. The
+    // owner has no CREATEDB, so it is given one to own rather than the privilege.
+    // Not bootstrapped below: Prisma resets it and nothing else connects.
+    await ensureDatabase(admin, shadowDb)
   } finally {
     await admin.end()
   }
@@ -100,6 +94,16 @@ async function main(): Promise<void> {
   }
 
   console.log("bootstrap complete")
+}
+
+async function ensureDatabase(client: Client, name: string): Promise<void> {
+  const exists = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [name])
+  if (exists.rowCount === 0) {
+    await client.query(`CREATE DATABASE ${quoteIdent(name)} OWNER ${quoteIdent("patchgrid_owner")}`)
+    console.log(`  created database ${name}`)
+  } else {
+    console.log(`  database ${name} already present`)
+  }
 }
 
 async function ensureRole(
