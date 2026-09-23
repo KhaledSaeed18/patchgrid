@@ -70,13 +70,15 @@ suite proves every route asserts a permission._
 - [x] **Threat model** (`docs/THREAT-MODEL.md`): assets, actors, trust boundaries, STRIDE per boundary.
       Written **first** — it informs the design rather than certifying it, and it is a one-page document.
       Findings TM-3…TM-5 decided in ADR-0031; TM-1 (attachment origin, M5) and TM-2 (platform actor, M8) open
-- [ ] Data: `Organization`, `OrganizationSlugHistory`, `User`, `Membership`, `TeamMembership`,
+- [x] Data: `Organization`, `OrganizationSlugHistory`, `User`, `Membership`, `TeamMembership`,
       `Invitation`, `Team`, `RefreshToken`, `PasswordResetToken`, `EmailVerification`, `PlatformAdmin`,
       `UserOrgIndex`, `ApiTokenIndex` — with composite `(orgId, id)` uniques and membership references
-      throughout (ADR-0023)
-- [ ] **RLS**: hand-written policy migrations from one template, `FORCE ROW LEVEL SECURITY`, tenant
+      throughout (ADR-0023). Shipped with its five catalog assertions, migration drift and
+      migration-safety checks as the CI `schema` job
+- [~] **RLS**: hand-written policy migrations from one template, `FORCE ROW LEVEL SECURITY`, tenant
       Prisma client extension with transaction-local `set_config` and CLS-aware nesting, `nestjs-cls`
-      context, `runAsTenant` / `runAsPlatform` (ADR-0015, ADR-0022)
+      context, `runAsTenant` / `runAsPlatform` (ADR-0015, ADR-0022). _Policies and template done;
+      the extension, CLS context and the two helpers remain_
 - [ ] Tenant resolution middleware: credential → org, `Origin` / `X-Patchgrid-Tenant` cross-check,
       Redis-cached org lookup, slug-history redirects (302), suspended/deleted handling (ADR-0024)
 - [ ] Auth: signup, login, logout, refresh with rotation + reuse detection, email verification, password
