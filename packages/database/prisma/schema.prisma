@@ -1,6 +1,6 @@
 // Patchgrid schema.
 //
-// Conventions enforced by CI introspection tests (ADR-0023):
+// Conventions enforced by CI introspection tests (ADR-0023, `pnpm test:schema`):
 //   · every id is UUID v7, `String @db.Uuid`, and is NOT a secret
 //   · every datetime is `@db.Timestamptz(3)` — Prisma's default is naive `timestamp`
 //   · every tenant-owned parent declares `@@unique([orgId, id])`
@@ -8,13 +8,24 @@
 //     because PostgreSQL runs referential-integrity checks with row security OFF
 //   · people are referenced by `membershipId`, never `userId`
 //
-// Models land in M1 (tenancy and identity). M0 establishes the wiring only:
-// two roles, grants, generation, and the migration path.
+// Table classes (TENANCY.md §7). The platform class is a closed list, defined once
+// in `src/table-classes.ts`; every other table is tenant-owned and ships with its
+// RLS policy, generated from `src/rls.ts`, in the same migration that creates it.
+//
+// Two things Prisma cannot express live as hand-written SQL at the end of the
+// migration that creates the table: RLS policies and CHECK constraints. Prisma
+// neither models nor diffs either, so they cause no drift.
+//
+// Optional composite relations are `onDelete: Restrict`, never the default
+// `SetNull`: SET NULL on `(orgId, teamId)` would null `orgId` too, and fail.
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../generated/client"
-  moduleFormat = "esm"
+  provider        = "prisma-client"
+  output          = "../generated/client"
+  moduleFormat    = "esm"
+  // `@@unique(…, where: …)` — "one lead per team" and "a domain is verified by one
+  // org" are partial unique indexes. Modelled here, so they are not drift.
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -25,3 +36,327 @@ datasource db {
 // feature) emits `CREATE EXTENSION` into migrations, which run as patchgrid_owner
 // — not a superuser, so it would fail. pgvector is created by the bootstrap,
 // which runs as the superuser and is the only thing that can (sql/bootstrap.sql).
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+// Mirrored as Zod enums in @patchgrid/contracts; a type-level test in apps/api
+// fails `typecheck` if the two drift (ENGINEERING.md §Testing).
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_DELETION
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum AgentVisibility {
+  ALL_TICKETS
+  OWN_TEAM_ONLY
+}
+
+/// Cumulative: REQUESTER ⊂ AGENT ⊂ ADMIN ⊂ OWNER (RBAC.md §3).
+enum Role {
+  OWNER
+  ADMIN
+  AGENT
+  REQUESTER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum MembershipKind {
+  HUMAN
+  SERVICE_ACCOUNT
+}
+
+// ─── Platform class ──────────────────────────────────────────────────────────
+// No orgId policy. Reachable before a tenant is known, through runAsPlatform
+// (ADR-0022). Nothing here holds tenant content.
+
+/// A tenant, addressed by slug.
+model Organization {
+  id                        String             @id @default(uuid(7)) @db.Uuid
+  name                      String
+  /// Format enforced by a CHECK constraint as well as by the contracts schema.
+  slug                      String             @unique
+  status                    OrganizationStatus @default(ACTIVE)
+  plan                      Plan               @default(FREE)
+  /// Claimed email domain. Many orgs may claim one; only one may verify it.
+  domain                    String?
+  domainVerifiedAt          DateTime?          @db.Timestamptz(3)
+  allowDomainJoin           Boolean            @default(false)
+  defaultJoinRole           Role?
+  agentVisibility           AgentVisibility    @default(ALL_TICKETS)
+  emailNotificationsEnabled Boolean            @default(true)
+  deletionRequestedAt       DateTime?          @db.Timestamptz(3)
+  createdAt                 DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime           @updatedAt @db.Timestamptz(3)
+
+  slugHistory   OrganizationSlugHistory[]
+  refreshTokens RefreshToken[]
+  userOrgIndex  UserOrgIndex[]
+  apiTokenIndex ApiTokenIndex[]
+  memberships   Membership[]
+  teams         Team[]
+  teamMembers   TeamMembership[]
+  invitations   Invitation[]
+
+  /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
+  @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
+}
+
+/// Released slugs. Kept forever: a released slug is never reusable (TENANCY.md §2).
+model OrganizationSlugHistory {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  orgId         String   @db.Uuid
+  slug          String   @unique
+  releasedAt    DateTime @db.Timestamptz(3)
+  /// 302 until here; the reservation outlives it.
+  redirectUntil DateTime @db.Timestamptz(3)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+}
+
+/// A global identity: one email, one account, many memberships.
+model User {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  /// Stored lower-cased; a CHECK constraint refuses anything else.
+  email           String    @unique
+  /// Null only after pseudonymised erasure (ADR-0028).
+  passwordHash    String?
+  name            String
+  avatarUrl       String?
+  emailVerifiedAt DateTime? @db.Timestamptz(3)
+  lastLoginAt     DateTime? @db.Timestamptz(3)
+  anonymisedAt    DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  platformAdmin       PlatformAdmin?
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  emailVerifications  EmailVerification[]
+  userOrgIndex        UserOrgIndex[]
+  memberships         Membership[]
+}
+
+/// An operator, outside all tenancy. Created only by CLI (RBAC.md §8).
+model PlatformAdmin {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @unique @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+/// Rotating refresh tokens, chained through `replacedById`; presenting a rotated
+/// token revokes the chain (ADR-0004). `orgId` null is the tenant-less `pg_id`
+/// (ADR-0031); otherwise the `pg_rt_<slug>` for that org.
+///
+/// Tokens are 256-bit random secrets, so `tokenHash` is SHA-256 — a lookup key.
+/// Argon2id is for low-entropy secrets (passwords, API tokens looked up by prefix).
+model RefreshToken {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @db.Uuid
+  orgId        String?   @db.Uuid
+  tokenHash    String    @unique
+  expiresAt    DateTime  @db.Timestamptz(3)
+  revokedAt    DateTime? @db.Timestamptz(3)
+  replacedById String?   @unique @db.Uuid
+  userAgent    String?
+  ip           String?   @db.Inet
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+
+  user         User          @relation(fields: [userId], references: [id])
+  /// CASCADE, not the default SET NULL: nulling `orgId` would turn a tenant
+  /// refresh token into an org-less one — which is what a `pg_id` is (ADR-0031).
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  replacedBy   RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id])
+  replaces     RefreshToken? @relation("RefreshTokenChain")
+
+  @@index([userId])
+  @@index([orgId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model EmailVerification {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+/// DERIVED projection (ADR-0022): which workspaces may this user enter? Written in
+/// the same transaction as its source rows, reconciled nightly, and NEVER read to
+/// authorize — hence `…ForDisplay`. The authoritative role is `Membership.role`.
+model UserOrgIndex {
+  userId           String             @db.Uuid
+  orgId            String             @db.Uuid
+  roleForDisplay   Role
+  statusForDisplay MembershipStatus
+  orgSlug          String
+  orgName          String
+  orgStatus        OrganizationStatus
+  createdAt        DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(3)
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@id([userId, orgId])
+  @@index([orgId])
+}
+
+/// DERIVED projection (ADR-0022): which org does an API-token prefix belong to?
+/// No secret, no hash, no scopes. `ApiToken` itself is tenant-owned and lands in M8.
+model ApiTokenIndex {
+  prefix    String    @id
+  orgId     String    @db.Uuid
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+}
+
+// ─── Tenant-owned ────────────────────────────────────────────────────────────
+// orgId + RLS policy + @@unique([orgId, id]) + orgId-first indexes + composite
+// foreign keys between each other. Every one is covered by `pnpm test:schema`.
+
+/// A person's — or a service account's — role inside one organization.
+model Membership {
+  id                    String           @id @default(uuid(7)) @db.Uuid
+  orgId                 String           @db.Uuid
+  /// Null exactly when `kind` is SERVICE_ACCOUNT (CHECK constraint): an API
+  /// token's actor has no human account behind it (ADR-0021).
+  userId                String?          @db.Uuid
+  role                  Role
+  status                MembershipStatus @default(ACTIVE)
+  kind                  MembershipKind   @default(HUMAN)
+  /// Denormalised from User so hot lists never join the one table where a
+  /// missing `where` exposes every customer's employees (ADR-0023).
+  displayName           String
+  avatarUrl             String?
+  emailPrefs            Json             @default("{}")
+  invitedByMembershipId String?          @db.Uuid
+  joinedAt              DateTime?        @db.Timestamptz(3)
+  anonymisedAt          DateTime?        @db.Timestamptz(3)
+  createdAt             DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  /// Users are pseudonymised, never deleted (ADR-0028); SET NULL would also
+  /// break the kind/userId CHECK.
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy    Membership?  @relation("MembershipInvitedBy", fields: [orgId, invitedByMembershipId], references: [orgId, id], onDelete: Restrict)
+  invited      Membership[] @relation("MembershipInvitedBy")
+
+  teams              TeamMembership[]
+  invitationsCreated Invitation[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, userId])
+  @@index([orgId, role, status])
+  @@index([userId])
+}
+
+model Team {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  orgId       String   @db.Uuid
+  name        String
+  description String?
+  /// Teams are deactivated, never deleted: tickets reference them.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [orgId], references: [id])
+  members      TeamMembership[]
+  invitations  Invitation[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, name])
+}
+
+/// Which teams a membership works in (ADR-0025). A member may be in several;
+/// leadership lives on the row, so "a lead is a member of the team they lead"
+/// is a property of the key.
+model TeamMembership {
+  orgId        String   @db.Uuid
+  teamId       String   @db.Uuid
+  membershipId String   @db.Uuid
+  isLead       Boolean  @default(false)
+  joinedAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  team         Team         @relation(fields: [orgId, teamId], references: [orgId, id])
+  membership   Membership   @relation(fields: [orgId, membershipId], references: [orgId, id])
+
+  @@id([orgId, teamId, membershipId])
+  @@unique([orgId, teamId], where: raw("\"isLead\""), map: "TeamMembership_single_lead_key")
+  @@index([orgId, membershipId])
+}
+
+/// Single-use, 7 days. Token `<orgId-base36>.<secret>`; the org half establishes
+/// tenant context before the lookup (ADR-0022). Accepted only by an account whose
+/// email equals `email` (ADR-0031).
+model Invitation {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  orgId                 String    @db.Uuid
+  /// Stored lower-cased; a CHECK constraint refuses anything else.
+  email                 String
+  role                  Role
+  teamId                String?   @db.Uuid
+  /// SHA-256 of a 256-bit secret — see RefreshToken.
+  tokenHash             String
+  expiresAt             DateTime  @db.Timestamptz(3)
+  acceptedAt            DateTime? @db.Timestamptz(3)
+  revokedAt             DateTime? @db.Timestamptz(3)
+  invitedByMembershipId String    @db.Uuid
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  team         Team?        @relation(fields: [orgId, teamId], references: [orgId, id], onDelete: Restrict)
+  invitedBy    Membership   @relation(fields: [orgId, invitedByMembershipId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, tokenHash])
+  @@index([orgId, email])
+}
