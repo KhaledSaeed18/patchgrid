@@ -1,6 +1,6 @@
 # 0017 — Organization signup, provisioning, and membership
 
-- **Status:** Accepted
+- **Status:** Accepted — immediate session at signup superseded by [0031](0031-identity-flow-hardening.md)
 - **Date:** 2026-09-22
 
 > **Erratum (2026-09-22).** Provisioning seeds **eight** SLA policies, not four: the uniqueness key is

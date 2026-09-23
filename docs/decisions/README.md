@@ -23,7 +23,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0014](0014-subdomain-per-tenant-routing.md) | Subdomain per tenant; three deployables | Accepted — cookies and tenant resolution superseded by 0024 |
 | [0015](0015-tenant-isolation-rls.md) | Tenant isolation via shared schema + `orgId` + Postgres RLS | Accepted — refined by 0022 and 0023; erratum on `FORCE` and ownership |
 | [0016](0016-three-frontend-deployables.md) | Three deployables: `www`, `app`, `api` | Accepted |
-| [0017](0017-org-signup-and-provisioning.md) | Org signup, provisioning, membership model | Accepted — supersedes 0004 in part; erratum |
+| [0017](0017-org-signup-and-provisioning.md) | Org signup, provisioning, membership model | Accepted — supersedes 0004 in part; erratum; immediate signup session superseded by 0031 |
 | [0018](0018-tenant-aware-jobs-and-events.md) | Tenant-aware background jobs, events and email | Accepted — erratum; inbound auth in 0027 |
 | [0019](0019-rbac-model-and-enforcement.md) | RBAC: cumulative roles, permission catalog, pure policy function | Accepted — erratum; team scoping extended by 0025 |
 | [0020](0020-consent-based-support-access.md) | Consent-based, read-only, audited support access | Accepted — erratum: per-request auditing |
@@ -37,6 +37,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0028](0028-data-protection-export-erasure-retention.md) | Data protection: export, pseudonymised erasure, retention | Accepted |
 | [0029](0029-mfa-and-step-up-authentication.md) | MFA (TOTP) and step-up authentication | Accepted |
 | [0030](0030-observability-opentelemetry-per-tenant.md) | Observability: OpenTelemetry with per-tenant dimensions | Accepted |
+| [0031](0031-identity-flow-hardening.md) | Identity-flow hardening: invite binding, uniform responses, a revocable `pg_id` | Accepted |
 
 ## Reading order for someone new
 

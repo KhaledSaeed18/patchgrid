@@ -3,7 +3,7 @@
 The rules that make one deployment safely serve many unrelated companies. Decisions behind this file:
 ADR-0013 (multi-tenant SaaS), ADR-0014 (subdomain routing), ADR-0015 (isolation), ADR-0017 (signup and
 membership), ADR-0018 (jobs and events), ADR-0022 (platform-scope access), ADR-0023 (tenant-safe keys),
-ADR-0024 (sessions), ADR-0025 (teams).
+ADR-0024 (sessions), ADR-0025 (teams), ADR-0031 (identity-flow hardening).
 
 ## 1. Entities
 
@@ -67,11 +67,13 @@ product, so a bug in the purge cannot reach a neighbouring tenant.
 
 ## 4. Signup and provisioning
 
-1. Visitor clicks a CTA on `patchgrid.xyz` → account creation (email + password) or login if the email
-   exists.
-2. Email verification is sent but does **not** block. Until verified: no outbound email is sent on the
-   user's behalf, they cannot invite members, and they may own **at most one** organization — which is
-   what stops the signup form being used to squat subdomains in bulk. Link expires in 24 h.
+1. Visitor clicks a CTA on `patchgrid.xyz` → submits email + password. The response is `202` whether
+   or not the address already has an account; the difference goes to the inbox — "verify your address"
+   or "you already have an account" (ADR-0031).
+2. **The verification link completes signup and starts the session.** Link expires in 24 h. No session
+   ever belongs to an unverified address, so the restrictions below are defence in depth: an unverified
+   user sends no outbound email, cannot invite, and may own **at most one** organization — which is what
+   stops the signup form being used to squat subdomains in bulk.
 3. Workspace creation: name, slug (live availability check), optional email domain.
 4. **Provisioning transaction**: `Organization` + owner `Membership` + its `UserOrgIndex` row + default
    teams (IT Support, Network, Security) + default category tree + **eight** default SLA policies (four
@@ -88,6 +90,9 @@ Provisioning is idempotent: retrying a failed job never double-seeds.
   establish tenant context before looking the invitation up (ADR-0022) — a wrong org id and a wrong
   secret produce the same generic failure. If the email already has an account, acceptance adds a
   `Membership`; it never creates a second `User`.
+  - **The invitation is bound to its address** (ADR-0031): acceptance requires the accepting account's
+    email to equal `Invitation.email`, and a mismatch is the same generic failure. An account created
+    through the link is marked verified — following a link delivered to that inbox proves control of it.
 - **Verified-domain auto-join** (opt-in, off by default): if `Organization.domain` is proven by a DNS TXT
   record and `allowDomainJoin` is on, a user whose email is verified at that domain may join directly
   with `defaultJoinRole` (normally `REQUESTER`).
@@ -96,6 +101,11 @@ Provisioning is idempotent: retrying a failed job never double-seeds.
   - A domain may be verified by **one** organization. First verified wins; a second org attempting the
     same domain gets an admin-visible conflict message rather than a silent second claim.
 - There is no open self-join. Ever.
+
+**Anonymous identity endpoints answer uniformly** (ADR-0031). Signup, password reset and
+resend-verification return `202`; login returns `401` "invalid email or password". Whether the account
+exists changes only what is emailed, never the status, body or timing — an unknown address still pays
+one Argon2id verification against a dummy hash. All are throttled per IP and per email hash.
 
 ## 6. Sessions, tenant resolution and revocation
 
@@ -119,6 +129,10 @@ pg_rt_<slug>   refresh,  Domain=.patchgrid.xyz, Path=/api/v1/auth
 pg_id          identity, tenant-less — used by app.patchgrid.xyz and read by www
 ```
 
+- **`pg_id` is a refresh token without an org** (ADR-0031): opaque, rotating, hashed in `RefreshToken`
+  with `orgId = NULL`, 7 days, with the same reuse detection. Minting a tenant pair from it re-reads
+  `Membership` inside `runAsTenant` — never `UserOrgIndex` — and checks the epoch. Revoked by password
+  change or reset, "log out everywhere", and anonymisation; logging out of one workspace leaves it alone.
 - The access token carries `{ sub: userId, org: orgId, mem: membershipId, role, iat }` and is bound to
   **exactly one** organization.
 - `app.patchgrid.xyz` is tenant-less: it lists the caller's workspaces from `UserOrgIndex` and mints a

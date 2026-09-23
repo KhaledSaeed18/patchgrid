@@ -48,15 +48,16 @@ pnpm dev
 
 The docs are the specification, not a description written afterwards.
 
-|                                                                                     |                                                              |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| [`docs/HANDOFF.md`](docs/HANDOFF.md)                                                | **Start here** — what is built, what is not, what comes next |
-| [`docs/PROJECT.md`](docs/PROJECT.md)                                                | What this is, and what it deliberately is not                |
-| [`docs/TENANCY.md`](docs/TENANCY.md) · [`docs/RBAC.md`](docs/RBAC.md)               | Isolation between tenants; authorization within one          |
-| [`docs/DOMAIN.md`](docs/DOMAIN.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | ITSM rules; stack, pipeline and data model                   |
-| [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                         |
-| [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                          |
-| [`docs/decisions/`](docs/decisions/)                                                | 30 ADRs — _why_ any of it is this way                        |
+|                                                                                     |                                                               |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md)                                                | **Start here** — what is built, what is not, what comes next  |
+| [`docs/PROJECT.md`](docs/PROJECT.md)                                                | What this is, and what it deliberately is not                 |
+| [`docs/TENANCY.md`](docs/TENANCY.md) · [`docs/RBAC.md`](docs/RBAC.md)               | Isolation between tenants; authorization within one           |
+| [`docs/DOMAIN.md`](docs/DOMAIN.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | ITSM rules; stack, pipeline and data model                    |
+| [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
+| [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
+| [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
+| [`docs/decisions/`](docs/decisions/)                                                | 31 ADRs — _why_ any of it is this way                         |
 
 ## Status
 

@@ -97,7 +97,7 @@ Two notes on the ordering, because both were wrong in an earlier draft:
   cookie's `orgId` claim to route the request but does not trust it until the signature is checked.
 
 Because step 4 answers before authentication, an anonymous caller can probe which slugs exist (404 vs
-401). This is true of every subdomain SaaS, is accepted, and is recorded in the threat model rather than
+401). This is true of every subdomain SaaS, is accepted, and is recorded in the [threat model](THREAT-MODEL.md) (R-2) rather than
 left unremarked.
 
 Tenant-less routes (`/auth/*`, `/orgs` creation, `/orgs/slug-available`, `/health`) are marked

@@ -67,8 +67,9 @@ account holds both workspaces open in two tabs; the isolation suite proves RLS b
 at the database level and that composite keys make cross-tenant references impossible; the authorization
 suite proves every route asserts a permission._
 
-- [ ] **Threat model** (`docs/THREAT-MODEL.md`): assets, actors, trust boundaries, STRIDE per boundary.
-      Written **first** — it informs the design rather than certifying it, and it is a one-page document
+- [x] **Threat model** (`docs/THREAT-MODEL.md`): assets, actors, trust boundaries, STRIDE per boundary.
+      Written **first** — it informs the design rather than certifying it, and it is a one-page document.
+      Findings TM-3…TM-5 decided in ADR-0031; TM-1 (attachment origin, M5) and TM-2 (platform actor, M8) open
 - [ ] Data: `Organization`, `OrganizationSlugHistory`, `User`, `Membership`, `TeamMembership`,
       `Invitation`, `Team`, `RefreshToken`, `PasswordResetToken`, `EmailVerification`, `PlatformAdmin`,
       `UserOrgIndex`, `ApiTokenIndex` — with composite `(orgId, id)` uniques and membership references
