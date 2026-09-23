@@ -77,8 +77,9 @@ suite proves every route asserts a permission._
       migration-safety checks as the CI `schema` job
 - [~] **RLS**: hand-written policy migrations from one template, `FORCE ROW LEVEL SECURITY`, tenant
       Prisma client extension with transaction-local `set_config` and CLS-aware nesting, `nestjs-cls`
-      context, `runAsTenant` / `runAsPlatform` (ADR-0015, ADR-0022). _Policies and template done;
-      the extension, CLS context and the two helpers remain_
+      context, `runAsTenant` / `runAsPlatform` (ADR-0015, ADR-0022). _Policies, template and the
+      client extension (`withTenantIsolation`, `tenantTransaction`) done; the `nestjs-cls` context and
+      the two helpers remain_
 - [ ] Tenant resolution middleware: credential → org, `Origin` / `X-Patchgrid-Tenant` cross-check,
       Redis-cached org lookup, slug-history redirects (302), suspended/deleted handling (ADR-0024)
 - [ ] Auth: signup, login, logout, refresh with rotation + reuse detection, email verification, password
