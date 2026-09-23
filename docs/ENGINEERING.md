@@ -325,7 +325,7 @@ least-privilege permissions and a timeout.
 | **verify** | `turbo lint typecheck test build`. No services. Fails fastest, so it runs first |
 | **database** | Brings up a bare Postgres service container, runs `db:bootstrap`, then `db:doctor` — and runs both **twice**, because the bootstrap is the recovery path for an existing volume and "safe to run again" is a property, not a nicety |
 | **smoke** | The whole Compose stack, the way a developer starts it, with the API booted against it and `/health/ready` asserted. This is what proves the README's three commands work on a machine that has never seen the project |
-| **schema** | Migration safety (no unannotated `DROP`), `migrate deploy` into a bare database, the five catalog assertions (`pnpm test:schema`), and `prisma migrate diff` proving the migrations reproduce `schema.prisma` exactly |
+| **schema** | Migration safety (no unannotated `DROP`), `migrate deploy` into a bare database, the five catalog assertions (`pnpm test:schema`), the tenant client extension against the live schema (`test:integration`), and `prisma migrate diff` proving the migrations reproduce `schema.prisma` exactly |
 | **security** | `gitleaks` over the full history — a secret that was committed and later "removed" is still in the repository — and `pnpm audit --audit-level=high` |
 
 CodeQL (`security-extended`) runs in its own workflow, plus weekly, because a rule
