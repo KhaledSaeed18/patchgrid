@@ -61,7 +61,9 @@ The docs are the specification, not a description written afterwards.
 
 ## Status
 
-**M0 (foundation) complete**; M1 (tenancy and identity) next. Screenshots, an
+**M0 (foundation) complete. M1 (tenancy and identity) in progress**: the threat model, the identity
+and tenancy schema with its CI-gated catalog assertions, and the tenant-isolating Prisma client are in;
+tenant context, auth and provisioning are next. `docs/HANDOFF.md` has the detail. Screenshots, an
 architecture diagram and a public demo arrive with the final milestone.
 
 MIT licensed — the value of this repository is that people read it.
