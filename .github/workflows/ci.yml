@@ -167,14 +167,72 @@ jobs:
         run: pnpm audit --audit-level=high
 
   # ───────────────────────────────────────────────────────────────────────────
+  # The physical schema, asserted from the catalogs of a freshly migrated
+  # database (ADR-0023 §5). Its own job, so a failure names the actual problem.
+  #
+  # Every check here is a way tenant isolation fails SILENTLY: a table without a
+  # policy, a single-column tenant FK (RI checks run with row security OFF), a
+  # naive timestamp, a text id, a missing grant. None raises an error until it
+  # is a breach. Also: the migrations must reproduce schema.prisma exactly, and
+  # nothing may be dropped without saying why that is safe.
+  # ───────────────────────────────────────────────────────────────────────────
+  schema:
+    name: Schema assertions and migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: patchgrid
+          TZ: UTC
+          PGTZ: UTC
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d patchgrid"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_SUPERUSER_URL: postgresql://postgres:postgres@localhost:5432/patchgrid
+      DATABASE_URL: postgresql://patchgrid_app:app@localhost:5432/patchgrid?schema=public
+      DATABASE_MIGRATION_URL: postgresql://patchgrid_owner:owner@localhost:5432/patchgrid?schema=public
+      DATABASE_SHADOW_URL: postgresql://patchgrid_owner:owner@localhost:5432/patchgrid_shadow?schema=public
+      PATCHGRID_OWNER_PASSWORD: owner
+      PATCHGRID_APP_PASSWORD: app
+      POSTGRES_DB: patchgrid
+      POSTGRES_TEST_DB: patchgrid_test
+      POSTGRES_SHADOW_DB: patchgrid_shadow
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm db:bootstrap
+      - run: pnpm db:generate
+
+      # Before touching a database: a destructive statement needs a `-- safe:`
+      # annotation saying which earlier release stopped reading it.
+      - name: Migration safety
+        run: pnpm --filter @patchgrid/database run migrations:check
+
+      # Applied as the owner, exactly as a deploy would.
+      - name: Apply migrations
+        run: pnpm --filter @patchgrid/database run migrate:deploy
+
+      - name: Assert the physical schema
+        run: pnpm test:schema
+
+      # The migrations, replayed into the shadow database, must produce exactly
+      # schema.prisma. A schema edit without its migration fails here.
+      - name: Migrations match schema.prisma
+        run: pnpm --filter @patchgrid/database run migrations:drift
+
+  # ───────────────────────────────────────────────────────────────────────────
   # TODO (M1), and deliberately absent rather than vacuously green:
   #
   #   · pnpm test:tenancy  — the isolation suite (ENGINEERING.md), a release gate
   #   · pnpm test:authz    — the permission matrix and route-coverage test
-  #   · schema assertions  — RLS policy coverage, composite tenant foreign keys,
-  #                          timestamptz-only, uuid ids
-  #   · prisma migrate diff — schema/migration drift, once migrations exist
-  #   · migration safety   — fail on DROP without a `-- safe:` annotation
   #
   # A job that passes because it has nothing to check is worse than no job: it
   # reports a guarantee that does not exist.
