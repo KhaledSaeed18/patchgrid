@@ -4,6 +4,6 @@ import { defineConfig } from "vitest/config"
 // of `pnpm test`, which runs in CI's `verify` job with no services.
 export default defineConfig({
   test: {
-    include: ["test/**/*.test.ts"],
+    include: ["test/schema.test.ts"],
   },
 })
