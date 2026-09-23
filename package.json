@@ -9,6 +9,7 @@
     "format": "turbo format",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "test:schema": "pnpm --filter @patchgrid/database run test:schema",
     "db:bootstrap": "pnpm --filter @patchgrid/database run bootstrap",
     "db:generate": "pnpm --filter @patchgrid/database run generate",
     "db:migrate": "pnpm --filter @patchgrid/database run migrate",

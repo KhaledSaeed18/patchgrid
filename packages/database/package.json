@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit",
     "doctor": "prisma generate && tsx scripts/doctor.ts",
     "test": "vitest run",
+    "test:schema": "vitest run --config vitest.schema.config.ts",
     "policy": "tsx scripts/policy.ts"
   },
   "dependencies": {
