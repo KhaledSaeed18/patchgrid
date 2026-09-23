@@ -317,7 +317,7 @@ tenant-owned table.
 
 ## CI (GitHub Actions)
 
-Four jobs, on every PR and on `main`. Superseded runs are cancelled; each job has
+Five jobs, on every PR and on `main`. Superseded runs are cancelled; each job has
 least-privilege permissions and a timeout.
 
 | Job | What it proves |
@@ -325,6 +325,7 @@ least-privilege permissions and a timeout.
 | **verify** | `turbo lint typecheck test build`. No services. Fails fastest, so it runs first |
 | **database** | Brings up a bare Postgres service container, runs `db:bootstrap`, then `db:doctor` — and runs both **twice**, because the bootstrap is the recovery path for an existing volume and "safe to run again" is a property, not a nicety |
 | **smoke** | The whole Compose stack, the way a developer starts it, with the API booted against it and `/health/ready` asserted. This is what proves the README's three commands work on a machine that has never seen the project |
+| **schema** | Migration safety (no unannotated `DROP`), `migrate deploy` into a bare database, the five catalog assertions (`pnpm test:schema`), and `prisma migrate diff` proving the migrations reproduce `schema.prisma` exactly |
 | **security** | `gitleaks` over the full history — a secret that was committed and later "removed" is still in the repository — and `pnpm audit --audit-level=high` |
 
 CodeQL (`security-extended`) runs in its own workflow, plus weekly, because a rule
@@ -352,10 +353,6 @@ exist:
 
 - `pnpm test:tenancy` — the isolation suite, a release gate (M1)
 - `pnpm test:authz` — the permission matrix and route-coverage test (M1)
-- schema assertions — RLS policy coverage, composite tenant foreign keys,
-  `timestamptz`-only, `uuid` ids (M1, with the first tenant-owned table)
-- `prisma migrate diff` drift and the migration-safety check (M1, once migrations
-  exist)
 - Playwright E2E, on `main` only (M9)
 
 Node version comes from `.nvmrc`; pnpm from the `packageManager` field, so the
