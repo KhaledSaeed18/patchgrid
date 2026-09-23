@@ -186,7 +186,7 @@ P  Organization      { id, name, slug (unique), status: ACTIVE|SUSPENDED|PENDING
 P  OrganizationSlugHistory { id, orgId, slug (unique), releasedAt, redirectUntil }
 P  User              { id, email (unique), passwordHash, name, avatarUrl?,
                        emailVerifiedAt?, lastLoginAt?, anonymisedAt? }
-P  PlatformAdmin     { userId }
+P  PlatformAdmin     { id, userId (unique) }
 P  RefreshToken      { id, userId, orgId?, tokenHash, expiresAt, revokedAt?, replacedById?,
                        userAgent?, ip? }
 P  PasswordResetToken{ id, userId, tokenHash, expiresAt, usedAt? }
@@ -197,11 +197,13 @@ P  UserOrgIndex      { userId, orgId, roleForDisplay, statusForDisplay,
                        orgSlug, orgName, orgStatus, updatedAt }               -- PK (userId, orgId)
 P  ApiTokenIndex     { prefix (unique), orgId, revokedAt? }
 
-T  Membership        { id, orgId, userId, role: OWNER|ADMIN|AGENT|REQUESTER,
+T  Membership        { id, orgId, userId?, role: OWNER|ADMIN|AGENT|REQUESTER,
                        status: ACTIVE|INVITED|DISABLED, kind: HUMAN|SERVICE_ACCOUNT,
                        displayName, avatarUrl?, emailPrefs: Json,
                        invitedByMembershipId?, joinedAt?, anonymisedAt? }
                                                      -- unique (orgId, userId), (orgId, id)
+                                                     -- CHECK (kind = 'HUMAN') = (userId IS NOT NULL):
+                                                     --   a service account has no User (ADR-0021)
 T  Team             { id, orgId, name, description?, isActive }               -- unique (orgId, name)
 T  TeamMembership   { orgId, teamId, membershipId, isLead, joinedAt }         -- PK (orgId, teamId, membershipId)
                                                      -- partial unique (orgId, teamId) WHERE isLead
@@ -337,12 +339,20 @@ created in hand-written SQL alongside the policies; RLS policies declared on the
 every partition. A monthly job creates the next partition and detaches partitions past the plan's
 retention window.
 
-**RLS migrations** live alongside the Prisma migrations as hand-written SQL
-(`packages/database/migrations/**/rls.sql`), because Prisma models neither policies, partitions,
-partial unique indexes, `CHECK` constraints, nor generated `tsvector` columns. Five introspection tests
-gate CI: every tenant-owned table has `relrowsecurity` + `relforcerowsecurity` + a policy; every
-tenant-to-tenant foreign key is composite on `orgId`; zero `timestamp without time zone` columns; every
-id column is `uuid`; and `patchgrid_app` holds `SELECT` on every tenant-owned table.
+**RLS policies** are hand-written SQL appended to the `migration.sql` that creates the table — Prisma
+only runs `migration.sql`, so a separate file would never execute. The SQL comes from one template
+(`packages/database/src/rls.ts`, printed by `pnpm --filter @patchgrid/database run policy <Table>`).
+Prisma models neither policies, partitions, `CHECK` constraints, nor generated `tsvector` columns, and
+diffs none of them, so they cause no drift. Partial unique indexes **are** modelled, via the
+`partialIndexes` preview feature (`@@unique(…, where: raw(…))`), and must be — a hand-written one would
+look like drift and be dropped by the next generated migration.
+
+Five introspection assertions gate CI (`pnpm test:schema`, `packages/database/test/schema.test.ts`):
+every tenant-owned table has `relrowsecurity` + `relforcerowsecurity` + exactly the template policy;
+every tenant-to-tenant foreign key is composite on `orgId`; zero `timestamp without time zone` columns;
+every id column is `uuid`; and `patchgrid_app` holds `SELECT`/`INSERT`/`UPDATE`/`DELETE` on every table
+and owns none. "Tenant-owned" means *not on the closed platform list* in
+`packages/database/src/table-classes.ts` — a new table is covered unless someone deliberately exempts it.
 
 ## Background jobs (BullMQ, inside `apps/api`)
 
