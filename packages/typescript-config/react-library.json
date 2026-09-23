@@ -3,6 +3,12 @@
   "display": "React Library",
   "extends": "./base.json",
   "compilerOptions": {
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+
+    // A React library here is only ever compiled by a Next app's bundler (via
+    // transpilePackages), never by Node — so resolve the way the bundler does.
+    // NodeNext cannot see `next/font/google`: `next` ships no `exports` map.
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
   }
 }
