@@ -1,6 +1,6 @@
 # Patchgrid — Agent Conventions
 
-Start with `docs/HANDOFF.md` — it is the state of play at the current milestone boundary: what is built, what is deliberately not, and what comes next. Then read `docs/PROJECT.md`, `docs/TENANCY.md`, `docs/RBAC.md`, `docs/DOMAIN.md`, `docs/ARCHITECTURE.md`, `docs/ENGINEERING.md`, `docs/DNS.md` and `docs/FEATURES.md` if you haven't loaded them this session. They are the working spec. Reasoning lives in `docs/decisions/`; start with the reading order at the bottom of `docs/decisions/README.md`. Don't re-derive or contradict any of it without flagging it first.
+Start with `docs/HANDOFF.md` — it is the state of play at the current milestone boundary: what is built, what is deliberately not, and what comes next. Then read `docs/PROJECT.md`, `docs/TENANCY.md`, `docs/RBAC.md`, `docs/DOMAIN.md`, `docs/ARCHITECTURE.md`, `docs/ENGINEERING.md`, `docs/DNS.md`, `docs/FEATURES.md` and `docs/THREAT-MODEL.md` if you haven't loaded them this session. They are the working spec. Reasoning lives in `docs/decisions/`; start with the reading order at the bottom of `docs/decisions/README.md`. Don't re-derive or contradict any of it without flagging it first.
 
 Patchgrid is a **multi-tenant SaaS**: three deployables (`apps/www` marketing, `apps/app` tenant workspace, `apps/api` NestJS), tenants addressed by subdomain, tenant data isolated by Postgres RLS **and** by a schema shape in which a cross-tenant reference cannot be expressed.
 
