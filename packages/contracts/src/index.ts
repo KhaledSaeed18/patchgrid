@@ -12,6 +12,7 @@
 export * from "./auth.ts"
 export * from "./id.ts"
 export * from "./limits.ts"
+export * from "./organizations.ts"
 export * from "./pagination.ts"
 export * from "./problems.ts"
 export * from "./reserved-slugs.ts"
