@@ -4,10 +4,9 @@ import { LoggerModule } from "nestjs-pino"
 import { randomUUID } from "node:crypto"
 import type { IncomingMessage, ServerResponse } from "node:http"
 
-import { CLOCK, SystemClock } from "./common/clock/clock"
+import { CommonModule } from "./common/common.module"
 import { ProblemDetailsFilter } from "./common/problems/problem-details.filter"
 import { ZodValidationPipe } from "./common/problems/zod-validation.pipe"
-import { NoopTracer, TRACER } from "./common/tracing/tracer"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
@@ -19,6 +18,7 @@ import { TenancyModule } from "./tenancy/tenancy.module"
 @Module({
   imports: [
     ConfigModule,
+    CommonModule,
     LoggerModule.forRootAsync({
       imports: [TenancyModule],
       inject: [APP_CONFIG, TenantContextService],
@@ -89,11 +89,8 @@ import { TenancyModule } from "./tenancy/tenancy.module"
     HealthModule,
   ],
   providers: [
-    { provide: CLOCK, useClass: SystemClock },
-    { provide: TRACER, useClass: NoopTracer },
     { provide: APP_PIPE, useClass: ZodValidationPipe },
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
   ],
-  exports: [CLOCK, TRACER],
 })
 export class AppModule {}
