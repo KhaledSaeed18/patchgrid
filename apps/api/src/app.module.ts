@@ -13,14 +13,16 @@ import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
 import { PrismaModule } from "./prisma/prisma.module"
 import { RedisModule } from "./redis/redis.module"
+import { TenantContextService } from "./tenancy/tenant-context.service"
 import { TenancyModule } from "./tenancy/tenancy.module"
 
 @Module({
   imports: [
     ConfigModule,
     LoggerModule.forRootAsync({
-      inject: [APP_CONFIG],
-      useFactory: (config: AppConfig) => ({
+      imports: [TenancyModule],
+      inject: [APP_CONFIG, TenantContextService],
+      useFactory: (config: AppConfig, tenantContext: TenantContextService) => ({
         pinoHttp: {
           level: config.LOG_LEVEL,
           // Pretty locally, JSON everywhere else — a log you cannot read during
@@ -43,11 +45,15 @@ import { TenancyModule } from "./tenancy/tenancy.module"
 
           /**
            * `orgId` on every line is what makes "which tenant is slow" an
-           * answerable question (`ENGINEERING.md` §Logging). It is populated from
-           * the request context in M1; the field exists now so the shape of a log
-           * line does not change under anyone later.
+           * answerable question (`ENGINEERING.md` §Logging). pino-http evaluates
+           * this twice — when the request arrives, before any tenant is known,
+           * and again when the response finishes, inside the request context —
+           * so the completion line carries the tenant that resolution settled on.
            */
-          customProps: () => ({}),
+          customProps: () => {
+            const orgId = tenantContext.current()?.orgId
+            return orgId === undefined ? {} : { orgId }
+          },
 
           // No PII, ever. Never emails, ticket bodies or credentials.
           redact: {
