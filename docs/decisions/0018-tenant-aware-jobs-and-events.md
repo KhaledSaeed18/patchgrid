@@ -3,6 +3,12 @@
 - **Status:** Accepted — inbound mail authentication specified by [0027](0027-email-dns-and-inbound-sender-authentication.md)
 - **Date:** 2026-09-22
 
+> **Erratum (2026-10-05).** The Decision writes job ids as `<queue>:<orgId>:<entityId>:<discriminator>`.
+> BullMQ reserves `:` as the separator of its own Redis keys and refuses a custom job id that contains
+> one (`Custom Id cannot contain :`), discovered when the first job was enqueued. The shape is kept and
+> the separator is `/`: `<queue>/<orgId>/<entityId>/<discriminator>`, with `platform` where an org would
+> be. `apps/api/src/jobs/job-id.ts` is the one place that builds one.
+
 > **Erratum (2026-09-22).** "`runAsPlatform` appears in exactly three places" undercounts and, more
 > importantly, mis-describes the mechanism: per-tenant work uses `runAsTenant(orgId)` and is not a bypass
 > at all (ADR-0022). The import rule is now expressed per module rather than as a count. Inbound mail

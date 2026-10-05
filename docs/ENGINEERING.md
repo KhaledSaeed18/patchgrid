@@ -162,7 +162,7 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
   or be slow enqueue BullMQ jobs; handlers that must be immediate and cheap (SSE push) run in-process.
 - Jobs are idempotent and carry the ids they need, never full payloads that could go stale. Every job on
   a tenant-owned queue carries `orgId` and runs inside `runAsTenant(orgId)`; job ids are
-  `<queue>:<orgId>:<entityId>:<discriminator>` (ADR-0018).
+  `<queue>/<orgId>/<entityId>/<discriminator>` (ADR-0018).
 - `runAsTenant(orgId, fn)` and `runAsPlatform(fn)` are the only cross-tenant helpers (ADR-0022), and
   their import paths are restricted by ESLint to named modules rather than by a count of call sites.
 

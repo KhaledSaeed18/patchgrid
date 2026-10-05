@@ -261,7 +261,7 @@ blocked with `402`, and an over-limit banner appears for admins and owners until
 - Sweeping work is **two-stage**: a dispatcher uses `runAsPlatform` to list active organizations from
   `Organization` (platform class) and enqueues one job per tenant. No job scans all tenants at once.
 - Per-tenant job priority derives from plan and recent volume, so one large tenant cannot starve others.
-- Job ids are `<queue>:<orgId>:<entityId>:<discriminator>` — idempotent per tenant, collision-free across
+- Job ids are `<queue>/<orgId>/<entityId>/<discriminator>` — idempotent per tenant, collision-free across
   tenants.
 - SSE channels are namespaced `org:<orgId>:notifications`; a subscriber can only subscribe to its own
   token's org, and the fan-out applies the same `scopeFor()` filter as a list query, so an

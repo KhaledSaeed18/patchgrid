@@ -29,7 +29,7 @@ describe("MailService.enqueue", () => {
   it("adds a validated payload under an idempotent per-tenant job id", async () => {
     const queue = { add: vi.fn(async () => undefined) }
     await new MailService(queue as never).enqueue(invite, "inv-1")
-    expect(queue.add).toHaveBeenCalledWith("invite", invite, { jobId: `mail:${ORG}:inv-1:invite` })
+    expect(queue.add).toHaveBeenCalledWith("invite", invite, { jobId: `mail/${ORG}/inv-1/invite` })
   })
 
   it("refuses a payload the templates cannot render before it reaches the queue", async () => {
