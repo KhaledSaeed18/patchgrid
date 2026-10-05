@@ -2,6 +2,9 @@ import { Module } from "@nestjs/common"
 
 import { ApiTokenIndexRepository } from "./repositories/api-token-index.repository"
 import { OrganizationRepository } from "./repositories/organization.repository"
+import { RefreshTokenRepository } from "./repositories/refresh-token.repository"
+import { UserOrgIndexRepository } from "./repositories/user-org-index.repository"
+import { UserRepository } from "./repositories/user.repository"
 
 /**
  * Platform-class data access: the tables that carry no tenant policy and are
@@ -9,7 +12,19 @@ import { OrganizationRepository } from "./repositories/organization.repository"
  * owned lives in its own domain module.
  */
 @Module({
-  providers: [OrganizationRepository, ApiTokenIndexRepository],
-  exports: [OrganizationRepository, ApiTokenIndexRepository],
+  providers: [
+    OrganizationRepository,
+    ApiTokenIndexRepository,
+    UserRepository,
+    RefreshTokenRepository,
+    UserOrgIndexRepository,
+  ],
+  exports: [
+    OrganizationRepository,
+    ApiTokenIndexRepository,
+    UserRepository,
+    RefreshTokenRepository,
+    UserOrgIndexRepository,
+  ],
 })
 export class PlatformModule {}
