@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleDestroy } from "@nestjs/common"
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common"
 import Redis from "ioredis"
 
 import { InjectConfig, type AppConfig } from "../config/app-config"
@@ -11,7 +11,7 @@ import { InjectConfig, type AppConfig } from "../config/app-config"
  * JWTs plus that epoch (ADR-0004).
  */
 @Injectable()
-export class RedisService implements OnModuleDestroy {
+export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name)
   readonly client: Redis
 
@@ -30,6 +30,20 @@ export class RedisService implements OnModuleDestroy {
       // down. Readiness reports it, and the load balancer stops sending traffic.
       this.logger.warn(`redis: ${error.message}`)
     })
+  }
+
+  /**
+   * Connect at boot rather than on first use: the tenant lookup cache is on
+   * every request's path, and with the offline queue disabled a command issued
+   * before the socket is up fails instead of waiting. A Redis that is down at
+   * boot is logged, readiness reports it, and ioredis keeps retrying.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.client.connect()
+    } catch (error) {
+      this.logger.warn(`redis unavailable at boot: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
