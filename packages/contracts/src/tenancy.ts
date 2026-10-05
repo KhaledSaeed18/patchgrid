@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { slugSchema } from "./slug.ts"
+
 /**
  * Tenancy and membership enums on the wire.
  *
@@ -30,3 +32,19 @@ export type Plan = z.infer<typeof planSchema>
 /** What an AGENT may read (RBAC.md §4). Admins and owners always see everything. */
 export const agentVisibilitySchema = z.enum(["ALL_TICKETS", "OWN_TEAM_ONLY"])
 export type AgentVisibility = z.infer<typeof agentVisibilitySchema>
+
+/**
+ * `GET /tenants/:slug` — what a subdomain should do before any session exists
+ * (TENANCY.md §2). Consumed by `apps/app`'s host parsing: `active` renders the
+ * workspace, `moved` is a **302** to `currentSlug` (never a 301 — nothing that
+ * permanent should describe a mutable mapping), `suspended` is the 403 page.
+ * Unknown, pending-deletion and retired-past-the-window slugs are a `404`.
+ *
+ * Deliberately public: slug existence is accepted risk R-2 in the threat model.
+ */
+export const tenantLookupSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("active"), slug: slugSchema }),
+  z.object({ status: z.literal("suspended"), slug: slugSchema }),
+  z.object({ status: z.literal("moved"), slug: slugSchema, currentSlug: slugSchema }),
+])
+export type TenantLookup = z.infer<typeof tenantLookupSchema>
