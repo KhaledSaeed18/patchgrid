@@ -9,7 +9,7 @@ import helmet from "helmet"
 import { Logger } from "nestjs-pino"
 
 import { AppModule } from "./app.module"
-import { corsOriginCallback } from "./common/http/origin-policy"
+import { corsOriginCallback, originPolicyFrom } from "./common/http/origin-policy"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 
 /**
@@ -83,11 +83,7 @@ async function bootstrap(): Promise<void> {
   )
 
   app.enableCors({
-    origin: corsOriginCallback({
-      rootDomain: config.ROOT_DOMAIN,
-      allowHttp: !config.isProduction,
-      allowedPorts: config.WEB_ORIGIN_PORTS,
-    }),
+    origin: corsOriginCallback(originPolicyFrom(config)),
     // Cookies are the session mechanism, so credentialed requests are the norm.
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],

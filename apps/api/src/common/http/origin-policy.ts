@@ -94,6 +94,19 @@ export function isAllowedOrigin(origin: string, policy: OriginPolicy): boolean {
   return classifyOrigin(origin, policy).kind !== "foreign"
 }
 
+/** The one policy both CORS and tenant resolution apply, derived from config. */
+export function originPolicyFrom(config: {
+  readonly ROOT_DOMAIN: string
+  readonly WEB_ORIGIN_PORTS: readonly number[]
+  readonly isProduction: boolean
+}): OriginPolicy {
+  return {
+    rootDomain: config.ROOT_DOMAIN,
+    allowHttp: !config.isProduction,
+    allowedPorts: config.WEB_ORIGIN_PORTS,
+  }
+}
+
 /** The callback shape Nest's CORS options expect. */
 export function corsOriginCallback(policy: OriginPolicy) {
   return (
