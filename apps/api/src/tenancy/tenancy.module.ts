@@ -8,8 +8,10 @@ import { PlatformModule } from "../platform/platform.module"
 import { ORGANIZATION_LOOKUP } from "./organization-lookup"
 import { OrganizationLookupService } from "./organization-lookup.service"
 import { TenantContextService } from "./tenant-context.service"
+import { TenantLookupService } from "./tenant-lookup.service"
 import { TenantResolutionGuard } from "./tenant-resolution.guard"
 import { TenantResolver } from "./tenant-resolver"
+import { TenantsController } from "./tenants.controller"
 
 /**
  * Isolation layer 1 (TENANCY.md §7): the request context and what fills it.
@@ -20,6 +22,8 @@ import { TenantResolver } from "./tenant-resolver"
  *   is the only thing that writes a tenant into a request's store. A route
  *   that reaches a repository without it finds an empty store, and the client
  *   extension throws rather than running unscoped.
+ * - `GET /tenants/:slug` is the public answer to "what should this subdomain
+ *   do?" — the API side of slug-history redirects (ADR-0017).
  */
 @Global()
 @Module({
@@ -37,8 +41,10 @@ import { TenantResolver } from "./tenant-resolver"
       },
     }),
   ],
+  controllers: [TenantsController],
   providers: [
     TenantContextService,
+    TenantLookupService,
     OrganizationLookupService,
     { provide: ORGANIZATION_LOOKUP, useExisting: OrganizationLookupService },
     TenantResolver,
