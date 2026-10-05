@@ -17,10 +17,10 @@
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
     "@patchgrid/ui": "workspace:*",
-    "next": "16.3.3",
+    "next": "16.3.8",
     "next-themes": "^0.4.6",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@patchgrid/eslint-config": "workspace:*",
