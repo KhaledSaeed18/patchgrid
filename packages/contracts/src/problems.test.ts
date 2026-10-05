@@ -38,7 +38,8 @@ describe("problem types", () => {
     // An unmapped status means we did not intend it — treat it as a bug, not a
     // client error we can describe.
     expect(problemTypeForStatus(418)).toBe("internal-error")
-    expect(problemTypeForStatus(503)).toBe("internal-error")
+    expect(problemTypeForStatus(503)).toBe("service-unavailable")
+    expect(problemTypeForStatus(502)).toBe("internal-error")
   })
 
   it("builds type URIs on the real domain", () => {
