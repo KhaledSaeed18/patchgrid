@@ -83,7 +83,24 @@ export const envSchema = z
 
     SMTP_HOST: z.string().min(1).default("localhost"),
     SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
-    MAIL_FROM: z.string().min(1).default("Patchgrid <notifications@patchgrid.test>"),
+    /** The envelope sender. The display name is replaced per tenant (ADR-0018). */
+    MAIL_FROM: z
+      .string()
+      .regex(/^.+ <[^<>@\s]+@[^<>@\s]+>$/, { error: 'MAIL_FROM must look like "Name <address>"' })
+      .default("Patchgrid <notifications@patchgrid.test>"),
+
+    /**
+     * Which halves of the process run. `all` locally; `api` and `worker` let
+     * the deployables split later without a code change (ARCHITECTURE.md
+     * §Background jobs). Processors are always registered and only RUN in
+     * `all` and `worker`.
+     */
+    WORKER_MODE: z.enum(["all", "api", "worker"]).default("all"),
+    /**
+     * The port `apps/app` is served on in development, for links in outbound
+     * mail. Ignored in production, where links carry no port.
+     */
+    WEB_APP_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   })
   .superRefine((env, ctx) => {
     // The single most damaging misconfiguration available: running the
@@ -104,6 +121,14 @@ export const envSchema = z
         code: "custom",
         path: ["COOKIE_DOMAIN"],
         message: `COOKIE_DOMAIN must be .${env.ROOT_DOMAIN} — the cookies must be readable by api.${env.ROOT_DOMAIN}`,
+      })
+    }
+
+    if (env.NODE_ENV !== "production" && !env.WEB_ORIGIN_PORTS.includes(env.WEB_APP_PORT)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["WEB_APP_PORT"],
+        message: "WEB_APP_PORT must be one of WEB_ORIGIN_PORTS, or links in mail would point at an origin CORS refuses",
       })
     }
 

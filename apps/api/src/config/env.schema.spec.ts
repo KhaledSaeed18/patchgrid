@@ -40,6 +40,12 @@ describe("envSchema", () => {
     expect(issues({ ROOT_DOMAIN: "patchgrid.xyz", COOKIE_DOMAIN: ".patchgrid.xyz" })).toEqual([])
   })
 
+  it("keeps mail links on an origin CORS accepts, and the sender well-formed", () => {
+    expect(issues({ WEB_APP_PORT: "4444" })).toContain("WEB_APP_PORT")
+    expect(issues({ MAIL_FROM: "notifications@patchgrid.test" })).toContain("MAIL_FROM")
+    expect(envSchema.parse(valid).WORKER_MODE).toBe("all")
+  })
+
   it("refuses ports on production origins", () => {
     expect(issues({ NODE_ENV: "production" })).toContain("WEB_ORIGIN_PORTS")
     expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "" })).toEqual([])

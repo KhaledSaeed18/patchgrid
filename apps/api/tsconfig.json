@@ -13,10 +13,12 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "target": "ES2022",
+    // Email templates are React elements rendered to HTML by @react-email/render.
+    "jsx": "react-jsx",
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "vitest.config.ts", "vitest.integration.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
