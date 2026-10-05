@@ -97,6 +97,15 @@ export const envSchema = z
      */
     WORKER_MODE: z.enum(["all", "api", "worker"]).default("all"),
     /**
+     * Rate limiting (pipeline steps 3 and 6). Off only for integration specs that
+     * drive one endpoint hundreds of times; never off where the API is reachable.
+     * A string enum rather than `z.coerce.boolean()`, which would read "false" as true.
+     */
+    THROTTLE_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+    /**
      * The port `apps/app` is served on in development, for links in outbound
      * mail. Ignored in production, where links carry no port.
      */

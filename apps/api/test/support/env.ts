@@ -15,6 +15,8 @@ try {
 const defaults: Record<string, string> = {
   NODE_ENV: "test",
   LOG_LEVEL: "silent",
+  // The lifecycle specs drive one endpoint dozens of times from one address.
+  THROTTLE_ENABLED: "false",
   JWT_SECRET: "integration-test-secret-that-is-at-least-32-chars",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",

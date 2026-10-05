@@ -44,6 +44,9 @@ describe("envSchema", () => {
     expect(issues({ WEB_APP_PORT: "4444" })).toContain("WEB_APP_PORT")
     expect(issues({ MAIL_FROM: "notifications@patchgrid.test" })).toContain("MAIL_FROM")
     expect(envSchema.parse(valid).WORKER_MODE).toBe("all")
+    expect(envSchema.parse(valid).THROTTLE_ENABLED).toBe(true)
+    expect(envSchema.parse({ ...valid, THROTTLE_ENABLED: "false" }).THROTTLE_ENABLED).toBe(false)
+    expect(issues({ THROTTLE_ENABLED: "0" })).toContain("THROTTLE_ENABLED")
   })
 
   it("refuses ports on production origins", () => {
