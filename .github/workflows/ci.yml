@@ -229,6 +229,13 @@ jobs:
       - name: Tenant client against the live schema
         run: pnpm --filter @patchgrid/database run test:integration
 
+      # The API's wiring of layers 1 and 3 over the same RLS: the request
+      # context, PrismaService.db / transaction(), runAsTenant / runAsPlatform.
+      # A crossing inside an open transaction sees only its own org; a foreign
+      # orgId rolls the whole transaction back; no setting outlives it.
+      - name: Request context and crossing helpers against the live schema
+        run: pnpm --filter @patchgrid/api run test:integration
+
       # The migrations, replayed into the shadow database, must produce exactly
       # schema.prisma. A schema edit without its migration fails here.
       - name: Migrations match schema.prisma
