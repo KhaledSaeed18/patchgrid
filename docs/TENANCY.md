@@ -48,7 +48,9 @@ ApiTokenIndex   derived: which org a token prefix belongs to    platform class  
   nothing that permanent should describe a mutable mapping. After 30 days the redirect stops; the
   reservation does not.
 - Resolution order at request time: exact slug → slug history (redirect, if within the window) → 404.
-  Unknown, suspended and pending-deletion tenants never reach application code.
+  Unknown, suspended and pending-deletion tenants never reach application code. The app learns this
+  from public `GET /tenants/:slug` (`active` · `suspended` · `moved` with the current slug · `404`),
+  which answers slug existence on purpose (threat model R-2) and nothing else.
 
 ## 3. Organization lifecycle
 

@@ -105,9 +105,15 @@ Because step 4 answers before authentication, an anonymous caller can probe whic
 401). This is true of every subdomain SaaS, is accepted, and is recorded in the [threat model](THREAT-MODEL.md) (R-2) rather than
 left unremarked.
 
-Tenant-less routes (`/auth/*`, `/orgs` creation, `/orgs/slug-available`, `/health`) are marked
-`@TenantOptional` and skip steps 4–6. They reach other tenants only through `runAsPlatform` /
-`runAsTenant` (ADR-0022).
+Tenant-less routes (`/auth/*`, `/orgs` creation, `/orgs/slug-available`, `/tenants/:slug`, `/health`)
+are marked `@TenantOptional` or `@Public` and skip steps 4–6. They reach other tenants only through
+`runAsPlatform` / `runAsTenant` (ADR-0022).
+
+Step 4 is conceptually middleware and is implemented as the **first global guard**: the routes that
+skip it are marked by decorator, and Nest middleware runs before the route — and its decorators — are
+known. Guards run inside the CLS context the middleware opened (step 5), which is what lets resolution
+write the tenant into it. `GET /tenants/:slug` is how `apps/app` learns whether a subdomain renders,
+302s to a new slug, or 404s — resolution for the host that *does* carry a slug.
 
 ## Layered architecture (NestJS)
 

@@ -81,8 +81,11 @@ suite proves every route asserts a permission._
       `TenantContextService` (read-only), `PrismaService.db` / `transaction()`, the two helpers in
       `src/platform/`, the import zones that confine them and `nestjs-cls`, and a twelve-assertion
       integration suite against live RLS in the CI `schema` job
-- [ ] Tenant resolution middleware: credential → org, `Origin` / `X-Patchgrid-Tenant` cross-check,
-      Redis-cached org lookup, slug-history redirects (302), suspended/deleted handling (ADR-0024)
+- [x] Tenant resolution middleware: credential → org, `Origin` / `X-Patchgrid-Tenant` cross-check,
+      Redis-cached org lookup, slug-history redirects (302), suspended/deleted handling (ADR-0024).
+      Shipped as the first global guard (middleware cannot see route markers): a pure credential
+      locator, a 60 s Redis read-through over the first platform repositories, a thirteen-row
+      decision table, and public `GET /tenants/:slug` as the API side of the app's 302s
 - [ ] Auth: signup, login, logout, refresh with rotation + reuse detection, email verification, password
       reset, Argon2id, **per-tenant cookies** on `.lvh.me`, Redis revocation epoch (ADR-0004, ADR-0017,
       ADR-0024)

@@ -33,13 +33,14 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `api.lvh.me:4000`.
 ## Where we are
 
 **M0 (Foundation) is complete** (2026-09-22). **M1 (Tenancy and identity) is in progress**: of its 27
-items, **3 are done, 24 are open**. CI is green on `main` — five jobs.
+items, **4 are done, 23 are open**. CI is green on `main` — five jobs.
 
 | M1 item                                   | State                                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
 | Threat model                              | **Done** — `docs/THREAT-MODEL.md`; three of its five findings decided in ADR-0031 |
 | Data (the 13 identity and tenancy tables) | **Done** — one migration, with its catalog assertions as a CI gate      |
 | RLS                                       | **Done** (2026-10-05) — policies, client extension, the request context in the API, `PrismaService.db` / `transaction()`, `runAsTenant` / `runAsPlatform`, the lint zones, and a live-RLS integration suite in CI |
+| Tenant resolution                         | **Done** (2026-10-05) — first global guard; credential locator, Redis-cached lookup, decision table, public `GET /tenants/:slug`; proven over HTTP |
 | Everything else                           | Open — see `FEATURES.md` §M1                                            |
 
 Also since the last handoff: the API's lint boundaries were found to be **silently inert** — flat config
@@ -98,7 +99,7 @@ M0 primitives (ids, slugs + `RESERVED_SLUGS`, Problem Details registry, paginati
 limits), plus M1's tenancy enums in `tenancy.ts`: role, membership status and kind, organization status,
 plan, agent visibility.
 
-### `apps/api` — 64 unit, 12 integration tests
+### `apps/api` — 132 unit, 15 integration tests
 
 M0's NestJS 11 skeleton (Zod config that refuses to boot, Problem Details filter, slug-aware CORS,
 health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
@@ -108,7 +109,20 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
 - `src/tenancy/` — **isolation layer 1.** `TenancyModule` mounts the `nestjs-cls` middleware on every
   route, keyed by pino's request id. `request-context.ts` is the typed store: `tenant: { orgId,
   inTransaction }`, extended by other modules through declaration merging. `TenantContextService` is the
-  read side — `current()`, `requireOrgId()`, `requestId()` — and **has no setter**.
+  read side — `current()`, `requireOrgId()`, `organization()`, `requestId()` — and **has no setter**.
+- `src/tenancy/` — **tenant resolution (pipeline step 4)**, as the first global guard
+  (`tenant-resolution.guard.ts`): `credential-locator.ts` parses `Authorization`, the access cookie
+  named by the asserted slug (`Origin` or `X-Patchgrid-Tenant`) and peeks its `org` claim unverified;
+  `tenant-resolver.ts` is the decision table (bearer → cookie → state; 404 / 401 / 403 exactly as
+  ADR-0024 assigns them); `organization-lookup.service.ts` is a 60 s Redis read-through with negative
+  caching and fall-through on outage; `tenants.controller.ts` serves public `GET /tenants/:slug`.
+  `@Public` and `@TenantOptional` routes skip the guard. Everything is proven over HTTP with supertest
+  against a probe controller, with the real pipe and filter in place.
+- `src/platform/repositories/` — the first repositories: `OrganizationRepository` (summary by id /
+  slug, retired slugs) and `ApiTokenIndexRepository` (prefix → org), both platform class and read with
+  no tenant. `PlatformModule` exports them; `CommonModule` (global) now provides `Clock` and `Tracer`.
+- `src/auth/tokens/access-token.ts` — the one definition of `pg_at_<slug>` / `pg_rt_<slug>` / `pg_id`
+  and the org-bound claims; `peekOrgClaim` reads without verifying.
 - `src/prisma/prisma.service.ts` — **layer 3 in the API.** Wraps the client in `withTenantIsolation`,
   fed from the context at await time. Repositories read **`db`**: the open transaction when one was
   opened **for the current tenant**, else the extended client. `transaction(fn)` opens an interactive
@@ -123,6 +137,8 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
   live RLS as `patchgrid_app`: no context throws; a crossing sees only its org with no `where`; a
   crossing *inside* an open transaction runs outside it, scoped to the other org, and the outer
   transaction resumes with its uncommitted work; a foreign `orgId` rolls the whole transaction back.
+- `test/platform/organization.repository.int-spec.ts` — the platform repositories read as
+  `patchgrid_app` with an empty context, including a retired slug inside and outside its window.
 
 ### `packages/eslint-config` — 1 test (27 cases)
 
@@ -148,9 +164,13 @@ Compose stack, API readiness) · **security** (gitleaks, `pnpm audit`). Plus Cod
 
 ## What is deliberately NOT implemented yet
 
-- **Nothing writes a tenant into the context yet.** The resolution middleware is the next item; until
-  it lands every tenant-owned query in a request throws `NoTenantContextError`, which is the intended
-  fail-closed state, not a bug.
+- **Resolution does not verify anything.** The cookie's `org` claim is peeked, the bearer's secret is
+  unchecked; step 7 (auth) does that once. Until it lands, a tenant-bound route admits any well-formed
+  cookie whose claim matches its name — there are no such routes yet, and the first one must ship with
+  the auth strategy in front of it.
+- **No throttling yet.** `GET /tenants/:slug` and the resolution lookups are unprotected per IP; the
+  throttling item (step 3) is next after auth and is what makes the negative cache cheapness rather
+  than defence.
 - **No authentication.** No login, tokens, cookies, Argon2id. ADR-0031 has settled its shape.
 - **No repositories or services** beyond health. The layering zones are exercised only by their own
   tests and by planted violations, not yet by real modules.
@@ -184,24 +204,26 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **The context is written in three places only** — tenancy, prisma, platform | `TenantContextService` has no setter and `nestjs-cls` imports nowhere else, so pointing a query at another tenant means going through a confined helper | `boundaries.js` |
 | **`db` hands out a transaction only for the tenant it was opened for**  | A `runAsTenant` inside an open transaction must never reuse it; the getter checks, whether or not the helper cleared the slot | `prisma.service.ts` |
 | **Boundaries are zones of one rule**                                   | Flat config replaces, not merges, options for the same rule across objects; separate objects guarded only the last one | `ENGINEERING.md` §CI |
+| **Step 4 is a guard, not middleware**                                  | Exemption is by route decorator, which middleware cannot see; guards run inside the CLS context anyway | `ARCHITECTURE.md` §Request pipeline |
+| **"Not a slug" is the same 404 as "no such slug"**                      | A 400 for a malformed label tells a prober which labels to skip                                        | `tenant-lookup.service.ts` |
+| **A cookie for another tenant is never a fallback**                     | The asserted slug picks `pg_at_<slug>`; nothing else is read (ADR-0024 §2)                            | `credential-locator.ts` |
 
 ---
 
 ## Recommended next steps, in order
 
-1. **Tenant resolution middleware** (`src/tenancy/`) — credential → org, `Origin` /
-   `X-Patchgrid-Tenant` cross-check, Redis-cached lookup, slug-history 302s, suspended /
-   pending-deletion handling (ADR-0024). It is the one place that writes `tenant` into the context for a
-   request. Resolution reads the access cookie's `orgId` claim *unverified* to route (step 4); the
-   signature is checked once, in the auth strategy (step 7). Add the first platform repository
-   (`Organization` lookup) under `src/platform/`.
-2. **Auth** — with ADR-0031 applied from the first endpoint: uniform responses, the dummy-hash timing
-   equaliser, invite–email binding, `pg_id` as a rotating `RefreshToken`. Settle the refresh-cookie
-   question below before `apiFetch`.
-3. Then provisioning (with the slug lock below), membership, teams, `authz`, `GET /me`, and the
-   `test:tenancy` / `test:authz` gates. The first real repository should follow the pattern the
-   integration suite establishes: read `prisma.db`, take an explicit `orgId`, never open `$transaction`
-   itself.
+1. **Auth** (`src/auth/`) — with ADR-0031 applied from the first endpoint: uniform responses, the
+   dummy-hash timing equaliser, invite–email binding, `pg_id` as a rotating `RefreshToken`. The access
+   token's claims and cookie names already exist in `src/auth/tokens/access-token.ts`; the auth guard
+   is the **second** global guard and verifies the credential `TenantContextService.organization().via`
+   names, then checks the revocation epoch. Settle the refresh-cookie question below before `apiFetch`.
+   Needs `Argon2id` and a JWT library (decide: `jose`), and a `JWT_SECRET` in the env schema.
+2. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
+   `/tenants/:slug`; per org and per token after (step 6). `@nestjs/throttler` on Redis.
+3. Then provisioning (with the slug lock below — and call `OrganizationLookupService.invalidate` on
+   every slug or status change), membership, teams, `authz`, `GET /me`, and the `test:tenancy` /
+   `test:authz` gates. Tenant-owned repositories follow the platform ones: read `prisma.db`, take an
+   explicit `orgId`, never open `$transaction` themselves.
 
 ---
 
@@ -226,6 +248,8 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 
 **Code worth reading before writing more:**
 
+- `apps/api/src/tenancy/tenant-resolver.ts` — the decision table auth sits behind; what `via` means
+- `apps/api/src/tenancy/tenant-resolution.guard.spec.ts` — how a guard is proven over HTTP here
 - `apps/api/src/prisma/prisma.service.ts` — `db` and `transaction()`; how a repository will see the client
 - `apps/api/src/platform/run-as-tenant.ts` — the shape of a crossing, and why it validates and logs
 - `apps/api/test/tenancy/tenant-scope.int-spec.ts` — what "isolated" is proven to mean in the API
@@ -248,7 +272,7 @@ pnpm db:generate                # Prisma client — migrate dev no longer does t
 pnpm db:doctor                  # expect 6/6
 pnpm test:schema                # expect 12/12
 pnpm --filter @patchgrid/database run test:integration   # expect 9/9
-pnpm --filter @patchgrid/api run test:integration        # expect 12/12
+pnpm --filter @patchgrid/api run test:integration        # expect 15/15
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
@@ -310,3 +334,11 @@ From M1 so far:
   transaction timeout.
 - **`ClsService.set(key, undefined)` is how a child context hides a parent value** — `inherit` copies the
   store shallowly, so deleting is not an option, and a missing key would fall through to the parent's.
+- **The global Zod pipe refuses a bare `@Param("x") x: string`.** `strictSchemaDeclaration` throws
+  `ZodSchemaDeclarationException` — a 500 — for any argument no DTO declares. Every param, query and
+  body is a `createZodDto` class, even a one-field one. The unit specs did not catch it because the
+  probe controller had no params; the boot-and-curl did.
+- **`AppModule` is not global.** A provider declared there (`CLOCK` was) is invisible to sibling
+  modules and fails at boot with "can't resolve dependencies". Shared seams live in `CommonModule`.
+- **Boot the built API and curl it before committing a module.** DI resolution and the strict pipe
+  only fail at runtime; the unit and HTTP specs with hand-assembled TestingModules pass right through.
