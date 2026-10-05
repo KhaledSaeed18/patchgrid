@@ -1,6 +1,6 @@
 # Handoff — M1 in progress
 
-Written 2026-09-24, mid-M1. **This file is regenerated, not appended to** — at every milestone boundary,
+Written 2026-10-05, mid-M1. **This file is regenerated, not appended to** — at every milestone boundary,
 and whenever enough has landed that the previous version would mislead. If it disagrees with
 `FEATURES.md` or an ADR, they are right and this is stale.
 
@@ -33,14 +33,18 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `api.lvh.me:4000`.
 ## Where we are
 
 **M0 (Foundation) is complete** (2026-09-22). **M1 (Tenancy and identity) is in progress**: of its 27
-items, **2 are done, 1 is in progress, 24 are open**. CI is green on `main` — five jobs.
+items, **3 are done, 24 are open**. CI is green on `main` — five jobs.
 
 | M1 item                                   | State                                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
 | Threat model                              | **Done** — `docs/THREAT-MODEL.md`; three of its five findings decided in ADR-0031 |
 | Data (the 13 identity and tenancy tables) | **Done** — one migration, with its catalog assertions as a CI gate      |
-| RLS                                       | **In progress** — policies, template and client extension done; `nestjs-cls` context, `runAsTenant` / `runAsPlatform` remain |
+| RLS                                       | **Done** (2026-10-05) — policies, client extension, the request context in the API, `PrismaService.db` / `transaction()`, `runAsTenant` / `runAsPlatform`, the lint zones, and a live-RLS integration suite in CI |
 | Everything else                           | Open — see `FEATURES.md` §M1                                            |
+
+Also since the last handoff: the API's lint boundaries were found to be **silently inert** — flat config
+lets a later `no-restricted-imports` object replace an earlier one's options — and were rebuilt as zones
+of one custom rule, each proven by a planted violation.
 
 Between M0 and the M1 work, the shared UI package took the tweakcn "Tangerine" theme (colour tokens,
 Open Sans / Source Serif 4 / JetBrains Mono through one `next/font` module, 0.2rem radius) for both
@@ -94,12 +98,39 @@ M0 primitives (ids, slugs + `RESERVED_SLUGS`, Problem Details registry, paginati
 limits), plus M1's tenancy enums in `tenancy.ts`: role, membership status and kind, organization status,
 plan, agent visibility.
 
-### `apps/api` — 46 tests
+### `apps/api` — 64 unit, 12 integration tests
 
 M0's NestJS 11 skeleton (Zod config that refuses to boot, Problem Details filter, slug-aware CORS,
 health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
 `enum-parity.spec.ts`: each contracts enum and its Prisma twin must be identical, **enforced by
-`typecheck`**. There are still no modules beyond health.
+`typecheck`**. M1 added the tenancy spine; there are still no domain modules.
+
+- `src/tenancy/` — **isolation layer 1.** `TenancyModule` mounts the `nestjs-cls` middleware on every
+  route, keyed by pino's request id. `request-context.ts` is the typed store: `tenant: { orgId,
+  inTransaction }`, extended by other modules through declaration merging. `TenantContextService` is the
+  read side — `current()`, `requireOrgId()`, `requestId()` — and **has no setter**.
+- `src/prisma/prisma.service.ts` — **layer 3 in the API.** Wraps the client in `withTenantIsolation`,
+  fed from the context at await time. Repositories read **`db`**: the open transaction when one was
+  opened **for the current tenant**, else the extended client. `transaction(fn)` opens an interactive
+  transaction whose first statement sets the tenant, stores `{ orgId, client }` in a child context for
+  the duration, joins an already-open one instead of nesting, and runs platform-only with no tenant.
+- `src/platform/run-as-tenant.ts`, `run-as-platform.ts` — the two crossings (ADR-0022), as plain
+  functions on the shared CLS instance. Each runs its callback in a child context that hides the
+  caller's tenant and open transaction, restores them on return, validates the id, and logs `{ actor,
+  reason, from, orgId }`.
+- The request logger now carries `orgId` on the completion line, read from the context.
+- `test/tenancy/tenant-scope.int-spec.ts` (`test:integration`, CI `schema` job) — the above against
+  live RLS as `patchgrid_app`: no context throws; a crossing sees only its org with no `where`; a
+  crossing *inside* an open transaction runs outside it, scoped to the other org, and the outer
+  transaction resumes with its uncommitted work; a foreign `orgId` rolls the whole transaction back.
+
+### `packages/eslint-config` — 1 test (27 cases)
+
+`rules/import-zones.js` is a custom rule: one options object, many zones, each with `files`, `except`
+and forbidden `imports` (by package name or regex). `boundaries.js` exports `apiBoundaries` — layering,
+the two crossings with their *different* allow-lists, and `nestjs-cls` confined to `src/tenancy`,
+`src/prisma`, `src/platform` — and `noRawSql`. `boundaries.test.js` proves every zone with the violation
+it names and the module allowed to make it.
 
 ### `apps/app`, `apps/www`, `packages/ui` — 2 + 2 tests
 
@@ -117,11 +148,12 @@ Compose stack, API readiness) · **security** (gitleaks, `pnpm audit`). Plus Cod
 
 ## What is deliberately NOT implemented yet
 
-- **No tenant context in the API.** `nestjs-cls` is not installed; nothing calls `withTenantIsolation`
-  outside its tests. `runAsTenant` / `runAsPlatform` do not exist — the ESLint rule restricting their
-  imports is still guarding code that has not been written.
+- **Nothing writes a tenant into the context yet.** The resolution middleware is the next item; until
+  it lands every tenant-owned query in a request throws `NoTenantContextError`, which is the intended
+  fail-closed state, not a bug.
 - **No authentication.** No login, tokens, cookies, Argon2id. ADR-0031 has settled its shape.
-- **No repositories or services** beyond health, so nothing yet exercises the layering lint rules.
+- **No repositories or services** beyond health. The layering zones are exercised only by their own
+  tests and by planted violations, not yet by real modules.
 - **No seed data.** `scripts/seed.ts` is still a stub; the two lookalike orgs arrive with provisioning.
 - **`test:tenancy` and `test:authz` do not exist**, and stay absent from CI rather than vacuously green.
   The database-level isolation assertions they will include are already proven in `test:integration`.
@@ -149,20 +181,27 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **`RefreshToken.orgId` cascades on delete**                            | `SET NULL` would turn a tenant refresh token into an org-less one — a `pg_id`                          | `schema.prisma` |
 | **Random 256-bit tokens are hashed with SHA-256**, looked up by hash   | Argon2id is for low-entropy secrets: passwords, and API tokens looked up by prefix                     | `schema.prisma` |
 | **`Membership.userId` is null exactly for service accounts**           | An API token's actor has no human account (ADR-0021); a `CHECK` enforces it                           | migration    |
+| **The context is written in three places only** — tenancy, prisma, platform | `TenantContextService` has no setter and `nestjs-cls` imports nowhere else, so pointing a query at another tenant means going through a confined helper | `boundaries.js` |
+| **`db` hands out a transaction only for the tenant it was opened for**  | A `runAsTenant` inside an open transaction must never reuse it; the getter checks, whether or not the helper cleared the slot | `prisma.service.ts` |
+| **Boundaries are zones of one rule**                                   | Flat config replaces, not merges, options for the same rule across objects; separate objects guarded only the last one | `ENGINEERING.md` §CI |
 
 ---
 
 ## Recommended next steps, in order
 
-1. **Finish RLS** — the only in-progress item. Install `nestjs-cls`; feed `withTenantIsolation` from it
-   (`{ orgId, inTransaction }`); write `runAsTenant(orgId, fn)` and `runAsPlatform(fn)` in the paths the
-   ESLint rule already allows, each logging actor, reason and target. Keep "await inside the context".
-2. **Tenant resolution middleware** — credential → org, `Origin` / `X-Patchgrid-Tenant` cross-check,
-   Redis-cached lookup, slug-history 302s, suspended / pending-deletion handling (ADR-0024).
-3. **Auth** — with ADR-0031 applied from the first endpoint: uniform responses, the dummy-hash timing
-   equaliser, invite–email binding, `pg_id` as a rotating `RefreshToken`.
-4. Then provisioning (with the slug lock below), membership, teams, `authz`, `GET /me`, and the
-   `test:tenancy` / `test:authz` gates.
+1. **Tenant resolution middleware** (`src/tenancy/`) — credential → org, `Origin` /
+   `X-Patchgrid-Tenant` cross-check, Redis-cached lookup, slug-history 302s, suspended /
+   pending-deletion handling (ADR-0024). It is the one place that writes `tenant` into the context for a
+   request. Resolution reads the access cookie's `orgId` claim *unverified* to route (step 4); the
+   signature is checked once, in the auth strategy (step 7). Add the first platform repository
+   (`Organization` lookup) under `src/platform/`.
+2. **Auth** — with ADR-0031 applied from the first endpoint: uniform responses, the dummy-hash timing
+   equaliser, invite–email binding, `pg_id` as a rotating `RefreshToken`. Settle the refresh-cookie
+   question below before `apiFetch`.
+3. Then provisioning (with the slug lock below), membership, teams, `authz`, `GET /me`, and the
+   `test:tenancy` / `test:authz` gates. The first real repository should follow the pattern the
+   integration suite establishes: read `prisma.db`, take an explicit `orgId`, never open `$transaction`
+   itself.
 
 ---
 
@@ -187,11 +226,13 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 
 **Code worth reading before writing more:**
 
-- `packages/database/src/tenant-client.ts` — layer 3, and the contract `runAsTenant` must honour
-- `packages/database/test/tenant-client.int.test.ts` — what "isolated" is proven to mean
+- `apps/api/src/prisma/prisma.service.ts` — `db` and `transaction()`; how a repository will see the client
+- `apps/api/src/platform/run-as-tenant.ts` — the shape of a crossing, and why it validates and logs
+- `apps/api/test/tenancy/tenant-scope.int-spec.ts` — what "isolated" is proven to mean in the API
+- `packages/database/src/tenant-client.ts` — layer 3, the extension underneath
 - `packages/database/test/schema.test.ts` — what every new table must satisfy
 - `packages/database/prisma/migrations/*/migration.sql` — the tail shows how a policy ships
-- `packages/eslint-config/boundaries.js` — the rules the next step must fit inside
+- `packages/eslint-config/boundaries.js` — the zones the next modules must fit inside
 
 ---
 
@@ -207,10 +248,11 @@ pnpm db:generate                # Prisma client — migrate dev no longer does t
 pnpm db:doctor                  # expect 6/6
 pnpm test:schema                # expect 12/12
 pnpm --filter @patchgrid/database run test:integration   # expect 9/9
+pnpm --filter @patchgrid/api run test:integration        # expect 12/12
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
-`pnpm turbo lint typecheck test build` should be 21/21.
+`pnpm turbo lint typecheck test build` should be 22/22.
 
 An `.env` from before M1 lacks `DATABASE_SHADOW_URL` — copy that line from `.env.example` (adjust the
 port) and re-run `pnpm db:bootstrap` to create the shadow database.
@@ -253,4 +295,18 @@ From M1 so far:
 - **commitlint allows only these scopes**: api, app, www, db, contracts, ui, ts, lint, config, deps, ci,
   docs, agents, test, security. A rejected commit leaves its files staged for the next one.
 - **The pre-commit hook's Prettier step reformats whole files** (see "Doc formatting drift"). Commits so
-  far skip it with `LEFTHOOK_EXCLUDE=format`; commitlint still runs.
+  far skip it with `LEFTHOOK_EXCLUDE=format`; commitlint still runs. commitlint also wants a
+  **lower-case subject** — `add runAsTenant` is rejected, `add the two tenant crossing helpers` is not.
+- **Flat config replaces rule options across objects.** Two config objects that both set
+  `no-restricted-imports` (or `no-restricted-syntax`) for overlapping files do not merge — the later one
+  wins, and the earlier boundary is gone without a warning. Put every boundary in one rule.
+- **minimatch's `**` does not match `..`.** A glob written to catch `../../platform/run-as-tenant`
+  catches nothing; use a regex for relative imports.
+- **vitest cannot print a Prisma client proxy.** `expect(prisma.db).toBe(tx)` reports a `TypeError`
+  from the proxy's `ownKeys` trap when it fails, not the mismatch. Compare identities as booleans:
+  `expect(prisma.db === tx).toBe(true)`.
+- **A crossing inside an open transaction needs a second connection.** The transaction holds one for its
+  duration; `runAsTenant` inside it queries on another. A pool capped at one deadlocks until Prisma's
+  transaction timeout.
+- **`ClsService.set(key, undefined)` is how a child context hides a parent value** — `inherit` copies the
+  store shallowly, so deleting is not an option, and a missing key would fall through to the parent's.
