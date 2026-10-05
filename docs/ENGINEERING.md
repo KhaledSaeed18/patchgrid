@@ -349,8 +349,8 @@ not a boundary.
 frontends may not import `@patchgrid/database` or Prisma; services may not import
 Prisma (only repositories may); raw SQL is confined to `packages/database` and
 repositories; `runAsTenant` and `runAsPlatform` are importable only by their own
-named modules; and `nestjs-cls` only by the modules that write the request
-context. They are written **before** most of the code they guard, because a rule
+named modules; and `nestjs-cls` only by the four modules that each write one
+slot of the request context. They are written **before** most of the code they guard, because a rule
 added after the violation is a refactor rather than a rule. Each message names the
 document it comes from, so the error explains itself.
 

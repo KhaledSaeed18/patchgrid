@@ -203,9 +203,9 @@ Import paths are restricted by ESLint: `runAsPlatform` to `src/platform/**`, `sr
 `src/jobs/dispatcher/**`; `runAsTenant` additionally to `src/jobs/**` and `src/orgs/provisioning/**`.
 Both run their callback in a **child context** that hides the caller's tenant and any open transaction
 and restores them on return, validate the org id up front, and log actor, reason, origin and target.
-The context itself is written only by the tenancy module, `PrismaService` and these two helpers —
-`nestjs-cls` is importable nowhere else, and `TenantContextService`, which everyone else reads, has no
-setter. The API asserts at boot that its own role lacks `BYPASSRLS` and refuses to start otherwise.
+The context itself is written only by the tenancy module (the tenant), `PrismaService` (the
+transaction), these two helpers (a crossing) and the auth guard (the actor) — `nestjs-cls` is importable
+nowhere else, and `TenantContextService` and `ActorService`, which everyone else reads, have no setters. The API asserts at boot that its own role lacks `BYPASSRLS` and refuses to start otherwise.
 
 **What a platform admin may actually do inside a tenant** is deliberately narrow and is specified in
 `RBAC.md` §8–9: metadata and lifecycle always; tenant *content* only during an owner-granted, read-only,

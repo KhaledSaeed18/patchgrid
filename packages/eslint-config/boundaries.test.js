@@ -34,6 +34,7 @@ test("api import zones", () => {
       // context writers
       { code: 'import { ClsService } from "nestjs-cls"', filename: "src/tenancy/tenant-resolution.middleware.ts", options },
       { code: 'import { ClsServiceManager } from "nestjs-cls"', filename: "src/platform/crossing.ts", options },
+      { code: 'import { ClsService } from "nestjs-cls"', filename: "src/auth/auth.guard.ts", options },
       // unrelated imports anywhere
       { code: 'import { z } from "zod"', filename: "src/tickets/tickets.service.ts", options },
       // tests are exempt from every zone
@@ -57,7 +58,7 @@ test("api import zones", () => {
       { code: 'import { runAsTenant } from "../../platform/run-as-tenant"', filename: "src/orgs/settings/settings.service.ts", options, errors: errorFor("../../platform/run-as-tenant") },
       // context writers
       { code: 'import { ClsService } from "nestjs-cls"', filename: "src/tickets/tickets.service.ts", options, errors: errorFor("nestjs-cls") },
-      { code: 'import { ClsService } from "nestjs-cls"', filename: "src/auth/auth.service.ts", options, errors: errorFor("nestjs-cls") },
+      { code: 'import { ClsService } from "nestjs-cls"', filename: "src/orgs/orgs.service.ts", options, errors: errorFor("nestjs-cls") },
     ],
   })
 })

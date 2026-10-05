@@ -102,20 +102,22 @@ const tenantCrossing = {
 }
 
 /**
- * The request context is written in exactly three places: the tenancy module
- * (resolution middleware), the Prisma service (the transaction slot) and the two
- * crossing helpers. Everyone else reads it through `TenantContextService`, which
- * has no setter — so the only way to point a query at another tenant is through a
- * helper the zones above confine (TENANCY.md §7, layer 1).
+ * The request context is written in exactly four places: the tenancy module
+ * (resolution: the tenant), the Prisma service (the transaction slot), the two
+ * crossing helpers (the tenant, for a crossing) and the auth module (the actor,
+ * once the credential is verified). Everyone else reads it through
+ * `TenantContextService` and `ActorService`, which have no setters — so the only
+ * way to point a query at another tenant is through a helper the zones above
+ * confine (TENANCY.md §7, layer 1).
  */
 const contextWriters = {
   files: ["src/**/*.ts"],
-  except: ["src/tenancy/**", "src/prisma/**", "src/platform/**", ...TESTS],
+  except: ["src/tenancy/**", "src/prisma/**", "src/platform/**", "src/auth/**", ...TESTS],
   imports: [{ name: "nestjs-cls" }],
   message:
-    "Only src/tenancy, src/prisma and src/platform may touch the CLS store. Read the tenant " +
-    "through TenantContextService; cross tenants through runAsTenant / runAsPlatform " +
-    "(ADR-0022).",
+    "Only src/tenancy, src/prisma, src/platform and src/auth may touch the CLS store. Read the " +
+    "tenant through TenantContextService and the actor through ActorService; cross tenants " +
+    "through runAsTenant / runAsPlatform (ADR-0022).",
 }
 
 export const API_ZONES = [layering, platformCrossing, tenantCrossing, contextWriters]

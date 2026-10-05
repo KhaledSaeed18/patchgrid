@@ -57,8 +57,9 @@ packages/database  ──▶ prisma only
 - Neither frontend ever imports `@patchgrid/database`. All data access — including server components and server actions — goes through the API over HTTP. SLA math, RBAC, quota checks, audit logging and tenant isolation live in exactly one place.
 - `packages/contracts` declares its own Zod enums rather than importing Prisma's, so the wire contract is independent of the storage schema.
 - Prisma imports are confined to `apps/api/src/**/repositories/**`, `apps/api/src/prisma/**` and
-  `packages/database`. `nestjs-cls` is confined to `src/tenancy`, `src/prisma` and `src/platform` — the
-  three places that write the request context; everything else reads it through `TenantContextService`.
+  `packages/database`. `nestjs-cls` is confined to `src/tenancy`, `src/prisma`, `src/platform` and
+  `src/auth` — the four places that each write one slot of the request context (tenant, transaction,
+  crossing, actor); everything else reads it through `TenantContextService` and `ActorService`.
 - These are **zones of one lint rule** (`patchgrid/import-zones`), not several `no-restricted-imports`
   objects: in a flat config a later object replaces an earlier one's options for the same rule, so
   written separately only the last boundary that matched a file was enforced.

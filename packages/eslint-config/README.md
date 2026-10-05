@@ -13,7 +13,7 @@ Shared ESLint configuration for the workspace.
 
 The API's import boundaries — repositories are the only Prisma importers, the
 crossing helpers are importable only by named modules, the request context is
-written only by the modules that own it — are **zones of one custom rule**,
+written only by the four modules that own a slot of it — are **zones of one custom rule**,
 `patchgrid/import-zones` (`rules/import-zones.js`), configured in a single
 object (`apiBoundaries`).
 
