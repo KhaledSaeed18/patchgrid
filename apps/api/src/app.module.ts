@@ -17,6 +17,7 @@ import { PrismaModule } from "./prisma/prisma.module"
 import { RedisModule } from "./redis/redis.module"
 import { TenantContextService } from "./tenancy/tenant-context.service"
 import { TenancyModule } from "./tenancy/tenancy.module"
+import { ThrottlingModule } from "./throttling/throttling.module"
 
 @Module({
   imports: [
@@ -86,6 +87,9 @@ import { TenancyModule } from "./tenancy/tenancy.module"
         },
       }),
     }),
+    // Order matters: the per-IP throttler guard registers before the tenant
+    // resolution guard (pipeline steps 3 then 4).
+    ThrottlingModule,
     TenancyModule,
     PrismaModule,
     RedisModule,

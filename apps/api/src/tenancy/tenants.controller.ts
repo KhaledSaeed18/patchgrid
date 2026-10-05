@@ -1,4 +1,5 @@
 import { Controller, Get, Param } from "@nestjs/common"
+import { Throttle } from "@nestjs/throttler"
 import type { TenantLookup } from "@patchgrid/contracts"
 import { createZodDto } from "nestjs-zod"
 import { z } from "zod"
@@ -22,6 +23,8 @@ class TenantSlugParams extends createZodDto(z.object({ slug: z.string().max(128)
  * endpoints (pipeline step 3).
  */
 @Controller("tenants")
+// Slug existence is public (R-2), but enumerating it should be slow.
+@Throttle({ ip: { limit: 30, ttl: 60_000 } })
 export class TenantsController {
   constructor(private readonly tenants: TenantLookupService) {}
 

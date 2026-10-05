@@ -2,6 +2,7 @@ import { Controller, Get } from "@nestjs/common"
 import { HealthCheck, HealthCheckService, type HealthCheckResult } from "@nestjs/terminus"
 
 import { Public } from "../common/decorators/route-markers"
+import { SkipAllThrottling } from "../throttling/throttlers"
 import { DatabaseHealthIndicator } from "./indicators/database.indicator"
 import { ObjectStorageHealthIndicator } from "./indicators/object-storage.indicator"
 import { RedisHealthIndicator } from "./indicators/redis.indicator"
@@ -20,6 +21,8 @@ import { RedisHealthIndicator } from "./indicators/redis.indicator"
  *   running, which is what you want.
  */
 @Controller("health")
+// An orchestrator probing every few seconds must never be told to back off.
+@SkipAllThrottling()
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,

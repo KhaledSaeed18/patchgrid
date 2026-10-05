@@ -5,6 +5,7 @@ import type { IncomingMessage } from "node:http"
 import { ClsModule } from "nestjs-cls"
 
 import { PlatformModule } from "../platform/platform.module"
+import { OrgThrottlerGuard } from "../throttling/throttler.guards"
 import { ORGANIZATION_LOOKUP } from "./organization-lookup"
 import { OrganizationLookupService } from "./organization-lookup.service"
 import { TenantContextService } from "./tenant-context.service"
@@ -19,7 +20,8 @@ import { TenantsController } from "./tenants.controller"
  * - The CLS middleware wraps every route (pipeline step 5), keyed by the id
  *   pino-http already issued, so there is a store before any guard runs.
  * - `TenantResolutionGuard` (step 4) is registered here as a global guard and
- *   is the only thing that writes a tenant into a request's store. A route
+ *   is the only thing that writes a tenant into a request's store.
+ *   `OrgThrottlerGuard` (step 6) follows it: per-org limits need the org. A route
  *   that reaches a repository without it finds an empty store, and the client
  *   extension throws rather than running unscoped.
  * - `GET /tenants/:slug` is the public answer to "what should this subdomain
@@ -49,6 +51,7 @@ import { TenantsController } from "./tenants.controller"
     { provide: ORGANIZATION_LOOKUP, useExisting: OrganizationLookupService },
     TenantResolver,
     { provide: APP_GUARD, useClass: TenantResolutionGuard },
+    { provide: APP_GUARD, useClass: OrgThrottlerGuard },
   ],
   exports: [TenantContextService, OrganizationLookupService, ORGANIZATION_LOOKUP],
 })

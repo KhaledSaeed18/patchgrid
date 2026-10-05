@@ -7,6 +7,7 @@ import {
   refreshRequestSchema,
 } from "@patchgrid/contracts"
 import type { Request, Response } from "express"
+import { Throttle } from "@nestjs/throttler"
 import { createZodDto } from "nestjs-zod"
 import { isIP } from "node:net"
 
@@ -31,6 +32,8 @@ class LogoutDto extends createZodDto(logoutRequestSchema) {}
  * returns descriptions of them.
  */
 @Controller("auth")
+// Tight per address: these are the routes an attacker guesses against.
+@Throttle({ ip: { limit: 20, ttl: 60_000 } })
 export class AuthController {
   constructor(
     private readonly sessions: SessionService,

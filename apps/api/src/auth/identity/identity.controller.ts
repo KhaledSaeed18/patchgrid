@@ -8,6 +8,7 @@ import {
   signupRequestSchema,
   verifyEmailRequestSchema,
 } from "@patchgrid/contracts"
+import { Throttle } from "@nestjs/throttler"
 import type { Request, Response } from "express"
 import { createZodDto } from "nestjs-zod"
 
@@ -30,6 +31,8 @@ class ChangePasswordDto extends createZodDto(changePasswordRequestSchema) {}
  * email hash with pipeline step 3.
  */
 @Controller("auth")
+// Per address here; per email hash through the `email` throttler, for every route that names one.
+@Throttle({ ip: { limit: 10, ttl: 60_000 } })
 export class IdentityController {
   constructor(
     private readonly identity: IdentityService,
