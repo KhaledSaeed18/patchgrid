@@ -1,3 +1,5 @@
+import { plugin } from "./rules/import-zones.js"
+
 /**
  * Architectural boundaries, enforced by the linter.
  *
@@ -9,6 +11,12 @@
  *
  * They are deliberately written before most of the code they guard exists —
  * a rule added after the violation is a refactor, not a rule.
+ *
+ * The API's boundaries are ZONES of one custom rule (`rules/import-zones.js`),
+ * not several `no-restricted-imports` objects: flat config lets a later object
+ * replace an earlier one's options for the same rule, which silently switched
+ * off every boundary but the last. Each boundary was proven to fire by planting
+ * the violation it names.
  */
 
 /** Frontends never touch the database. All data goes through the API over HTTP (ADR-0007). */
@@ -35,10 +43,7 @@ export const noDatabaseInFrontend = {
   },
 }
 
-const PRISMA_MESSAGE =
-  "Repositories are the only Prisma importers. A service that imports Prisma has started " +
-  "doing data access, and the layering that keeps business rules testable without a " +
-  "database is gone (ARCHITECTURE.md §Layered architecture)."
+const TESTS = ["**/*.spec.ts", "test/**"]
 
 /**
  * Controller → Service → Repository.
@@ -46,22 +51,79 @@ const PRISMA_MESSAGE =
  * `src/prisma/**` is exempt because it *is* the data-access plumbing; everything
  * else in the API reaches the database through a repository.
  */
-export const apiLayering = {
-  ignores: ["src/prisma/**", "src/**/repositories/**", "**/*.spec.ts", "test/**"],
-  rules: {
-    "no-restricted-imports": [
-      "error",
-      {
-        paths: [
-          { name: "@prisma/client", message: PRISMA_MESSAGE },
-          { name: "@patchgrid/database", message: PRISMA_MESSAGE },
-        ],
-        patterns: [
-          { group: ["**/generated/client*"], message: PRISMA_MESSAGE },
-        ],
-      },
-    ],
-  },
+const layering = {
+  files: ["src/**/*.ts"],
+  except: ["src/prisma/**", "src/**/repositories/**", ...TESTS],
+  imports: [
+    { name: "@prisma/client" },
+    { name: "@patchgrid/database" },
+    { regex: "/generated/client" },
+  ],
+  message:
+    "Repositories are the only Prisma importers. A service that imports Prisma has started " +
+    "doing data access, and the layering that keeps business rules testable without a " +
+    "database is gone (ARCHITECTURE.md §Layered architecture).",
+}
+
+/**
+ * Crossing a tenant boundary is a decision, not a convenience.
+ *
+ * `runAsTenant` points the ordinary mechanism at a known org and is not a bypass;
+ * `runAsPlatform` runs with no tenant context at all. Each is restricted by
+ * *module* rather than by a count of call sites, so a legitimate new caller does
+ * not require editing the rule — and an illegitimate one still cannot lint
+ * (ADR-0022). Two zones, because the allow-lists differ: a per-tenant job may
+ * point at its own org but has no business running with no tenant at all.
+ */
+const platformCrossing = {
+  files: ["src/**/*.ts"],
+  except: ["src/platform/**", "src/auth/**", "src/jobs/dispatcher/**", ...TESTS],
+  imports: [{ regex: "(^|/)platform/run-as-platform$" }],
+  message:
+    "runAsPlatform may only be imported by src/platform, src/auth and src/jobs/dispatcher " +
+    "(ADR-0022). Everywhere else, the tenant comes from the request context — a per-tenant " +
+    "job uses runAsTenant.",
+}
+
+const tenantCrossing = {
+  files: ["src/**/*.ts"],
+  except: [
+    "src/platform/**",
+    "src/auth/**",
+    "src/jobs/**",
+    "src/orgs/provisioning/**",
+    ...TESTS,
+  ],
+  imports: [{ regex: "(^|/)platform/run-as-tenant$" }],
+  message:
+    "runAsTenant may only be imported by src/platform, src/auth, src/jobs and " +
+    "src/orgs/provisioning (ADR-0022). Everywhere else, the tenant comes from the request " +
+    "context.",
+}
+
+/**
+ * The request context is written in exactly three places: the tenancy module
+ * (resolution middleware), the Prisma service (the transaction slot) and the two
+ * crossing helpers. Everyone else reads it through `TenantContextService`, which
+ * has no setter — so the only way to point a query at another tenant is through a
+ * helper the zones above confine (TENANCY.md §7, layer 1).
+ */
+const contextWriters = {
+  files: ["src/**/*.ts"],
+  except: ["src/tenancy/**", "src/prisma/**", "src/platform/**", ...TESTS],
+  imports: [{ name: "nestjs-cls" }],
+  message:
+    "Only src/tenancy, src/prisma and src/platform may touch the CLS store. Read the tenant " +
+    "through TenantContextService; cross tenants through runAsTenant / runAsPlatform " +
+    "(ADR-0022).",
+}
+
+export const API_ZONES = [layering, platformCrossing, tenantCrossing, contextWriters]
+
+/** Every import boundary of `apps/api`, in one rule so none can override another. */
+export const apiBoundaries = {
+  plugins: { patchgrid: plugin },
+  rules: { "patchgrid/import-zones": ["error", { zones: API_ZONES }] },
 }
 
 /**
@@ -73,7 +135,7 @@ export const apiLayering = {
  * instead of two, and that is the whole reason for the restriction (ADR-0015).
  */
 export const noRawSql = {
-  ignores: ["src/prisma/**", "src/**/repositories/**", "**/*.spec.ts", "test/**"],
+  ignores: ["src/prisma/**", "src/**/repositories/**", ...TESTS],
   rules: {
     "no-restricted-syntax": [
       "error",
@@ -84,42 +146,6 @@ export const noRawSql = {
           "Raw SQL bypasses the tenant client extension and is protected by RLS alone. It belongs " +
           "in packages/database or a repository, never in application code (ENGINEERING.md " +
           "§Transactions and side effects).",
-      },
-    ],
-  },
-}
-
-/**
- * Crossing a tenant boundary is a decision, not a convenience.
- *
- * `runAsTenant` points the ordinary mechanism at a known org and is not a bypass;
- * `runAsPlatform` runs with no tenant context at all. Both are restricted by
- * *module* rather than by a count of call sites, so a legitimate new caller does
- * not require editing the rule — and an illegitimate one still cannot compile
- * (ADR-0022).
- */
-export const tenantCrossing = {
-  ignores: [
-    "src/platform/**",
-    "src/auth/**",
-    "src/jobs/**",
-    "src/orgs/provisioning/**",
-    "**/*.spec.ts",
-    "test/**",
-  ],
-  rules: {
-    "no-restricted-imports": [
-      "error",
-      {
-        patterns: [
-          {
-            group: ["**/platform/run-as-*", "**/common/tenancy/run-as-*"],
-            message:
-              "runAsTenant / runAsPlatform may only be imported by src/platform, src/auth, " +
-              "src/jobs and src/orgs/provisioning (ADR-0022). Everywhere else, the tenant comes " +
-              "from the request context.",
-          },
-        ],
       },
     ],
   },
