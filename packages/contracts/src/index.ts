@@ -9,6 +9,7 @@
  * that introduce them. M0 establishes the primitives every surface shares.
  */
 
+export * from "./auth.ts"
 export * from "./id.ts"
 export * from "./limits.ts"
 export * from "./pagination.ts"
