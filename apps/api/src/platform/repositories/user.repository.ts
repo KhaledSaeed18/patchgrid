@@ -37,4 +37,17 @@ export class UserRepository {
   async touchLastLogin(id: string, at: Date): Promise<void> {
     await this.prisma.db.user.update({ where: { id }, data: { lastLoginAt: at } })
   }
+
+  /** Unverified until the emailed link is followed (TENANCY.md §4). */
+  create(account: { email: string; name: string; passwordHash: string }): Promise<AccountRecord> {
+    return this.prisma.db.user.create({ data: account, select: ACCOUNT })
+  }
+
+  async markVerified(id: string, at: Date): Promise<void> {
+    await this.prisma.db.user.updateMany({ where: { id, emailVerifiedAt: null }, data: { emailVerifiedAt: at } })
+  }
+
+  async setPassword(id: string, passwordHash: string): Promise<void> {
+    await this.prisma.db.user.update({ where: { id }, data: { passwordHash } })
+  }
 }
