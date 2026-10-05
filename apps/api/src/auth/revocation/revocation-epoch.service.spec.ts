@@ -36,7 +36,7 @@ describe("RevocationEpochService", () => {
     expect(await service.isRevoked(MEM, 1791201600)).toBe(false)
   })
 
-  it("revokes tokens minted before the bump and keeps those minted at or after it", async () => {
+  it("revokes tokens minted before or during the bump's second and keeps later ones", async () => {
     const { service, clock, client } = harness()
     const mintedBefore = Math.floor(clock.now().getTime() / 1000) - 60
     clock.advance(60_000)
@@ -44,7 +44,7 @@ describe("RevocationEpochService", () => {
     const bumpAt = Math.floor(clock.now().getTime() / 1000)
 
     expect(await service.isRevoked(MEM, mintedBefore)).toBe(true)
-    expect(await service.isRevoked(MEM, bumpAt)).toBe(false)
+    expect(await service.isRevoked(MEM, bumpAt)).toBe(true)
     expect(await service.isRevoked(MEM, bumpAt + 1)).toBe(false)
     expect(client.set).toHaveBeenCalledWith(`rev:${MEM}`, String(bumpAt), "EX", 7 * 86_400 + 900)
   })

@@ -46,14 +46,16 @@ export class RevocationEpochService {
 
   /**
    * `true` revoked, `false` fine, `null` unknown because Redis is unreachable.
-   * Equal-second races go to the token: a bump and a mint in the same second
-   * are a re-login, not a revocation to enforce.
+   * `iat` has second precision, so a token minted in the same second as the
+   * bump is indistinguishable from one minted just before it. Ties go to the
+   * revocation: the client refreshes and gets a fresh token, which is cheap; a
+   * session surviving "log out everywhere" is not.
    */
   async isRevoked(membershipId: string, iat: number): Promise<boolean | null> {
     try {
       const epoch = await this.redis.client.get(key(membershipId))
       if (epoch === null) return false
-      return iat < Number(epoch)
+      return iat <= Number(epoch)
     } catch (error) {
       this.logger.warn(
         `revocation epoch unavailable: ${error instanceof Error ? error.message : String(error)}`,
