@@ -3,7 +3,9 @@ import { defineConfig } from "vitest/config"
 
 export default defineConfig({
   test: {
-    include: ["src/**/*.spec.ts", "test/**/*.int-spec.ts"],
+    // Unit only. Integration specs under test/ need a database and run through
+    // vitest.integration.config.ts.
+    include: ["src/**/*.spec.ts"],
     globals: false,
   },
   // Nest's DI reads design-time type metadata that only a decorator-aware
