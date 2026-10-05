@@ -1,5 +1,7 @@
 import type { ClsStore } from "nestjs-cls"
 
+import type { ResolvedTenant } from "./tenant-resolver"
+
 /**
  * Isolation layer 1 (TENANCY.md §7): what the request context holds.
  *
@@ -19,6 +21,12 @@ export interface RequestContextStore extends ClsStore {
    * "no tenant": a tenant-owned query throws, a platform-class query runs.
    */
   tenant?: TenantScope
+  /**
+   * What resolution learned about the tenant (slug, plan, agent visibility,
+   * which credential carried it). Set only by the resolution guard, and only
+   * on requests — a crossing sets `tenant` and leaves this absent.
+   */
+  organization?: ResolvedTenant
 }
 
 export type TenantScope = {

@@ -6,6 +6,7 @@ import {
   TenantContextMissingError,
   type TenantScope,
 } from "./request-context"
+import type { ResolvedTenant } from "./tenant-resolver"
 
 /**
  * The read side of the request context.
@@ -29,6 +30,15 @@ export class TenantContextService {
     const tenant = this.current()
     if (tenant === undefined) throw new TenantContextMissingError(what)
     return tenant.orgId
+  }
+
+  /**
+   * What resolution learned about the organization — slug, plan, agent
+   * visibility. Present on resolved requests only; a crossing has a tenant but
+   * no resolved organization.
+   */
+  organization(): ResolvedTenant | undefined {
+    return this.cls.get("organization")
   }
 
   /** The request id the logger issued, when running inside a request. */

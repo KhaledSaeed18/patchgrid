@@ -1,22 +1,30 @@
 import { Global, Module } from "@nestjs/common"
+import { APP_GUARD } from "@nestjs/core"
 import { randomUUID } from "node:crypto"
 import type { IncomingMessage } from "node:http"
 import { ClsModule } from "nestjs-cls"
 
+import { PlatformModule } from "../platform/platform.module"
+import { ORGANIZATION_LOOKUP } from "./organization-lookup"
+import { OrganizationLookupService } from "./organization-lookup.service"
 import { TenantContextService } from "./tenant-context.service"
+import { TenantResolutionGuard } from "./tenant-resolution.guard"
+import { TenantResolver } from "./tenant-resolver"
 
 /**
- * Opens the request context (ARCHITECTURE.md §Request pipeline, step 5).
+ * Isolation layer 1 (TENANCY.md §7): the request context and what fills it.
  *
- * The CLS middleware wraps every route, so by the time a handler runs there is
- * a store for the tenant resolution middleware to write into and for
- * `PrismaService` to read from. It establishes NO tenant itself: a request
- * that reaches a repository without passing tenant resolution finds an empty
- * store, and the client extension throws rather than running unscoped.
+ * - The CLS middleware wraps every route (pipeline step 5), keyed by the id
+ *   pino-http already issued, so there is a store before any guard runs.
+ * - `TenantResolutionGuard` (step 4) is registered here as a global guard and
+ *   is the only thing that writes a tenant into a request's store. A route
+ *   that reaches a repository without it finds an empty store, and the client
+ *   extension throws rather than running unscoped.
  */
 @Global()
 @Module({
   imports: [
+    PlatformModule,
     ClsModule.forRoot({
       global: true,
       middleware: {
@@ -29,7 +37,13 @@ import { TenantContextService } from "./tenant-context.service"
       },
     }),
   ],
-  providers: [TenantContextService],
-  exports: [TenantContextService],
+  providers: [
+    TenantContextService,
+    OrganizationLookupService,
+    { provide: ORGANIZATION_LOOKUP, useExisting: OrganizationLookupService },
+    TenantResolver,
+    { provide: APP_GUARD, useClass: TenantResolutionGuard },
+  ],
+  exports: [TenantContextService, OrganizationLookupService],
 })
 export class TenancyModule {}
