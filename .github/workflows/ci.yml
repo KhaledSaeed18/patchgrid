@@ -195,10 +195,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      # The API's integration specs boot the real AppModule: the revocation
+      # epoch and the tenant cache need a Redis to talk to.
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       DATABASE_SUPERUSER_URL: postgresql://postgres:postgres@localhost:5432/patchgrid
       DATABASE_URL: postgresql://patchgrid_app:app@localhost:5432/patchgrid?schema=public
       DATABASE_MIGRATION_URL: postgresql://patchgrid_owner:owner@localhost:5432/patchgrid?schema=public
+      REDIS_URL: redis://localhost:6379
       DATABASE_SHADOW_URL: postgresql://patchgrid_owner:owner@localhost:5432/patchgrid_shadow?schema=public
       PATCHGRID_OWNER_PASSWORD: owner
       PATCHGRID_APP_PASSWORD: app
@@ -229,11 +240,11 @@ jobs:
       - name: Tenant client against the live schema
         run: pnpm --filter @patchgrid/database run test:integration
 
-      # The API's wiring of layers 1 and 3 over the same RLS: the request
-      # context, PrismaService.db / transaction(), runAsTenant / runAsPlatform.
-      # A crossing inside an open transaction sees only its own org; a foreign
-      # orgId rolls the whole transaction back; no setting outlives it.
-      - name: Request context and crossing helpers against the live schema
+      # The API against the live schema: the request context and crossing
+      # helpers over RLS, the platform repositories, and the whole session
+      # lifecycle through the booted AppModule — every guard in production
+      # order, rotation, reuse detection, the epoch — over HTTP.
+      - name: API integration specs against the live schema
         run: pnpm --filter @patchgrid/api run test:integration
 
       # The migrations, replayed into the shadow database, must produce exactly
