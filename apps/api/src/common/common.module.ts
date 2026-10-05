@@ -2,6 +2,7 @@ import { Global, Module } from "@nestjs/common"
 
 import { CLOCK, SystemClock } from "./clock/clock"
 import { NoopTracer, TRACER } from "./tracing/tracer"
+import { PublicUrls } from "./urls"
 
 /**
  * The two seams every module injects: time (`Clock`, so SLA maths and token
@@ -14,7 +15,8 @@ import { NoopTracer, TRACER } from "./tracing/tracer"
   providers: [
     { provide: CLOCK, useClass: SystemClock },
     { provide: TRACER, useClass: NoopTracer },
+    PublicUrls,
   ],
-  exports: [CLOCK, TRACER],
+  exports: [CLOCK, TRACER, PublicUrls],
 })
 export class CommonModule {}
