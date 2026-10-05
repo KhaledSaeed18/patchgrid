@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { CommonModule } from "./common/common.module"
 import { ProblemDetailsFilter } from "./common/problems/problem-details.filter"
 import { ZodValidationPipe } from "./common/problems/zod-validation.pipe"
+import { AuthModule } from "./auth/auth.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
@@ -86,6 +87,7 @@ import { TenancyModule } from "./tenancy/tenancy.module"
     TenancyModule,
     PrismaModule,
     RedisModule,
+    AuthModule,
     HealthModule,
   ],
   providers: [

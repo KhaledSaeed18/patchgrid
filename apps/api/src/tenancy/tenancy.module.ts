@@ -50,6 +50,6 @@ import { TenantsController } from "./tenants.controller"
     TenantResolver,
     { provide: APP_GUARD, useClass: TenantResolutionGuard },
   ],
-  exports: [TenantContextService, OrganizationLookupService],
+  exports: [TenantContextService, OrganizationLookupService, ORGANIZATION_LOOKUP],
 })
 export class TenancyModule {}

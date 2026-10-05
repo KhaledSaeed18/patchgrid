@@ -14,6 +14,9 @@ export const REFRESH_COOKIE_PREFIX = "pg_rt_"
 /** Tenant-less identity, a `RefreshToken` row with `orgId = NULL` (ADR-0031). */
 export const IDENTITY_COOKIE = "pg_id"
 
+/** Only the auth routes ever receive the refresh cookie (ADR-0004, ADR-0024). */
+export const REFRESH_COOKIE_PATH = "/api/v1/auth"
+
 export const accessCookieName = (slug: string): string => `${ACCESS_COOKIE_PREFIX}${slug}`
 export const refreshCookieName = (slug: string): string => `${REFRESH_COOKIE_PREFIX}${slug}`
 
@@ -28,6 +31,8 @@ export const accessTokenClaimsSchema = z.object({
   role: roleSchema,
   iat: z.int(),
   exp: z.int(),
+  /** Random per token, so two mints in one second are still two tokens and logs can tell them apart. */
+  jti: z.uuid().optional(),
 })
 export type AccessTokenClaims = z.infer<typeof accessTokenClaimsSchema>
 

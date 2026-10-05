@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common"
 import { jwtVerify, SignJWT } from "jose"
+import { randomUUID } from "node:crypto"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import { InjectConfig, type AppConfig } from "../../config/app-config"
@@ -31,10 +32,11 @@ export class AccessTokenService {
 
   async sign(session: SessionClaims): Promise<{ token: string; claims: AccessTokenClaims }> {
     const iat = Math.floor(this.clock.now().getTime() / 1000)
-    const claims: AccessTokenClaims = { ...session, iat, exp: iat + this.ttlSeconds }
+    const claims: AccessTokenClaims = { ...session, iat, exp: iat + this.ttlSeconds, jti: randomUUID() }
     const token = await new SignJWT({ org: claims.org, mem: claims.mem, role: claims.role })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setSubject(claims.sub)
+      .setJti(claims.jti ?? randomUUID())
       .setIssuedAt(claims.iat)
       .setExpirationTime(claims.exp)
       .setIssuer(ISSUER)

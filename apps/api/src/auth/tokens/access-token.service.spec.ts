@@ -20,8 +20,10 @@ describe("AccessTokenService", () => {
     const clock = new FixedClock(new Date("2026-10-05T12:00:00Z"))
     const service = new AccessTokenService(config, clock)
     const { token, claims } = await service.sign(session)
-    expect(claims).toEqual({ ...session, iat: 1791201600, exp: 1791201600 + 900 })
+    expect(claims).toEqual({ ...session, iat: 1791201600, exp: 1791201600 + 900, jti: expect.any(String) })
     expect(await service.verify(token)).toEqual(claims)
+    // Two mints in the same second are still two tokens.
+    expect((await service.sign(session)).token).not.toBe(token)
   })
 
   it("rejects the token once the clock passes exp, without sleeping", async () => {
