@@ -81,6 +81,16 @@ export function withTenantIsolation(client: PrismaClient, readContext: TenantCon
 export type TenantPrismaClient = ReturnType<typeof withTenantIsolation>
 
 /**
+ * The client handed to the callback of an interactive transaction on the tenant
+ * client. It carries the extension but no `$transaction`/`$connect`, so it is
+ * also the widest type a repository should ever hold: the un-transacted client
+ * is assignable to it, a transaction client is exactly it.
+ */
+export type TenantTransactionClient = Parameters<
+  Parameters<TenantPrismaClient["$transaction"]>[0]
+>[0]
+
+/**
  * Opens an interactive transaction scoped to `orgId`. Its first statement sets
  * the tenant, so every query in `fn` is subject to RLS for that org.
  *
@@ -91,7 +101,7 @@ export type TenantPrismaClient = ReturnType<typeof withTenantIsolation>
 export async function tenantTransaction<T>(
   client: TenantPrismaClient,
   orgId: string,
-  fn: (tx: Parameters<Parameters<TenantPrismaClient["$transaction"]>[0]>[0]) => Promise<T>,
+  fn: (tx: TenantTransactionClient) => Promise<T>,
 ): Promise<T> {
   return client.$transaction(async (tx) => {
     await setTenant(tx, orgId)

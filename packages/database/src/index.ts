@@ -14,6 +14,7 @@ export {
   type TenantContext,
   type TenantContextReader,
   type TenantPrismaClient,
+  type TenantTransactionClient,
 } from "./tenant-client.ts"
 export { PLATFORM_TABLES, isTenantOwned } from "./table-classes.ts"
 
