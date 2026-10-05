@@ -82,6 +82,19 @@ export class SessionService {
       throw new NotAuthenticatedProblem("Invalid email or password")
     }
 
+    return this.startIdentity(account, client, slug)
+  }
+
+  /**
+   * A verified account becomes a `pg_id` — and, when a slug is given and the
+   * user is a member, that workspace's pair. Login and the verification link
+   * both end here (ADR-0031: the link completes signup and starts the session).
+   */
+  async startIdentity(
+    account: AccountRecord,
+    client: ClientInfo,
+    slug?: string,
+  ): Promise<{ response: LoginResponse; cookies: CookieSpec[] }> {
     const now = this.clock.now()
     const identity = await this.issue(account.id, null, client, now)
     await this.users.touchLastLogin(account.id, now)
@@ -104,6 +117,29 @@ export class SessionService {
       },
       cookies,
     }
+  }
+
+  /**
+   * Ends every session of a user: every refresh token and `pg_id` revoked, every
+   * membership's epoch bumped so the stateless access tokens die now rather than
+   * in fifteen minutes. "Log out everywhere", password reset and password change
+   * all come here (ADR-0024 §5, ADR-0031). Returns the cookies to clear.
+   */
+  async revokeEverywhere(userId: string): Promise<CookieName[]> {
+    const now = this.clock.now()
+    const clear: CookieName[] = []
+    await this.refreshTokens.revokeAllForUser(userId, now)
+    // The projection only tells us where to look; the membership is read inside
+    // the tenant, and a disabled one still has an epoch worth bumping.
+    for (const workspace of await this.workspaces.listWorkspacesForUser(userId)) {
+      const org = await this.organizations.byId(workspace.orgId)
+      if (org === null) continue
+      const membership = await this.membershipOf(org, userId, "revoke everywhere", false)
+      if (membership !== null) await this.epochs.bump(membership.id)
+      clear.push(...this.cookies.pairOf(org.slug))
+    }
+    clear.push({ name: this.cookies.identity("").name, path: "/" })
+    return clear
   }
 
   /** The org switcher: a `pg_id` holder opens one workspace they belong to. */
@@ -172,19 +208,8 @@ export class SessionService {
 
     if (input.everywhere) {
       const userId = await this.identityFor(input.identitySecret)
-      if (userId !== null) {
-        await this.refreshTokens.revokeAllForUser(userId, now)
-        // Access tokens are stateless; the epoch is what ends them now rather
-        // than in fifteen minutes. The projection only tells us where to look.
-        for (const workspace of await this.workspaces.listWorkspacesForUser(userId)) {
-          const org = await this.organizations.byId(workspace.orgId)
-          if (org === null) continue
-          const membership = await this.membershipOf(org, userId, "log out everywhere", false)
-          if (membership !== null) await this.epochs.bump(membership.id)
-          clear.push(...this.cookies.pairOf(org.slug))
-        }
-      }
-      clear.push({ name: this.cookies.identity("").name, path: "/" })
+      if (userId !== null) clear.push(...(await this.revokeEverywhere(userId)))
+      else clear.push({ name: this.cookies.identity("").name, path: "/" })
     }
 
     return clear
