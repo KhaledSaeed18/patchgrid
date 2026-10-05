@@ -72,7 +72,7 @@ not the host — carries the tenant (ADR-0024).
 ```
  1. helmet, CORS (origin validated against the slug regex, credentials on)
  2. Request id + pino logger                       → reqId on every log line
- 3. Throttler, per IP                              → a flood is rejected before it costs a lookup
+ 3. Throttler, per IP (and per email hash)         → a flood is rejected before it costs a lookup
  4. Tenant resolution middleware                                              (ADR-0024)
       Bearer pg_… → ApiTokenIndex → orgId          (cookies ignored)          (ADR-0022)
       else        → access cookie pg_at_<slug>.orgId IS the tenant
@@ -81,7 +81,7 @@ not the host — carries the tenant (ADR-0024).
       unknown 404 · suspended 403 · pending-deletion 404 — before any handler
  5. ClsMiddleware                                  → AsyncLocalStorage: { orgId, userId,
                                                       membershipId, role, teamIds, reqId }
- 6. Throttler, per org and per token
+ 6. Throttler, per org and per token               (one guard per point: step 6 needs the org)
  7. Authentication strategy → Actor                (session cookie or API token)
       revocation epoch check: reject if iat < rev:<membershipId>              (ADR-0024)
  8. Guards: @Public / @TenantOptional / @RequirePermission(...) / @PlatformOnly

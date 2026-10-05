@@ -112,7 +112,11 @@ suite proves every route asserts a permission._
       escalation negatives including concurrent last-owner demotion — wired as a CI gate
 - [ ] `QuotaService` + `UsageCounter` with atomic conditional increments (seats first; ticket volume in
       M2); Postgres authoritative, Redis a display cache
-- [ ] Throttling on `/auth/*`, signup and slug lookup, per IP **before** tenant resolution
+- [x] Throttling on `/auth/*`, signup and slug lookup, per IP **before** tenant resolution. Shipped
+      2026-10-05: two guards — per address (and per email hash on any route naming one, ADR-0031) before
+      resolution, per organization after it — on a Redis Lua counter that fails open, `429` as
+      `rate-limited` with a plain `Retry-After`, health never throttled, `THROTTLE_ENABLED` off only for
+      the lifecycle specs. Per token waits for the M8 api-tokens item
 - [x] Mail: `MailProvider`, Mailpit SMTP impl, BullMQ `mail` queue, react-email templates (verify,
       invite, reset). Shipped 2026-10-05 with the BullMQ root, `runJob` (the processor wrapper that
       opens the tenant context), `WORKER_MODE`, `PublicUrls`, an `account-exists` template for

@@ -33,7 +33,7 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `api.lvh.me:4000`.
 ## Where we are
 
 **M0 (Foundation) is complete** (2026-09-22). **M1 (Tenancy and identity) is in progress**: of its 27
-items, **6 are done, 21 are open**. CI is green on `main` — five jobs.
+items, **7 are done, 20 are open**. CI is green on `main` — five jobs.
 
 | M1 item                                   | State                                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
@@ -43,6 +43,7 @@ items, **6 are done, 21 are open**. CI is green on `main` — five jobs.
 | Tenant resolution                         | **Done** (2026-10-05) — first global guard; credential locator, Redis-cached lookup, decision table, public `GET /tenants/:slug`; proven over HTTP |
 | Auth                                      | **Done** (2026-10-05) — sessions (login, `pg_id`, switcher, refresh + reuse detection, logout, epoch, auth + CSRF guards, `Actor`) and identity (signup `202`, verification link starting the session, resend, reset, change), both proven through the booted app |
 | Mail                                      | **Done** (2026-10-05) — `MailProvider` + SMTP, four React templates, the `mail` queue, the processor in tenant context, `WORKER_MODE`; Mailpit round trip |
+| Throttling                                | **Done** (2026-10-05) — per address and per email hash before resolution, per org after; Redis Lua counter, fail-open; `429` Problem with `Retry-After` |
 | Everything else                           | Open — see `FEATURES.md` §M1                                            |
 
 Also since the last handoff: the API's lint boundaries were found to be **silently inert** — flat config
@@ -101,7 +102,7 @@ M0 primitives (ids, slugs + `RESERVED_SLUGS`, Problem Details registry, paginati
 limits), plus M1's tenancy enums in `tenancy.ts`: role, membership status and kind, organization status,
 plan, agent visibility.
 
-### `apps/api` — 208 unit, 34 integration tests
+### `apps/api` — 212 unit, 37 integration tests
 
 M0's NestJS 11 skeleton (Zod config that refuses to boot, Problem Details filter, slug-aware CORS,
 health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
@@ -146,6 +147,14 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
   ones outstanding.
 - `src/memberships/repositories/membership.repository.ts` — the first tenant-owned repository: explicit
   `orgId` on every method, the team facts the actor carries.
+- `src/throttling/` — **pipeline steps 3 and 6.** `throttlers.ts` names the limits: `ip` 300/min
+  (tightened by `@Throttle` to 20 on the session routes, 10 on the identity routes, 30 on slug lookup),
+  `email` 5/min per email hash on any route whose body names an address, `org` 600/min. One throttler
+  guard runs at one point in the chain, so `throttler.guards.ts` has two: `IpThrottlerGuard` (first
+  of all, `ip` + `email`) and `OrgThrottlerGuard` (right after resolution, in `TenancyModule`). Both
+  throw `RateLimitedProblem` with a plain `Retry-After`. `redis-throttler.storage.ts` is a fixed-window
+  Lua counter on the existing ioredis client that fails open with a log line. `SkipAllThrottling()` is
+  on health; `THROTTLE_ENABLED=false` is set only by the integration specs' env.
 - `src/jobs/` — the BullMQ root (`JobsModule`, connection parsed from `REDIS_URL` by
   `redis-connection.ts`; completed jobs dropped, failed ones kept), `job-id.ts`
   (`queue:org:entity:discriminator`, `platform` for no org) and `dispatcher/run-job.ts`, the processor
@@ -208,18 +217,14 @@ Compose stack, API readiness) · **security** (gitleaks, `pnpm audit`). Plus Cod
 
 ## What is deliberately NOT implemented yet
 
-- **No throttling yet, and the identity endpoints are the ones that need it most.** Signup, resend and
-  reset each cost a database read and a queued mail per call; the per-IP and per-email-hash limits are
-  the next item. Until it lands, do not expose the API beyond the local stack.
+- **No per-token throttling.** The `org` throttler covers a workspace; per API token (step 6's other
+  half) arrives with the M8 api-tokens item, where tokens first authenticate.
 - **No invitation mail is enqueued yet.** The `invite` template exists; the membership item sends it.
 - **No Resend provider.** `MAIL_PROVIDER` is bound to SMTP everywhere; the production implementation is
   an M10 deploy concern, selected by env when it exists.
 - **API tokens resolve but do not authenticate.** A `pg_` bearer whose prefix is in `ApiTokenIndex`
   reaches the auth guard and gets a deliberate 401 until the M8 api-tokens item (`ApiToken` table,
   Argon2id verification inside `runAsTenant`, scope ∩ role).
-- **No throttling yet.** `GET /tenants/:slug` and the resolution lookups are unprotected per IP; the
-  throttling item (step 3) is next after auth and is what makes the negative cache cheapness rather
-  than defence.
 - **No tenant-bound routes yet.** The auth guard is proven against probe controllers; the first real
   one (`GET /me`) arrives with the authz item.
 - **No seed data.** `scripts/seed.ts` is still a stub; the two lookalike orgs arrive with provisioning.
@@ -249,7 +254,7 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **`RefreshToken.orgId` cascades on delete**                            | `SET NULL` would turn a tenant refresh token into an org-less one — a `pg_id`                          | `schema.prisma` |
 | **Random 256-bit tokens are hashed with SHA-256**, looked up by hash   | Argon2id is for low-entropy secrets: passwords, and API tokens looked up by prefix                     | `schema.prisma` |
 | **`Membership.userId` is null exactly for service accounts**           | An API token's actor has no human account (ADR-0021); a `CHECK` enforces it                           | migration    |
-| **The context is written in three places only** — tenancy, prisma, platform | `TenantContextService` has no setter and `nestjs-cls` imports nowhere else, so pointing a query at another tenant means going through a confined helper | `boundaries.js` |
+| **The context is written in four places only** — tenancy, prisma, platform, auth | `TenantContextService` and `ActorService` have no setters and `nestjs-cls` imports nowhere else, so pointing a query at another tenant means going through a confined helper | `boundaries.js` |
 | **`db` hands out a transaction only for the tenant it was opened for**  | A `runAsTenant` inside an open transaction must never reuse it; the getter checks, whether or not the helper cleared the slot | `prisma.service.ts` |
 | **Boundaries are zones of one rule**                                   | Flat config replaces, not merges, options for the same rule across objects; separate objects guarded only the last one | `ENGINEERING.md` §CI |
 | **Step 4 is a guard, not middleware**                                  | Exemption is by route decorator, which middleware cannot see; guards run inside the CLS context anyway | `ARCHITECTURE.md` §Request pipeline |
@@ -269,20 +274,29 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **Reset links live thirty minutes; verification links twenty-four hours** | The latter is TENANCY.md §4; the former is **not in any ADR yet** — confirm or change in `identity.service.ts` | `identity.service.ts` |
 | **Following a reset link also verifies the address**                    | A link delivered to the inbox proves control of it — the same reasoning ADR-0031 applies to invitations | `identity.service.ts` |
 | **Job id parts are joined with `/`**                                    | BullMQ reserves `:` and refuses a custom id containing one (ADR-0018 erratum)                          | `job-id.ts` |
+| **Rate limiting fails open**                                            | Defence in depth; taking the API down with Redis is the worse failure, and the epoch already decides what fails closed | `redis-throttler.storage.ts` |
+| **Two throttler guards, one per pipeline point**                        | One guard runs at one point, and per-org limits need the org resolution produces                       | `throttler.guards.ts` |
+| **The per-email limit tracks the hash, never the address**              | No PII in Redis keys any more than in logs (ADR-0031 names the limit; ENGINEERING.md the rule)         | `throttlers.ts` |
 
 ---
 
 ## Recommended next steps, in order
 
-1. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
-   `/tenants/:slug`; per email hash on the identity endpoints (ADR-0031); per org and per token after
-   (step 6). `@nestjs/throttler` on Redis, `429` as `rate-limited` with `Retry-After`. Decide whether an
-   unverified account's login attempt should re-send the verification mail (today: the uniform 401 and
-   nothing else). Settle the refresh-cookie question below before `apiFetch`.
-2. **Provisioning** (with the slug lock below — and call `OrganizationLookupService.invalidate` on every
-   slug or status change), then membership (sending the `invite` template), teams, `authz`, `GET /me`,
-   and the `test:tenancy` / `test:authz` gates. Tenant-owned repositories follow the platform ones: read
+1. **Org provisioning** (`src/orgs/`) — `POST /orgs` from a `pg_id` holder (`@TenantOptional`):
+   slug validation and availability (`GET /orgs/slug-available`, public, throttled), the transactional
+   creation of `Organization` + owner `Membership` + `UserOrgIndex` row + default teams (the category
+   tree, SLA policies and KB articles arrive with their tables in M2), the `provision-org` job for
+   anything slower, and the slug lock below. The provisioning module is where `runAsTenant` is first
+   used to write (`src/orgs/provisioning/**` is in its allow-list). Call
+   `OrganizationLookupService.invalidate` on every slug or status change. The response mints the new
+   workspace's cookie pair through `SessionService.open`.
+2. **Membership** — invite (sending the `invite` template, the token `<orgId-base36>.<secret>`),
+   accept (bound to the invited address, ADR-0031), disable, remove, change role, last-owner protection
+   under a row lock, epoch bumps on every change; then teams, `authz`, `GET /me`, and the
+   `test:tenancy` / `test:authz` gates. Tenant-owned repositories follow `MembershipRepository`: read
    `prisma.db`, take an explicit `orgId`, never open `$transaction` themselves.
+3. Decide whether an unverified account's login attempt should re-send the verification mail (today:
+   the uniform 401 and nothing else), and settle the refresh-cookie question below before `apiFetch`.
 
 ---
 
@@ -334,7 +348,7 @@ pnpm db:generate                # Prisma client — migrate dev no longer does t
 pnpm db:doctor                  # expect 6/6
 pnpm test:schema                # expect 12/12
 pnpm --filter @patchgrid/database run test:integration   # expect 9/9
-pnpm --filter @patchgrid/api run test:integration        # expect 34/34 (needs Redis; Mailpit for one)
+pnpm --filter @patchgrid/api run test:integration        # expect 37/37 (needs Redis; Mailpit for one)
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
@@ -422,3 +436,8 @@ From M1 so far:
 - **BullMQ refuses a custom job id containing `:`** — its own key separator. The unit specs with a fake
   queue passed; the first real enqueue through the booted app threw. Another reason the full-stack
   specs exist.
+- **`@SkipThrottle()` with no argument skips only a throttler named `default`.** Ours are named, so the
+  bare decorator skipped nothing; `SkipAllThrottling()` names them all. Likewise the base guard's header
+  is `Retry-After-<name>`, not `Retry-After`; the plain one is set by hand.
+- **`@nestjs/throttler` does not export its storage record type from the root.** Derive it:
+  `Awaited<ReturnType<ThrottlerStorage["increment"]>>`.
