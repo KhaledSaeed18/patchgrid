@@ -86,13 +86,15 @@ suite proves every route asserts a permission._
       Shipped as the first global guard (middleware cannot see route markers): a pure credential
       locator, a 60 s Redis read-through over the first platform repositories, a thirteen-row
       decision table, and public `GET /tenants/:slug` as the API side of the app's 302s
-- [~] Auth: signup, login, logout, refresh with rotation + reuse detection, email verification, password
+- [x] Auth: signup, login, logout, refresh with rotation + reuse detection, email verification, password
       reset, Argon2id, **per-tenant cookies** on `.lvh.me`, Redis revocation epoch (ADR-0004, ADR-0017,
-      ADR-0024). _Sessions done (2026-10-05): login with the uniform 401 and timing equaliser, `pg_id`
-      as a rotating `RefreshToken`, the org switcher re-reading `Membership` in `runAsTenant`, refresh
-      with chain revocation on reuse, logout and logout-everywhere with the epoch, the auth and CSRF
-      guards, the `Actor`; proven end to end through the booted app. Signup, email verification and
-      password reset wait for the mail item_
+      ADR-0024). Shipped 2026-10-05: login with the uniform 401 and timing equaliser, `pg_id` as a
+      rotating `RefreshToken`, the org switcher re-reading `Membership` in `runAsTenant`, refresh with
+      chain revocation on reuse, logout and logout-everywhere with the epoch, the auth and CSRF guards,
+      the `Actor`; signup answering `202` with the same Argon2id cost on both paths, the verification
+      link completing signup and starting the session, resend, password reset and change ending every
+      session. Two full-stack lifecycle specs drive it all through the booted app. Throttling (its own
+      item) is still to come
 - [ ] Org provisioning: slug validation + availability, transactional creation, default
       teams/categories/**eight** SLA policies/KB, idempotent `provision-org` job; one org per unverified
       user
