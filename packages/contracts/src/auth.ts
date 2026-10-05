@@ -79,3 +79,38 @@ export const logoutRequestSchema = z.object({
   everywhere: z.boolean().default(false),
 })
 export type LogoutRequest = z.infer<typeof logoutRequestSchema>
+
+/**
+ * Signup answers `202` whether or not the address has an account; the inbox
+ * gets "verify your address" or "you already have an account" (ADR-0031).
+ */
+export const signupRequestSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  name: z.string().trim().min(1).max(100),
+})
+export type SignupRequest = z.infer<typeof signupRequestSchema>
+
+/** Random 256-bit secrets, base64url: 43 characters, never anything else. */
+const secretTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, { error: "is not a valid token" })
+
+/** The emailed link completes signup and starts the session (TENANCY.md §4). */
+export const verifyEmailRequestSchema = z.object({ token: secretTokenSchema })
+
+export const resendVerificationRequestSchema = z.object({ email: emailSchema })
+
+export const passwordResetRequestSchema = z.object({ email: emailSchema })
+
+export const passwordResetConfirmSchema = z.object({
+  token: secretTokenSchema,
+  password: passwordSchema,
+})
+
+/** Authenticated by `pg_id`; revokes every session, this one included (ADR-0031). */
+export const changePasswordRequestSchema = z
+  .object({ currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH), newPassword: passwordSchema })
+  .refine((value) => value.currentPassword !== value.newPassword, {
+    error: "must differ from the current password",
+    path: ["newPassword"],
+  })
+export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>

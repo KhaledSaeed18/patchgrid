@@ -37,3 +37,22 @@ describe("logoutRequestSchema", () => {
     expect(logoutRequestSchema.parse({ slug: "acme" })).toEqual({ slug: "acme", everywhere: false })
   })
 })
+
+describe("identity requests", () => {
+  const token = "a".repeat(43)
+
+  it("applies the password policy where a password is being set", async () => {
+    const { signupRequestSchema, passwordResetConfirmSchema, changePasswordRequestSchema } = await import("./auth.ts")
+    expect(signupRequestSchema.safeParse({ email: "a@b.io", password: "short", name: "Sam" }).success).toBe(false)
+    expect(signupRequestSchema.safeParse({ email: "a@b.io", password: "correct horse battery", name: " Sam " }).success).toBe(true)
+    expect(passwordResetConfirmSchema.safeParse({ token, password: "short" }).success).toBe(false)
+    expect(changePasswordRequestSchema.safeParse({ currentPassword: "same same same", newPassword: "same same same" }).success).toBe(false)
+  })
+
+  it("accepts only the exact shape of a secret token", async () => {
+    const { verifyEmailRequestSchema } = await import("./auth.ts")
+    expect(verifyEmailRequestSchema.safeParse({ token }).success).toBe(true)
+    expect(verifyEmailRequestSchema.safeParse({ token: "short" }).success).toBe(false)
+    expect(verifyEmailRequestSchema.safeParse({ token: `${"a".repeat(42)}=` }).success).toBe(false)
+  })
+})
