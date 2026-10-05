@@ -35,6 +35,6 @@ import { AccessTokenService } from "./tokens/access-token.service"
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [ActorService, RevocationEpochService],
+  exports: [ActorService, RevocationEpochService, SessionService, CookieService],
 })
 export class AuthModule {}
