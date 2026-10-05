@@ -75,11 +75,12 @@ suite proves every route asserts a permission._
       `UserOrgIndex`, `ApiTokenIndex` — with composite `(orgId, id)` uniques and membership references
       throughout (ADR-0023). Shipped with its five catalog assertions, migration drift and
       migration-safety checks as the CI `schema` job
-- [~] **RLS**: hand-written policy migrations from one template, `FORCE ROW LEVEL SECURITY`, tenant
+- [x] **RLS**: hand-written policy migrations from one template, `FORCE ROW LEVEL SECURITY`, tenant
       Prisma client extension with transaction-local `set_config` and CLS-aware nesting, `nestjs-cls`
-      context, `runAsTenant` / `runAsPlatform` (ADR-0015, ADR-0022). _Policies, template and the
-      client extension (`withTenantIsolation`, `tenantTransaction`) done; the `nestjs-cls` context and
-      the two helpers remain_
+      context, `runAsTenant` / `runAsPlatform` (ADR-0015, ADR-0022). Shipped with the API's
+      `TenantContextService` (read-only), `PrismaService.db` / `transaction()`, the two helpers in
+      `src/platform/`, the import zones that confine them and `nestjs-cls`, and a twelve-assertion
+      integration suite against live RLS in the CI `schema` job
 - [ ] Tenant resolution middleware: credential → org, `Origin` / `X-Patchgrid-Tenant` cross-check,
       Redis-cached org lookup, slug-history redirects (302), suspended/deleted handling (ADR-0024)
 - [ ] Auth: signup, login, logout, refresh with rotation + reuse detection, email verification, password

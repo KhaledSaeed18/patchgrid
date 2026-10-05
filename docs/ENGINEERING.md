@@ -116,15 +116,20 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
 ## Transactions and side effects
 
 - A service method that mutates a ticket runs in one Prisma interactive transaction: the mutation + the
-  `AuditLog` row(s) + any counter increment. The repository exposes a `withTransaction(fn)` helper;
-  services never see the Prisma client, only the transaction-scoped repository set.
+  `AuditLog` row(s) + any counter increment. `PrismaService.transaction(fn)` is the one way to open one;
+  services never see the Prisma client, only repositories, which read `PrismaService.db`.
 - **How nesting actually works**, because "wrap every query in a transaction" and "services open
-  transactions" collide otherwise: CLS holds `{ orgId, tx? }`. `withTransaction` opens `$transaction`,
-  immediately runs `SELECT set_config('app.current_org_id', $1, true)`, stores the transaction client in
-  CLS, runs `fn`, then clears it. The `$allOperations` extension **checks CLS first**: if a transaction
-  is already active it passes through untouched; only with no active transaction does it open its own.
-  Prisma's transaction client does not expose `$transaction`, so an extension that wrapped
-  unconditionally would throw at runtime.
+  transactions" collide otherwise: the request context holds `tenant: { orgId, inTransaction }` and
+  `prismaTransaction: { orgId, client }`. `transaction()` runs in a child context, marks
+  `inTransaction`, opens `$transaction`, immediately runs `SELECT set_config('app.current_org_id', $1,
+  true)`, stores the transaction client, and runs `fn`; the child context ends with it. `db` returns the
+  stored client **only when it was opened for the current tenant** — a transaction left behind by a
+  `runAsTenant` inside one is never reused, whatever the store says — and a nested `transaction()`
+  joins the open one (Prisma has no savepoints). The `$allOperations` extension **checks the context
+  first**: inside a transaction it passes through untouched; otherwise it batches `set_config` with the
+  query. Prisma's transaction client does not expose `$transaction`, so an extension that wrapped
+  unconditionally would throw at runtime. A `runAsTenant` made inside an open transaction runs its
+  queries **outside** that transaction, on another pooled connection, scoped to the other org.
 - **Await inside the tenant context, never outside it.** Prisma model calls return *lazy*
   `PrismaPromise`s: the client extension's callback fires when the promise is **awaited**, not when the
   method is called. So `als.run({ orgId }, () => repo.findMany())` — a synchronous callback returning an
@@ -187,6 +192,7 @@ rollback never strands the database ahead of the code.
 | Contract | Vitest | every contract schema has round-trip examples; the web `apiFetch` is tested against recorded API responses | `packages/contracts`, `apps/app` |
 | E2E | Playwright | signup → provisioning → invite → full ticket lifecycle in the browser, SLA breach with a shortened policy, Change approval, and a cross-tenant negative test | `apps/app/e2e` |
 | Worker | Vitest | BullMQ processors with a fake clock (`vi.useFakeTimers`) | `apps/api/src/jobs` |
+| Integration (database) | Vitest, no Nest container | `packages/database`'s client extension, and the API's request context, `PrismaService.db` / `transaction()` and crossing helpers, against the live migrated schema as `patchgrid_app`. `test:integration` in each package; the CI `schema` job | `packages/database/test/*.int.test.ts`, `apps/api/test/**/*.int-spec.ts` |
 | **Tenancy** | Vitest + Supertest + raw SQL | the isolation suite — see below. Runs as its own `pnpm test:tenancy` target and blocks CI | `apps/api/test/tenancy/**` |
 | **Authorization** | Vitest | the exhaustive permission matrix, scope filters, escalation negatives, and the route-coverage reflection test (`RBAC.md` §13) | `apps/api/src/authz`, `apps/api/test/authz/**` |
 
@@ -342,10 +348,21 @@ not a boundary.
 **Architectural boundaries are lint rules**, in `@patchgrid/eslint-config/boundaries`:
 frontends may not import `@patchgrid/database` or Prisma; services may not import
 Prisma (only repositories may); raw SQL is confined to `packages/database` and
-repositories; and `runAsTenant`/`runAsPlatform` are importable only by named
-modules. They are written **before** most of the code they guard, because a rule
+repositories; `runAsTenant` and `runAsPlatform` are importable only by their own
+named modules; and `nestjs-cls` only by the modules that write the request
+context. They are written **before** most of the code they guard, because a rule
 added after the violation is a refactor rather than a rule. Each message names the
 document it comes from, so the error explains itself.
+
+The API's boundaries are **zones of one custom rule** (`patchgrid/import-zones`),
+configured in a single object. The first version used several
+`no-restricted-imports` objects with different `ignores`, and in a flat config a
+later object *replaces* an earlier one's options for the same rule — so only the
+last boundary that matched a file was enforced, and a service importing Prisma
+linted clean. The zones also use regexes for relative imports: minimatch's `**`
+never matches a `..` segment. Every zone is proven in `boundaries.test.js` by the
+violation it names and the module allowed to make it; a boundary that was never
+seen to fail is a comment.
 
 **Deliberately absent until the code exists**, rather than vacuously green — a job
 that passes because it has nothing to check reports a guarantee that does not

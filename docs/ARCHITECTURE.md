@@ -56,7 +56,12 @@ packages/database  ──▶ prisma only
 
 - Neither frontend ever imports `@patchgrid/database`. All data access — including server components and server actions — goes through the API over HTTP. SLA math, RBAC, quota checks, audit logging and tenant isolation live in exactly one place.
 - `packages/contracts` declares its own Zod enums rather than importing Prisma's, so the wire contract is independent of the storage schema.
-- Prisma imports are confined to `apps/api/src/**/repositories/**` and `packages/database`.
+- Prisma imports are confined to `apps/api/src/**/repositories/**`, `apps/api/src/prisma/**` and
+  `packages/database`. `nestjs-cls` is confined to `src/tenancy`, `src/prisma` and `src/platform` — the
+  three places that write the request context; everything else reads it through `TenantContextService`.
+- These are **zones of one lint rule** (`patchgrid/import-zones`), not several `no-restricted-imports`
+  objects: in a flat config a later object replaces an earlier one's options for the same rule, so
+  written separately only the last boundary that matched a file was enforced.
 
 ## Request pipeline (`apps/api`)
 
@@ -120,11 +125,12 @@ Cross-module effects run on **domain events** emitted after commit (`@nestjs/eve
 
 ```
 src/
-  common/       # zod pipe, Problem Details filter, guards, decorators, pagination, Clock, runAsPlatform
+  common/       # zod pipe, Problem Details filter, guards, decorators, pagination, Clock, Tracer
   config/       # zod-validated env
-  tenancy/      # tenant resolution middleware, CLS setup, TenantContext, QuotaService
-  prisma/       # PrismaService + tenant client extension
-  platform/     # PlatformRepository, runAsPlatform / runAsTenant, org lifecycle, support sessions
+  tenancy/      # CLS setup, the request-context store, TenantContextService (read-only),
+                #   tenant resolution middleware, QuotaService
+  prisma/       # PrismaService: the tenant-isolated client, `db`, `transaction()`
+  platform/     # runAsTenant / runAsPlatform, PlatformRepository, org lifecycle, support sessions
   authz/        # PermissionService (pure can/assert/scopeFor), permission catalog, guards
   auth/         # signup, login, refresh, logout, verify email, reset, invites, org switch, API-token auth strategy
   orgs/         # org creation/provisioning, settings, slug change, domain verification
