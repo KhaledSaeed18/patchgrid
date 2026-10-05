@@ -55,6 +55,26 @@ export const envSchema = z
 
     REDIS_URL: url("REDIS_URL"),
 
+    /**
+     * Signs the access token (HS256). 32 bytes minimum: shorter and the token
+     * is brute-forceable offline. Rotating it logs every session out, which is
+     * the intended lever for a suspected leak.
+     */
+    JWT_SECRET: z.string().min(32, { error: "JWT_SECRET must be at least 32 characters" }),
+    /** 15 minutes (ADR-0024): bounded by the revocation epoch, not a security limit. */
+    ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+    /** Tenant refresh tokens and pg_id alike (ADR-0031). */
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+    /**
+     * The domain every session cookie is issued for — `.patchgrid.xyz`, or
+     * `.lvh.me` locally — so `app.`, `<slug>.` and `api.` share them
+     * (ADR-0024). Must be the root domain with a leading dot.
+     */
+    COOKIE_DOMAIN: z
+      .string()
+      .regex(/^\.[a-z0-9.-]+$/, { error: "COOKIE_DOMAIN must be a dotted domain such as .lvh.me" })
+      .default(".lvh.me"),
+
     S3_ENDPOINT: url("S3_ENDPOINT"),
     S3_REGION: z.string().min(1).default("us-east-1"),
     S3_BUCKET: z.string().min(1),
@@ -76,6 +96,14 @@ export const envSchema = z
         message:
           "DATABASE_URL must not equal DATABASE_MIGRATION_URL — the migration role holds BYPASSRLS " +
           "and would ignore every row-level security policy",
+      })
+    }
+
+    if (env.COOKIE_DOMAIN !== `.${env.ROOT_DOMAIN}`) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["COOKIE_DOMAIN"],
+        message: `COOKIE_DOMAIN must be .${env.ROOT_DOMAIN} — the cookies must be readable by api.${env.ROOT_DOMAIN}`,
       })
     }
 
