@@ -33,7 +33,7 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `api.lvh.me:4000`.
 ## Where we are
 
 **M0 (Foundation) is complete** (2026-09-22). **M1 (Tenancy and identity) is in progress**: of its 27
-items, **5 are done, 1 is in progress, 21 are open**. CI is green on `main` — five jobs.
+items, **6 are done, 21 are open**. CI is green on `main` — five jobs.
 
 | M1 item                                   | State                                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
@@ -41,7 +41,7 @@ items, **5 are done, 1 is in progress, 21 are open**. CI is green on `main` — 
 | Data (the 13 identity and tenancy tables) | **Done** — one migration, with its catalog assertions as a CI gate      |
 | RLS                                       | **Done** (2026-10-05) — policies, client extension, the request context in the API, `PrismaService.db` / `transaction()`, `runAsTenant` / `runAsPlatform`, the lint zones, and a live-RLS integration suite in CI |
 | Tenant resolution                         | **Done** (2026-10-05) — first global guard; credential locator, Redis-cached lookup, decision table, public `GET /tenants/:slug`; proven over HTTP |
-| Auth                                      | **In progress** — sessions done (login, `pg_id`, switcher, refresh + reuse detection, logout, epoch, auth + CSRF guards, `Actor`), proven through the booted app; signup / verification / reset are next |
+| Auth                                      | **Done** (2026-10-05) — sessions (login, `pg_id`, switcher, refresh + reuse detection, logout, epoch, auth + CSRF guards, `Actor`) and identity (signup `202`, verification link starting the session, resend, reset, change), both proven through the booted app |
 | Mail                                      | **Done** (2026-10-05) — `MailProvider` + SMTP, four React templates, the `mail` queue, the processor in tenant context, `WORKER_MODE`; Mailpit round trip |
 | Everything else                           | Open — see `FEATURES.md` §M1                                            |
 
@@ -101,7 +101,7 @@ M0 primitives (ids, slugs + `RESERVED_SLUGS`, Problem Details registry, paginati
 limits), plus M1's tenancy enums in `tenancy.ts`: role, membership status and kind, organization status,
 plan, agent visibility.
 
-### `apps/api` — 197 unit, 26 integration tests
+### `apps/api` — 208 unit, 34 integration tests
 
 M0's NestJS 11 skeleton (Zod config that refuses to boot, Problem Details filter, slug-aware CORS,
 health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
@@ -135,6 +135,15 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
   down) and re-reads the membership inside the tenant; `requested-with.guard.ts` (second) refuses
   cookie-borne mutations without `X-Requested-With: patchgrid`. `actor.ts` is the `Actor` and the
   read-only `ActorService`. `auth.controller.ts`: `POST /auth/login|sessions|refresh|logout`.
+  `identity/identity.service.ts` is signup (`202` always, the password hashed on both paths so the time
+  does not differ; a verified address gets `account-exists`, an unverified one gets the link again and
+  keeps its first password), `verifyEmail` (burns the token, marks verified, hands the account to
+  `startIdentity`), resend, `requestPasswordReset` (verified accounts only, thirty-minute token) and
+  `confirmPasswordReset` / `changePassword` (set, mark verified, `revokeEverywhere`).
+  `identity.controller.ts`: `POST /auth/signup|verify-email|resend-verification|password-reset|
+  password-reset/confirm|password`. One-time tokens are 256-bit secrets stored as SHA-256 in
+  `EmailVerification` / `PasswordResetToken` through `one-time-token.repository.ts`; issuing voids the
+  ones outstanding.
 - `src/memberships/repositories/membership.repository.ts` — the first tenant-owned repository: explicit
   `orgId` on every method, the team facts the actor carries.
 - `src/jobs/` — the BullMQ root (`JobsModule`, connection parsed from `REDIS_URL` by
@@ -152,6 +161,8 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
   retried with backoff on a provider failure, running only when `WORKER_MODE` is `all` or `worker`.
 - `test/mail/smtp-mail.provider.int-spec.ts` — through SMTP to a real Mailpit, found via its API;
   skipped, and says so, without `MAILPIT_URL`.
+- `test/auth/identity-lifecycle.int-spec.ts` — signup → link (read back from a recording mail provider,
+  through the real queue and worker) → verify → login → reset → change, through the booted app.
 - `test/auth/session-lifecycle.int-spec.ts` — the booted `AppModule` against Postgres and Redis, driven
   over HTTP like a browser: CSRF on login, identical 401s, cookies, a member actor on a tenant route,
   the acme session refused on globex, rotation and chain revocation, a disabled member out on the next
@@ -197,11 +208,10 @@ Compose stack, API readiness) · **security** (gitleaks, `pnpm audit`). Plus Cod
 
 ## What is deliberately NOT implemented yet
 
-- **No signup, verification or password reset.** Mail now exists; these are the next slice. Until then a
-  verified user with a password hash exists only through the seed or by hand — the lifecycle spec shows
-  how to make one with `PasswordService`.
-- **Nothing enqueues mail yet.** `MailService.enqueue` has callers only in tests; the templates for the
-  four messages are ready for them.
+- **No throttling yet, and the identity endpoints are the ones that need it most.** Signup, resend and
+  reset each cost a database read and a queued mail per call; the per-IP and per-email-hash limits are
+  the next item. Until it lands, do not expose the API beyond the local stack.
+- **No invitation mail is enqueued yet.** The `invite` template exists; the membership item sends it.
 - **No Resend provider.** `MAIL_PROVIDER` is bound to SMTP everywhere; the production implementation is
   an M10 deploy concern, selected by env when it exists.
 - **API tokens resolve but do not authenticate.** A `pg_` bearer whose prefix is in `ApiTokenIndex`
@@ -254,23 +264,25 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **A mail payload carries its finished URL, token included**             | The token row stores only a hash, so the link cannot be rebuilt later; completed jobs are removed from Redis, and this is the one accepted secret in a job | `templates/index.tsx` |
 | **Processors never import the crossing helpers**                        | `runJob` in `src/jobs/dispatcher` opens the context; a processor says which tenant, not how            | `run-job.ts` |
 | **Mail templates are plain React, not `@react-email/components`**       | npm marks the widget set unsupported; `@react-email/render` over plain elements gives the same HTML   | `templates/` |
+| **Signup hashes the password on both paths**                            | The response is `202` either way; the time taken must be too (ADR-0031)                                | `identity.service.ts` |
+| **A second signup for an unverified address keeps the first password**  | Nobody has proved they own the address; the first claimant's password stands until a verified owner resets it | `identity.service.ts` |
+| **Reset links live thirty minutes; verification links twenty-four hours** | The latter is TENANCY.md §4; the former is **not in any ADR yet** — confirm or change in `identity.service.ts` | `identity.service.ts` |
+| **Following a reset link also verifies the address**                    | A link delivered to the inbox proves control of it — the same reasoning ADR-0031 applies to invitations | `identity.service.ts` |
+| **Job id parts are joined with `/`**                                    | BullMQ reserves `:` and refuses a custom id containing one (ADR-0018 erratum)                          | `job-id.ts` |
 
 ---
 
 ## Recommended next steps, in order
 
-1. **Finish auth** — signup (`202` always; `verify-email` or `account-exists` goes to the inbox; the
-   verification link completes signup and starts the session, ADR-0031), resend-verification, password
-   reset (revokes every refresh token and bumps every epoch), password change. Each enqueues through
-   `MailService` with `PublicUrls` building the link. An unverified account logging in gets the uniform
-   401 today; decide whether that login should also re-send the verification mail. Settle the
-   refresh-cookie question below before `apiFetch`.
-2. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
-   `/tenants/:slug`; per org and per token after (step 6). `@nestjs/throttler` on Redis.
-3. Then provisioning (with the slug lock below — and call `OrganizationLookupService.invalidate` on
-   every slug or status change), membership, teams, `authz`, `GET /me`, and the `test:tenancy` /
-   `test:authz` gates. Tenant-owned repositories follow the platform ones: read `prisma.db`, take an
-   explicit `orgId`, never open `$transaction` themselves.
+1. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
+   `/tenants/:slug`; per email hash on the identity endpoints (ADR-0031); per org and per token after
+   (step 6). `@nestjs/throttler` on Redis, `429` as `rate-limited` with `Retry-After`. Decide whether an
+   unverified account's login attempt should re-send the verification mail (today: the uniform 401 and
+   nothing else). Settle the refresh-cookie question below before `apiFetch`.
+2. **Provisioning** (with the slug lock below — and call `OrganizationLookupService.invalidate` on every
+   slug or status change), then membership (sending the `invite` template), teams, `authz`, `GET /me`,
+   and the `test:tenancy` / `test:authz` gates. Tenant-owned repositories follow the platform ones: read
+   `prisma.db`, take an explicit `orgId`, never open `$transaction` themselves.
 
 ---
 
@@ -322,7 +334,7 @@ pnpm db:generate                # Prisma client — migrate dev no longer does t
 pnpm db:doctor                  # expect 6/6
 pnpm test:schema                # expect 12/12
 pnpm --filter @patchgrid/database run test:integration   # expect 9/9
-pnpm --filter @patchgrid/api run test:integration        # expect 26/26 (needs Redis; Mailpit for the last)
+pnpm --filter @patchgrid/api run test:integration        # expect 34/34 (needs Redis; Mailpit for one)
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
@@ -407,3 +419,6 @@ From M1 so far:
   (`autorun: false`) does it in `onApplicationBootstrap`, or `this.worker` is undefined.
 - **Spec files are compiled into `dist/`.** Harmless today; excluding `**/*.spec.ts` from the build is
   a small cleanup waiting for a quiet moment.
+- **BullMQ refuses a custom job id containing `:`** — its own key separator. The unit specs with a fake
+  queue passed; the first real enqueue through the booted app threw. Another reason the full-stack
+  specs exist.
