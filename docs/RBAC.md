@@ -347,7 +347,10 @@ type Actor =
   | { kind: "member";   userId: string; orgId: string; membershipId: string; role: Role;
       teamIds: string[]; leadOfTeamIds: string[] }
   | { kind: "service";  orgId: string; membershipId: string; role: Role; scopes: Scope[] }
-  | { kind: "platform"; userId: string; supportSessionId?: string; supportOrgId?: string };
+  | { kind: "platform"; userId: string; supportSessionId?: string; supportOrgId?: string }
+  // A `pg_id` holder on a tenant-less route (the org picker). Never reaches
+  // PermissionService: it can list workspaces and mint a session, nothing else.
+  | { kind: "identity"; userId: string };
 
 interface PermissionService {
   can(actor: Actor, permission: Permission, subject?: Subject): boolean;

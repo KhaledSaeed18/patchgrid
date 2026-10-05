@@ -148,6 +148,12 @@ pg_id          identity, tenant-less — used by app.patchgrid.xyz and read by w
   fails **closed for mutations and open for reads** — a deliberate availability trade.
 - Disabling a membership revokes that organization's sessions only; the user's account and other
   memberships are untouched.
+- The access token's `iat` has second precision, so a token minted in the same second as a bump cannot
+  be told from one minted just before it. **Ties go to the revocation**: the client refreshes and gets a
+  fresh token, which is cheap; a session surviving "log out everywhere" is not.
+- The auth guard also **re-reads the `Membership` row on every tenant-bound request**, inside the tenant,
+  for the team facts the `Actor` carries — so a disabled member is out on the next request even while
+  Redis is down. The epoch is what catches role and team *changes* before the token expires.
 
 **Residual risk, recorded rather than hidden:** any tenant subdomain can set cookies for
 `.patchgrid.xyz` ("cookie tossing"). Tokens are signed, so a tossed cookie cannot forge a session — the

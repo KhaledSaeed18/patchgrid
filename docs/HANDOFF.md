@@ -33,7 +33,7 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `api.lvh.me:4000`.
 ## Where we are
 
 **M0 (Foundation) is complete** (2026-09-22). **M1 (Tenancy and identity) is in progress**: of its 27
-items, **4 are done, 23 are open**. CI is green on `main` — five jobs.
+items, **4 are done, 1 is in progress, 22 are open**. CI is green on `main` — five jobs.
 
 | M1 item                                   | State                                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
@@ -41,6 +41,7 @@ items, **4 are done, 23 are open**. CI is green on `main` — five jobs.
 | Data (the 13 identity and tenancy tables) | **Done** — one migration, with its catalog assertions as a CI gate      |
 | RLS                                       | **Done** (2026-10-05) — policies, client extension, the request context in the API, `PrismaService.db` / `transaction()`, `runAsTenant` / `runAsPlatform`, the lint zones, and a live-RLS integration suite in CI |
 | Tenant resolution                         | **Done** (2026-10-05) — first global guard; credential locator, Redis-cached lookup, decision table, public `GET /tenants/:slug`; proven over HTTP |
+| Auth                                      | **In progress** — sessions done (login, `pg_id`, switcher, refresh + reuse detection, logout, epoch, auth + CSRF guards, `Actor`), proven through the booted app; signup / verification / reset wait for mail |
 | Everything else                           | Open — see `FEATURES.md` §M1                                            |
 
 Also since the last handoff: the API's lint boundaries were found to be **silently inert** — flat config
@@ -99,7 +100,7 @@ M0 primitives (ids, slugs + `RESERVED_SLUGS`, Problem Details registry, paginati
 limits), plus M1's tenancy enums in `tenancy.ts`: role, membership status and kind, organization status,
 plan, agent visibility.
 
-### `apps/api` — 132 unit, 15 integration tests
+### `apps/api` — 174 unit, 25 integration tests
 
 M0's NestJS 11 skeleton (Zod config that refuses to boot, Problem Details filter, slug-aware CORS,
 health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
@@ -121,8 +122,24 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
 - `src/platform/repositories/` — the first repositories: `OrganizationRepository` (summary by id /
   slug, retired slugs) and `ApiTokenIndexRepository` (prefix → org), both platform class and read with
   no tenant. `PlatformModule` exports them; `CommonModule` (global) now provides `Clock` and `Tracer`.
-- `src/auth/tokens/access-token.ts` — the one definition of `pg_at_<slug>` / `pg_rt_<slug>` / `pg_id`
-  and the org-bound claims; `peekOrgClaim` reads without verifying.
+- `src/auth/` — **pipeline step 7 and sessions** (ADR-0004, ADR-0024, ADR-0031). `tokens/` signs and
+  verifies the HS256 access token through `jose` with an injected clock, and holds the one definition of
+  `pg_at_<slug>` / `pg_rt_<slug>` / `pg_id` and the claims (`peekOrgClaim` reads without verifying, for
+  resolution). `passwords/` is Argon2id with a dummy-hash timing equaliser. `revocation/` is the Redis
+  epoch, `null` on outage. `sessions/session.service.ts` is login (one 401, one Argon2id cost, whether
+  the address exists), `pg_id` as a `RefreshToken` with no org, the org switcher re-reading `Membership`
+  inside `runAsTenant`, refresh with rotation and chain revocation on reuse, logout and
+  logout-everywhere. `auth.guard.ts` (third global guard) verifies the cookie the resolved slug names,
+  refuses another org's claim with 403, applies the epoch (reads proceed, writes 503 when Redis is
+  down) and re-reads the membership inside the tenant; `requested-with.guard.ts` (second) refuses
+  cookie-borne mutations without `X-Requested-With: patchgrid`. `actor.ts` is the `Actor` and the
+  read-only `ActorService`. `auth.controller.ts`: `POST /auth/login|sessions|refresh|logout`.
+- `src/memberships/repositories/membership.repository.ts` — the first tenant-owned repository: explicit
+  `orgId` on every method, the team facts the actor carries.
+- `test/auth/session-lifecycle.int-spec.ts` — the booted `AppModule` against Postgres and Redis, driven
+  over HTTP like a browser: CSRF on login, identical 401s, cookies, a member actor on a tenant route,
+  the acme session refused on globex, rotation and chain revocation, a disabled member out on the next
+  request, logout everywhere leaving no live token and refusing the still-unexpired access token.
 - `src/prisma/prisma.service.ts` — **layer 3 in the API.** Wraps the client in `withTenantIsolation`,
   fed from the context at await time. Repositories read **`db`**: the open transaction when one was
   opened **for the current tenant**, else the extended client. `transaction(fn)` opens an interactive
@@ -164,16 +181,17 @@ Compose stack, API readiness) · **security** (gitleaks, `pnpm audit`). Plus Cod
 
 ## What is deliberately NOT implemented yet
 
-- **Resolution does not verify anything.** The cookie's `org` claim is peeked, the bearer's secret is
-  unchecked; step 7 (auth) does that once. Until it lands, a tenant-bound route admits any well-formed
-  cookie whose claim matches its name — there are no such routes yet, and the first one must ship with
-  the auth strategy in front of it.
+- **No signup, verification or password reset.** They need the mail item (`MailProvider`, Mailpit, the
+  `mail` queue). Until then a verified user with a password hash exists only through the seed or by hand
+  — the lifecycle spec shows how to make one with `PasswordService`.
+- **API tokens resolve but do not authenticate.** A `pg_` bearer whose prefix is in `ApiTokenIndex`
+  reaches the auth guard and gets a deliberate 401 until the M8 api-tokens item (`ApiToken` table,
+  Argon2id verification inside `runAsTenant`, scope ∩ role).
 - **No throttling yet.** `GET /tenants/:slug` and the resolution lookups are unprotected per IP; the
   throttling item (step 3) is next after auth and is what makes the negative cache cheapness rather
   than defence.
-- **No authentication.** No login, tokens, cookies, Argon2id. ADR-0031 has settled its shape.
-- **No repositories or services** beyond health. The layering zones are exercised only by their own
-  tests and by planted violations, not yet by real modules.
+- **No tenant-bound routes yet.** The auth guard is proven against probe controllers; the first real
+  one (`GET /me`) arrives with the authz item.
 - **No seed data.** `scripts/seed.ts` is still a stub; the two lookalike orgs arrive with provisioning.
 - **`test:tenancy` and `test:authz` do not exist**, and stay absent from CI rather than vacuously green.
   The database-level isolation assertions they will include are already proven in `test:integration`.
@@ -207,20 +225,26 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **Step 4 is a guard, not middleware**                                  | Exemption is by route decorator, which middleware cannot see; guards run inside the CLS context anyway | `ARCHITECTURE.md` §Request pipeline |
 | **"Not a slug" is the same 404 as "no such slug"**                      | A 400 for a malformed label tells a prober which labels to skip                                        | `tenant-lookup.service.ts` |
 | **A cookie for another tenant is never a fallback**                     | The asserted slug picks `pg_at_<slug>`; nothing else is read (ADR-0024 §2)                            | `credential-locator.ts` |
+| **Epoch ties go to the revocation**                                     | `iat` is seconds; a token minted in the bump's second must not survive "log out everywhere"           | `revocation-epoch.service.ts` |
+| **The auth guard re-reads `Membership` per request**                    | Team facts for the actor, and a disabled member is out on the next request even with Redis down      | `auth.guard.ts` |
+| **`X-Requested-With: patchgrid` on every cookie-borne mutation, login included** | Subdomains are same-site; login CSRF logs a victim into the attacker's account (ADR-0024 §4)     | `requested-with.guard.ts` |
+| **Password policy is length-only, 12–128**                               | NIST 800-63B; not applied to login attempts, where "too short" is an oracle on the policy. **Not in any ADR yet** — confirm or change in `contracts/auth.ts` | `contracts/auth.ts` |
+| **Login never says why**                                                | Unknown, wrong password, unverified and anonymised are one 401 at one Argon2id cost (ADR-0031)         | `session.service.ts` |
 
 ---
 
 ## Recommended next steps, in order
 
-1. **Auth** (`src/auth/`) — with ADR-0031 applied from the first endpoint: uniform responses, the
-   dummy-hash timing equaliser, invite–email binding, `pg_id` as a rotating `RefreshToken`. The access
-   token's claims and cookie names already exist in `src/auth/tokens/access-token.ts`; the auth guard
-   is the **second** global guard and verifies the credential `TenantContextService.organization().via`
-   names, then checks the revocation epoch. Settle the refresh-cookie question below before `apiFetch`.
-   Needs `Argon2id` and a JWT library (decide: `jose`), and a `JWT_SECRET` in the env schema.
-2. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
+1. **Mail** (`src/mail/`) — `MailProvider` interface, Mailpit SMTP implementation, the BullMQ `mail`
+   queue, react-email templates for verify / invite / reset. It unblocks the rest of auth.
+2. **Finish auth** — signup (`202` always; the verification link completes signup and starts the
+   session, ADR-0031), resend-verification, password reset (revokes every refresh token and bumps every
+   epoch), password change. An unverified account logging in gets the uniform 401 today; decide whether
+   that login should also re-send the verification mail. Settle the refresh-cookie question below before
+   `apiFetch`.
+3. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
    `/tenants/:slug`; per org and per token after (step 6). `@nestjs/throttler` on Redis.
-3. Then provisioning (with the slug lock below — and call `OrganizationLookupService.invalidate` on
+4. Then provisioning (with the slug lock below — and call `OrganizationLookupService.invalidate` on
    every slug or status change), membership, teams, `authz`, `GET /me`, and the `test:tenancy` /
    `test:authz` gates. Tenant-owned repositories follow the platform ones: read `prisma.db`, take an
    explicit `orgId`, never open `$transaction` themselves.
@@ -248,6 +272,9 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 
 **Code worth reading before writing more:**
 
+- `apps/api/src/auth/sessions/session.service.ts` — every session rule in one place; the shape a service takes here
+- `apps/api/src/auth/auth.guard.ts` — what a verified request looks like by the time a handler runs
+- `apps/api/test/auth/session-lifecycle.int-spec.ts` — how to boot the real app in a test and drive it
 - `apps/api/src/tenancy/tenant-resolver.ts` — the decision table auth sits behind; what `via` means
 - `apps/api/src/tenancy/tenant-resolution.guard.spec.ts` — how a guard is proven over HTTP here
 - `apps/api/src/prisma/prisma.service.ts` — `db` and `transaction()`; how a repository will see the client
@@ -272,7 +299,7 @@ pnpm db:generate                # Prisma client — migrate dev no longer does t
 pnpm db:doctor                  # expect 6/6
 pnpm test:schema                # expect 12/12
 pnpm --filter @patchgrid/database run test:integration   # expect 9/9
-pnpm --filter @patchgrid/api run test:integration        # expect 15/15
+pnpm --filter @patchgrid/api run test:integration        # expect 25/25 (needs Redis too)
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
@@ -342,3 +369,11 @@ From M1 so far:
   modules and fails at boot with "can't resolve dependencies". Shared seams live in `CommonModule`.
 - **Boot the built API and curl it before committing a module.** DI resolution and the strict pipe
   only fail at runtime; the unit and HTTP specs with hand-assembled TestingModules pass right through.
+  Better still: the lifecycle spec boots the real `AppModule`, so a DI mistake fails `test:integration`.
+- **curl's cookie jar is domain-scoped.** Cookies set for `Domain=.lvh.me` are not sent back to
+  `localhost:4000`; drive the API at `http://api.lvh.me:4000` or every authenticated step is a 401 that
+  looks like a bug.
+- **`@node-rs/argon2`'s `Algorithm` is an ambient const enum**, unusable at runtime under
+  `isolatedModules`; Argon2id is the value 2, and the spec asserts the produced hash says `$argon2id$`.
+- **A TestingModule that imports `AppModule` does not see its modules' exports.** A probe controller
+  injecting `ActorService` needs `AuthModule` imported into the test module too.
