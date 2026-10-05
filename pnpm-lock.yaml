@@ -365,6 +365,9 @@ importers:
       globals:
         specifier: ^17.6.0
         version: 17.6.0
+      minimatch:
+        specifier: ^10.2.5
+        version: 10.2.5
       typescript:
         specifier: ^5
         version: 5.9.3
