@@ -33,7 +33,7 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `api.lvh.me:4000`.
 ## Where we are
 
 **M0 (Foundation) is complete** (2026-09-22). **M1 (Tenancy and identity) is in progress**: of its 27
-items, **4 are done, 1 is in progress, 22 are open**. CI is green on `main` — five jobs.
+items, **5 are done, 1 is in progress, 21 are open**. CI is green on `main` — five jobs.
 
 | M1 item                                   | State                                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
@@ -41,7 +41,8 @@ items, **4 are done, 1 is in progress, 22 are open**. CI is green on `main` — 
 | Data (the 13 identity and tenancy tables) | **Done** — one migration, with its catalog assertions as a CI gate      |
 | RLS                                       | **Done** (2026-10-05) — policies, client extension, the request context in the API, `PrismaService.db` / `transaction()`, `runAsTenant` / `runAsPlatform`, the lint zones, and a live-RLS integration suite in CI |
 | Tenant resolution                         | **Done** (2026-10-05) — first global guard; credential locator, Redis-cached lookup, decision table, public `GET /tenants/:slug`; proven over HTTP |
-| Auth                                      | **In progress** — sessions done (login, `pg_id`, switcher, refresh + reuse detection, logout, epoch, auth + CSRF guards, `Actor`), proven through the booted app; signup / verification / reset wait for mail |
+| Auth                                      | **In progress** — sessions done (login, `pg_id`, switcher, refresh + reuse detection, logout, epoch, auth + CSRF guards, `Actor`), proven through the booted app; signup / verification / reset are next |
+| Mail                                      | **Done** (2026-10-05) — `MailProvider` + SMTP, four React templates, the `mail` queue, the processor in tenant context, `WORKER_MODE`; Mailpit round trip |
 | Everything else                           | Open — see `FEATURES.md` §M1                                            |
 
 Also since the last handoff: the API's lint boundaries were found to be **silently inert** — flat config
@@ -100,7 +101,7 @@ M0 primitives (ids, slugs + `RESERVED_SLUGS`, Problem Details registry, paginati
 limits), plus M1's tenancy enums in `tenancy.ts`: role, membership status and kind, organization status,
 plan, agent visibility.
 
-### `apps/api` — 174 unit, 25 integration tests
+### `apps/api` — 197 unit, 26 integration tests
 
 M0's NestJS 11 skeleton (Zod config that refuses to boot, Problem Details filter, slug-aware CORS,
 health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
@@ -136,6 +137,21 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
   read-only `ActorService`. `auth.controller.ts`: `POST /auth/login|sessions|refresh|logout`.
 - `src/memberships/repositories/membership.repository.ts` — the first tenant-owned repository: explicit
   `orgId` on every method, the team facts the actor carries.
+- `src/jobs/` — the BullMQ root (`JobsModule`, connection parsed from `REDIS_URL` by
+  `redis-connection.ts`; completed jobs dropped, failed ones kept), `job-id.ts`
+  (`queue:org:entity:discriminator`, `platform` for no org) and `dispatcher/run-job.ts`, the processor
+  wrapper that opens the tenant context a job names — the one place in the jobs tree allowed to run
+  with none (ADR-0022). `src/common/urls.ts` (`PublicUrls`) is the one definition of app, workspace and
+  marketing links in development and production.
+- `src/mail/` — `mail-provider.ts` (the port), `providers/smtp-mail.provider.ts` (nodemailer → Mailpit)
+  and `recording-mail.provider.ts` (tests); `templates/` — verify-email, account-exists, invite,
+  reset-password as React elements in one table-layout frame, a Zod registry (`mailJobSchema`) that
+  validates payloads on dequeue and admits only http(s) links, `renderMail` → subject, html, text;
+  `mail.service.ts` enqueues (never sends — ADR-0031's timing) under an idempotent per-tenant id;
+  `mail.processor.ts` renders and sends inside `runJob`, unrecoverable on an unreadable payload,
+  retried with backoff on a provider failure, running only when `WORKER_MODE` is `all` or `worker`.
+- `test/mail/smtp-mail.provider.int-spec.ts` — through SMTP to a real Mailpit, found via its API;
+  skipped, and says so, without `MAILPIT_URL`.
 - `test/auth/session-lifecycle.int-spec.ts` — the booted `AppModule` against Postgres and Redis, driven
   over HTTP like a browser: CSRF on login, identical 401s, cookies, a member actor on a tenant route,
   the acme session refused on globex, rotation and chain revocation, a disabled member out on the next
@@ -181,9 +197,13 @@ Compose stack, API readiness) · **security** (gitleaks, `pnpm audit`). Plus Cod
 
 ## What is deliberately NOT implemented yet
 
-- **No signup, verification or password reset.** They need the mail item (`MailProvider`, Mailpit, the
-  `mail` queue). Until then a verified user with a password hash exists only through the seed or by hand
-  — the lifecycle spec shows how to make one with `PasswordService`.
+- **No signup, verification or password reset.** Mail now exists; these are the next slice. Until then a
+  verified user with a password hash exists only through the seed or by hand — the lifecycle spec shows
+  how to make one with `PasswordService`.
+- **Nothing enqueues mail yet.** `MailService.enqueue` has callers only in tests; the templates for the
+  four messages are ready for them.
+- **No Resend provider.** `MAIL_PROVIDER` is bound to SMTP everywhere; the production implementation is
+  an M10 deploy concern, selected by env when it exists.
 - **API tokens resolve but do not authenticate.** A `pg_` bearer whose prefix is in `ApiTokenIndex`
   reaches the auth guard and gets a deliberate 401 until the M8 api-tokens item (`ApiToken` table,
   Argon2id verification inside `runAsTenant`, scope ∩ role).
@@ -230,21 +250,24 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **`X-Requested-With: patchgrid` on every cookie-borne mutation, login included** | Subdomains are same-site; login CSRF logs a victim into the attacker's account (ADR-0024 §4)     | `requested-with.guard.ts` |
 | **Password policy is length-only, 12–128**                               | NIST 800-63B; not applied to login attempts, where "too short" is an oracle on the policy. **Not in any ADR yet** — confirm or change in `contracts/auth.ts` | `contracts/auth.ts` |
 | **Login never says why**                                                | Unknown, wrong password, unverified and anonymised are one 401 at one Argon2id cost (ADR-0031)         | `session.service.ts` |
+| **Mail is enqueued, never sent inline**                                 | The anonymous endpoints must take the same time whether or not the address exists (ADR-0031)           | `mail.service.ts` |
+| **A mail payload carries its finished URL, token included**             | The token row stores only a hash, so the link cannot be rebuilt later; completed jobs are removed from Redis, and this is the one accepted secret in a job | `templates/index.tsx` |
+| **Processors never import the crossing helpers**                        | `runJob` in `src/jobs/dispatcher` opens the context; a processor says which tenant, not how            | `run-job.ts` |
+| **Mail templates are plain React, not `@react-email/components`**       | npm marks the widget set unsupported; `@react-email/render` over plain elements gives the same HTML   | `templates/` |
 
 ---
 
 ## Recommended next steps, in order
 
-1. **Mail** (`src/mail/`) — `MailProvider` interface, Mailpit SMTP implementation, the BullMQ `mail`
-   queue, react-email templates for verify / invite / reset. It unblocks the rest of auth.
-2. **Finish auth** — signup (`202` always; the verification link completes signup and starts the
-   session, ADR-0031), resend-verification, password reset (revokes every refresh token and bumps every
-   epoch), password change. An unverified account logging in gets the uniform 401 today; decide whether
-   that login should also re-send the verification mail. Settle the refresh-cookie question below before
-   `apiFetch`.
-3. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
+1. **Finish auth** — signup (`202` always; `verify-email` or `account-exists` goes to the inbox; the
+   verification link completes signup and starts the session, ADR-0031), resend-verification, password
+   reset (revokes every refresh token and bumps every epoch), password change. Each enqueues through
+   `MailService` with `PublicUrls` building the link. An unverified account logging in gets the uniform
+   401 today; decide whether that login should also re-send the verification mail. Settle the
+   refresh-cookie question below before `apiFetch`.
+2. **Throttling** (step 3) — per IP before resolution, with tight limits on `/auth/*`, signup,
    `/tenants/:slug`; per org and per token after (step 6). `@nestjs/throttler` on Redis.
-4. Then provisioning (with the slug lock below — and call `OrganizationLookupService.invalidate` on
+3. Then provisioning (with the slug lock below — and call `OrganizationLookupService.invalidate` on
    every slug or status change), membership, teams, `authz`, `GET /me`, and the `test:tenancy` /
    `test:authz` gates. Tenant-owned repositories follow the platform ones: read `prisma.db`, take an
    explicit `orgId`, never open `$transaction` themselves.
@@ -299,7 +322,7 @@ pnpm db:generate                # Prisma client — migrate dev no longer does t
 pnpm db:doctor                  # expect 6/6
 pnpm test:schema                # expect 12/12
 pnpm --filter @patchgrid/database run test:integration   # expect 9/9
-pnpm --filter @patchgrid/api run test:integration        # expect 25/25 (needs Redis too)
+pnpm --filter @patchgrid/api run test:integration        # expect 26/26 (needs Redis; Mailpit for the last)
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
@@ -377,3 +400,10 @@ From M1 so far:
   `isolatedModules`; Argon2id is the value 2, and the spec asserts the produced hash says `$argon2id$`.
 - **A TestingModule that imports `AppModule` does not see its modules' exports.** A probe controller
   injecting `ActorService` needs `AuthModule` imported into the test module too.
+- **The Nest SWC builder compiles `.ts` only.** A `.tsx` template is silently absent from `dist/` and
+  the app fails at boot with `MODULE_NOT_FOUND`; `nest-cli.json` sets the builder's `extensions`.
+  vitest's `unplugin-swc` handled `.tsx` without being told.
+- **`@nestjs/bullmq` creates the worker after `onModuleInit`.** A processor that wants to start itself
+  (`autorun: false`) does it in `onApplicationBootstrap`, or `this.worker` is undefined.
+- **Spec files are compiled into `dist/`.** Harmless today; excluding `**/*.spec.ts` from the build is
+  a small cleanup waiting for a quiet moment.

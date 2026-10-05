@@ -111,8 +111,12 @@ suite proves every route asserts a permission._
 - [ ] `QuotaService` + `UsageCounter` with atomic conditional increments (seats first; ticket volume in
       M2); Postgres authoritative, Redis a display cache
 - [ ] Throttling on `/auth/*`, signup and slug lookup, per IP **before** tenant resolution
-- [ ] Mail: `MailProvider`, Mailpit SMTP impl, BullMQ `mail` queue, react-email templates (verify,
-      invite, reset)
+- [x] Mail: `MailProvider`, Mailpit SMTP impl, BullMQ `mail` queue, react-email templates (verify,
+      invite, reset). Shipped 2026-10-05 with the BullMQ root, `runJob` (the processor wrapper that
+      opens the tenant context), `WORKER_MODE`, `PublicUrls`, an `account-exists` template for
+      ADR-0031's signup path, and a Mailpit round-trip spec. Templates are React elements rendered by
+      `@react-email/render`; the `@react-email/components` widget set is skipped — npm marks it
+      unsupported
 - [ ] `apps/www`: landing, pricing, signup flow with live slug availability
 - [ ] `apps/app`: login, accept invite, reset, org picker, create workspace, `proxy.ts` host parsing,
       `apiFetch` with tenant cookie selection + refresh-and-retry, `TenantProvider`
