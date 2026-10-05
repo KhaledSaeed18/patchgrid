@@ -11,6 +11,8 @@ import { AuthModule } from "./auth/auth.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
+import { JobsModule } from "./jobs/jobs.module"
+import { MailModule } from "./mail/mail.module"
 import { PrismaModule } from "./prisma/prisma.module"
 import { RedisModule } from "./redis/redis.module"
 import { TenantContextService } from "./tenancy/tenant-context.service"
@@ -88,6 +90,8 @@ import { TenancyModule } from "./tenancy/tenancy.module"
     PrismaModule,
     RedisModule,
     AuthModule,
+    JobsModule,
+    MailModule,
     HealthModule,
   ],
   providers: [
