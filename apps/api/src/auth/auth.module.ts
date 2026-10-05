@@ -1,12 +1,15 @@
 import { Module } from "@nestjs/common"
 import { APP_GUARD } from "@nestjs/core"
 
+import { MailModule } from "../mail/mail.module"
 import { MembershipsModule } from "../memberships/memberships.module"
 import { PlatformModule } from "../platform/platform.module"
 import { ActorService } from "./actor"
 import { AuthController } from "./auth.controller"
 import { AuthGuard } from "./auth.guard"
 import { CookieService } from "./cookies"
+import { IdentityController } from "./identity/identity.controller"
+import { IdentityService } from "./identity/identity.service"
 import { PasswordService } from "./passwords/password.service"
 import { RequestedWithGuard } from "./requested-with.guard"
 import { RevocationEpochService } from "./revocation/revocation-epoch.service"
@@ -19,14 +22,15 @@ import { AccessTokenService } from "./tokens/access-token.service"
  * refuse cookie-borne mutations without the CSRF header, verify the credential.
  */
 @Module({
-  imports: [PlatformModule, MembershipsModule],
-  controllers: [AuthController],
+  imports: [PlatformModule, MembershipsModule, MailModule],
+  controllers: [AuthController, IdentityController],
   providers: [
     CookieService,
     PasswordService,
     AccessTokenService,
     RevocationEpochService,
     SessionService,
+    IdentityService,
     ActorService,
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

@@ -100,7 +100,7 @@ export class AuthController {
   }
 }
 
-function clientOf(request: Request): ClientInfo {
+export function clientOf(request: Request): ClientInfo {
   const userAgent = request.headers["user-agent"]
   const ip = request.ip
   return {
