@@ -95,6 +95,17 @@ export class StaleWriteProblem extends ProblemException {
   }
 }
 
+/**
+ * A dependency the request needs is down. Used sparingly: the revocation check
+ * fails closed for mutations (ADR-0024 §5), and "we could not confirm your
+ * session" is a 503, not a 401 the client would answer by logging in again.
+ */
+export class ServiceUnavailableProblem extends ProblemException {
+  constructor(detail?: string) {
+    super("service-unavailable", detail)
+  }
+}
+
 export class ValidationProblem extends ProblemException {
   constructor(errors: readonly ProblemError[], detail = "The request failed validation") {
     super("validation-failed", detail, errors)

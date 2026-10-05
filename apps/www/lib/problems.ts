@@ -95,6 +95,12 @@ const PROBLEM_COPY: Record<ProblemTypeSlug, ProblemCopy> = {
       "Something failed on our side. The response carries a `correlationId` that matches a line in our logs, and no internal detail.",
     resolution: "Retry. If it persists, quote the correlation id — it is the whole bug report.",
   },
+  "service-unavailable": {
+    detail:
+      "A dependency the request needs is unreachable — most often the revocation check, which refuses to let a write proceed when it cannot confirm the session is still valid.",
+    resolution:
+      "Retry shortly. Reads continue during such an outage; writes wait until the session can be confirmed.",
+  },
 }
 
 export type ProblemType = ProblemCopy & {

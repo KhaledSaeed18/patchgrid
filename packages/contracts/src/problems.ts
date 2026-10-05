@@ -29,6 +29,7 @@ export const PROBLEM_TYPES = {
   conflict: { status: 409, title: "Conflict" },
   "rate-limited": { status: 429, title: "Rate limited" },
   "internal-error": { status: 500, title: "Internal error" },
+  "service-unavailable": { status: 503, title: "Service unavailable" },
 } as const satisfies Record<string, { status: number; title: string }>
 
 export type ProblemTypeSlug = keyof typeof PROBLEM_TYPES
@@ -58,6 +59,7 @@ export function problemTypeForStatus(status: number): ProblemTypeSlug {
     case 404: return "not-found"
     case 409: return "conflict"
     case 429: return "rate-limited"
+    case 503: return "service-unavailable"
     default: return "internal-error"
   }
 }
