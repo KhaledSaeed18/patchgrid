@@ -34,7 +34,7 @@
     "@patchgrid/typescript-config": "workspace:*",
     "@types/node": "^24",
     "@types/pg": "^8.23.1",
-    "eslint": "^9",
+    "eslint": "^10",
     "prisma": "7.10.0",
     "tsx": "^4.23.15",
     "typescript": "^5",
