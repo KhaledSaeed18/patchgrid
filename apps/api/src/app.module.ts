@@ -15,6 +15,7 @@ import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
 import { JobsModule } from "./jobs/jobs.module"
 import { MailModule } from "./mail/mail.module"
+import { MembershipsModule } from "./memberships/memberships.module"
 import { OrgsModule } from "./orgs/orgs.module"
 import { PrismaModule } from "./prisma/prisma.module"
 import { RedisModule } from "./redis/redis.module"
@@ -102,6 +103,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     AuditModule,
     MailModule,
     OrgsModule,
+    MembershipsModule,
     HealthModule,
   ],
   providers: [
