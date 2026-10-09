@@ -120,7 +120,26 @@ const contextWriters = {
     "through runAsTenant / runAsPlatform (ADR-0022).",
 }
 
-export const API_ZONES = [layering, platformCrossing, tenantCrossing, contextWriters]
+/**
+ * `PermissionService.can()` is pure — role, subject and relationship flags in,
+ * boolean out (RBAC.md §11). The authz module therefore reaches no data at all:
+ * no repository, no Prisma, no Redis. Whatever a decision needs, the calling
+ * service loads into a `Subject` first; that purity is what lets the whole
+ * matrix be tested as data.
+ */
+const authzPurity = {
+  files: ["src/authz/**/*.ts"],
+  except: [...TESTS],
+  imports: [
+    { regex: "(^|/)(repositories|prisma|redis)(/|$)" },
+    { name: "ioredis" },
+  ],
+  message:
+    "The authz module does no I/O (RBAC.md §11). Load what the decision needs into a Subject " +
+    "in the calling service and pass it in.",
+}
+
+export const API_ZONES = [layering, platformCrossing, tenantCrossing, contextWriters, authzPurity]
 
 /** Every import boundary of `apps/api`, in one rule so none can override another. */
 export const apiBoundaries = {

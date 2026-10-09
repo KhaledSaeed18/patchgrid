@@ -37,6 +37,10 @@ test("api import zones", () => {
       { code: 'import { ClsService } from "nestjs-cls"', filename: "src/auth/auth.guard.ts", options },
       // unrelated imports anywhere
       { code: 'import { z } from "zod"', filename: "src/tickets/tickets.service.ts", options },
+      // authz purity: the actor read side and the contracts are fine
+      { code: 'import { ActorService } from "../auth/actor"', filename: "src/authz/require-permission.ts", options },
+      { code: 'import { PERMISSION_MATRIX } from "@patchgrid/contracts"', filename: "src/authz/permission.service.ts", options },
+      { code: 'import { MembershipRepository } from "../memberships/repositories/membership.repository"', filename: "src/memberships/memberships.service.ts", options },
       // tests are exempt from every zone
       { code: 'import { runAsPlatform } from "../platform/run-as-platform"', filename: "src/tickets/tickets.service.spec.ts", options },
       { code: 'import { PrismaClient } from "@prisma/client"', filename: "test/factories/org.ts", options },
@@ -59,6 +63,11 @@ test("api import zones", () => {
       // context writers
       { code: 'import { ClsService } from "nestjs-cls"', filename: "src/tickets/tickets.service.ts", options, errors: errorFor("nestjs-cls") },
       { code: 'import { ClsService } from "nestjs-cls"', filename: "src/orgs/orgs.service.ts", options, errors: errorFor("nestjs-cls") },
+      // authz purity
+      { code: 'import { MembershipRepository } from "../memberships/repositories/membership.repository"', filename: "src/authz/permission.service.ts", options, errors: errorFor("../memberships/repositories/membership.repository") },
+      { code: 'import { PrismaService } from "../prisma/prisma.service"', filename: "src/authz/permission.service.ts", options, errors: errorFor("../prisma/prisma.service") },
+      { code: 'import { RedisService } from "../redis/redis.service"', filename: "src/authz/scope.ts", options, errors: errorFor("../redis/redis.service") },
+      { code: 'import Redis from "ioredis"', filename: "src/authz/permission.service.ts", options, errors: errorFor("ioredis") },
     ],
   })
 })
