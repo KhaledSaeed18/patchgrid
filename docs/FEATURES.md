@@ -232,7 +232,7 @@ _Exit: SLA warnings and breaches fire from the per-tenant dispatcher, arrive liv
 Mailpit; resolved tickets auto-close after 7 days under an injected clock; the notification bell works and
 never shows another tenant's events — nor a ticket the agent may not read._
 
-- [ ] BullMQ: `tenant-dispatch` dispatcher, per-tenant `sla-scan` and `auto-close`, `Clock` provider,
+- [x] BullMQ: `tenant-dispatch` dispatcher, per-tenant `sla-scan` and `auto-close`, `Clock` provider,
       `WORKER_MODE` (ADR-0018)
 - [ ] SLA warning/breach flags with the split thresholds, notifications, audit entries (`DOMAIN.md` §4.3)
 - [ ] `Notification` + `GET /notifications` + mark read + `dedupeKey` + SSE stream namespaced

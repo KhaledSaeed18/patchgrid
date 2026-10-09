@@ -242,7 +242,14 @@ lands (§10), `SLA_WARNING` / `SLA_BREACHED` become rule *triggers* and the hard
 become the default rules in the seed.
 
 The worker is idempotent: every flag it sets is checked before it acts, so a job that runs twice does
-nothing twice.
+nothing twice — and the write itself is conditional on the flag still being unset, so two scans racing
+flag once.
+
+- A warning window is measured from the clock's **origin**: `createdAt` for the response clock, and the
+  reopen's new origin for the resolution clock, so a reopened ticket is not warned the instant it reopens.
+- A breach found before its warning skips the warning.
+- Setting a flag is **not** a versioned write and does not change `version`: flags are the system's
+  bookkeeping, and an agent mid-edit must not get a `409` because a warning fired.
 
 ## 5. Routing and taxonomy
 
