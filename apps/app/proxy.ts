@@ -15,7 +15,8 @@ import { decideRoute, PATH_HEADER, SLUG_HEADER } from "@/lib/routing"
 export function proxy(request: NextRequest): NextResponse {
   const decision = decideRoute({
     host: request.headers.get("host"),
-    origin: request.nextUrl.origin,
+    // The Host the browser used, not nextUrl's: in development that is normalised to localhost.
+    origin: `${request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "")}://${request.headers.get("host") ?? request.nextUrl.host}`,
     pathname: request.nextUrl.pathname,
     search: request.nextUrl.search,
     cookies: (name) => request.cookies.get(name)?.value,
@@ -47,5 +48,5 @@ export function proxy(request: NextRequest): NextResponse {
 
 export const config = {
   // Everything but the framework's own assets and the container's health probe.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health).*)"],
+  matcher: ["/((?!_next/|favicon.ico|api/health).*)"],
 }
