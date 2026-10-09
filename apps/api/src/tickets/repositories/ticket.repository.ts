@@ -77,6 +77,8 @@ export type ListFilter = {
   /** A narrowing of the view, ANDed onto each scope branch. */
   where: { status?: TicketStatus | { in: TicketStatus[] }; assigneeMembershipId?: string | null; requesterMembershipId?: string; teamId?: string | null | { in: string[] } }
   after: { createdAt: Date; id: string } | null
+  /** `desc` is newest first. The cursor continues in the same direction. */
+  direction: "asc" | "desc"
   limit: number
 }
 
@@ -168,7 +170,7 @@ export class TicketRepository {
 
   /**
    * One branch of a scoped list (ADR-0025): an index-friendly query for the
-   * branch's column, keyset-paged on (createdAt, id). The service runs one per
+   * branch's column, keyset-paged on (createdAt, id) in either direction. The service runs one per
    * branch and merges — a UNION ALL done in two passes, without raw SQL.
    */
   async listBranch(orgId: string, branch: ScopeBranch | null, filter: ListFilter): Promise<TicketSummaryRow[]> {
@@ -183,15 +185,22 @@ export class TicketRepository {
           branchWhere(branch),
           filter.after === null
             ? {}
-            : {
-                OR: [
-                  { createdAt: { lt: filter.after.createdAt } },
-                  { createdAt: filter.after.createdAt, id: { lt: filter.after.id } },
-                ],
-              },
+            : filter.direction === "desc"
+              ? {
+                  OR: [
+                    { createdAt: { lt: filter.after.createdAt } },
+                    { createdAt: filter.after.createdAt, id: { lt: filter.after.id } },
+                  ],
+                }
+              : {
+                  OR: [
+                    { createdAt: { gt: filter.after.createdAt } },
+                    { createdAt: filter.after.createdAt, id: { gt: filter.after.id } },
+                  ],
+                },
         ],
       },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ createdAt: filter.direction }, { id: filter.direction }],
       take: filter.limit,
       select: SUMMARY,
     })

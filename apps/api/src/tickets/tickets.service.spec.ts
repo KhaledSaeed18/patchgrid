@@ -212,15 +212,25 @@ describe("TicketsService.list", () => {
       ownTeamOnly: true,
       branches: [[summary("a", 1), summary("c", 3)], [summary("b", 2), summary("a", 1)], [], []],
     })
-    const page = await h.service.list({ view: "open", limit: 2 })
+    const page = await h.service.list({ view: "open", sort: "newest", limit: 2 })
     expect(h.tickets.listBranch).toHaveBeenCalledTimes(4)
     expect(page.items.map((t) => t.id)).toEqual(["a", "b"])
     expect(page.nextCursor).not.toBeNull()
   })
 
+  it("merges oldest first when asked, and asks each branch for the same direction", async () => {
+    const h = harness("AGENT", row(), {
+      ownTeamOnly: true,
+      branches: [[summary("c", 3), summary("a", 1)], [summary("b", 2)], [], []],
+    })
+    const page = await h.service.list({ view: "open", sort: "oldest", limit: 25 })
+    expect(page.items.map((t) => t.id)).toEqual(["c", "b", "a"])
+    expect(h.tickets.listBranch).toHaveBeenCalledWith(ORG, expect.anything(), expect.objectContaining({ direction: "asc" }))
+  })
+
   it("has nothing in a teams view for an agent in no team, without asking the database", async () => {
     const h = harness("AGENT", row(), { teamIds: [] })
-    expect(await h.service.list({ view: "teams", limit: 25 })).toEqual({ items: [], nextCursor: null })
+    expect(await h.service.list({ view: "teams", sort: "newest", limit: 25 })).toEqual({ items: [], nextCursor: null })
     expect(h.tickets.listBranch).not.toHaveBeenCalled()
   })
 })

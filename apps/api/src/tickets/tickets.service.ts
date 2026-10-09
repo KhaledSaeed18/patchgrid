@@ -323,7 +323,7 @@ export class TicketsService {
 
   /**
    * A view, scoped (RBAC.md §4): one index-friendly query per scope branch,
-   * merged on (createdAt, id) and de-duplicated — the UNION ALL ADR-0025 asks
+   * merged on (createdAt, id) in the asked direction and de-duplicated — the UNION ALL ADR-0025 asks
    * for, without raw SQL. `mine` needs no scope: your own tickets are yours.
    */
   async list(query: TicketListQuery): Promise<TicketPage> {
@@ -345,12 +345,17 @@ export class TicketsService {
     if (where === null) return { items: [], nextCursor: null }
     const branches = this.branchesFor(actor, query.view)
     const limit = query.limit + 1
-    const results = await Promise.all(branches.map((b) => this.tickets.listBranch(orgId, b, { where, after, limit })))
+    const direction = query.sort === "oldest" ? "asc" : "desc"
+    const results = await Promise.all(
+      branches.map((b) => this.tickets.listBranch(orgId, b, { where, after, direction, limit })),
+    )
 
     const merged = new Map<string, TicketSummaryRow>()
     for (const row of results.flat()) merged.set(row.id, row)
+    const sign = direction === "desc" ? 1 : -1
     const ordered = [...merged.values()].sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+      (a, b) =>
+        sign * (b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)),
     )
     const page = ordered.slice(0, query.limit)
     const last = page.at(-1)
