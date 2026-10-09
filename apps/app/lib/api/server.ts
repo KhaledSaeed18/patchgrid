@@ -2,6 +2,8 @@ import "server-only"
 
 import {
   accessCookieName,
+  type IdentityResponse,
+  identityResponseSchema,
   IDENTITY_COOKIE,
   TENANT_HEADER,
 } from "@patchgrid/contracts"
@@ -55,4 +57,22 @@ export async function serverApi<S extends z.ZodType | null>(
     )
   }
   return readResult(response, call.schema)
+}
+
+/**
+ * Who is signed in on `app.`, or `null` — for pages that serve signed-out
+ * visitors too, where a 401 is an answer rather than a reason to redirect.
+ */
+export async function serverIdentity(): Promise<IdentityResponse | null> {
+  const jar = await cookies()
+  const identity = jar.get(IDENTITY_COOKIE)?.value
+  if (identity === undefined) return null
+  const [url, init] = buildRequest(
+    "/auth/identity",
+    { schema: identityResponseSchema },
+    new Headers({ Cookie: `${IDENTITY_COOKIE}=${identity}` })
+  )
+  const response = await fetch(url, { ...init, cache: "no-store" })
+  if (response.status === 401) return null
+  return readResult(response, identityResponseSchema)
 }
