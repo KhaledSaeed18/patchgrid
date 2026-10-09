@@ -9,6 +9,7 @@
  */
 import {
   agentVisibilitySchema,
+  auditActorKindSchema,
   membershipKindSchema,
   membershipStatusSchema,
   organizationStatusSchema,
@@ -17,6 +18,7 @@ import {
 } from "@patchgrid/contracts"
 import {
   AgentVisibility,
+  AuditActorKind,
   MembershipKind,
   MembershipStatus,
   OrganizationStatus,
@@ -34,6 +36,7 @@ expectTypeOf<z.infer<typeof membershipKindSchema>>().toEqualTypeOf<Values<typeof
 expectTypeOf<z.infer<typeof organizationStatusSchema>>().toEqualTypeOf<Values<typeof OrganizationStatus>>()
 expectTypeOf<z.infer<typeof planSchema>>().toEqualTypeOf<Values<typeof Plan>>()
 expectTypeOf<z.infer<typeof agentVisibilitySchema>>().toEqualTypeOf<Values<typeof AgentVisibility>>()
+expectTypeOf<z.infer<typeof auditActorKindSchema>>().toEqualTypeOf<Values<typeof AuditActorKind>>()
 
 describe("wire and storage enums", () => {
   it.each([
@@ -43,6 +46,7 @@ describe("wire and storage enums", () => {
     ["OrganizationStatus", organizationStatusSchema.options, OrganizationStatus],
     ["Plan", planSchema.options, Plan],
     ["AgentVisibility", agentVisibilitySchema.options, AgentVisibility],
+    ["AuditActorKind", auditActorKindSchema.options, AuditActorKind],
   ] as const)("%s has the same values on both sides", (_name, wire, storage) => {
     expect([...wire]).toEqual(Object.values(storage))
   })
