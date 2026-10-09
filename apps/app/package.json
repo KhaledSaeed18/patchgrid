@@ -16,11 +16,15 @@
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
+    "@patchgrid/contracts": "workspace:*",
     "@patchgrid/ui": "workspace:*",
+    "@tanstack/react-query": "^5.104.1",
     "next": "16.3.8",
     "next-themes": "^0.4.6",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@patchgrid/eslint-config": "workspace:*",
