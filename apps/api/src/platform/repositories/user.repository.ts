@@ -43,6 +43,12 @@ export class UserRepository {
     return this.prisma.db.user.create({ data: account, select: ACCOUNT })
   }
 
+  /** An account created through an invitation link: the link proved the inbox (ADR-0031). */
+  createVerified(account: { email: string; name: string; passwordHash: string; verifiedAt: Date }): Promise<AccountRecord> {
+    const { verifiedAt, ...rest } = account
+    return this.prisma.db.user.create({ data: { ...rest, emailVerifiedAt: verifiedAt }, select: ACCOUNT })
+  }
+
   async markVerified(id: string, at: Date): Promise<void> {
     await this.prisma.db.user.updateMany({ where: { id, emailVerifiedAt: null }, data: { emailVerifiedAt: at } })
   }

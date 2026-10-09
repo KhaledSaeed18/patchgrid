@@ -15,6 +15,9 @@ export type OrganizationSummary = {
   agentVisibility: AgentVisibility
 }
 
+/** Name and address, for mail and the acceptance page. Uncached: a rename must show at once. */
+export type OrganizationProfile = { id: string; name: string; slug: string; status: OrganizationStatus }
+
 export type RetiredSlug = {
   orgId: string
   /** 302 until here (ADR-0017); the reservation itself never lapses (TENANCY.md §2). */
@@ -37,6 +40,13 @@ export class OrganizationRepository {
 
   findSummaryBySlug(slug: string): Promise<OrganizationSummary | null> {
     return this.prisma.db.organization.findUnique({ where: { slug }, select: SUMMARY })
+  }
+
+  findProfileById(id: string): Promise<OrganizationProfile | null> {
+    return this.prisma.db.organization.findUnique({
+      where: { id },
+      select: { id: true, name: true, slug: true, status: true },
+    })
   }
 
   findRetiredSlug(slug: string): Promise<RetiredSlug | null> {
