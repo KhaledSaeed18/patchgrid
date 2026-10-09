@@ -3,7 +3,7 @@ import { Module } from "@nestjs/common"
 import { AuthModule } from "../auth/auth.module"
 import { MailModule } from "../mail/mail.module"
 import { PlatformModule } from "../platform/platform.module"
-import { TeamRepository } from "../teams/repositories/team.repository"
+import { TeamsModule } from "../teams/teams.module"
 import { InvitationAcceptanceService } from "./acceptance/invitation-acceptance.service"
 import { InvitationsController } from "./invitations/invitations.controller"
 import { InvitationsService } from "./invitations/invitations.service"
@@ -18,8 +18,8 @@ import { InvitationRepository } from "./repositories/invitation.repository"
  * services need the auth module — the split keeps that dependency one-way.
  */
 @Module({
-  imports: [AuthModule, PlatformModule, MailModule, MembershipRepositoryModule],
+  imports: [AuthModule, PlatformModule, MailModule, MembershipRepositoryModule, TeamsModule],
   controllers: [MembersController, InvitationsController],
-  providers: [InvitationRepository, TeamRepository, MembersService, InvitationsService, InvitationAcceptanceService],
+  providers: [InvitationRepository, MembersService, InvitationsService, InvitationAcceptanceService],
 })
 export class MembershipsModule {}

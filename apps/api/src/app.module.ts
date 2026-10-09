@@ -19,6 +19,7 @@ import { MembershipsModule } from "./memberships/memberships.module"
 import { OrgsModule } from "./orgs/orgs.module"
 import { PrismaModule } from "./prisma/prisma.module"
 import { RedisModule } from "./redis/redis.module"
+import { TeamsModule } from "./teams/teams.module"
 import { TenantContextService } from "./tenancy/tenant-context.service"
 import { TenancyModule } from "./tenancy/tenancy.module"
 import { ThrottlingModule } from "./throttling/throttling.module"
@@ -104,6 +105,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     MailModule,
     OrgsModule,
     MembershipsModule,
+    TeamsModule,
     HealthModule,
   ],
   providers: [
