@@ -30,3 +30,14 @@ export const ticketStatusSchema = z.enum([
   "ROLLED_BACK",
 ])
 export type TicketStatus = z.infer<typeof ticketStatusSchema>
+
+/** Where a ticket came from; a token's tickets are `API`, so machine work is never misread (RBAC.md §10). */
+export const ticketSourceSchema = z.enum(["PORTAL", "CONSOLE", "EMAIL", "API"])
+export type TicketSource = z.infer<typeof ticketSourceSchema>
+
+/** `INTERNAL` never reaches a requester (DOMAIN.md §7). */
+export const commentVisibilitySchema = z.enum(["PUBLIC", "INTERNAL"])
+export type CommentVisibility = z.infer<typeof commentVisibilitySchema>
+
+export const commentAuthorKindSchema = z.enum(["MEMBER", "SERVICE", "SYSTEM", "AUTOMATION"])
+export type CommentAuthorKind = z.infer<typeof commentAuthorKindSchema>
