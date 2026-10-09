@@ -77,23 +77,28 @@ const PROBLEM_COPY: Record<ProblemTypeSlug, ProblemCopy> = {
       "Re-read the record, reconcile the changes, and submit again with the current version.",
   },
   "change-window-early": {
-    detail: "The change was started more than an hour before its planned start time.",
-    resolution: "Retry with `confirm: true` to proceed anyway, or wait for the planned window.",
+    detail:
+      "The change was started more than an hour before its planned start time.",
+    resolution:
+      "Retry with `confirm: true` to proceed anyway, or wait for the planned window.",
   },
   conflict: {
     detail:
       "A uniqueness constraint was violated — a slug, a team name, a category name within its parent, an asset serial, or a knowledge-base slug.",
-    resolution: "Choose a different value. Uniqueness is scoped per organization.",
+    resolution:
+      "Choose a different value. Uniqueness is scoped per organization.",
   },
   "rate-limited": {
     detail:
       "Too many requests from this IP, organization or API token. Limits are tightest on authentication, signup and slug lookup.",
-    resolution: "Back off and retry. Automated clients should honour `Retry-After`.",
+    resolution:
+      "Back off and retry. Automated clients should honour `Retry-After`.",
   },
   "internal-error": {
     detail:
       "Something failed on our side. The response carries a `correlationId` that matches a line in our logs, and no internal detail.",
-    resolution: "Retry. If it persists, quote the correlation id — it is the whole bug report.",
+    resolution:
+      "Retry. If it persists, quote the correlation id — it is the whole bug report.",
   },
   "service-unavailable": {
     detail:
@@ -109,12 +114,14 @@ export type ProblemType = ProblemCopy & {
   readonly title: string
 }
 
-export const PROBLEM_TYPES: readonly ProblemType[] = PROBLEM_TYPE_SLUGS.map((slug) => ({
-  slug,
-  status: problemStatus(slug),
-  title: problemTitle(slug),
-  ...PROBLEM_COPY[slug],
-}))
+export const PROBLEM_TYPES: readonly ProblemType[] = PROBLEM_TYPE_SLUGS.map(
+  (slug) => ({
+    slug,
+    status: problemStatus(slug),
+    title: problemTitle(slug),
+    ...PROBLEM_COPY[slug],
+  })
+)
 
 export function findProblemType(slug: string): ProblemType | undefined {
   return PROBLEM_TYPES.find((problem) => problem.slug === slug)

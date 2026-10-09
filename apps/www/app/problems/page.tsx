@@ -13,8 +13,10 @@ export default function ProblemsIndexPage() {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-24">
       <div className="flex flex-col gap-3">
-        <h1 className="text-2xl font-medium tracking-tight">API problem types</h1>
-        <p className="text-muted-foreground leading-relaxed text-pretty">
+        <h1 className="text-2xl font-medium tracking-tight">
+          API problem types
+        </h1>
+        <p className="leading-relaxed text-pretty text-muted-foreground">
           The API returns errors as{" "}
           <a
             className="underline underline-offset-4"
@@ -22,8 +24,8 @@ export default function ProblemsIndexPage() {
           >
             RFC 9457 Problem Details
           </a>
-          . Each carries a <code className="font-mono text-xs">type</code> URI that points
-          here, so an error is always one click from an explanation.
+          . Each carries a <code className="font-mono text-xs">type</code> URI
+          that points here, so an error is always one click from an explanation.
         </p>
       </div>
 
@@ -32,9 +34,9 @@ export default function ProblemsIndexPage() {
           <li key={problem.slug}>
             <Link
               href={`/problems/${problem.slug}`}
-              className="hover:bg-muted/50 -mx-3 flex items-baseline gap-3 rounded-md px-3 py-2"
+              className="-mx-3 flex items-baseline gap-3 rounded-md px-3 py-2 hover:bg-muted/50"
             >
-              <span className="text-muted-foreground w-8 shrink-0 font-mono text-xs">
+              <span className="w-8 shrink-0 font-mono text-xs text-muted-foreground">
                 {problem.status}
               </span>
               <span className="text-sm">{problem.title}</span>
