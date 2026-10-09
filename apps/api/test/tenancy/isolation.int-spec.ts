@@ -33,9 +33,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { AppModule } from "../../src/app.module"
 import { PasswordService } from "../../src/auth/passwords/password.service"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
+import { TenantDispatchService } from "../../src/jobs/dispatcher/tenant-dispatch"
 import { MailProcessor } from "../../src/mail/mail.processor"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
 import { PrismaService } from "../../src/prisma/prisma.service"
+import { SlaScanProcessor } from "../../src/tickets/sweeps/sla-scan"
 import { browser, HEADERS } from "../support/workspace"
 
 const PASSWORD = "isolation suite password"
@@ -267,7 +269,25 @@ describe("8 · background jobs carry their tenant", () => {
     await expect(app.get(MailProcessor).process(job)).rejects.toBeInstanceOf(UnrecoverableError)
   })
 
-  it.todo("the dispatcher fans out one job per active org and skips suspended ones — tenant-dispatch arrives with the first per-tenant sweep (M2)")
+  it("the dispatcher fans out one job per active org and skips suspended ones", async () => {
+    const dispatch = app.get(TenantDispatchService)
+    const both = await dispatch.fanOut("auto-close")
+    expect(both).toEqual(expect.arrayContaining([seed.acme.id, seed.globex.id]))
+
+    await owner.organization.update({ where: { id: seed.globex.id }, data: { status: "SUSPENDED" } })
+    try {
+      const fanned = await dispatch.fanOut("auto-close")
+      expect(fanned).toContain(seed.acme.id)
+      expect(fanned).not.toContain(seed.globex.id)
+    } finally {
+      await owner.organization.update({ where: { id: seed.globex.id }, data: { status: "ACTIVE" } })
+    }
+  })
+
+  it("a sweep job without its tenant is refused, never run across tenants", async () => {
+    const job = { id: "isolation/sweep-missing-org", data: { tick: 1 } } as unknown as Job
+    await expect(app.get(SlaScanProcessor).process(job)).rejects.toBeInstanceOf(UnrecoverableError)
+  })
 })
 
 describe("9 · quotas are per org, and atomic at the boundary", () => {
