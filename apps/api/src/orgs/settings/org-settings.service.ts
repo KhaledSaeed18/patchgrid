@@ -5,6 +5,7 @@ import {
   SLUG_CHANGE_COOLDOWN_DAYS,
   SLUG_REDIRECT_DAYS,
   type UpdateOrganizationSettingsRequest,
+  type Usage,
 } from "@patchgrid/contracts"
 
 import { ActorService } from "../../auth/actor"
@@ -16,6 +17,7 @@ import { PermissionService } from "../../authz/permission.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import { ConflictProblem, NotFoundProblem } from "../../common/problems/problem.exception"
 import { PrismaService } from "../../prisma/prisma.service"
+import { QuotaService } from "../../quota/quota.service"
 import { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import {
@@ -46,6 +48,7 @@ export class OrgSettingsService {
     private readonly lookup: OrganizationLookupService,
     private readonly sessions: SessionService,
     private readonly cookies: CookieService,
+    private readonly quota: QuotaService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -55,6 +58,12 @@ export class OrgSettingsService {
     const [record, lastRelease] = await Promise.all([this.settings.find(orgId), this.settings.lastSlugRelease(orgId)])
     if (record === null) throw new NotFoundProblem()
     return toSettings(record, this.nextSlugChange(lastRelease))
+  }
+
+  /** What the plan allows and what is used — the usage panel and the over-limit banner (TENANCY.md §8). */
+  async usage(): Promise<Usage> {
+    this.permissions.assert(this.actors.requireTenantActor(), "org:read_settings")
+    return this.quota.usage(this.tenant.requireOrgId())
   }
 
   async update(request: UpdateOrganizationSettingsRequest): Promise<OrganizationSettings> {

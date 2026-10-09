@@ -4,6 +4,7 @@ import {
   changeSlugRequestSchema,
   type OrganizationSettings,
   updateOrganizationSettingsRequestSchema,
+  type Usage,
 } from "@patchgrid/contracts"
 import type { Request, Response } from "express"
 import { createZodDto } from "nestjs-zod"
@@ -28,6 +29,12 @@ export class OrgSettingsController {
   @RequirePermission("org:read_settings")
   get(): Promise<OrganizationSettings> {
     return this.settings.get()
+  }
+
+  @Get("usage")
+  @RequirePermission("org:read_settings")
+  usage(): Promise<Usage> {
+    return this.settings.usage()
   }
 
   @Patch("settings")
