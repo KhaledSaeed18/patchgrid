@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { RESERVED_SLUGS } from "./reserved-slugs.ts"
-import { checkSlugFormat, slugSchema } from "./slug.ts"
+import { checkSlugFormat, slugSchema, suggestSlug } from "./slug.ts"
 
 describe("slugSchema", () => {
   it.each(["acme", "acme-corp", "a1b", "globex-industries-ltd", "x0-9y"])(
@@ -58,5 +58,15 @@ describe("RESERVED_SLUGS", () => {
         `${reserved} is not a well-formed slug, so reserving it does nothing`,
       ).toBe("reserved")
     }
+  })
+})
+
+describe("suggestSlug", () => {
+  it("turns a workspace name into an address the slug rule accepts", () => {
+    expect(suggestSlug("Acme Corp, Ltd.")).toBe("acme-corp-ltd")
+    expect(suggestSlug("  Café  Réseau ")).toBe("cafe-reseau")
+    const long = suggestSlug("The Extraordinarily Long Name Of A Help Desk Team")
+    expect(slugSchema.safeParse(long).success).toBe(true)
+    expect(long.endsWith("-")).toBe(false)
   })
 })

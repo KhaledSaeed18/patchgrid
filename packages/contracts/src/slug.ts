@@ -48,3 +48,19 @@ export function checkSlugFormat(value: string): SlugRejection | null {
   if (isReservedSlug(value)) return "reserved"
   return null
 }
+
+/**
+ * "Acme Corp, Ltd." → "acme-corp-ltd": the address suggested from a workspace
+ * name, on the signup page and the create-workspace page alike. A suggestion
+ * the person can edit; `slugSchema` still decides.
+ */
+export function suggestSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, SLUG_MAX_LENGTH)
+    .replace(/-+$/, "")
+}
