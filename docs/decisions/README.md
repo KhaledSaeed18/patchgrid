@@ -41,6 +41,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0032](0032-password-policy-and-link-lifetimes.md) | Password policy and one-time link lifetimes | Accepted |
 | [0033](0033-membership-lifecycle.md) | Membership lifecycle: invite, join, disable, remove | Accepted |
 | [0034](0034-audit-log-partitions-under-rls.md) | Audit-log partitions under RLS | Accepted |
+| [0035](0035-browser-owned-refresh.md) | The browser owns the refresh; the Next server never sees a refresh token | Accepted |
 
 ## Reading order for someone new
 
