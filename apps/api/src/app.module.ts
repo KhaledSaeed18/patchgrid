@@ -8,6 +8,7 @@ import { CommonModule } from "./common/common.module"
 import { ProblemDetailsFilter } from "./common/problems/problem-details.filter"
 import { ZodValidationPipe } from "./common/problems/zod-validation.pipe"
 import { AuthModule } from "./auth/auth.module"
+import { AuthzModule } from "./authz/authz.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
@@ -95,6 +96,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     PrismaModule,
     RedisModule,
     AuthModule,
+    AuthzModule,
     JobsModule,
     MailModule,
     OrgsModule,
