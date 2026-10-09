@@ -165,8 +165,15 @@ suite proves every route asserts a permission._
 - [ ] `apps/app`: login, accept invite, reset, org picker, create workspace, `proxy.ts` host parsing,
       `apiFetch` with tenant cookie selection + refresh-and-retry, `TenantProvider`
 - [ ] Admin UI: members list, invite, role changes, teams CRUD with lead, org settings (name, slug change)
-- [ ] Seed: two orgs with similar data + a dual-member user
-- [ ] **Tenancy isolation suite** (`ENGINEERING.md`) — all thirteen assertions, wired as a CI gate
+- [x] Seed: two orgs with similar data + a dual-member user. Shipped 2026-10-09: `seedLookalikes` in
+      `packages/database` writes Acme and Globex with the same team names, display names, roles and an
+      invitation to the same address, plus Dana (admin at one, agent at the other); `pnpm db:seed` is
+      idempotent (`-- --reset` replaces), every demo password `patchgrid-demo`. Categories and tickets
+      join with their M2 tables
+- [x] **Tenancy isolation suite** (`ENGINEERING.md`) — all thirteen assertions, wired as a CI gate.
+      `pnpm test:tenancy` (its own step in the CI `schema` job) runs the catalog assertions (7, 10, 11)
+      then the suite over `seedLookalikes` with a suffix per run. One clause waits: assertion 8's
+      dispatcher fan-out lands with `tenant-dispatch`, the first per-tenant sweep, in M2
 
 ## M2 — Incident lifecycle (the heart)
 
