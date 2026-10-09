@@ -51,7 +51,9 @@ beforeAll(async () => {
     .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
-  await app.init()
+  // Listening on an ephemeral port: supertest then reuses it, rather than binding and closing
+  // the shared server per request, which breaks requests made concurrently.
+  await app.listen(0)
 
   const passwordHash = await app.get(PasswordService).hash(password)
   const user = await owner.user.create({ data: { email, name: "Founder", passwordHash, emailVerifiedAt: new Date() } })
