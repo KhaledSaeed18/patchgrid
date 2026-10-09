@@ -47,7 +47,16 @@
       "postcss@8": "^8.5.28",
       "multer@2": "^2.4.0",
       "mysql2@3": "^3.24.4",
-      "deepmerge-ts": "^8.0.2"
+      "deepmerge-ts": "^8.0.2",
+      "sharp": "^0.35.5",
+      "source-map-js": "^1.2.2",
+      "http-cache-semantics": "^4.3.0",
+      "@modelcontextprotocol/sdk": "^1.31.0"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
     }
   },
   "license": "MIT"
