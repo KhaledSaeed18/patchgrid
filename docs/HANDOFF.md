@@ -1,6 +1,6 @@
 # Handoff — M1 in progress
 
-Written 2026-10-05, mid-M1. **This file is regenerated, not appended to** — at every milestone boundary,
+Written 2026-10-09, mid-M1. **This file is regenerated, not appended to** — at every milestone boundary,
 and whenever enough has landed that the previous version would mislead. If it disagrees with
 `FEATURES.md` or an ADR, they are right and this is stale.
 
@@ -33,7 +33,7 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `api.lvh.me:4000`.
 ## Where we are
 
 **M0 (Foundation) is complete** (2026-09-22). **M1 (Tenancy and identity) is in progress**: of its 27
-items, **7 are done, 20 are open**. CI is green on `main` — five jobs.
+items, **8 are done, 19 are open**. CI is green on `main` — five jobs.
 
 | M1 item                                   | State                                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
@@ -44,6 +44,7 @@ items, **7 are done, 20 are open**. CI is green on `main` — five jobs.
 | Auth                                      | **Done** (2026-10-05) — sessions (login, `pg_id`, switcher, refresh + reuse detection, logout, epoch, auth + CSRF guards, `Actor`) and identity (signup `202`, verification link starting the session, resend, reset, change), both proven through the booted app |
 | Mail                                      | **Done** (2026-10-05) — `MailProvider` + SMTP, four React templates, the `mail` queue, the processor in tenant context, `WORKER_MODE`; Mailpit round trip |
 | Throttling                                | **Done** (2026-10-05) — per address and per email hash before resolution, per org after; Redis Lua counter, fail-open; `429` Problem with `Retry-After` |
+| Org provisioning                          | **Done** (2026-10-05) — `POST /orgs` in one transaction inside `runAsTenant`, the advisory slug lock, public `GET /orgs/slug-available`; the two-creator race proven through the booted app |
 | Everything else                           | Open — see `FEATURES.md` §M1                                            |
 
 Also since the last handoff: the API's lint boundaries were found to be **silently inert** — flat config
@@ -96,13 +97,15 @@ Prisma **pinned to 7.10.0**, `prisma-client` generator, `@prisma/adapter-pg`, `p
 
 Every one of these gates was **proven by planting the defect it guards against** and watching it fail.
 
-### `packages/contracts` — 61 tests
+### `packages/contracts` — 75 tests
 
 M0 primitives (ids, slugs + `RESERVED_SLUGS`, Problem Details registry, pagination, ticket numbers,
 limits), plus M1's tenancy enums in `tenancy.ts`: role, membership status and kind, organization status,
-plan, agent visibility.
+plan, agent visibility. `auth.ts` holds the identity shapes and the password bounds (ADR-0032);
+`organizations.ts` the workspace creation request and response and the slug-availability answer,
+whose `reason` is compile-time tied to `SlugRejection`.
 
-### `apps/api` — 212 unit, 37 integration tests
+### `apps/api` — 216 unit, 43 integration tests
 
 M0's NestJS 11 skeleton (Zod config that refuses to boot, Problem Details filter, slug-aware CORS,
 health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
@@ -145,6 +148,19 @@ health, `Clock`/`Tracer`, `@Public`/`@TenantOptional`, RLS boot assertion), plus
   password-reset/confirm|password`. One-time tokens are 256-bit secrets stored as SHA-256 in
   `EmailVerification` / `PasswordResetToken` through `one-time-token.repository.ts`; issuing voids the
   ones outstanding.
+- `src/orgs/` — **workspace provisioning** (ADR-0017, TENANCY.md §4). `provisioning.service.ts` mints
+  the org id with UUID v7 *before* anything exists, so the whole creation runs inside `runAsTenant` on
+  it — the first write through a crossing. It refuses an unverified or anonymised account (`401`),
+  invalidates the org lookup cache for the new slug, and opens the new workspace's session through
+  `SessionService.open`. `organization-provisioning.repository.ts` is the transaction: a
+  `pg_advisory_xact_lock(hashtext('slug:<slug>'))`, then the current-and-retired check, then
+  `Organization`, the `OWNER` membership, the `UserOrgIndex` row and the three default teams.
+  `orgs.controller.ts`: `POST /orgs` (`@TenantOptional`, `201` with cookies) and public
+  `GET /orgs/slug-available` (30/min per address), which answers "not a slug" as `available: false`
+  with the reason, never a 400.
+- `test/orgs/provisioning.int-spec.ts` — the slug check including a retired slug, creation and the
+  session working on the new tenant, `409` for taken and retired slugs, and two simultaneous creators
+  of one slug ending with exactly one workspace.
 - `src/memberships/repositories/membership.repository.ts` — the first tenant-owned repository: explicit
   `orgId` on every method, the team facts the actor carries.
 - `src/throttling/` — **pipeline steps 3 and 6.** `throttlers.ts` names the limits: `ip` 300/min
@@ -227,7 +243,14 @@ Compose stack, API readiness) · **security** (gitleaks, `pnpm audit`). Plus Cod
   Argon2id verification inside `runAsTenant`, scope ∩ role).
 - **No tenant-bound routes yet.** The auth guard is proven against probe controllers; the first real
   one (`GET /me`) arrives with the authz item.
-- **No seed data.** `scripts/seed.ts` is still a stub; the two lookalike orgs arrive with provisioning.
+- **No seed data.** `scripts/seed.ts` is still a stub; the two lookalike orgs arrive with the seed item,
+  which can now call provisioning instead of writing rows by hand.
+- **No `provision-org` job and only teams as defaults.** Categories, SLA policies and KB articles join
+  the provisioning transaction with their M2 tables; the job arrives when something is slow enough to
+  need it.
+- **No `Idempotency-Key` on `POST /orgs`.** A retried create with the same slug gets `409`, which is
+  safe but unfriendly; the shared idempotency interceptor is an M2 concern, where ticket creation
+  needs it, and `POST /orgs` adopts it then.
 - **`test:tenancy` and `test:authz` do not exist**, and stay absent from CI rather than vacuously green.
   The database-level isolation assertions they will include are already proven in `test:integration`.
 - Tables from later M1 items — `UsageCounter`, `AuditLog`, `ApiToken`, `SupportSession` — are not in
@@ -263,7 +286,7 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **Epoch ties go to the revocation**                                     | `iat` is seconds; a token minted in the bump's second must not survive "log out everywhere"           | `revocation-epoch.service.ts` |
 | **The auth guard re-reads `Membership` per request**                    | Team facts for the actor, and a disabled member is out on the next request even with Redis down      | `auth.guard.ts` |
 | **`X-Requested-With: patchgrid` on every cookie-borne mutation, login included** | Subdomains are same-site; login CSRF logs a victim into the attacker's account (ADR-0024 §4)     | `requested-with.guard.ts` |
-| **Password policy is length-only, 12–128**                               | NIST 800-63B; not applied to login attempts, where "too short" is an oracle on the policy. **Not in any ADR yet** — confirm or change in `contracts/auth.ts` | `contracts/auth.ts` |
+| **Password policy is length-only, 12–128**                               | NIST 800-63B; not applied to login attempts, where "too short" is an oracle on the policy | ADR-0032 |
 | **Login never says why**                                                | Unknown, wrong password, unverified and anonymised are one 401 at one Argon2id cost (ADR-0031)         | `session.service.ts` |
 | **Mail is enqueued, never sent inline**                                 | The anonymous endpoints must take the same time whether or not the address exists (ADR-0031)           | `mail.service.ts` |
 | **A mail payload carries its finished URL, token included**             | The token row stores only a hash, so the link cannot be rebuilt later; completed jobs are removed from Redis, and this is the one accepted secret in a job | `templates/index.tsx` |
@@ -271,30 +294,27 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | **Mail templates are plain React, not `@react-email/components`**       | npm marks the widget set unsupported; `@react-email/render` over plain elements gives the same HTML   | `templates/` |
 | **Signup hashes the password on both paths**                            | The response is `202` either way; the time taken must be too (ADR-0031)                                | `identity.service.ts` |
 | **A second signup for an unverified address keeps the first password**  | Nobody has proved they own the address; the first claimant's password stands until a verified owner resets it | `identity.service.ts` |
-| **Reset links live thirty minutes; verification links twenty-four hours** | The latter is TENANCY.md §4; the former is **not in any ADR yet** — confirm or change in `identity.service.ts` | `identity.service.ts` |
+| **Reset links live thirty minutes; verification links twenty-four hours** | A reset link replaces the password; a verification link only proves an address | ADR-0032 |
 | **Following a reset link also verifies the address**                    | A link delivered to the inbox proves control of it — the same reasoning ADR-0031 applies to invitations | `identity.service.ts` |
 | **Job id parts are joined with `/`**                                    | BullMQ reserves `:` and refuses a custom id containing one (ADR-0018 erratum)                          | `job-id.ts` |
 | **Rate limiting fails open**                                            | Defence in depth; taking the API down with Redis is the worse failure, and the epoch already decides what fails closed | `redis-throttler.storage.ts` |
 | **Two throttler guards, one per pipeline point**                        | One guard runs at one point, and per-org limits need the org resolution produces                       | `throttler.guards.ts` |
 | **The per-email limit tracks the hash, never the address**              | No PII in Redis keys any more than in logs (ADR-0031 names the limit; ENGINEERING.md the rule)         | `throttlers.ts` |
+| **The new org's id is minted before its row exists**                    | So provisioning runs inside `runAsTenant` and writes tenant-owned rows under RLS like any request      | `provisioning.service.ts` |
+| **Slug uniqueness is decided under an advisory lock on the slug**       | "Never reuse" spans `Organization` and `OrganizationSlugHistory`; no constraint holds it. Slug change must take the same lock key | `organization-provisioning.repository.ts` |
+| **Unverified accounts create no workspace**                             | Stricter than FEATURES.md's "one per unverified user": nobody has proved the address yet               | `provisioning.service.ts` |
+| **The slug check never 400s**                                           | "Not a slug" is `available: false` with the reason, so the form can say why                            | `orgs.controller.ts` |
 
 ---
 
 ## Recommended next steps, in order
 
-1. **Org provisioning** (`src/orgs/`) — `POST /orgs` from a `pg_id` holder (`@TenantOptional`):
-   slug validation and availability (`GET /orgs/slug-available`, public, throttled), the transactional
-   creation of `Organization` + owner `Membership` + `UserOrgIndex` row + default teams (the category
-   tree, SLA policies and KB articles arrive with their tables in M2), the `provision-org` job for
-   anything slower, and the slug lock below. The provisioning module is where `runAsTenant` is first
-   used to write (`src/orgs/provisioning/**` is in its allow-list). Call
-   `OrganizationLookupService.invalidate` on every slug or status change. The response mints the new
-   workspace's cookie pair through `SessionService.open`.
-2. **Membership** — invite (sending the `invite` template, the token `<orgId-base36>.<secret>`),
-   accept (bound to the invited address, ADR-0031), disable, remove, change role, last-owner protection
-   under a row lock, epoch bumps on every change; then teams, `authz`, `GET /me`, and the
-   `test:tenancy` / `test:authz` gates. Tenant-owned repositories follow `MembershipRepository`: read
-   `prisma.db`, take an explicit `orgId`, never open `$transaction` themselves.
+1. **Membership** (`src/memberships/`) — invite (sending the `invite` template, the token
+   `<orgId-base36>.<secret>`), accept (bound to the invited address, ADR-0031), disable, remove, change
+   role, last-owner protection under a row lock, epoch bumps on every change. Tenant-owned repositories
+   follow `MembershipRepository`: read `prisma.db`, take an explicit `orgId`, never open `$transaction`
+   themselves. Accepting an invite writes `UserOrgIndex` in the same transaction, as provisioning does.
+2. Then teams, `authz`, `GET /me`, and the `test:tenancy` / `test:authz` gates.
 3. Decide whether an unverified account's login attempt should re-send the verification mail (today:
    the uniform 401 and nothing else), and settle the refresh-cookie question below before `apiFetch`.
 
@@ -313,7 +333,7 @@ await inside the tenant context, `timestamptz` everywhere. Added since:
 | `docs/DOMAIN.md`              | ITSM rules — state machines, priority, SLA                                   | M2 onward                              |
 | `docs/DNS.md`                 | Hostnames, wildcard TLS, mail DNS                                            | M10; §2 explains tenant resolution     |
 | `docs/FEATURES.md`            | **The backlog**, with per-item progress notes                                | Every session                          |
-| `docs/decisions/README.md`    | ADR index (31) and the reading order                                          | When a rule seems arbitrary            |
+| `docs/decisions/README.md`    | ADR index (32) and the reading order                                          | When a rule seems arbitrary            |
 | `docs/SPEC-REVIEW.md`         | The pre-M0 review audit trail                                                | When something looks wrong             |
 
 **ADRs that matter most for the rest of M1**, in dependency order:
@@ -348,7 +368,7 @@ pnpm db:generate                # Prisma client — migrate dev no longer does t
 pnpm db:doctor                  # expect 6/6
 pnpm test:schema                # expect 12/12
 pnpm --filter @patchgrid/database run test:integration   # expect 9/9
-pnpm --filter @patchgrid/api run test:integration        # expect 37/37 (needs Redis; Mailpit for one)
+pnpm --filter @patchgrid/api run test:integration        # expect 43/43 (needs Redis; Mailpit for one)
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
@@ -366,7 +386,7 @@ port) and re-run `pnpm db:bootstrap` to create the shadow database.
 | **TM-1** attachment host is same-site                 | M5        | `files.patchgrid.xyz` receives session cookies; needs a separate registrable domain (`THREAT-MODEL.md`)  |
 | **TM-2** platform actor resolved from the host        | M8        | Same inversion ADR-0024 fixed for tenants; needs its own credential                                     |
 | **Refresh cookie vs server-side refresh**             | M1 auth   | `pg_rt_<slug>` is `Path=/api/v1/auth`, so the Next server never receives it and `apiFetch`'s server-side refresh-and-retry cannot work as written. Decide before building `apiFetch` |
-| **Slug reuse race**                                   | M1 provisioning | Retired slugs live in another table, so "never reuse" is not a constraint. Provisioning and slug change must take a lock on the slug |
+| **Slug reuse race**                                   | M1 slug change | Provisioning takes `pg_advisory_xact_lock(hashtext('slug:<slug>'))`; the slug-change endpoint (admin UI item) must take the same key for both the old and the new slug |
 | **Doc formatting drift**                              | any time  | The docs and most code are not Prettier-clean at `printWidth: 80`; the pre-commit hook would reformat whole files. Either one formatting commit or a `.prettierrc` that matches the house style |
 | R-4 `.vscode/` git-ignored                            | —         | Commit shared settings or delete                                                                        |
 | D-6 ADR-0015 mentions a `Plan` table never built      | —         | Too minor for an erratum                                                                                |
