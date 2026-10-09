@@ -131,6 +131,13 @@ model Organization {
   auditLogs     AuditLog[]
   usageCounters UsageCounter[]
 
+  ticketCounters TicketCounter[]
+  categories     Category[]
+  slaPolicies    SLAPolicy[]
+  tickets        Ticket[]
+  comments       Comment[]
+  watchers       TicketWatcher[]
+
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
 }
@@ -314,6 +321,13 @@ model Membership {
   invitationsCreated Invitation[]
   auditEntries       AuditLog[]
 
+  ticketsRequested Ticket[]        @relation("TicketRequester")
+  ticketsAssigned  Ticket[]        @relation("TicketAssignee")
+  commentsWritten  Comment[]       @relation("CommentAuthor")
+  commentsDeleted  Comment[]       @relation("CommentDeletedBy")
+  watching         TicketWatcher[] @relation("Watcher")
+  watchersAdded    TicketWatcher[] @relation("WatcherAddedBy")
+
   @@unique([orgId, id])
   @@unique([orgId, userId])
   @@index([orgId, role, status])
@@ -333,6 +347,8 @@ model Team {
   organization Organization     @relation(fields: [orgId], references: [id])
   members      TeamMembership[]
   invitations  Invitation[]
+  categories   Category[]
+  tickets      Ticket[]
 
   @@unique([orgId, id])
   @@unique([orgId, name])
@@ -434,4 +450,236 @@ model UsageCounter {
   organization Organization @relation(fields: [orgId], references: [id])
 
   @@id([orgId, period, metric])
+}
+
+/// The four record types (DOMAIN.md §1); mirrors `ticketTypeSchema` in contracts.
+enum TicketType {
+  INCIDENT
+  SERVICE_REQUEST
+  PROBLEM
+  CHANGE
+}
+
+/// The union of every type's statuses; which pairs are valid is a CHECK (ADR-0002).
+enum TicketStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  PENDING
+  RESOLVED
+  CLOSED
+  CANCELLED
+  KNOWN_ERROR
+  DRAFT
+  AWAITING_APPROVAL
+  APPROVED
+  IMPLEMENTED
+  ROLLED_BACK
+}
+
+enum Impact {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Urgency {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// Computed from impact and urgency, never accepted from a client (DOMAIN.md §3); a CHECK holds the matrix.
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketSource {
+  PORTAL
+  CONSOLE
+  EMAIL
+  API
+}
+
+enum CommentVisibility {
+  PUBLIC
+  INTERNAL
+}
+
+enum CommentAuthorKind {
+  MEMBER
+  SERVICE
+  SYSTEM
+  AUTOMATION
+}
+
+/// Per-type ticket numbers (ADR-0009). The row lock on (org, type) serialises
+/// numbering, so it is taken LAST in the create transaction (DOMAIN.md §1).
+model TicketCounter {
+  orgId     String     @db.Uuid
+  type      TicketType
+  nextValue Int        @default(1)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@id([orgId, type])
+}
+
+/// The taxonomy (DOMAIN.md §5): three levels, names unique per parent,
+/// deactivated never deleted, an optional default team walked up the tree.
+model Category {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  orgId         String   @db.Uuid
+  name          String
+  parentId      String?  @db.Uuid
+  /// 1..3, checked; recomputed for a subtree when it moves.
+  depth         Int
+  defaultTeamId String?  @db.Uuid
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  parent       Category?    @relation("CategoryTree", fields: [orgId, parentId], references: [orgId, id], onDelete: Restrict)
+  children     Category[]   @relation("CategoryTree")
+  defaultTeam  Team?        @relation(fields: [orgId, defaultTeamId], references: [orgId, id], onDelete: Restrict)
+  tickets      Ticket[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, parentId, name])
+  /// A top-level name is unique too: NULL parents are distinct to a plain unique.
+  @@unique([orgId, name], where: raw("\"parentId\" IS NULL"), map: "Category_root_name_key")
+}
+
+/// SLA targets per (type, priority), Incidents and Service Requests only (DOMAIN.md §4.1).
+model SLAPolicy {
+  id                       String     @id @default(uuid(7)) @db.Uuid
+  orgId                    String     @db.Uuid
+  ticketType               TicketType
+  priority                 Priority
+  responseTargetMinutes    Int
+  resolutionTargetMinutes  Int
+  responseWarningMinutes   Int
+  resolutionWarningMinutes Int
+  createdAt                DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime   @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  tickets      Ticket[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, ticketType, priority])
+}
+
+/// One table for four record types (ADR-0002). Clock origins are columns, so
+/// a reopen moves one forward and a later priority change cannot move it back
+/// (DOMAIN.md §4.2). Deadlines are stored, not derived on read.
+model Ticket {
+  id                       String       @id @default(uuid(7)) @db.Uuid
+  orgId                    String       @db.Uuid
+  number                   Int
+  type                     TicketType
+  title                    String
+  description              String
+  status                   TicketStatus @default(NEW)
+  /// Optimistic concurrency: compared on every write, a mismatch is 409.
+  version                  Int          @default(1)
+  impact                   Impact
+  urgency                  Urgency
+  priority                 Priority
+  categoryId               String?      @db.Uuid
+  requesterMembershipId    String       @db.Uuid
+  assigneeMembershipId     String?      @db.Uuid
+  teamId                   String?      @db.Uuid
+  slaPolicyId              String?      @db.Uuid
+  responseClockStartedAt   DateTime     @db.Timestamptz(3)
+  resolutionClockStartedAt DateTime     @db.Timestamptz(3)
+  respondBy                DateTime?    @db.Timestamptz(3)
+  resolveBy                DateTime?    @db.Timestamptz(3)
+  respondedAt              DateTime?    @db.Timestamptz(3)
+  resolvedAt               DateTime?    @db.Timestamptz(3)
+  closedAt                 DateTime?    @db.Timestamptz(3)
+  cancelledAt              DateTime?    @db.Timestamptz(3)
+  pausedAt                 DateTime?    @db.Timestamptz(3)
+  pausedMinutes            Int          @default(0)
+  responseBreached         Boolean      @default(false)
+  resolutionBreached       Boolean      @default(false)
+  responseWarningSentAt    DateTime?    @db.Timestamptz(3)
+  resolutionWarningSentAt  DateTime?    @db.Timestamptz(3)
+  reopenCount              Int          @default(0)
+  source                   TicketSource
+  createdAt                DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime     @updatedAt @db.Timestamptz(3)
+
+  organization Organization    @relation(fields: [orgId], references: [id])
+  category     Category?       @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
+  requester    Membership      @relation("TicketRequester", fields: [orgId, requesterMembershipId], references: [orgId, id])
+  assignee     Membership?     @relation("TicketAssignee", fields: [orgId, assigneeMembershipId], references: [orgId, id], onDelete: Restrict)
+  team         Team?           @relation(fields: [orgId, teamId], references: [orgId, id], onDelete: Restrict)
+  slaPolicy    SLAPolicy?      @relation(fields: [orgId, slaPolicyId], references: [orgId, id], onDelete: Restrict)
+  comments     Comment[]
+  watchers     TicketWatcher[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, type, number])
+  @@index([orgId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([orgId, status, createdAt(sort: Desc)])
+  @@index([orgId, assigneeMembershipId, status])
+  @@index([orgId, teamId, status])
+  @@index([orgId, requesterMembershipId, createdAt(sort: Desc)])
+  @@index([orgId, categoryId])
+  /// The SLA scan's two questions, over open tickets only. The predicate is
+  /// written as Postgres deparses it, or the drift check reads a difference.
+  @@index([orgId, resolveBy], where: raw("(\"resolveBy\" IS NOT NULL) AND (status = ANY (ARRAY['NEW'::\"TicketStatus\", 'ASSIGNED'::\"TicketStatus\", 'IN_PROGRESS'::\"TicketStatus\", 'PENDING'::\"TicketStatus\"]))"), map: "Ticket_open_resolveBy_idx")
+  @@index([orgId, respondBy], where: raw("\"respondedAt\" IS NULL"), map: "Ticket_unresponded_respondBy_idx")
+}
+
+/// The thread (DOMAIN.md §7). Internal notes never reach a requester; edits
+/// within 15 minutes; deletion is soft.
+model Comment {
+  id                    String            @id @default(uuid(7)) @db.Uuid
+  orgId                 String            @db.Uuid
+  ticketId              String            @db.Uuid
+  authorMembershipId    String?           @db.Uuid
+  authorKind            CommentAuthorKind
+  body                  String
+  visibility            CommentVisibility
+  editedAt              DateTime?         @db.Timestamptz(3)
+  deletedAt             DateTime?         @db.Timestamptz(3)
+  deletedByMembershipId String?           @db.Uuid
+  createdAt             DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id])
+  author       Membership?  @relation("CommentAuthor", fields: [orgId, authorMembershipId], references: [orgId, id], onDelete: Restrict)
+  deletedBy    Membership?  @relation("CommentDeletedBy", fields: [orgId, deletedByMembershipId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, id])
+  /// Lets an attachment key on all three (ARCHITECTURE.md §Data model).
+  @@unique([orgId, ticketId, id])
+  @@index([orgId, ticketId, createdAt])
+}
+
+/// Access and notifications that are not role-derived (RBAC.md §5). The
+/// requester and assignee are implicit watchers and never rows.
+model TicketWatcher {
+  orgId               String   @db.Uuid
+  ticketId            String   @db.Uuid
+  membershipId        String   @db.Uuid
+  addedByMembershipId String   @db.Uuid
+  addedAt             DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id])
+  member       Membership   @relation("Watcher", fields: [orgId, membershipId], references: [orgId, id])
+  addedBy      Membership   @relation("WatcherAddedBy", fields: [orgId, addedByMembershipId], references: [orgId, id])
+
+  @@id([orgId, ticketId, membershipId])
+  @@index([orgId, membershipId])
 }
