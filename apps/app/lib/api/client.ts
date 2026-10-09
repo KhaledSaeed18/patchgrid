@@ -17,7 +17,8 @@ export async function clientApi<S extends z.ZodType | null>(
   call: Call<S>
 ): Promise<Result<S>> {
   const response = await send(path, call)
-  if (response.status !== 401) return readResult(response, call.schema)
+  if (response.status !== 401 || call.anonymous === true)
+    return readResult(response, call.schema)
 
   const slug = currentSlug()
   if (slug !== null && (await refresh(slug))) {

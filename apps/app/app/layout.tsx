@@ -4,10 +4,10 @@ import "@patchgrid/ui/globals.css"
 import { fontVariables } from "@patchgrid/ui/lib/fonts"
 import { cn } from "@patchgrid/ui/lib/utils"
 
-import { ThemeProvider } from "@/components/theme-provider"
+import { Providers } from "@/components/providers"
 
-// Tenant-specific titles arrive with TenantProvider in M1; nothing here may be
-// statically generated per tenant (ADR-0016).
+// Nothing here may be statically generated per tenant (ADR-0016); workspace
+// pages set their own titles from the workspace they render.
 export const metadata: Metadata = {
   title: { default: "Patchgrid", template: "%s · Patchgrid" },
 }
@@ -24,7 +24,7 @@ export default function RootLayout({
       className={cn("antialiased", "font-sans", fontVariables)}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

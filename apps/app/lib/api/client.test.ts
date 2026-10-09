@@ -126,3 +126,25 @@ describe("clientApi", () => {
     )
   })
 })
+
+describe("clientApi — anonymous calls", () => {
+  it("returns a 401 as the answer, without refreshing or leaving the page", async () => {
+    const fetchMock = vi.fn(async () =>
+      status(401, {
+        type: "https://patchgrid.xyz/problems/not-authenticated",
+        title: "Not authenticated",
+        status: 401,
+      })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    const error = await clientApi("/auth/login", {
+      method: "POST",
+      body: {},
+      schema: null,
+      anonymous: true,
+    }).catch((e: unknown) => e)
+    expect((error as ApiError).status).toBe(401)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(assign).not.toHaveBeenCalled()
+  })
+})

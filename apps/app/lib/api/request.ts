@@ -13,6 +13,12 @@ export type Call<S extends z.ZodType | null> = {
   schema: S
   /** Sent on entity-creating POSTs (ADR-0012), so a retried create is not a second one. */
   idempotencyKey?: string
+  /**
+   * A call that needs no session — login, reset, verification, invitation
+   * acceptance. Its 401 is the answer ("wrong password"), not an expired
+   * session, so it is returned as an error instead of refreshing.
+   */
+  anonymous?: boolean
 }
 
 export type Result<S extends z.ZodType | null> = S extends z.ZodType
