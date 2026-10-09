@@ -144,8 +144,12 @@ suite proves every route asserts a permission._
       test:authz` (its own `verify` step) drives every role × permission through satisfying and failing
       subjects and walks the module graph for unmarked routes; the concurrent demotion is in the
       membership lifecycle spec under `test:integration`
-- [ ] `QuotaService` + `UsageCounter` with atomic conditional increments (seats first; ticket volume in
-      M2); Postgres authoritative, Redis a display cache
+- [x] `QuotaService` + `UsageCounter` with atomic conditional increments (seats first; ticket volume in
+      M2); Postgres authoritative, Redis a display cache. Shipped 2026-10-09: `PLAN_LIMITS` in contracts
+      held to `TENANCY.md` §8 by a test; one conditional update per consume inside the counted change's
+      transaction; seats taken and freed through acceptance, role change, enable, disable and remove;
+      `GET /org/usage`; a spec racing two promotions for the last seat. The Redis display cache waits
+      for a reader that needs it — `GET /org/usage` is one indexed read
 - [x] Throttling on `/auth/*`, signup and slug lookup, per IP **before** tenant resolution. Shipped
       2026-10-05: two guards — per address (and per email hash on any route naming one, ADR-0031) before
       resolution, per organization after it — on a Redis Lua counter that fails open, `429` as
