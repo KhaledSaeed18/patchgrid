@@ -8,7 +8,7 @@ import {
   TENANT_HEADER,
 } from "@patchgrid/contracts"
 import { cookies, headers } from "next/headers"
-import { redirect } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import type { z } from "zod"
 
 import { PATH_HEADER, REFRESH_PATH, SLUG_HEADER } from "@/lib/routing"
@@ -23,7 +23,9 @@ import { buildRequest, type Call, readResult, type Result } from "./request"
  * `X-Patchgrid-Tenant`, which the API checks against the token (ADR-0024).
  *
  * It never refreshes. A 401 sends the browser through `/session/refresh` (in
- * a workspace) or to login (on `app.`), back to the page being rendered.
+ * a workspace) or to login (on `app.`), back to the page being rendered. A
+ * 403 or 404 renders the not-found page: a page whose data the member may not
+ * read does not exist for them (RBAC.md §11).
  */
 export async function serverApi<S extends z.ZodType | null>(
   path: string,
@@ -56,6 +58,7 @@ export async function serverApi<S extends z.ZodType | null>(
         : `${REFRESH_PATH}?next=${encodeURIComponent(page)}`
     )
   }
+  if (response.status === 403 || response.status === 404) notFound()
   return readResult(response, call.schema)
 }
 
