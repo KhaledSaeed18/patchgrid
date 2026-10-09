@@ -33,6 +33,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: pnpm turbo lint typecheck test build
+      # Also inside `test`; named here so the gate RBAC.md §13 promises is
+      # visible as its own step: the matrix, escalation negatives and route coverage.
+      - name: Authorization suite
+        run: pnpm test:authz
 
   # ───────────────────────────────────────────────────────────────────────────
   # The two-role database setup, created in CI exactly as it is locally.
