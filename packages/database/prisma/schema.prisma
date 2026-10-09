@@ -65,10 +65,22 @@ enum Role {
   REQUESTER
 }
 
+/// ADR-0033: INVITED is not produced in v1 (the Invitation row is the pending
+/// state); REMOVED is terminal and keeps the row so history keeps its author.
 enum MembershipStatus {
   ACTIVE
   INVITED
   DISABLED
+  REMOVED
+}
+
+/// Who performed an audited change (DOMAIN.md §7) — so a token's or a platform
+/// admin's change is never misread as a colleague's.
+enum AuditActorKind {
+  MEMBER
+  SERVICE
+  SYSTEM
+  PLATFORM
 }
 
 enum MembershipKind {
@@ -107,6 +119,7 @@ model Organization {
   teams         Team[]
   teamMembers   TeamMembership[]
   invitations   Invitation[]
+  auditLogs     AuditLog[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -158,7 +171,8 @@ model PlatformAdmin {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id])
+  user         User       @relation(fields: [userId], references: [id])
+  auditEntries AuditLog[]
 }
 
 /// Rotating refresh tokens, chained through `replacedById`; presenting a rotated
@@ -288,6 +302,7 @@ model Membership {
 
   teams              TeamMembership[]
   invitationsCreated Invitation[]
+  auditEntries       AuditLog[]
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -359,4 +374,36 @@ model Invitation {
   @@unique([orgId, id])
   @@unique([orgId, tokenHash])
   @@index([orgId, email])
+}
+
+/// The tenant's audit log (DOMAIN.md §7, RBAC.md §12). Partitioned by month on
+/// `createdAt` in hand-written SQL (ADR-0034), so the key includes it and there
+/// is no `@@unique([orgId, id])`: nothing ever references an audit row. Written
+/// in the same transaction as the change it records; never updated.
+model AuditLog {
+  id                   String         @default(uuid(7)) @db.Uuid
+  orgId                String         @db.Uuid
+  /// What changed: `Membership`, `Invitation`, `Team`, `Organization`, `Ticket`, …
+  entityType           String
+  entityId             String         @db.Uuid
+  /// One of the contracts' audit actions — a string, so the catalogue grows without a migration.
+  action               String
+  /// `{ field: { from, to } }` for changes; context for events. Never a secret, never a body twice.
+  diff                 Json           @default("{}")
+  actorKind            AuditActorKind
+  actorMembershipId    String?        @db.Uuid
+  actorPlatformAdminId String?        @db.Uuid
+  /// Set when a platform admin acted inside a support session (ADR-0020); its table arrives in M8.
+  supportSessionId     String?        @db.Uuid
+  createdAt            DateTime       @default(now()) @db.Timestamptz(3)
+
+  organization  Organization   @relation(fields: [orgId], references: [id])
+  actor         Membership?    @relation(fields: [orgId, actorMembershipId], references: [orgId, id], onDelete: Restrict)
+  platformAdmin PlatformAdmin? @relation(fields: [actorPlatformAdminId], references: [id], onDelete: Restrict)
+
+  @@id([id, createdAt])
+  @@index([orgId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([orgId, entityType, entityId, createdAt(sort: Desc)])
+  @@index([orgId, actorMembershipId, createdAt(sort: Desc)])
+  @@index([orgId, action, createdAt(sort: Desc)])
 }
