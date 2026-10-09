@@ -10,6 +10,7 @@ import {
   onResolve,
   onResponded,
   onResume,
+  scanSignals,
   type SlaPolicyTargets,
   type SlaState,
 } from "./sla"
@@ -110,5 +111,43 @@ describe("the SLA clock (DOMAIN.md §4.2)", () => {
     expect(clockView(late, at(10_000)).response).toMatchObject({ breached: true, stoppedAt: at(45) })
     const early = apply(s, { respondedAt: at(5) })
     expect(clockView(early, at(10_000)).response.breached).toBe(false)
+  })
+})
+
+describe("the SLA scan (DOMAIN.md §4.3)", () => {
+  it("warns inside the window, then breaches at the deadline — each once", () => {
+    const fresh = created()
+    expect(scanSignals(fresh, HIGH, at(19))).toEqual([])
+    expect(scanSignals(fresh, HIGH, at(20))).toEqual([{ clock: "response", kind: "warning" }])
+    const warned = apply(fresh, { responseWarningSentAt: at(20) })
+    expect(scanSignals(warned, HIGH, at(25))).toEqual([])
+    expect(scanSignals(warned, HIGH, at(30))).toEqual([{ clock: "response", kind: "breach" }])
+    expect(scanSignals(apply(warned, { responseBreached: true }), HIGH, at(31))).toEqual([])
+  })
+
+  it("goes straight to the breach when the warning was missed", () => {
+    expect(scanSignals(created(), HIGH, at(45))).toEqual([{ clock: "response", kind: "breach" }])
+  })
+
+  it("never warns when the window opens at or before the clock starts", () => {
+    const tight = { ...HIGH, responseWarningMinutes: 30 }
+    expect(scanSignals(created(tight), tight, at(1))).toEqual([])
+    expect(scanSignals(created(tight), tight, at(30))).toEqual([{ clock: "response", kind: "breach" }])
+  })
+
+  it("stops the response clock at a response, and the resolution clock while paused or once resolved", () => {
+    const answered = apply(created(), onResponded(created(), at(5)))
+    expect(scanSignals(answered, HIGH, at(430))).toEqual([{ clock: "resolution", kind: "warning" }])
+    const paused = apply(answered, onPause(answered, at(100)))
+    expect(scanSignals(paused, HIGH, at(500))).toEqual([])
+    const resolved = apply(answered, onResolve(answered, at(200)))
+    expect(scanSignals(resolved, HIGH, at(10_000))).toEqual([])
+  })
+
+  it("measures a reopened ticket's warning from its new origin", () => {
+    const answered = apply(created(), onResponded(created(), at(5)))
+    const reopened = apply(answered, onReopen(answered, at(1000), HIGH))
+    expect(scanSignals(reopened, HIGH, at(1000 + 419))).toEqual([])
+    expect(scanSignals(reopened, HIGH, at(1000 + 420))).toEqual([{ clock: "resolution", kind: "warning" }])
   })
 })

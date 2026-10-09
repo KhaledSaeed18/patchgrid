@@ -148,3 +148,82 @@ export function clockView(state: SlaState, now: Date): { response: ClockView; re
     },
   }
 }
+
+export type SlaClock = "response" | "resolution"
+export type SlaSignal = { clock: SlaClock; kind: "warning" | "breach" }
+
+/**
+ * What the scan should flag on one ticket now (DOMAIN.md §4.3), from what it
+ * has already flagged — so a scan that runs twice signals nothing twice.
+ *
+ * - A running clock past its deadline is a **breach**, once.
+ * - One within its warning window is a **warning**, once — unless the window
+ *   opened at or before the clock's origin: a 15-minute target with a
+ *   20-minute warning would otherwise warn at the instant of creation.
+ *   (§4.3 says `createdAt`; the clock's origin is the same thing for the
+ *   response clock and the correct thing after a reopen moves the resolution
+ *   clock's.)
+ * - A breach found before its warning skips the warning: nobody needs to be
+ *   told a target is close once it has passed.
+ * - The response clock runs until a response or a resolution; the resolution
+ *   clock until a resolution, and not while paused.
+ */
+export function scanSignals(
+  state: Pick<
+    SlaState,
+    | "responseClockStartedAt"
+    | "resolutionClockStartedAt"
+    | "respondedAt"
+    | "resolvedAt"
+    | "pausedAt"
+    | "respondBy"
+    | "resolveBy"
+    | "responseBreached"
+    | "resolutionBreached"
+    | "responseWarningSentAt"
+    | "resolutionWarningSentAt"
+  >,
+  warnings: Pick<SlaPolicyTargets, "responseWarningMinutes" | "resolutionWarningMinutes">,
+  now: Date,
+): SlaSignal[] {
+  const signals: SlaSignal[] = []
+  const check = (
+    clock: SlaClock,
+    running: boolean,
+    origin: Date,
+    due: Date | null,
+    warningMinutes: number,
+    breached: boolean,
+    warned: boolean,
+  ) => {
+    if (!running || due === null || breached) return
+    if (now.getTime() >= due.getTime()) {
+      signals.push({ clock, kind: "breach" })
+      return
+    }
+    const warnAt = plus(due, -warningMinutes)
+    if (!warned && warnAt.getTime() > origin.getTime() && now.getTime() >= warnAt.getTime()) {
+      signals.push({ clock, kind: "warning" })
+    }
+  }
+  const resolved = state.resolvedAt !== null
+  check(
+    "response",
+    state.respondedAt === null && !resolved,
+    state.responseClockStartedAt,
+    state.respondBy,
+    warnings.responseWarningMinutes,
+    state.responseBreached,
+    state.responseWarningSentAt !== null,
+  )
+  check(
+    "resolution",
+    !resolved && state.pausedAt === null,
+    state.resolutionClockStartedAt,
+    state.resolveBy,
+    warnings.resolutionWarningMinutes,
+    state.resolutionBreached,
+    state.resolutionWarningSentAt !== null,
+  )
+  return signals
+}
