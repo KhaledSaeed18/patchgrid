@@ -137,6 +137,7 @@ model Organization {
   tickets        Ticket[]
   comments       Comment[]
   watchers       TicketWatcher[]
+  notifications  Notification[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -321,12 +322,14 @@ model Membership {
   invitationsCreated Invitation[]
   auditEntries       AuditLog[]
 
-  ticketsRequested Ticket[]        @relation("TicketRequester")
-  ticketsAssigned  Ticket[]        @relation("TicketAssignee")
-  commentsWritten  Comment[]       @relation("CommentAuthor")
-  commentsDeleted  Comment[]       @relation("CommentDeletedBy")
-  watching         TicketWatcher[] @relation("Watcher")
-  watchersAdded    TicketWatcher[] @relation("WatcherAddedBy")
+  ticketsRequested         Ticket[]        @relation("TicketRequester")
+  ticketsAssigned          Ticket[]        @relation("TicketAssignee")
+  commentsWritten          Comment[]       @relation("CommentAuthor")
+  commentsDeleted          Comment[]       @relation("CommentDeletedBy")
+  watching                 TicketWatcher[] @relation("Watcher")
+  watchersAdded            TicketWatcher[] @relation("WatcherAddedBy")
+  notifications            Notification[]  @relation("NotificationMembership")
+  notificationsAsRecipient Notification[]  @relation("NotificationRecipient")
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -504,6 +507,20 @@ enum TicketSource {
   API
 }
 
+/// What a notification is about (DOMAIN.md §8). The wire twin lives in contracts.
+enum NotificationType {
+  TICKET_CREATED
+  TICKET_RAISED_FOR_YOU
+  TICKET_ASSIGNED
+  COMMENT_PUBLIC
+  COMMENT_INTERNAL
+  STATUS_CHANGED
+  TICKET_REOPENED
+  WATCHER_ADDED
+  SLA_WARNING
+  SLA_BREACHED
+}
+
 enum CommentVisibility {
   PUBLIC
   INTERNAL
@@ -621,14 +638,15 @@ model Ticket {
   createdAt                DateTime                 @default(now()) @db.Timestamptz(3)
   updatedAt                DateTime                 @updatedAt @db.Timestamptz(3)
 
-  organization Organization    @relation(fields: [orgId], references: [id])
-  category     Category?       @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
-  requester    Membership      @relation("TicketRequester", fields: [orgId, requesterMembershipId], references: [orgId, id])
-  assignee     Membership?     @relation("TicketAssignee", fields: [orgId, assigneeMembershipId], references: [orgId, id], onDelete: Restrict)
-  team         Team?           @relation(fields: [orgId, teamId], references: [orgId, id], onDelete: Restrict)
-  slaPolicy    SLAPolicy?      @relation(fields: [orgId, slaPolicyId], references: [orgId, id], onDelete: Restrict)
-  comments     Comment[]
-  watchers     TicketWatcher[]
+  organization  Organization    @relation(fields: [orgId], references: [id])
+  category      Category?       @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
+  requester     Membership      @relation("TicketRequester", fields: [orgId, requesterMembershipId], references: [orgId, id])
+  assignee      Membership?     @relation("TicketAssignee", fields: [orgId, assigneeMembershipId], references: [orgId, id], onDelete: Restrict)
+  team          Team?           @relation(fields: [orgId, teamId], references: [orgId, id], onDelete: Restrict)
+  slaPolicy     SLAPolicy?      @relation(fields: [orgId, slaPolicyId], references: [orgId, id], onDelete: Restrict)
+  comments      Comment[]
+  watchers      TicketWatcher[]
+  notifications Notification[]
 
   @@unique([orgId, id])
   @@unique([orgId, type, number])
@@ -670,6 +688,39 @@ model Comment {
   /// Lets an attachment key on all three (ARCHITECTURE.md §Data model).
   @@unique([orgId, ticketId, id])
   @@index([orgId, ticketId, createdAt])
+}
+
+/// An in-app notification (DOMAIN.md §8), one row per recipient. `userId` is
+/// the delivery address — the one exception to "people are memberships"
+/// (ARCHITECTURE.md §Data model) — and `membershipId` ties it to this org.
+/// A `dedupeKey` collapses a burst: while one row with a key is unread, the
+/// next with the same key bumps its `count` instead of adding a row. The
+/// partial unique index is what makes that a constraint, not a hope.
+model Notification {
+  id           String           @id @default(uuid(7)) @db.Uuid
+  orgId        String           @db.Uuid
+  userId       String           @db.Uuid
+  membershipId String           @db.Uuid
+  type         NotificationType
+  title        String
+  body         String?
+  ticketId     String?          @db.Uuid
+  dedupeKey    String?
+  count        Int              @default(1)
+  readAt       DateTime?        @db.Timestamptz(3)
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  membership   Membership   @relation("NotificationMembership", fields: [orgId, membershipId], references: [orgId, id])
+  /// The delivery address must be a member of this org: the pair, not the bare user.
+  recipient    Membership   @relation("NotificationRecipient", fields: [orgId, userId], references: [orgId, userId])
+  /// Derived data: a ticket that goes takes its notifications with it.
+  ticket       Ticket?      @relation(fields: [orgId, ticketId], references: [orgId, id], onDelete: Cascade)
+
+  @@unique([orgId, id])
+  @@unique([orgId, membershipId, dedupeKey], where: raw("(\"readAt\" IS NULL)"), map: "Notification_unread_dedupe_key")
+  @@index([orgId, userId, readAt, createdAt(sort: Desc)])
 }
 
 /// Access and notifications that are not role-derived (RBAC.md §5). The

@@ -13,7 +13,7 @@ import type { Priority, Role } from "../generated/client/enums.ts"
  * Written as the owner role, because a seed is not a request — and shared by
  * `db:seed` (fixed slugs, for development) and the isolation suite (a random
  * suffix per run, so it never collides with the development data in the same
- * database). Ticket and category data join with their tables in M2.
+ * database). Ticket and category data joined with their tables in M2, notifications in M3.
  */
 
 export type LookalikeOptions = {
@@ -185,6 +185,18 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     await db.ticketWatcher.create({
       data: { orgId: org.id, ticketId: ticket.id, membershipId: members.dana ?? "", addedByMembershipId: members[agentKey] ?? "" },
     })
+    // The requester is told about the reply: the same title on both sides.
+    await db.notification.create({
+      data: {
+        orgId: org.id,
+        userId: people[requesterKey].userId,
+        membershipId: members[requesterKey] ?? "",
+        type: "COMMENT_PUBLIC",
+        title: "New reply on VPN drops every hour",
+        ticketId: ticket.id,
+        dedupeKey: `comment:${ticket.id}`,
+      },
+    })
 
     return {
       id: org.id,
@@ -205,6 +217,7 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
 export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: string[]; userIds: string[] }): Promise<void> {
   const { orgIds, userIds } = seeded
   await db.auditLog.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.notification.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketWatcher.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.comment.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticket.deleteMany({ where: { orgId: { in: orgIds } } })

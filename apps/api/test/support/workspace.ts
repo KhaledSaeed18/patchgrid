@@ -69,6 +69,7 @@ export async function seedWorkspace<P extends string>(
   const cleanup = async () => {
     const userIds = Object.values<Person>(people).map((p) => p.userId)
     await db.auditLog.deleteMany({ where: { orgId: org.id } })
+    await db.notification.deleteMany({ where: { orgId: org.id } })
     await db.invitation.deleteMany({ where: { orgId: org.id } })
     await db.teamMembership.deleteMany({ where: { orgId: org.id } })
     await db.membership.updateMany({ where: { orgId: org.id }, data: { invitedByMembershipId: null } })
