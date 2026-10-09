@@ -9,6 +9,8 @@ import {
   idSchema,
   type Ticket,
   ticketListQuerySchema,
+  ticketSearchQuerySchema,
+  type TicketSearchResult,
   type TicketPage,
   transitionRequestSchema,
   updateTicketRequestSchema,
@@ -28,6 +30,7 @@ class TicketParams extends createZodDto(z.object({ id: idSchema })) {}
 class CommentParams extends createZodDto(z.object({ id: idSchema, commentId: idSchema })) {}
 class WatcherParams extends createZodDto(z.object({ id: idSchema, membershipId: idSchema })) {}
 class ListDto extends createZodDto(ticketListQuerySchema) {}
+class SearchDto extends createZodDto(ticketSearchQuerySchema) {}
 class CreateDto extends createZodDto(createTicketRequestSchema) {}
 class UpdateDto extends createZodDto(updateTicketRequestSchema) {}
 class AssignDto extends createZodDto(assignTicketRequestSchema) {}
@@ -54,6 +57,13 @@ export class TicketsController {
   @RequirePermission("ticket:read")
   list(@Query() query: ListDto): Promise<TicketPage> {
     return this.tickets.list(query)
+  }
+
+  /** Declared before `:id`, which would otherwise read `search` as an id. */
+  @Get("search")
+  @RequirePermission("ticket:read")
+  search(@Query() query: SearchDto): Promise<TicketSearchResult> {
+    return this.tickets.search(query)
   }
 
   @Post()

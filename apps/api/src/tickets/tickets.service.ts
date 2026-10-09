@@ -9,10 +9,13 @@ import {
   type Ticket,
   type TicketListQuery,
   type TicketPage,
+  type TicketSearchQuery,
+  type TicketSearchResult,
   type TicketSource,
   type TicketStatus,
   type TransitionRequest,
   type UpdateTicketRequest,
+  parseTicketNumber,
 } from "@patchgrid/contracts"
 
 import { ActorService, type TenantActor } from "../auth/actor"
@@ -359,6 +362,40 @@ export class TicketsService {
           ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id })
           : null,
     }
+  }
+
+  /**
+   * Search (DOMAIN.md §9.1), through the same scope as a list — the classic
+   * agent-visibility leak is a search that forgets it. A query that reads as
+   * a ticket number is a direct hit first; only when none is visible does it
+   * fall through to full text (a bare `404` may well be in a title).
+   */
+  async search(query: TicketSearchQuery): Promise<TicketSearchResult> {
+    const actor = this.actors.requireTenantActor()
+    const orgId = this.tenant.requireOrgId()
+    this.permissions.assert(actor, "ticket:read", { own: true, watch: true, scope: true })
+
+    const filter = this.permissions.scopeFor(actor, "ticket", { agentVisibility: this.visibility() })
+    if (filter.kind === "none") return { items: [] }
+    const narrowing = {
+      ...(query.type === undefined ? {} : { type: query.type }),
+      ...(query.status === undefined ? {} : { status: query.status }),
+      scope: filter.kind === "all" ? null : filter.branches,
+    }
+
+    const number = parseTicketNumber(query.q)
+    const rows = await this.prisma.transaction(async () => {
+      if (number !== null && (number.type === null || query.type === undefined || number.type === query.type)) {
+        const hits = await this.tickets.findByNumber(orgId, number.number, {
+          ...narrowing,
+          ...(number.type === null ? {} : { type: number.type }),
+        })
+        if (hits.length > 0) return hits.slice(0, query.limit)
+      }
+      return this.tickets.search(orgId, query.q, narrowing, query.limit)
+    })
+    const now = this.clock.now()
+    return { items: rows.map((row) => toSummary(row, now)) }
   }
 
   /** The view's own narrowing, before scope; `null` for a view this actor has nothing in. */

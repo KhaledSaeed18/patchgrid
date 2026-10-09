@@ -75,7 +75,7 @@ function row(over: Partial<TicketRow> = {}): TicketRow {
 function harness(
   role: Role,
   ticket: TicketRow = row(),
-  options: { versionMatches?: boolean; branches?: TicketSummaryRow[][]; ownTeamOnly?: boolean; teamIds?: string[] } = {},
+  options: { versionMatches?: boolean; branches?: TicketSummaryRow[][]; ownTeamOnly?: boolean; teamIds?: string[]; byNumber?: TicketSummaryRow[] } = {},
 ) {
   const calls: string[] = []
   const actor: MemberActor = { kind: "member", userId: "u", orgId: ORG, membershipId: role === "REQUESTER" ? "m-req" : "m-agent", role, teamIds: options.teamIds ?? ["team-a"], leadOfTeamIds: [] }
@@ -94,6 +94,8 @@ function harness(
     create: vi.fn(async () => "t-new"),
     updateVersioned: vi.fn(async () => options.versionMatches ?? true),
     listBranch: vi.fn(async () => branchResults.shift() ?? []),
+    findByNumber: vi.fn(async () => options.byNumber ?? []),
+    search: vi.fn(async () => [row({ id: "t-text" })]),
   }
   const service = new TicketsService(
     tickets as unknown as TicketRepository,
@@ -220,5 +222,28 @@ describe("TicketsService.list", () => {
     const h = harness("AGENT", row(), { teamIds: [] })
     expect(await h.service.list({ view: "teams", limit: 25 })).toEqual({ items: [], nextCursor: null })
     expect(h.tickets.listBranch).not.toHaveBeenCalled()
+  })
+})
+
+describe("TicketsService.search", () => {
+  it("takes a visible ticket number as a direct hit, without full text", async () => {
+    const h = harness("AGENT", row(), { byNumber: [row({ id: "t-7" })] })
+    expect((await h.service.search({ q: "INC-7", limit: 25 })).items.map((t) => t.id)).toEqual(["t-7"])
+    expect(h.tickets.findByNumber).toHaveBeenCalledWith(ORG, 7, { type: "INCIDENT", scope: null })
+    expect(h.tickets.search).not.toHaveBeenCalled()
+  })
+
+  it("falls through to full text when no visible ticket has the number, or the type filter rules it out", async () => {
+    const missing = harness("AGENT")
+    expect((await missing.service.search({ q: "503", limit: 25 })).items.map((t) => t.id)).toEqual(["t-text"])
+    const otherType = harness("AGENT", row(), { byNumber: [row({ id: "t-7" })] })
+    await otherType.service.search({ q: "REQ-7", type: "INCIDENT", limit: 25 })
+    expect(otherType.tickets.findByNumber).not.toHaveBeenCalled()
+  })
+
+  it("hands the repository the actor's scope branches", async () => {
+    const h = harness("AGENT", row(), { ownTeamOnly: true })
+    await h.service.search({ q: "printer", limit: 25 })
+    expect(h.tickets.search).toHaveBeenCalledWith(ORG, "printer", { scope: expect.arrayContaining([{ kind: "no-team" }]) }, 25)
   })
 })
