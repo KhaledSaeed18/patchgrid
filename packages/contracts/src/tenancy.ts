@@ -15,7 +15,8 @@ import { slugSchema } from "./slug.ts"
 export const roleSchema = z.enum(["OWNER", "ADMIN", "AGENT", "REQUESTER"])
 export type Role = z.infer<typeof roleSchema>
 
-export const membershipStatusSchema = z.enum(["ACTIVE", "INVITED", "DISABLED"])
+/** ADR-0033: `INVITED` is not produced in v1; `REMOVED` is terminal and keeps history attributed. */
+export const membershipStatusSchema = z.enum(["ACTIVE", "INVITED", "DISABLED", "REMOVED"])
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>
 
 /** A service account is the actor behind an API token (ADR-0021). */
