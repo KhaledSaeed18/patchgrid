@@ -7,6 +7,8 @@ import { TeamsModule } from "../teams/teams.module"
 import { InvitationAcceptanceService } from "./acceptance/invitation-acceptance.service"
 import { InvitationsController } from "./invitations/invitations.controller"
 import { InvitationsService } from "./invitations/invitations.service"
+import { MeController } from "./me.controller"
+import { MeService } from "./me.service"
 import { MembersController } from "./members.controller"
 import { MembershipRepositoryModule } from "./membership-repository.module"
 import { MembersService } from "./members.service"
@@ -19,7 +21,7 @@ import { InvitationRepository } from "./repositories/invitation.repository"
  */
 @Module({
   imports: [AuthModule, PlatformModule, MailModule, MembershipRepositoryModule, TeamsModule],
-  controllers: [MembersController, InvitationsController],
-  providers: [InvitationRepository, MembersService, InvitationsService, InvitationAcceptanceService],
+  controllers: [MeController, MembersController, InvitationsController],
+  providers: [InvitationRepository, MeService, MembersService, InvitationsService, InvitationAcceptanceService],
 })
 export class MembershipsModule {}
