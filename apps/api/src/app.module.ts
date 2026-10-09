@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { CommonModule } from "./common/common.module"
 import { ProblemDetailsFilter } from "./common/problems/problem-details.filter"
 import { ZodValidationPipe } from "./common/problems/zod-validation.pipe"
+import { AuditModule } from "./audit/audit.module"
 import { AuthModule } from "./auth/auth.module"
 import { AuthzModule } from "./authz/authz.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
@@ -98,6 +99,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     AuthModule,
     AuthzModule,
     JobsModule,
+    AuditModule,
     MailModule,
     OrgsModule,
     HealthModule,
