@@ -67,6 +67,12 @@ account holds both workspaces open in two tabs; the isolation suite proves RLS b
 at the database level and that composite keys make cross-tenant references impossible; the authorization
 suite proves every route asserts a permission._
 
+**Met on 2026-10-09.** Walked in a real browser: signup on the marketing site, the verification link, the
+workspace created with the address chosen at signup, an agent invited and joined with a new account;
+the seeded Acme and Globex with Dana holding both open; `pnpm test:tenancy` and `pnpm test:authz` green
+as CI gates. One clause of the isolation suite — the dispatcher's fan-out — waits for the first
+per-tenant sweep in M2.
+
 - [x] **Threat model** (`docs/THREAT-MODEL.md`): assets, actors, trust boundaries, STRIDE per boundary.
       Written **first** — it informs the design rather than certifying it, and it is a one-page document.
       Findings TM-3…TM-5 decided in ADR-0031; TM-1 (attachment origin, M5) and TM-2 (platform actor, M8) open
@@ -126,9 +132,9 @@ suite proves every route asserts a permission._
       loaded `Subject` and nothing else (a lint zone forbids I/O under `src/authz`); `assert` is the 403,
       `assertVisible` the 404; service actors are role ∩ scopes. `capabilitiesFor` waits for its first
       subject, the ticket, in M2
-- [~] `GET /me` returning `{ user, membership, org, teams, permissions[] }`; `apps/app` renders from it.
-      The API half shipped 2026-10-09, with a spec holding two workspaces open as one account; the app
-      half lands with the `apps/app` item
+- [x] `GET /me` returning `{ user, membership, org, teams, permissions[] }`; `apps/app` renders from it.
+      Shipped 2026-10-09: a spec holds two workspaces open as one account; the app's `(tenant)` layout
+      reads it once per navigation into `TenantProvider`, and the navigation is drawn from it
 - [x] `Organization.agentVisibility` setting + `scopeFor()` unit tests (plumbed into real list queries in
       M2, where lists first exist). Shipped 2026-10-09 with the org settings: `GET/PATCH /org/settings`
       (name, notifications, agent visibility — its own audit action, and the cached summary invalidated)
@@ -161,10 +167,19 @@ suite proves every route asserts a permission._
       ADR-0031's signup path, and a Mailpit round-trip spec. Templates are React elements rendered by
       `@react-email/render`; the `@react-email/components` widget set is skipped — npm marks it
       unsupported
-- [ ] `apps/www`: landing, pricing, signup flow with live slug availability
-- [ ] `apps/app`: login, accept invite, reset, org picker, create workspace, `proxy.ts` host parsing,
-      `apiFetch` with tenant cookie selection + refresh-and-retry, `TenantProvider`
-- [ ] Admin UI: members list, invite, role changes, teams CRUD with lead, org settings (name, slug change)
+- [x] `apps/www`: landing, pricing, signup flow with live slug availability. Shipped 2026-10-09: the
+      landing page opens with the priority matrix working, from the contracts' `PRIORITY_MATRIX` and
+      `DEFAULT_SLA_TARGETS`; pricing renders `PLAN_LIMITS`; signup checks the address live and carries the
+      chosen workspace to `app.` in a non-secret cookie, since nothing is reserved before verification
+- [x] `apps/app`: login, accept invite, reset, org picker, create workspace, `proxy.ts` host parsing,
+      `apiFetch` with tenant cookie selection + refresh-and-retry, `TenantProvider`. Shipped 2026-10-09
+      under ADR-0035 (the browser owns the refresh): a pure, table-tested routing decision behind
+      `proxy.ts`; a server client that forwards only this workspace's cookie and redirects on 401, and a
+      browser client that refreshes once for every concurrent 401; verify-email, the invitation's three
+      cases, the picker with sign-out everywhere, workspace creation with the live check
+- [x] Admin UI: members list, invite, role changes, teams CRUD with lead, org settings (name, slug change).
+      Shipped 2026-10-09, plus usage against the plan and the audit log read as sentences. A page whose
+      data the role may not read renders the workspace's not-found page
 - [x] Seed: two orgs with similar data + a dual-member user. Shipped 2026-10-09: `seedLookalikes` in
       `packages/database` writes Acme and Globex with the same team names, display names, roles and an
       invitation to the same address, plus Dana (admin at one, agent at the other); `pnpm db:seed` is
