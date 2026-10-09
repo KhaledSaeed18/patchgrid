@@ -50,9 +50,13 @@ services:
       retries: 20
 
   minio:
-    # quay.io, not Docker Hub: MinIO's docker.io/minio/minio tags are no longer
-    # publicly pullable ("pull access denied"). quay.io is the working source.
-    image: quay.io/minio/minio:latest
+    # Chainguard's rebuild of MinIO from source. MinIO stopped publishing public
+    # images: docker.io/minio/minio is gone ("pull access denied") and quay.io
+    # now answers 401. The `-dev` variant carries the shell and `mc` the
+    # healthcheck and the init script use. It runs as a non-root user, which is
+    # why the volume was renamed: one created by the old root image is not
+    # writable by it.
+    image: cgr.dev/chainguard/minio:latest-dev
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -67,7 +71,7 @@ services:
       - "${MINIO_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - minio-data:/data
+      - object-data:/data
     healthcheck:
       test: ["CMD-SHELL", "mc ready local || exit 1"]
       interval: 5s
@@ -77,7 +81,7 @@ services:
   # One-shot: create the bucket and set CORS so the browser can PUT directly to
   # storage with a presigned URL (ADR-0005). Exits 0 and stays exited.
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: cgr.dev/chainguard/minio-client:latest-dev
     depends_on:
       minio:
         condition: service_healthy
@@ -108,4 +112,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  minio-data:
+  object-data:
