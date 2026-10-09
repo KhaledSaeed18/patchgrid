@@ -127,6 +127,8 @@ describe("1 · every list endpoint returns only the caller's org, for every role
     { path: "/teams", table: "Team", ids: (b) => (b as { id: string }[]).map((t) => t.id) },
     { path: "/invitations", table: "Invitation", ids: (b) => (b as { id: string }[]).map((i) => i.id) },
     { path: "/org/audit?limit=100", table: "AuditLog", ids: (b) => (b as { items: { id: string }[] }).items.map((e) => e.id) },
+    { path: "/tickets?view=open&limit=100", table: "Ticket", ids: (b) => (b as { items: { id: string }[] }).items.map((t) => t.id) },
+    { path: "/categories", table: "Category", ids: (b) => (b as { id: string }[]).map((c) => c.id) },
   ]
 
   it.each([
@@ -171,13 +173,24 @@ describe("2 · another org's id is a 404, never a 403", () => {
       ["rename a team", () => dana.patch(`/teams/${theirs.team}`, { name: "Hijacked" })],
       ["join their team", () => dana.put(`/teams/${theirs.team}/members/${ours.member}`)],
       ["pull their member into ours", () => dana.put(`/teams/${ours.team}/members/${theirs.member}`)],
+      ["read a ticket", () => dana.get(`/tickets/${seed.globex.ticketId}`)],
+      ["read its thread", () => dana.get(`/tickets/${seed.globex.ticketId}/comments`)],
+      ["read its trail", () => dana.get(`/tickets/${seed.globex.ticketId}/audit`)],
+      ["edit it", () => dana.patch(`/tickets/${seed.globex.ticketId}`, { version: 1, title: "Hijacked" })],
+      ["move it on", () => dana.post(`/tickets/${seed.globex.ticketId}/transitions`, { action: "resolve", version: 1, comment: { body: "x", visibility: "PUBLIC" } })],
+      ["comment on it", () => dana.post(`/tickets/${seed.globex.ticketId}/comments`, { body: "x", visibility: "PUBLIC" })],
+      ["watch it", () => dana.put(`/tickets/${seed.globex.ticketId}/watchers/${ours.member}`)],
+      ["file under their category", () => dana.post("/tickets", { type: "INCIDENT", title: "x", description: "y", impact: "LOW", urgency: "LOW", categoryId: seed.globex.categories.laptop })],
     ]
     for (const [what, attempt] of attempts) {
-      expect((await attempt()).status, what).toBe(404)
+      // Filing under a foreign category is a validation answer about the field, never a write.
+      expect((await attempt()).status, what).toBe(what === "file under their category" ? 400 : 404)
     }
     // And nothing moved on the other side.
     expect((await owner.membership.findUniqueOrThrow({ where: { id: theirs.member } })).status).toBe("ACTIVE")
     expect((await owner.team.findUniqueOrThrow({ where: { id: theirs.team } })).name).toBe("Network")
+    expect(await owner.ticket.findUniqueOrThrow({ where: { id: seed.globex.ticketId } })).toMatchObject({ title: "VPN drops every hour", status: "IN_PROGRESS" })
+    expect(await owner.comment.count({ where: { ticketId: seed.globex.ticketId } })).toBe(2)
   })
 })
 
