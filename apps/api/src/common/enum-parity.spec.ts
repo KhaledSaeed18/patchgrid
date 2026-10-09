@@ -10,6 +10,7 @@
 import {
   agentVisibilitySchema,
   auditActorKindSchema,
+  usageMetricSchema,
   membershipKindSchema,
   membershipStatusSchema,
   organizationStatusSchema,
@@ -19,6 +20,7 @@ import {
 import {
   AgentVisibility,
   AuditActorKind,
+  UsageMetric,
   MembershipKind,
   MembershipStatus,
   OrganizationStatus,
@@ -37,6 +39,7 @@ expectTypeOf<z.infer<typeof organizationStatusSchema>>().toEqualTypeOf<Values<ty
 expectTypeOf<z.infer<typeof planSchema>>().toEqualTypeOf<Values<typeof Plan>>()
 expectTypeOf<z.infer<typeof agentVisibilitySchema>>().toEqualTypeOf<Values<typeof AgentVisibility>>()
 expectTypeOf<z.infer<typeof auditActorKindSchema>>().toEqualTypeOf<Values<typeof AuditActorKind>>()
+expectTypeOf<z.infer<typeof usageMetricSchema>>().toEqualTypeOf<Values<typeof UsageMetric>>()
 
 describe("wire and storage enums", () => {
   it.each([
@@ -47,6 +50,7 @@ describe("wire and storage enums", () => {
     ["Plan", planSchema.options, Plan],
     ["AgentVisibility", agentVisibilitySchema.options, AgentVisibility],
     ["AuditActorKind", auditActorKindSchema.options, AuditActorKind],
+    ["UsageMetric", usageMetricSchema.options, UsageMetric],
   ] as const)("%s has the same values on both sides", (_name, wire, storage) => {
     expect([...wire]).toEqual(Object.values(storage))
   })
