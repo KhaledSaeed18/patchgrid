@@ -13,6 +13,7 @@ import type {
   OrganizationProvisioningRepository,
   ProvisionInput,
 } from "../repositories/organization-provisioning.repository"
+import type { SlugRegistryRepository } from "../repositories/slug-registry.repository"
 import { DEFAULT_TEAMS, ProvisioningService } from "./provisioning.service"
 
 const owner: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "owner@acme.test", name: "Owner", passwordHash: "h", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
@@ -22,8 +23,8 @@ const context = new TenantContextService(ClsServiceManager.getClsService<Request
 
 function harness(taken: string[] = []) {
   const provisioned: (ProvisionInput & { tenantInContext: string | undefined })[] = []
+  const slugs = { isTaken: vi.fn(async (slug: string) => taken.includes(slug)) }
   const repository = {
-    isSlugTaken: vi.fn(async (slug: string) => taken.includes(slug)),
     provision: vi.fn(async (input: ProvisionInput) => {
       provisioned.push({ ...input, tenantInContext: context.current()?.orgId })
       return taken.includes(input.slug) ? { outcome: "slug-taken" as const } : { outcome: "created" as const, membershipId: "mem-1" }
@@ -34,6 +35,7 @@ function harness(taken: string[] = []) {
   const sessions = { open: vi.fn(async (_u: string, slug: string) => [{ name: `pg_at_${slug}`, value: "t", path: "/", maxAgeSeconds: 1 }]) }
   const service = new ProvisioningService(
     repository as unknown as OrganizationProvisioningRepository,
+    slugs as unknown as SlugRegistryRepository,
     users as unknown as UserRepository,
     lookup as unknown as OrganizationLookupService,
     sessions as unknown as SessionService,

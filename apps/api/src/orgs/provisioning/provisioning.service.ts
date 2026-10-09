@@ -15,6 +15,7 @@ import { UserRepository } from "../../platform/repositories/user.repository"
 import { runAsTenant } from "../../platform/run-as-tenant"
 import { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
 import { OrganizationProvisioningRepository } from "../repositories/organization-provisioning.repository"
+import { SlugRegistryRepository } from "../repositories/slug-registry.repository"
 
 /** TENANCY.md §4. Categories, SLA policies and KB articles join when their tables exist (M2). */
 export const DEFAULT_TEAMS = ["IT Support", "Network", "Security"] as const
@@ -32,6 +33,7 @@ export class ProvisioningService {
 
   constructor(
     private readonly repository: OrganizationProvisioningRepository,
+    private readonly slugs: SlugRegistryRepository,
     private readonly users: UserRepository,
     private readonly lookup: OrganizationLookupService,
     private readonly sessions: SessionService,
@@ -42,7 +44,7 @@ export class ProvisioningService {
     const slug = candidate.trim().toLowerCase()
     const format = checkSlugFormat(slug)
     if (format !== null) return { slug, available: false, reason: format }
-    const taken = await this.repository.isSlugTaken(slug)
+    const taken = await this.slugs.isTaken(slug)
     return { slug, available: !taken, reason: taken ? "taken" : null }
   }
 
