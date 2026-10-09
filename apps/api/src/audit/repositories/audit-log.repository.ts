@@ -3,6 +3,28 @@ import type { AuditAction, AuditActorKind } from "@patchgrid/contracts"
 
 import { PrismaService } from "../../prisma/prisma.service"
 
+export type AuditListQuery = {
+  actorMembershipId?: string | undefined
+  action?: AuditAction | undefined
+  from?: Date | undefined
+  to?: Date | undefined
+  limit: number
+  /** Keyset: strictly older than this `(createdAt, id)`. */
+  before: { createdAt: Date; id: string } | null
+}
+
+export type AuditListRow = {
+  id: string
+  action: string
+  entityType: string
+  entityId: string
+  diff: unknown
+  actorKind: AuditActorKind
+  actorMembershipId: string | null
+  actorDisplayName: string | null
+  createdAt: Date
+}
+
 export type AuditRow = {
   entityType: string
   entityId: string
@@ -27,6 +49,42 @@ export class AuditLogRepository {
     await this.prisma.db.auditLog.createMany({
       data: rows.map((row) => ({ orgId, ...row, diff: row.diff as object })),
     })
+  }
+
+  /** Newest first; each filter rides an `orgId`-first index (ARCHITECTURE.md §Indexes). */
+  async list(orgId: string, query: AuditListQuery): Promise<AuditListRow[]> {
+    const rows = await this.prisma.db.auditLog.findMany({
+      where: {
+        orgId,
+        ...(query.actorMembershipId === undefined ? {} : { actorMembershipId: query.actorMembershipId }),
+        ...(query.action === undefined ? {} : { action: query.action }),
+        ...(query.from === undefined && query.to === undefined
+          ? {}
+          : { createdAt: { ...(query.from === undefined ? {} : { gte: query.from }), ...(query.to === undefined ? {} : { lt: query.to }) } }),
+        ...(query.before === null
+          ? {}
+          : {
+              OR: [
+                { createdAt: { lt: query.before.createdAt } },
+                { createdAt: query.before.createdAt, id: { lt: query.before.id } },
+              ],
+            }),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: query.limit,
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        diff: true,
+        actorKind: true,
+        actorMembershipId: true,
+        createdAt: true,
+        actor: { select: { displayName: true } },
+      },
+    })
+    return rows.map(({ actor, ...row }) => ({ ...row, actorDisplayName: actor?.displayName ?? null }))
   }
 
   /**
