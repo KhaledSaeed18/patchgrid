@@ -74,6 +74,15 @@ enum MembershipStatus {
   REMOVED
 }
 
+/// What `QuotaService` counts (TENANCY.md §8); mirrors `UsageMetric` in contracts.
+enum UsageMetric {
+  AGENT_SEATS
+  TICKETS_CREATED
+  STORAGE_BYTES
+  AUTOMATION_RULES
+  KB_ARTICLES
+}
+
 /// Who performed an audited change (DOMAIN.md §7) — so a token's or a platform
 /// admin's change is never misread as a colleague's.
 enum AuditActorKind {
@@ -120,6 +129,7 @@ model Organization {
   teamMembers   TeamMembership[]
   invitations   Invitation[]
   auditLogs     AuditLog[]
+  usageCounters UsageCounter[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -406,4 +416,22 @@ model AuditLog {
   @@index([orgId, entityType, entityId, createdAt(sort: Desc)])
   @@index([orgId, actorMembershipId, createdAt(sort: Desc)])
   @@index([orgId, action, createdAt(sort: Desc)])
+}
+
+/// Quota counters (TENANCY.md §8). Postgres is authoritative: enforcement is
+/// one conditional `UPDATE … WHERE value + n <= limit` inside the transaction
+/// that creates the thing being counted, so two creates at the limit cannot
+/// both succeed. `period` is `YYYY-MM` (UTC) for a monthly metric and
+/// `current` for a point-in-time one. No `id`: the key is the address.
+model UsageCounter {
+  orgId     String      @db.Uuid
+  period    String
+  metric    UsageMetric
+  /// BigInt: storage is counted in bytes and outgrows an int at 2 GiB.
+  value     BigInt      @default(0)
+  updatedAt DateTime    @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@id([orgId, period, metric])
 }
