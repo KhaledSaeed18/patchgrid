@@ -199,9 +199,18 @@ export type Ticket = z.infer<typeof ticketSchema>
 export const ticketViewSchema = z.enum(["mine", "assigned", "teams", "open", "unassigned"])
 export type TicketView = z.infer<typeof ticketViewSchema>
 
+/**
+ * The orders a list supports. Only creation time has an index behind it
+ * (ARCHITECTURE.md: a sort without a matching index is not a sort option), and
+ * the `(orgId, createdAt, id)` index serves both directions.
+ */
+export const ticketSortSchema = z.enum(["newest", "oldest"])
+export type TicketSort = z.infer<typeof ticketSortSchema>
+
 export const ticketListQuerySchema = paginationQuerySchema.extend({
   view: ticketViewSchema.default("mine"),
   status: ticketStatusSchema.optional(),
+  sort: ticketSortSchema.default("newest"),
 })
 export type TicketListQuery = z.infer<typeof ticketListQuerySchema>
 
