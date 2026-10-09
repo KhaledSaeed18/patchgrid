@@ -208,6 +208,32 @@ export type TicketListQuery = z.infer<typeof ticketListQuerySchema>
 export const ticketPageSchema = pageSchema(ticketSummarySchema)
 export type TicketPage = z.infer<typeof ticketPageSchema>
 
+/** The cap on a search (DOMAIN.md §9.1): ranked results do not page, so they narrow instead. */
+export const MAX_SEARCH_RESULTS = 100
+
+/**
+ * Full-text search over title and description, or a ticket number
+ * (`INC-000042`, `#42`, `42`) for a direct hit. The one documented exception
+ * to cursor pagination (ADR-0012): ranked, capped, filtered rather than paged.
+ */
+export const ticketSearchQuerySchema = z
+  .object({
+    q: z.string().trim().min(1).max(200),
+    type: ticketTypeSchema.optional(),
+    status: ticketStatusSchema.optional(),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_SEARCH_RESULTS, { error: `must be at most ${MAX_SEARCH_RESULTS}` })
+      .default(25),
+  })
+  .strict()
+export type TicketSearchQuery = z.infer<typeof ticketSearchQuerySchema>
+
+export const ticketSearchResultSchema = z.object({ items: z.array(ticketSummarySchema) })
+export type TicketSearchResult = z.infer<typeof ticketSearchResultSchema>
+
 export const commentSchema = z.object({
   id: idSchema,
   author: personSchema.nullable(),

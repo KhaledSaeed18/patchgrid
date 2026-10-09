@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { createTicketRequestSchema, transitionRequestSchema, updateTicketRequestSchema } from "./tickets.ts"
+import {
+  createTicketRequestSchema,
+  ticketSearchQuerySchema,
+  transitionRequestSchema,
+  updateTicketRequestSchema,
+} from "./tickets.ts"
 
 const base = { type: "INCIDENT", title: "VPN drops", description: "Every hour", impact: "MEDIUM", urgency: "HIGH" }
 
@@ -26,5 +31,14 @@ describe("ticket requests", () => {
       transitionRequestSchema.safeParse({ action: "wait", version: 2, comment: { body: "Need the serial", visibility: "PUBLIC" } }).success,
     ).toBe(true)
     expect(transitionRequestSchema.safeParse({ action: "wait", version: 2, status: "PENDING" }).success).toBe(false)
+  })
+})
+
+describe("ticket search", () => {
+  it("wants words to look for, and caps the results instead of paging them", () => {
+    expect(ticketSearchQuerySchema.safeParse({ q: "   " }).success).toBe(false)
+    expect(ticketSearchQuerySchema.parse({ q: " printer " })).toEqual({ q: "printer", limit: 25 })
+    expect(ticketSearchQuerySchema.safeParse({ q: "printer", limit: "101" }).success).toBe(false)
+    expect(ticketSearchQuerySchema.safeParse({ q: "printer", cursor: "x" }).success).toBe(false)
   })
 })
