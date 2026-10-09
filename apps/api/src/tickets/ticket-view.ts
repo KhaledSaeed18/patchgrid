@@ -13,9 +13,9 @@ const iso = (d: Date | null) => d?.toISOString() ?? null
 const person = (p: { id: string; displayName: string } | null) =>
   p === null ? null : { membershipId: p.id, displayName: p.displayName }
 
-/** The deadline that matters now: response until answered, then resolution; none once resolved. */
-function due(row: Pick<TicketSummaryRow, "respondBy" | "resolveBy" | "respondedAt" | "resolvedAt">): Date | null {
-  if (row.resolvedAt !== null) return null
+/** The deadline that matters now: response until answered, then resolution; none once resolved or cancelled. */
+function due(row: Pick<TicketSummaryRow, "status" | "respondBy" | "resolveBy" | "respondedAt" | "resolvedAt">): Date | null {
+  if (row.resolvedAt !== null || row.status === "CANCELLED") return null
   return row.respondedAt === null ? row.respondBy : row.resolveBy
 }
 
