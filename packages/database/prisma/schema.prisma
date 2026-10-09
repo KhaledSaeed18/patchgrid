@@ -580,41 +580,46 @@ model SLAPolicy {
 /// a reopen moves one forward and a later priority change cannot move it back
 /// (DOMAIN.md §4.2). Deadlines are stored, not derived on read.
 model Ticket {
-  id                       String       @id @default(uuid(7)) @db.Uuid
-  orgId                    String       @db.Uuid
+  id                       String                   @id @default(uuid(7)) @db.Uuid
+  orgId                    String                   @db.Uuid
   number                   Int
   type                     TicketType
   title                    String
   description              String
-  status                   TicketStatus @default(NEW)
+  status                   TicketStatus             @default(NEW)
   /// Optimistic concurrency: compared on every write, a mismatch is 409.
-  version                  Int          @default(1)
+  version                  Int                      @default(1)
   impact                   Impact
   urgency                  Urgency
   priority                 Priority
-  categoryId               String?      @db.Uuid
-  requesterMembershipId    String       @db.Uuid
-  assigneeMembershipId     String?      @db.Uuid
-  teamId                   String?      @db.Uuid
-  slaPolicyId              String?      @db.Uuid
-  responseClockStartedAt   DateTime     @db.Timestamptz(3)
-  resolutionClockStartedAt DateTime     @db.Timestamptz(3)
-  respondBy                DateTime?    @db.Timestamptz(3)
-  resolveBy                DateTime?    @db.Timestamptz(3)
-  respondedAt              DateTime?    @db.Timestamptz(3)
-  resolvedAt               DateTime?    @db.Timestamptz(3)
-  closedAt                 DateTime?    @db.Timestamptz(3)
-  cancelledAt              DateTime?    @db.Timestamptz(3)
-  pausedAt                 DateTime?    @db.Timestamptz(3)
-  pausedMinutes            Int          @default(0)
-  responseBreached         Boolean      @default(false)
-  resolutionBreached       Boolean      @default(false)
-  responseWarningSentAt    DateTime?    @db.Timestamptz(3)
-  resolutionWarningSentAt  DateTime?    @db.Timestamptz(3)
-  reopenCount              Int          @default(0)
+  categoryId               String?                  @db.Uuid
+  requesterMembershipId    String                   @db.Uuid
+  assigneeMembershipId     String?                  @db.Uuid
+  teamId                   String?                  @db.Uuid
+  slaPolicyId              String?                  @db.Uuid
+  responseClockStartedAt   DateTime                 @db.Timestamptz(3)
+  resolutionClockStartedAt DateTime                 @db.Timestamptz(3)
+  respondBy                DateTime?                @db.Timestamptz(3)
+  resolveBy                DateTime?                @db.Timestamptz(3)
+  respondedAt              DateTime?                @db.Timestamptz(3)
+  resolvedAt               DateTime?                @db.Timestamptz(3)
+  closedAt                 DateTime?                @db.Timestamptz(3)
+  cancelledAt              DateTime?                @db.Timestamptz(3)
+  pausedAt                 DateTime?                @db.Timestamptz(3)
+  pausedMinutes            Int                      @default(0)
+  responseBreached         Boolean                  @default(false)
+  resolutionBreached       Boolean                  @default(false)
+  responseWarningSentAt    DateTime?                @db.Timestamptz(3)
+  resolutionWarningSentAt  DateTime?                @db.Timestamptz(3)
+  reopenCount              Int                      @default(0)
   source                   TicketSource
-  createdAt                DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt                DateTime     @updatedAt @db.Timestamptz(3)
+  /// GENERATED ALWAYS from title and description in the migration — Prisma
+  /// cannot declare a generated column, and never writes this one.
+  /// The expression is written as Postgres deparses it, which Prisma reads as a
+  /// default; anything else and the drift check reports a change.
+  searchVector             Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, COALESCE(title, ''::text)), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, COALESCE(description, ''::text)), 'B'::\"char\"))"))
+  createdAt                DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                 @updatedAt @db.Timestamptz(3)
 
   organization Organization    @relation(fields: [orgId], references: [id])
   category     Category?       @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
@@ -633,6 +638,7 @@ model Ticket {
   @@index([orgId, teamId, status])
   @@index([orgId, requesterMembershipId, createdAt(sort: Desc)])
   @@index([orgId, categoryId])
+  @@index([searchVector], type: Gin)
   /// The SLA scan's two questions, over open tickets only. The predicate is
   /// written as Postgres deparses it, or the drift check reads a difference.
   @@index([orgId, resolveBy], where: raw("(\"resolveBy\" IS NOT NULL) AND (status = ANY (ARRAY['NEW'::\"TicketStatus\", 'ASSIGNED'::\"TicketStatus\", 'IN_PROGRESS'::\"TicketStatus\", 'PENDING'::\"TicketStatus\"]))"), map: "Ticket_open_resolveBy_idx")
