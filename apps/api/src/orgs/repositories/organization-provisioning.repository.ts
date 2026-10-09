@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common"
+import type { Priority } from "@patchgrid/contracts"
 
 import { PrismaService } from "../../prisma/prisma.service"
 import { SlugRegistryRepository } from "./slug-registry.repository"
@@ -11,6 +12,12 @@ export type ProvisionInput = {
   domain: string | null
   owner: { userId: string; displayName: string }
   teams: readonly string[]
+  /** Top-level categories, their children, and the team each routes to by default. */
+  categories: readonly { name: string; team: string | null; children: readonly string[] }[]
+  /** Per priority, applied to Incidents and Service Requests alike (DOMAIN.md §4.1). */
+  slaTargets: Readonly<
+    Record<Priority, { response: number; responseWarning: number; resolution: number; resolutionWarning: number }>
+  >
   now: Date
 }
 
@@ -21,8 +28,9 @@ export type ProvisionResult =
 
 /**
  * The provisioning transaction (TENANCY.md §4): the organization, its owner's
- * membership, the picker's projection row, the default teams and the seat
- * counter with the owner in it — or nothing.
+ * membership, the picker's projection row, the default teams, the starter
+ * category tree routed to them, the eight SLA policies, and the seat counter
+ * with the owner in it — or nothing.
  *
  * Runs inside `runAsTenant(orgId)`, so the tenant-owned rows are written under
  * RLS exactly as any request would write them. Uniqueness is decided under a
@@ -71,6 +79,37 @@ export class OrganizationProvisioningRepository {
         },
       })
       await tx.team.createMany({ data: input.teams.map((name) => ({ orgId: input.orgId, name })) })
+      const teamIds = new Map(
+        (await tx.team.findMany({ where: { orgId: input.orgId }, select: { id: true, name: true } })).map((t) => [t.name, t.id]),
+      )
+      for (const [sortOrder, category] of input.categories.entries()) {
+        const parent = await tx.category.create({
+          data: {
+            orgId: input.orgId,
+            name: category.name,
+            depth: 1,
+            sortOrder,
+            defaultTeamId: category.team === null ? null : (teamIds.get(category.team) ?? null),
+          },
+          select: { id: true },
+        })
+        await tx.category.createMany({
+          data: category.children.map((name, i) => ({ orgId: input.orgId, name, depth: 2, parentId: parent.id, sortOrder: i })),
+        })
+      }
+      await tx.sLAPolicy.createMany({
+        data: (["INCIDENT", "SERVICE_REQUEST"] as const).flatMap((ticketType) =>
+          (Object.entries(input.slaTargets) as [Priority, ProvisionInput["slaTargets"][Priority]][]).map(([priority, t]) => ({
+            orgId: input.orgId,
+            ticketType,
+            priority,
+            responseTargetMinutes: t.response,
+            resolutionTargetMinutes: t.resolution,
+            responseWarningMinutes: t.responseWarning,
+            resolutionWarningMinutes: t.resolutionWarning,
+          })),
+        ),
+      })
       // The owner is the first seat (TENANCY.md §8); the counter starts true.
       await tx.usageCounter.create({ data: { orgId: input.orgId, period: "current", metric: "AGENT_SEATS", value: 1n } })
 

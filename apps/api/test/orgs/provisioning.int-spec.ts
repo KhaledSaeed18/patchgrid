@@ -72,6 +72,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const orgIds = (await owner.organization.findMany({ where: { slug: { in: [slug, racedSlug, `former-${suffix}`] } }, select: { id: true } })).map((o) => o.id)
+  await owner.sLAPolicy.deleteMany({ where: { orgId: { in: orgIds } } })
+  await owner.category.deleteMany({ where: { orgId: { in: orgIds }, parentId: { not: null } } })
+  await owner.category.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.team.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.usageCounter.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.refreshToken.deleteMany({ where: { userId } })
@@ -115,6 +118,11 @@ describe("workspace provisioning", () => {
     expect(org?.userOrgIndex[0]).toMatchObject({ userId, roleForDisplay: "OWNER", orgSlug: slug, orgName: "Acme" })
     const seats = await owner.usageCounter.findUnique({ where: { orgId_period_metric: { orgId: org?.id ?? "", period: "current", metric: "AGENT_SEATS" } } })
     expect(seats?.value).toBe(1n)
+    // The starter taxonomy, routed, and the eight SLA policies (TENANCY.md §4).
+    const network = await owner.category.findFirstOrThrow({ where: { orgId: org?.id ?? "", name: "Network", parentId: null }, include: { children: true, defaultTeam: true } })
+    expect(network.defaultTeam?.name).toBe("Network")
+    expect(network.children.map((c) => c.name).toSorted()).toEqual(["Other", "VPN", "Wi-Fi"])
+    expect(await owner.sLAPolicy.count({ where: { orgId: org?.id ?? "" } })).toBe(8)
 
     // The session it opened works on the new tenant, as its owner.
     const access = cookies.find((c) => c.startsWith(`pg_at_${slug}=`))?.split(";")[0] ?? ""

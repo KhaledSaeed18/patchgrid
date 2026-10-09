@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common"
 import {
   checkSlugFormat,
+  DEFAULT_SLA_TARGETS,
   type CreateOrganizationRequest,
   type CreateOrganizationResponse,
   type SlugAvailability,
@@ -17,8 +18,19 @@ import { OrganizationLookupService } from "../../tenancy/organization-lookup.ser
 import { OrganizationProvisioningRepository } from "../repositories/organization-provisioning.repository"
 import { SlugRegistryRepository } from "../repositories/slug-registry.repository"
 
-/** TENANCY.md §4. Categories, SLA policies and KB articles join when their tables exist (M2). */
+/** TENANCY.md §4. Starter knowledge-base articles join with the knowledge base. */
 export const DEFAULT_TEAMS = ["IT Support", "Network", "Security"] as const
+
+/**
+ * A starter taxonomy an IT desk recognises on day one, each branch routed to
+ * the default team that would work it. Admins rename, extend or deactivate it.
+ */
+export const DEFAULT_CATEGORIES = [
+  { name: "Hardware", team: "IT Support", children: ["Laptop", "Printer", "Phone", "Other"] },
+  { name: "Software", team: "IT Support", children: ["Email", "Access request", "Installation", "Other"] },
+  { name: "Network", team: "Network", children: ["VPN", "Wi-Fi", "Other"] },
+  { name: "Security", team: "Security", children: ["Phishing", "Lost or stolen device", "Other"] },
+] as const satisfies readonly { name: string; team: (typeof DEFAULT_TEAMS)[number]; children: readonly string[] }[]
 
 /**
  * Workspace creation (ADR-0017). The caller is a verified `pg_id` holder and
@@ -67,6 +79,8 @@ export class ProvisioningService {
         domain: request.domain ?? null,
         owner: { userId, displayName: account.name },
         teams: DEFAULT_TEAMS,
+        categories: DEFAULT_CATEGORIES,
+        slaTargets: DEFAULT_SLA_TARGETS,
         now: this.clock.now(),
       }),
     )
