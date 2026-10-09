@@ -1,3 +1,4 @@
+import { BullModule } from "@nestjs/bullmq"
 import { Module } from "@nestjs/common"
 
 import { AuthModule } from "../auth/auth.module"
@@ -9,15 +10,23 @@ import { CommentsService } from "./comments.service"
 import { CommentRepository } from "./repositories/comment.repository"
 import { TicketRepository } from "./repositories/ticket.repository"
 import { WatcherRepository } from "./repositories/watcher.repository"
+import { AutoCloseProcessor, AutoCloseService } from "./sweeps/auto-close"
 import { TicketAccess } from "./ticket-access"
 import { TicketAuditService } from "./ticket-audit.service"
 import { TicketsController } from "./tickets.controller"
 import { TicketsService } from "./tickets.service"
 import { WatchersService } from "./watchers.service"
 
-/** The incident lifecycle (M2): tickets, their thread, their watchers, their trail. */
+/** The incident lifecycle (M2): tickets, their thread, their watchers, their trail — and their sweeps (M3). */
 @Module({
-  imports: [AuthModule, CategoriesModule, MembershipRepositoryModule, SlaModule, TeamsModule],
+  imports: [
+    AuthModule,
+    BullModule.registerQueue({ name: "auto-close" }),
+    CategoriesModule,
+    MembershipRepositoryModule,
+    SlaModule,
+    TeamsModule,
+  ],
   controllers: [TicketsController],
   providers: [
     TicketRepository,
@@ -28,6 +37,8 @@ import { WatchersService } from "./watchers.service"
     CommentsService,
     WatchersService,
     TicketAuditService,
+    AutoCloseService,
+    AutoCloseProcessor,
   ],
 })
 export class TicketsModule {}

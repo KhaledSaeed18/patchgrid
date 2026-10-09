@@ -169,6 +169,19 @@ export class TicketRepository {
   }
 
   /**
+   * Resolved tickets whose resolution is at least as old as `cutoff`, oldest
+   * first — the auto-close sweep's work list, a batch at a time.
+   */
+  async findResolvedBefore(orgId: string, cutoff: Date, limit: number): Promise<{ id: string; version: number }[]> {
+    return this.prisma.db.ticket.findMany({
+      where: { orgId, status: "RESOLVED", resolvedAt: { lte: cutoff } },
+      orderBy: [{ resolvedAt: "asc" }, { id: "asc" }],
+      take: limit,
+      select: { id: true, version: true },
+    })
+  }
+
+  /**
    * One branch of a scoped list (ADR-0025): an index-friendly query for the
    * branch's column, keyset-paged on (createdAt, id) in either direction. The service runs one per
    * branch and merges — a UNION ALL done in two passes, without raw SQL.
