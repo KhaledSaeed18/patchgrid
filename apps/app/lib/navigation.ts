@@ -27,6 +27,12 @@ const SECTIONS: NavSection[] = [
       },
       { label: "Teams", href: "/settings/teams", requires: "team:read" },
       {
+        label: "Categories",
+        href: "/settings/categories",
+        requires: "category:write",
+      },
+      { label: "SLA targets", href: "/settings/sla", requires: "sla:write" },
+      {
         label: "Audit log",
         href: "/settings/audit",
         requires: "org:read_audit",
