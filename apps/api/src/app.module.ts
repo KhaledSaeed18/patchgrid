@@ -21,6 +21,7 @@ import { OrgsModule } from "./orgs/orgs.module"
 import { PrismaModule } from "./prisma/prisma.module"
 import { QuotaModule } from "./quota/quota.module"
 import { RedisModule } from "./redis/redis.module"
+import { SlaModule } from "./sla/sla.module"
 import { TeamsModule } from "./teams/teams.module"
 import { TenantContextService } from "./tenancy/tenant-context.service"
 import { TenancyModule } from "./tenancy/tenancy.module"
@@ -110,6 +111,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     MembershipsModule,
     TeamsModule,
     CategoriesModule,
+    SlaModule,
     HealthModule,
   ],
   providers: [

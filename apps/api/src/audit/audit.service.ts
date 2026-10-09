@@ -7,7 +7,7 @@ import { AuditLogRepository, type AuditRow } from "./repositories/audit-log.repo
 
 export type AuditEntry = {
   action: AuditAction
-  entityType: "Membership" | "Invitation" | "Team" | "Organization"
+  entityType: "Membership" | "Invitation" | "Team" | "Organization" | "SLAPolicy" | "Ticket" | "Comment"
   entityId: string
   /** `{ field: { from, to } }` for a change; context for an event. Never a secret. */
   diff?: Record<string, unknown>

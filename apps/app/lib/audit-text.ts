@@ -26,6 +26,7 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   ORG_SETTINGS_UPDATED: "updated the workspace settings",
   ORG_SLUG_CHANGED: "changed the workspace address",
   AGENT_VISIBILITY_CHANGED: "changed what agents can see",
+  SLA_POLICY_CHANGED: "changed an SLA policy",
 }
 
 export function actorName(entry: AuditEntry): string {
