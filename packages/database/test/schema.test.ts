@@ -214,9 +214,28 @@ describe("2 · composite tenant foreign keys", () => {
         )
       ).map((r) => r.relname),
     )
-    expect(tenantTables.filter((t) => withId.has(t) && !unique.has(t))).toEqual([])
+    // A partitioned table's unique keys must include its partition key, so
+    // `(orgId, id)` cannot exist on one — or on its partitions. That is safe
+    // only because nothing may reference such a table; the next test holds it.
+    const partitioned = await partitionedTables()
+    expect(tenantTables.filter((t) => withId.has(t) && !unique.has(t) && !partitioned.has(t))).toEqual([])
+  })
+
+  it("no foreign key references a partitioned table or a partition (ADR-0034)", async () => {
+    const partitioned = await partitionedTables()
+    const bad = (await foreignKeys()).filter((fk) => partitioned.has(fk.to)).map((fk) => fk.name)
+    expect(bad).toEqual([])
   })
 })
+
+/** Partitioned parents and their partitions, by catalog fact rather than by name. */
+async function partitionedTables(): Promise<Set<string>> {
+  const found = await rows<{ relname: string }>(
+    `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND (c.relkind = 'p' OR c.relispartition)`,
+  )
+  return new Set(found.map((r) => r.relname))
+}
 
 describe("3 · timestamps", () => {
   it("there are zero `timestamp without time zone` columns", async () => {
