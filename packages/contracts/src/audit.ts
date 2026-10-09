@@ -25,6 +25,7 @@ export const auditActionSchema = z.enum([
   "ORG_SETTINGS_UPDATED",
   "ORG_SLUG_CHANGED",
   "AGENT_VISIBILITY_CHANGED",
+  "SLA_POLICY_CHANGED",
 ])
 export type AuditAction = z.infer<typeof auditActionSchema>
 

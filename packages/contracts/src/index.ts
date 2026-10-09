@@ -11,6 +11,7 @@
 
 export * from "./audit.ts"
 export * from "./auth.ts"
+export * from "./categories.ts"
 export * from "./cookies.ts"
 export * from "./id.ts"
 export * from "./limits.ts"
