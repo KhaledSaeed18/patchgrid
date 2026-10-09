@@ -188,7 +188,7 @@ per-tenant sweep in M2.
 - [x] **Tenancy isolation suite** (`ENGINEERING.md`) — all thirteen assertions, wired as a CI gate.
       `pnpm test:tenancy` (its own step in the CI `schema` job) runs the catalog assertions (7, 10, 11)
       then the suite over `seedLookalikes` with a suffix per run. One clause waits: assertion 8's
-      dispatcher fan-out lands with `tenant-dispatch`, the first per-tenant sweep, in M2
+      dispatcher fan-out lands with `tenant-dispatch`, the first per-tenant sweep, in M3
 
 ## M2 — Incident lifecycle (the heart)
 
@@ -196,6 +196,14 @@ _Exit: a requester submits an Incident from the portal; it gets a per-org number
 deadlines and a routed team; an agent assigns, replies publicly, adds an internal note, moves to pending
 and back, resolves; the requester closes or reopens; two agents editing the same ticket get a clean
 conflict; every step is audit-logged; transition table, priority matrix and SLA clock are unit-tested._
+
+**Met on 2026-10-09.** Walked in a real browser against the seeded workspaces: Rita raises an incident
+from the portal (no priority field) and gets `INC-000002` with a computed priority and deadlines; Sam
+takes it from the unassigned queue, starts, replies, adds an internal note, waits on the requester and
+resumes, resolves with the required note (refused without one); Rita closes it. Sam and Dana editing one
+ticket: the second save is a `409` and a reload. Every step is in the ticket's audit trail; the domain
+rules are unit-tested and the lifecycle, visibility, search and idempotency are integration-tested.
+Sort is creation time only, either direction — the one order with an index behind it.
 
 - [x] Data: `TicketCounter`, `Ticket` (with clock origins, `version`, `searchVector`), `Category`,
       `SLAPolicy`, `Comment`, `TicketWatcher`, `AuditLog` (partitioned) — all tenant-owned, all with
@@ -213,10 +221,10 @@ conflict; every step is audit-logged; transition table, priority matrix and SLA 
       with a multi-team agent
 - [x] Ticket search: generated `tsvector`, GIN index, number short-circuit, scope-filtered, ranked
 - [x] Audit log written in-transaction; `GET /tickets/:id/audit`
-- [ ] Portal: new incident form (no priority field), my tickets, ticket detail, close/reopen
-- [ ] Console: queues (mine, my teams, all open, unassigned), URL-driven filters/sort, detail with full
+- [x] Portal: new incident form (no priority field), my tickets, ticket detail, close/reopen
+- [x] Console: queues (mine, my teams, all open, unassigned), URL-driven filters/sort, detail with full
       thread, assign/reassign, valid-only transition buttons, SLA countdown + breach badge
-- [ ] Seed: categories, default SLA policies, ~30 incidents per org with varied ages and statuses
+- [x] Seed: categories, default SLA policies, ~30 incidents per org with varied ages and statuses
 
 ## M3 — Time and attention
 
