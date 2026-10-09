@@ -1,0 +1,6 @@
+# Reviewed false positives, by fingerprint (commit:file:rule:line). Each entry
+# needs a reason; a real secret is rotated and purged, never listed here.
+
+# The integration specs' JWT_SECRET default — a fixed, public test value that
+# signs nothing outside a test process (apps/api/test/support/env.ts).
+d28dce4bbd091aadd03c65db0ed5ab942b90968a:apps/api/test/support/env.ts:generic-api-key:18
