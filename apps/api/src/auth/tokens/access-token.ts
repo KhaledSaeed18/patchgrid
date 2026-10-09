@@ -1,24 +1,15 @@
 import { idSchema, roleSchema } from "@patchgrid/contracts"
 import { z } from "zod"
 
-/**
- * The access token and the cookies that carry it (ADR-0024).
- *
- * Cookies are per tenant — `pg_at_<slug>` — so two workspaces can be open in
- * two tabs without fighting over one cookie. The slug is in the NAME, which is
- * what lets a slug change re-mint under the new name and expire the old one in
- * one response.
- */
-export const ACCESS_COOKIE_PREFIX = "pg_at_"
-export const REFRESH_COOKIE_PREFIX = "pg_rt_"
-/** Tenant-less identity, a `RefreshToken` row with `orgId = NULL` (ADR-0031). */
-export const IDENTITY_COOKIE = "pg_id"
-
-/** Only the auth routes ever receive the refresh cookie (ADR-0004, ADR-0024). */
-export const REFRESH_COOKIE_PATH = "/api/v1/auth"
-
-export const accessCookieName = (slug: string): string => `${ACCESS_COOKIE_PREFIX}${slug}`
-export const refreshCookieName = (slug: string): string => `${REFRESH_COOKIE_PREFIX}${slug}`
+/** The access token (ADR-0024). The cookies that carry it are named in `@patchgrid/contracts`. */
+export {
+  ACCESS_COOKIE_PREFIX,
+  accessCookieName,
+  IDENTITY_COOKIE,
+  REFRESH_COOKIE_PATH,
+  REFRESH_COOKIE_PREFIX,
+  refreshCookieName,
+} from "@patchgrid/contracts"
 
 /** Bound to exactly one organization (TENANCY.md §6). */
 export const accessTokenClaimsSchema = z.object({

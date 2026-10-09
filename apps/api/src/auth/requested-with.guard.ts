@@ -1,4 +1,5 @@
 import { type CanActivate, type ExecutionContext, Injectable } from "@nestjs/common"
+import { REQUESTED_WITH } from "@patchgrid/contracts"
 import type { Request } from "express"
 
 import { NotPermittedProblem } from "../common/problems/problem.exception"
@@ -22,7 +23,7 @@ export class RequestedWithGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>()
     if (SAFE_METHODS.has(request.method)) return true
     if (typeof request.headers.authorization === "string") return true
-    if (request.headers["x-requested-with"] === "patchgrid") return true
+    if (request.headers["x-requested-with"] === REQUESTED_WITH) return true
     throw new NotPermittedProblem("Mutating requests must carry X-Requested-With: patchgrid")
   }
 }
