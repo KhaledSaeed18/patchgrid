@@ -95,9 +95,16 @@ suite proves every route asserts a permission._
       link completing signup and starting the session, resend, password reset and change ending every
       session. Two full-stack lifecycle specs drive it all through the booted app. Throttling (its own
       item) is still to come
-- [ ] Org provisioning: slug validation + availability, transactional creation, default
+- [x] Org provisioning: slug validation + availability, transactional creation, default
       teams/categories/**eight** SLA policies/KB, idempotent `provision-org` job; one org per unverified
-      user
+      user. Shipped 2026-10-05: `POST /orgs` (`@TenantOptional`, a verified `pg_id` holder becomes the
+      owner) writes `Organization`, the owner `Membership`, the `UserOrgIndex` row and the three default
+      teams in one transaction inside `runAsTenant` on an id minted up front; uniqueness across current
+      and retired slugs is decided under a transaction-scoped advisory lock on the slug (`409` to the
+      loser, proven with two simultaneous creators); the response sets the new workspace's cookie pair.
+      Public, throttled `GET /orgs/slug-available` names the reason a slug is not free. Unverified
+      accounts create **no** org — stricter than "one". Categories, SLA policies and KB defaults join
+      with their M2 tables, and with them the `provision-org` job: nothing is slow enough for it yet
 - [ ] Membership: invite (org-bearing token), accept, disable, remove, change role; last-owner protection
       **under a row lock**; org switcher minting tenant-bound cookie pairs
 - [ ] Teams: CRUD, `TeamMembership`, lead assignment, "manage own team's members" for leads
