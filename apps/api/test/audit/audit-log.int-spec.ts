@@ -43,10 +43,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await app.close()
+  // Rows first: a boot that failed leaves no app to close, and must not leave rows either.
   await owner.auditLog.deleteMany({ where: { orgId } })
   for (const name of PARTITIONS) await owner.$executeRawUnsafe(`DROP TABLE IF EXISTS "${name}"`)
   await owner.organization.delete({ where: { id: orgId } })
+  await app?.close()
   await owner.$disconnect()
 })
 
