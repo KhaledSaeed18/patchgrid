@@ -345,6 +345,9 @@ importers:
         specifier: ^8.23.0
         version: 8.23.0
     devDependencies:
+      '@node-rs/argon2':
+        specifier: ^2.2.1
+        version: 2.2.1
       '@patchgrid/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config

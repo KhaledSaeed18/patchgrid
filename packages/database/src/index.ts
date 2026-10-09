@@ -17,6 +17,15 @@ export {
   type TenantTransactionClient,
 } from "./tenant-client.ts"
 export { PLATFORM_TABLES, isTenantOwned } from "./table-classes.ts"
+export {
+  type Lookalikes,
+  type LookalikeOptions,
+  lookalikeEmails,
+  removeLookalikes,
+  seedLookalikes,
+  type SeededOrg,
+  type SeededPerson,
+} from "./lookalikes.ts"
 
 export type PrismaClientOptions = {
   /** A libpq connection string. The application always passes DATABASE_URL. */
