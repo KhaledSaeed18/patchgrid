@@ -5,7 +5,7 @@ import Link from "next/link"
 import { AuthShell } from "@/components/auth-shell"
 import { FormAlert } from "@/components/form-alert"
 import { serverIdentity } from "@/lib/api/server"
-import { API_URL } from "@/lib/config"
+import { API_URL, ROOT_DOMAIN } from "@/lib/config"
 
 import { AcceptAsMember, CreateAccountAndJoin } from "./accept"
 
@@ -52,7 +52,7 @@ export default async function InvitePage({
           You&rsquo;re invited to join as {ROLE_NAMES[preview.role]}. The
           workspace lives at{" "}
           <span className="font-mono text-foreground">
-            {preview.organization.slug}
+            {preview.organization.slug}.{ROOT_DOMAIN}
           </span>
           .
         </>
