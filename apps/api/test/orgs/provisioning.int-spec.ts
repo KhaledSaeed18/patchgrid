@@ -71,6 +71,7 @@ beforeAll(async () => {
 afterAll(async () => {
   const orgIds = (await owner.organization.findMany({ where: { slug: { in: [slug, racedSlug, `former-${suffix}`] } }, select: { id: true } })).map((o) => o.id)
   await owner.team.deleteMany({ where: { orgId: { in: orgIds } } })
+  await owner.usageCounter.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.refreshToken.deleteMany({ where: { userId } })
   await owner.userOrgIndex.deleteMany({ where: { userId } })
   await owner.membership.deleteMany({ where: { userId } })
@@ -110,6 +111,8 @@ describe("workspace provisioning", () => {
     expect(org?.memberships).toHaveLength(1)
     expect(org?.memberships[0]).toMatchObject({ userId, role: "OWNER", status: "ACTIVE", kind: "HUMAN", displayName: "Founder" })
     expect(org?.userOrgIndex[0]).toMatchObject({ userId, roleForDisplay: "OWNER", orgSlug: slug, orgName: "Acme" })
+    const seats = await owner.usageCounter.findUnique({ where: { orgId_period_metric: { orgId: org?.id ?? "", period: "current", metric: "AGENT_SEATS" } } })
+    expect(seats?.value).toBe(1n)
 
     // The session it opened works on the new tenant, as its owner.
     const access = cookies.find((c) => c.startsWith(`pg_at_${slug}=`))?.split(";")[0] ?? ""

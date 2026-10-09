@@ -128,6 +128,7 @@ afterAll(async () => {
     await db.membership.deleteMany({ where: { orgId } })
     await db.userOrgIndex.deleteMany({ where: { orgId } })
     await db.team.deleteMany({ where: { orgId } })
+    await db.usageCounter.deleteMany({ where: { orgId } })
     await db.refreshToken.deleteMany({ where: { userId: { in: userIds } } })
     await db.organization.delete({ where: { id: orgId } })
   }

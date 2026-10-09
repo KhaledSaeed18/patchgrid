@@ -62,6 +62,10 @@ export async function seedWorkspace<P extends string>(
     }
   }
 
+  // The seat counter as provisioning would have left it (TENANCY.md §8).
+  const seats = Object.values<Role>(options.people).filter((role) => role !== "REQUESTER").length
+  await db.usageCounter.create({ data: { orgId: org.id, period: "current", metric: "AGENT_SEATS", value: BigInt(seats) } })
+
   const cleanup = async () => {
     const userIds = Object.values<Person>(people).map((p) => p.userId)
     await db.auditLog.deleteMany({ where: { orgId: org.id } })
@@ -71,6 +75,7 @@ export async function seedWorkspace<P extends string>(
     await db.membership.deleteMany({ where: { orgId: org.id } })
     await db.team.deleteMany({ where: { orgId: org.id } })
     await db.userOrgIndex.deleteMany({ where: { orgId: org.id } })
+    await db.usageCounter.deleteMany({ where: { orgId: org.id } })
     await db.refreshToken.deleteMany({ where: { userId: { in: userIds } } })
     await db.organization.delete({ where: { id: org.id } })
     await db.user.deleteMany({ where: { id: { in: userIds } } })
