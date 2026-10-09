@@ -41,3 +41,27 @@ export type CommentVisibility = z.infer<typeof commentVisibilitySchema>
 
 export const commentAuthorKindSchema = z.enum(["MEMBER", "SERVICE", "SYSTEM", "AUTOMATION"])
 export type CommentAuthorKind = z.infer<typeof commentAuthorKindSchema>
+
+/**
+ * Every action the transitions endpoint accepts (ADR-0006, DOMAIN.md §2).
+ * Which of them a given ticket offers is the server's answer in
+ * `availableActions`, never re-derived by a client.
+ */
+export const ticketActionSchema = z.enum([
+  "assign",
+  "start",
+  "wait",
+  "resume",
+  "resolve",
+  "close",
+  "reopen",
+  "cancel",
+  // Problem and Change, with their milestones:
+  "workaround",
+  "submit",
+  "approve",
+  "reject",
+  "complete",
+  "rollback",
+])
+export type TicketAction = z.infer<typeof ticketActionSchema>
