@@ -16,6 +16,7 @@ import { type Algorithm, hash } from "@node-rs/argon2"
 import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
 
 import { createPrismaClient, lookalikeEmails, removeLookalikes, seedLookalikes } from "../src/index.ts"
+import { seedDemoTickets } from "./demo-tickets.ts"
 
 try {
   process.loadEnvFile(path.join(import.meta.dirname, "../../../.env"))
@@ -46,8 +47,12 @@ async function main(): Promise<void> {
     const argon2id: Algorithm = 2
     const passwordHash = await hash(DEMO_PASSWORD, { algorithm: argon2id })
     const seeded = await seedLookalikes(db, { slugs: SLUGS, emailSuffix: "", passwordHash, slaTargets: DEFAULT_SLA_TARGETS })
+    const pick = (members: Record<string, string>, keys: string[]) => keys.flatMap((k) => members[k] ?? [])
+    const tickets =
+      (await seedDemoTickets(db, seeded.acme, { requesters: pick(seeded.acme.members, ["rita"]), agents: pick(seeded.acme.members, ["sam", "dana", "alice"]) }, 1)) +
+      (await seedDemoTickets(db, seeded.globex, { requesters: pick(seeded.globex.members, ["rosa"]), agents: pick(seeded.globex.members, ["tina", "dana", "gus"]) }, 2))
 
-    console.log("seed: acme and globex are ready — every account's password is", JSON.stringify(DEMO_PASSWORD))
+    console.log(`seed: acme and globex are ready, with ${tickets} demo incidents — every account's password is`, JSON.stringify(DEMO_PASSWORD))
     for (const [key, person] of Object.entries(seeded.people)) console.log(`  ${key.padEnd(6)} ${person.email}`)
     console.log("  dana is an admin at http://acme.lvh.me:3001 and an agent at http://globex.lvh.me:3001")
   } finally {
