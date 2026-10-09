@@ -11,6 +11,7 @@
     "test": "turbo test",
     "test:schema": "pnpm --filter @patchgrid/database run test:schema",
     "test:authz": "pnpm --filter @patchgrid/api run test:authz",
+    "test:tenancy": "pnpm test:schema && pnpm --filter @patchgrid/api run test:tenancy",
     "db:bootstrap": "pnpm --filter @patchgrid/database run bootstrap",
     "db:generate": "pnpm --filter @patchgrid/database run generate",
     "db:migrate": "pnpm --filter @patchgrid/database run migrate",

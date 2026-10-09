@@ -255,17 +255,15 @@ jobs:
       - name: API integration specs against the live schema
         run: pnpm --filter @patchgrid/api run test:integration
 
+      # The isolation suite (ENGINEERING.md), a release gate: two lookalike
+      # workspaces and a dual member through the booted app — every list, every
+      # foreign id, tossed cookies, RLS under raw SQL, WITH CHECK, quotas per
+      # org. The catalog assertions it also names ran above as test:schema.
+      - name: Tenancy isolation suite
+        run: pnpm --filter @patchgrid/api run test:tenancy
+
       # The migrations, replayed into the shadow database, must produce exactly
       # schema.prisma. A schema edit without its migration fails here.
       - name: Migrations match schema.prisma
         run: pnpm --filter @patchgrid/database run migrations:drift
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # TODO (M1), and deliberately absent rather than vacuously green:
-  #
-  #   · pnpm test:tenancy  — the isolation suite (ENGINEERING.md), a release gate
-  #   · pnpm test:authz    — the permission matrix and route-coverage test
-  #
-  # A job that passes because it has nothing to check is worse than no job: it
-  # reports a guarantee that does not exist.
-  # ───────────────────────────────────────────────────────────────────────────
