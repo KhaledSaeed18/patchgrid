@@ -28,6 +28,13 @@ for (const [name, value] of Object.entries(defaults)) {
   if (process.env[name] === undefined || process.env[name] === "") process.env[name] = value
 }
 
+// Specs get their own Redis database. A `pnpm dev` API on the same Redis is
+// another worker on the same queues, and would take the mail jobs a spec is
+// waiting for; idempotency keys and throttle counters would mix too.
+const redis = new URL(process.env.REDIS_URL ?? defaults.REDIS_URL ?? "")
+redis.pathname = "/1"
+process.env.REDIS_URL = redis.toString()
+
 export function requireEnv(name: string): string {
   const value = process.env[name]
   if (value === undefined || value === "") throw new Error(`${name} is required`)
