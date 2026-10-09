@@ -77,7 +77,11 @@ export function TicketDetail({
         <StatusBadge status={ticket.status} />
         <PriorityBadge priority={ticket.priority} />
         {ticket.dueAt !== null && ticket.capabilities.canAssign && (
-          <DueBadge dueAt={ticket.dueAt} breached={ticket.breached} />
+          <DueBadge
+            dueAt={ticket.dueAt}
+            breached={ticket.breached}
+            paused={ticket.status === "PENDING"}
+          />
         )}
       </div>
       <h1 className="mt-3 max-w-3xl font-serif text-2xl tracking-tight text-pretty">

@@ -41,7 +41,9 @@ export function TicketTable({
           ) : (
             <TableHead>Handled by</TableHead>
           )}
-          <TableHead className="text-right">Updated</TableHead>
+          {columns === "portal" && (
+            <TableHead className="text-right">Updated</TableHead>
+          )}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -50,7 +52,7 @@ export function TicketTable({
             <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
               {ticket.number}
             </TableCell>
-            <TableCell className="max-w-md">
+            <TableCell className="max-w-xs">
               <Link
                 href={`/tickets/${ticket.id}`}
                 className="block truncate font-medium hover:underline"
@@ -73,7 +75,11 @@ export function TicketTable({
                   {ticket.assignee?.displayName ?? ticket.team?.name ?? "—"}
                 </TableCell>
                 <TableCell>
-                  <DueBadge dueAt={ticket.dueAt} breached={ticket.breached} />
+                  <DueBadge
+                    dueAt={ticket.dueAt}
+                    breached={ticket.breached}
+                    paused={ticket.status === "PENDING"}
+                  />
                 </TableCell>
               </>
             ) : (
@@ -83,9 +89,11 @@ export function TicketTable({
                   "Not picked up yet"}
               </TableCell>
             )}
-            <TableCell className="text-right text-muted-foreground">
-              <RelativeTime at={ticket.updatedAt} />
-            </TableCell>
+            {columns === "portal" && (
+              <TableCell className="text-right text-muted-foreground">
+                <RelativeTime at={ticket.updatedAt} />
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>
