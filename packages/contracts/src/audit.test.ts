@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest"
 import { auditActionSchema, auditQuerySchema } from "./audit.ts"
 
 const RBAC = readFileSync(new URL("../../../docs/RBAC.md", import.meta.url), "utf8")
+const DOMAIN = readFileSync(new URL("../../../docs/DOMAIN.md", import.meta.url), "utf8")
 
 describe("the audit catalogue", () => {
-  it("names only actions RBAC.md §12 lists", () => {
-    const section = RBAC.slice(RBAC.indexOf("## 12."), RBAC.indexOf("## 13."))
+  it("names only actions RBAC.md §12 or DOMAIN.md §7 lists", () => {
+    const section =
+      RBAC.slice(RBAC.indexOf("## 12."), RBAC.indexOf("## 13.")) +
+      DOMAIN.slice(DOMAIN.indexOf("## 7."), DOMAIN.indexOf("## 8."))
     // `TEAM_CREATED/UPDATED/DELETED` abbreviates three actions.
     const listed = new Set(
       [...section.matchAll(/`([A-Z_]+(?:\/[A-Z_]+)*)`/g)].flatMap((m) => {

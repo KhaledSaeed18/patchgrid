@@ -27,6 +27,17 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   ORG_SLUG_CHANGED: "changed the workspace address",
   AGENT_VISIBILITY_CHANGED: "changed what agents can see",
   SLA_POLICY_CHANGED: "changed an SLA policy",
+  TICKET_CREATED: "raised a ticket",
+  TICKET_UPDATED: "edited a ticket",
+  TICKET_ASSIGNED: "assigned a ticket",
+  TICKET_TRANSITIONED: "moved a ticket on",
+  COMMENT_ADDED: "commented on a ticket",
+  COMMENT_EDITED: "edited a comment",
+  COMMENT_DELETED: "removed a comment",
+  WATCHER_ADDED: "added a watcher",
+  WATCHER_REMOVED: "removed a watcher",
+  SLA_WARNING: "flagged a ticket close to its deadline",
+  SLA_BREACHED: "flagged a missed deadline",
 }
 
 export function actorName(entry: AuditEntry): string {

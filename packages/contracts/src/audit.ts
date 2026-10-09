@@ -6,7 +6,6 @@ import { pageSchema, paginationQuerySchema } from "./pagination.ts"
 /**
  * The audit catalogue (DOMAIN.md §7, RBAC.md §12). Stored as a string so it
  * grows without a migration, and validated here so it cannot grow by typo.
- * Ticket actions join with the ticket module in M2.
  */
 export const auditActionSchema = z.enum([
   "MEMBER_INVITED",
@@ -26,6 +25,17 @@ export const auditActionSchema = z.enum([
   "ORG_SLUG_CHANGED",
   "AGENT_VISIBILITY_CHANGED",
   "SLA_POLICY_CHANGED",
+  "TICKET_CREATED",
+  "TICKET_UPDATED",
+  "TICKET_ASSIGNED",
+  "TICKET_TRANSITIONED",
+  "COMMENT_ADDED",
+  "COMMENT_EDITED",
+  "COMMENT_DELETED",
+  "WATCHER_ADDED",
+  "WATCHER_REMOVED",
+  "SLA_WARNING",
+  "SLA_BREACHED",
 ])
 export type AuditAction = z.infer<typeof auditActionSchema>
 

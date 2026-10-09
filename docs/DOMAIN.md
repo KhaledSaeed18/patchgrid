@@ -293,6 +293,10 @@ What matters for the rules in *this* file:
   attachment added/removed, link added/removed, watcher added/removed, SLA warning/breach, approval
   decisions. Written in the same database transaction as the change. Never deleted within its retention
   window; partitioned monthly and aged out per plan (`ARCHITECTURE.md` §Data model).
+- The ticket actions, by name: `TICKET_CREATED`, `TICKET_UPDATED` (field diffs), `TICKET_ASSIGNED`,
+  `TICKET_TRANSITIONED` (`{ action, from, to }`), `COMMENT_ADDED`, `COMMENT_EDITED`, `COMMENT_DELETED`,
+  `WATCHER_ADDED`, `WATCHER_REMOVED`, `SLA_WARNING`, `SLA_BREACHED`. The catalogue in
+  `@patchgrid/contracts` is held to this list and to `RBAC.md` §12 by a test.
 - Authorization-relevant changes across the whole org (role changes, invitations, team leadership, org
   settings, tokens, support sessions) are audited into the same log — the catalogue of actions is in
   `RBAC.md` §12.
