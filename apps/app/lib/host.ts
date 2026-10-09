@@ -7,7 +7,10 @@ import { slugSchema } from "@patchgrid/contracts"
  * the API and the signup form use, so a label this calls a tenant is one the
  * API could resolve.
  */
-export type HostKind = { kind: "app" } | { kind: "tenant"; slug: string } | { kind: "foreign" }
+export type HostKind =
+  | { kind: "app" }
+  | { kind: "tenant"; slug: string }
+  | { kind: "foreign" }
 
 export function parseHost(host: string | null, rootDomain: string): HostKind {
   if (host === null) return { kind: "foreign" }
@@ -17,6 +20,7 @@ export function parseHost(host: string | null, rootDomain: string): HostKind {
   const label = hostname.slice(0, -suffix.length)
   if (label === "app") return { kind: "app" }
   // The slug schema also refuses reserved labels — `api`, `www`, `admin` are never a workspace.
-  if (label.includes(".") || !slugSchema.safeParse(label).success) return { kind: "foreign" }
+  if (label.includes(".") || !slugSchema.safeParse(label).success)
+    return { kind: "foreign" }
   return { kind: "tenant", slug: label }
 }

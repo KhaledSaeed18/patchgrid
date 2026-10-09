@@ -23,6 +23,10 @@ const APP_PATHS: Record<string, "public" | "identity"> = {
   "/new": "identity",
 }
 
+/** Set by the proxy only — a client that sends them has them overwritten — and read by server components. */
+export const SLUG_HEADER = "x-patchgrid-slug"
+export const PATH_HEADER = "x-patchgrid-path"
+
 /** Where the browser refreshes its own token; reachable without one, by definition. */
 export const REFRESH_PATH = "/session/refresh"
 
@@ -52,26 +56,40 @@ export function decideRoute(input: RouteInput): RouteDecision {
   if (host.kind === "foreign") return { kind: "not-found" }
 
   if (host.kind === "app") {
-    if (input.pathname === "/") return { kind: "redirect", to: hasIdentity ? "/workspaces" : "/login" }
+    if (input.pathname === "/")
+      return { kind: "redirect", to: hasIdentity ? "/workspaces" : "/login" }
     const access = APP_PATHS[page]
     if (access === undefined) return { kind: "not-found" }
     if (access === "identity" && !hasIdentity) {
-      return { kind: "redirect", to: `/login?next=${encodeURIComponent(input.pathname + input.search)}` }
+      return {
+        kind: "redirect",
+        to: `/login?next=${encodeURIComponent(input.pathname + input.search)}`,
+      }
     }
     return { kind: "next", slug: null }
   }
 
   // A workspace host asked for a tenant-less page: send it to app., where it lives.
-  if (APP_PATHS[page] !== undefined) return { kind: "redirect", to: `${input.appOrigin}${input.pathname}${input.search}` }
+  if (APP_PATHS[page] !== undefined)
+    return {
+      kind: "redirect",
+      to: `${input.appOrigin}${input.pathname}${input.search}`,
+    }
   if (input.pathname === REFRESH_PATH) return { kind: "next", slug: host.slug }
 
   const back = input.pathname + input.search
   const access = input.cookies(`pg_at_${host.slug}`)
   if (access === undefined && !hasIdentity) {
-    return { kind: "redirect", to: `${input.appOrigin}/login?next=${encodeURIComponent(input.origin + back)}` }
+    return {
+      kind: "redirect",
+      to: `${input.appOrigin}/login?next=${encodeURIComponent(input.origin + back)}`,
+    }
   }
   if (needsRefresh(access, input.nowSeconds)) {
-    return { kind: "redirect", to: `${REFRESH_PATH}?next=${encodeURIComponent(back)}` }
+    return {
+      kind: "redirect",
+      to: `${REFRESH_PATH}?next=${encodeURIComponent(back)}`,
+    }
   }
   return { kind: "next", slug: host.slug }
 }

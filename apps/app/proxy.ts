@@ -1,11 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { appOrigin, ROOT_DOMAIN } from "@/lib/config"
-import { decideRoute } from "@/lib/routing"
-
-/** Set by the proxy only; a client that sends them has them overwritten. */
-export const SLUG_HEADER = "x-patchgrid-slug"
-export const PATH_HEADER = "x-patchgrid-path"
+import { decideRoute, PATH_HEADER, SLUG_HEADER } from "@/lib/routing"
 
 /**
  * Host routing and the session gate (ADR-0014, ADR-0035). The decision is
@@ -32,12 +28,18 @@ export function proxy(request: NextRequest): NextResponse {
     case "redirect":
       return NextResponse.redirect(new URL(decision.to, request.url))
     case "not-found":
-      return new NextResponse("Not found", { status: 404, headers: { "content-type": "text/plain" } })
+      return new NextResponse("Not found", {
+        status: 404,
+        headers: { "content-type": "text/plain" },
+      })
     case "next": {
       const headers = new Headers(request.headers)
       headers.delete(SLUG_HEADER)
       if (decision.slug !== null) headers.set(SLUG_HEADER, decision.slug)
-      headers.set(PATH_HEADER, request.nextUrl.pathname + request.nextUrl.search)
+      headers.set(
+        PATH_HEADER,
+        request.nextUrl.pathname + request.nextUrl.search
+      )
       return NextResponse.next({ request: { headers } })
     }
   }

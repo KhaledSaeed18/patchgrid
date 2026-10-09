@@ -10,8 +10,16 @@ export function tokenExpiresAt(token: string): number | null {
   const [, payload] = token.split(".")
   if (payload === undefined) return null
   try {
-    const claims: unknown = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")))
-    if (typeof claims !== "object" || claims === null || !("exp" in claims) || typeof claims.exp !== "number") return null
+    const claims: unknown = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    )
+    if (
+      typeof claims !== "object" ||
+      claims === null ||
+      !("exp" in claims) ||
+      typeof claims.exp !== "number"
+    )
+      return null
     return claims.exp
   } catch {
     return null
@@ -21,7 +29,10 @@ export function tokenExpiresAt(token: string): number | null {
 /** Refresh a little early, so a page does not start rendering on a token that lapses mid-render. */
 export const REFRESH_SKEW_SECONDS = 60
 
-export function needsRefresh(token: string | undefined, nowSeconds: number): boolean {
+export function needsRefresh(
+  token: string | undefined,
+  nowSeconds: number
+): boolean {
   if (token === undefined || token === "") return true
   const exp = tokenExpiresAt(token)
   return exp === null || exp - REFRESH_SKEW_SECONDS <= nowSeconds
