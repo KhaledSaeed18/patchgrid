@@ -1,12 +1,25 @@
-import { Placeholder } from "@/components/placeholder"
+import { organizationSettingsSchema, usageSchema } from "@patchgrid/contracts"
+import type { Metadata } from "next"
 
-export default function AdminSettingsPage() {
+import { PageHeader } from "@/components/page-header"
+import { serverApi } from "@/lib/api/server"
+
+import { WorkspaceSettings } from "./workspace-settings"
+
+export const metadata: Metadata = { title: "Workspace settings" }
+
+export default async function SettingsPage() {
+  const [settings, usage] = await Promise.all([
+    serverApi("/org/settings", { schema: organizationSettingsSchema }),
+    serverApi("/org/usage", { schema: usageSchema }),
+  ])
   return (
-    <Placeholder surface="admin" milestone="M1">
-      Members and roles, teams and leads, then the organization itself.
-      Owner-only actions — slug, plan, ownership transfer, deletion, granting a
-      support session — are separated because they are the ones that cannot be
-      undone.
-    </Placeholder>
+    <>
+      <PageHeader
+        title="Workspace settings"
+        description="How this workspace is named, addressed and run."
+      />
+      <WorkspaceSettings initial={settings} usage={usage} />
+    </>
   )
 }
