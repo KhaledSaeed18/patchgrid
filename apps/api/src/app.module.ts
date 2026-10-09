@@ -17,6 +17,7 @@ import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
 import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
 import { JobsModule } from "./jobs/jobs.module"
+import { NotificationsModule } from "./notifications/notifications.module"
 import { MailModule } from "./mail/mail.module"
 import { MembershipsModule } from "./memberships/memberships.module"
 import { OrgsModule } from "./orgs/orgs.module"
@@ -115,6 +116,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     MembershipsModule,
     TeamsModule,
     CategoriesModule,
+    NotificationsModule,
     SlaModule,
     TicketsModule,
     IdempotencyModule,
