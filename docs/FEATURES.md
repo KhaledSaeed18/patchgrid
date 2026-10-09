@@ -197,22 +197,22 @@ deadlines and a routed team; an agent assigns, replies publicly, adds an interna
 and back, resolves; the requester closes or reopens; two agents editing the same ticket get a clean
 conflict; every step is audit-logged; transition table, priority matrix and SLA clock are unit-tested._
 
-- [ ] Data: `TicketCounter`, `Ticket` (with clock origins, `version`, `searchVector`), `Category`,
+- [x] Data: `TicketCounter`, `Ticket` (with clock origins, `version`, `searchVector`), `Category`,
       `SLAPolicy`, `Comment`, `TicketWatcher`, `AuditLog` (partitioned) — all tenant-owned, all with
       policies and composite keys
 - [ ] Admin UI: category tree (3 levels, unique per parent, soft-delete only, default team), SLA policies
-- [ ] Ticket service: create (per-org numbering, priority, SLA targets, category routing, atomic quota
+- [x] Ticket service: create (per-org numbering, priority, SLA targets, category routing, atomic quota
       check, `Idempotency-Key`), update with optimistic `version`, Incident transition table, reopen,
       cancel, create-on-behalf
-- [ ] `POST /tickets/:id/transitions` with required comments on `wait` / `resolve` / `cancel`, returning
+- [x] `POST /tickets/:id/transitions` with required comments on `wait` / `resolve` / `cancel`, returning
       `availableActions` **and** `capabilities` (ADR-0006, `RBAC.md` §7)
-- [ ] Comments: public vs internal, 15-minute edit window, soft delete, with an integration test proving
+- [x] Comments: public vs internal, 15-minute edit window, soft delete, with an integration test proving
       a requester-scoped query can never return an internal note
-- [ ] Watchers: add/remove self and others, implicit requester/assignee, watcher read scope
-- [ ] `scopeFor()` plumbed into every list query as a `UNION ALL` of branches; `OWN_TEAM_ONLY` exercised
+- [x] Watchers: add/remove self and others, implicit requester/assignee, watcher read scope
+- [x] `scopeFor()` plumbed into every list query as a `UNION ALL` of branches; `OWN_TEAM_ONLY` exercised
       with a multi-team agent
-- [ ] Ticket search: generated `tsvector`, GIN index, number short-circuit, scope-filtered, ranked
-- [ ] Audit log written in-transaction; `GET /tickets/:id/audit`
+- [x] Ticket search: generated `tsvector`, GIN index, number short-circuit, scope-filtered, ranked
+- [x] Audit log written in-transaction; `GET /tickets/:id/audit`
 - [ ] Portal: new incident form (no priority field), my tickets, ticket detail, close/reopen
 - [ ] Console: queues (mine, my teams, all open, unassigned), URL-driven filters/sort, detail with full
       thread, assign/reassign, valid-only transition buttons, SLA countdown + breach badge

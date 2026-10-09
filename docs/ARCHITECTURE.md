@@ -326,7 +326,8 @@ Ticket(orgId, requesterMembershipId, createdAt DESC)
 Ticket(orgId, categoryId)
 Ticket(orgId, resolveBy)  WHERE status IN (open states) AND resolveBy IS NOT NULL   -- SLA scan
 Ticket(orgId, respondBy)  WHERE respondedAt IS NULL                                  -- SLA scan
-GIN Ticket(orgId, searchVector)
+GIN Ticket(searchVector)                        -- orgId is the query's other predicate; a
+                                                -- composite GIN would need btree_gin
 Comment(orgId, ticketId, createdAt)
 Attachment(orgId, ticketId)
 TicketWatcher(orgId, membershipId)              -- "tickets I watch"
