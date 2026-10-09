@@ -105,18 +105,34 @@ suite proves every route asserts a permission._
       Public, throttled `GET /orgs/slug-available` names the reason a slug is not free. Unverified
       accounts create **no** org — stricter than "one". Categories, SLA policies and KB defaults join
       with their M2 tables, and with them the `provision-org` job: nothing is slow enough for it yet
-- [ ] Membership: invite (org-bearing token), accept, disable, remove, change role; last-owner protection
-      **under a row lock**; org switcher minting tenant-bound cookie pairs
+- [x] Membership: invite (org-bearing token), accept, disable, remove, change role; last-owner protection
+      **under a row lock**; org switcher minting tenant-bound cookie pairs. Shipped 2026-10-09 (ADR-0033):
+      `REMOVED` as a terminal status that keeps history attributed; `GET/POST/DELETE /invitations`, public
+      `GET /invitations/preview` and `POST /invitations/accept-new`, tenant-optional `POST
+      /invitations/accept`; `GET /members[/:id]`, `PATCH /members/:id/role`, `POST /members/:id/disable|enable`,
+      `DELETE /members/:id`. Every change locks the organization row, mirrors `UserOrgIndex`, audits and
+      bumps the epoch in one transaction; a full-stack spec proves the lifecycle and two owners demoting
+      each other at once. Seat limits join with `QuotaService`
 - [ ] Teams: CRUD, `TeamMembership`, lead assignment, "manage own team's members" for leads
-- [ ] `authz` module: unified permission catalog/matrix in `@patchgrid/contracts`, pure
+- [x] `authz` module: unified permission catalog/matrix in `@patchgrid/contracts`, pure
       `PermissionService` (`can` / `assert` / `scopeFor` / `permissionsFor` / `capabilitiesFor`),
-      `@RequirePermission` guard, deny-by-default, branch-shaped `ScopeFilter` (ADR-0019, ADR-0025)
+      `@RequirePermission` guard, deny-by-default, branch-shaped `ScopeFilter` (ADR-0019, ADR-0025).
+      Shipped 2026-10-09, built before membership because its routes needed it: the matrix is data in
+      contracts, held cell by cell to `RBAC.md` §6 by a test that parses the document; `can()` reads a
+      loaded `Subject` and nothing else (a lint zone forbids I/O under `src/authz`); `assert` is the 403,
+      `assertVisible` the 404; service actors are role ∩ scopes. `capabilitiesFor` waits for its first
+      subject, the ticket, in M2
 - [ ] `GET /me` returning `{ user, membership, org, teams, permissions[] }`; `apps/app` renders from it
 - [ ] `Organization.agentVisibility` setting + `scopeFor()` unit tests (plumbed into real list queries in
       M2, where lists first exist)
-- [ ] Org-wide audit actions (`RBAC.md` §12) and `GET /org/audit` with its indexes
-- [ ] **Authorization suite**: exhaustive matrix test, deny-by-default, route-coverage reflection test,
-      escalation negatives including concurrent last-owner demotion — wired as a CI gate
+- [~] Org-wide audit actions (`RBAC.md` §12) and `GET /org/audit` with its indexes. The partitioned
+      `AuditLog` (ADR-0034), `AuditService` and the member and invitation actions are in; `GET /org/audit`,
+      team and settings actions are next
+- [x] **Authorization suite**: exhaustive matrix test, deny-by-default, route-coverage reflection test,
+      escalation negatives including concurrent last-owner demotion — wired as a CI gate. `pnpm
+      test:authz` (its own `verify` step) drives every role × permission through satisfying and failing
+      subjects and walks the module graph for unmarked routes; the concurrent demotion is in the
+      membership lifecycle spec under `test:integration`
 - [ ] `QuotaService` + `UsageCounter` with atomic conditional increments (seats first; ticket volume in
       M2); Postgres authoritative, Redis a display cache
 - [x] Throttling on `/auth/*`, signup and slug lookup, per IP **before** tenant resolution. Shipped
