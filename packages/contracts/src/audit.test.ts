@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
 
-import { auditActionSchema } from "./audit.ts"
+import { auditActionSchema, auditQuerySchema } from "./audit.ts"
 
 const RBAC = readFileSync(new URL("../../../docs/RBAC.md", import.meta.url), "utf8")
 
@@ -18,5 +18,14 @@ describe("the audit catalogue", () => {
       }),
     )
     expect(auditActionSchema.options.filter((a) => !listed.has(a))).toEqual([])
+  })
+})
+
+describe("the audit query", () => {
+  it("pages by default, filters by known actions only, and wants a range in order", () => {
+    expect(auditQuerySchema.parse({})).toEqual({ limit: 25 })
+    expect(auditQuerySchema.safeParse({ action: "MEMBER_EXPLODED" }).success).toBe(false)
+    expect(auditQuerySchema.safeParse({ from: "2026-10-09T00:00:00Z", to: "2026-10-01T00:00:00Z" }).success).toBe(false)
+    expect(auditQuerySchema.safeParse({ from: "2026-10-01T00:00:00Z", to: "2026-10-09T00:00:00Z" }).success).toBe(true)
   })
 })
