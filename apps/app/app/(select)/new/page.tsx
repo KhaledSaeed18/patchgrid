@@ -1,13 +1,37 @@
 import type { Metadata } from "next"
+import { cookies } from "next/headers"
 import Link from "next/link"
 
 import { AuthShell } from "@/components/auth-shell"
 
-import { CreateWorkspaceForm } from "./create-workspace-form"
+import {
+  CreateWorkspaceForm,
+  PENDING_WORKSPACE_COOKIE,
+} from "./create-workspace-form"
 
 export const metadata: Metadata = { title: "Create a workspace" }
 
-export default function NewWorkspacePage() {
+/** What the visitor chose on the marketing site before confirming their email — a hint, checked like anything typed. */
+async function pendingWorkspace(): Promise<{
+  name: string
+  slug: string
+} | null> {
+  const raw = (await cookies()).get(PENDING_WORKSPACE_COOKIE)?.value
+  if (raw === undefined) return null
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (typeof value !== "object" || value === null) return null
+    const { name, slug } = value as Record<string, unknown>
+    return typeof name === "string" && typeof slug === "string"
+      ? { name: name.slice(0, 100), slug: slug.slice(0, 30) }
+      : null
+  } catch {
+    return null
+  }
+}
+
+export default async function NewWorkspacePage() {
+  const pending = await pendingWorkspace()
   return (
     <AuthShell
       title="Create a workspace"
@@ -21,7 +45,7 @@ export default function NewWorkspacePage() {
         </Link>
       }
     >
-      <CreateWorkspaceForm />
+      <CreateWorkspaceForm pending={pending} />
     </AuthShell>
   )
 }

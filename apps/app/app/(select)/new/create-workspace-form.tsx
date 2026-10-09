@@ -5,6 +5,7 @@ import {
   SLUG_MAX_LENGTH,
   type SlugAvailability,
   slugAvailabilitySchema,
+  suggestSlug,
 } from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import { FieldGroup } from "@patchgrid/ui/components/field"
@@ -17,7 +18,6 @@ import { FormField } from "@/components/form-field"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
-import { suggestSlug } from "@/lib/suggest-slug"
 
 const REASON: Record<NonNullable<SlugAvailability["reason"]>, string> = {
   "too-short": "Use at least 3 characters.",
@@ -28,10 +28,17 @@ const REASON: Record<NonNullable<SlugAvailability["reason"]>, string> = {
   taken: "That address is taken. Try another.",
 }
 
-export function CreateWorkspaceForm() {
-  const [name, setName] = useState("")
-  const [slug, setSlug] = useState("")
-  const [slugEdited, setSlugEdited] = useState(false)
+/** Set by the marketing site's signup form; cleared once the workspace exists. */
+export const PENDING_WORKSPACE_COOKIE = "pg_pending_workspace"
+
+export function CreateWorkspaceForm({
+  pending,
+}: {
+  pending: { name: string; slug: string } | null
+}) {
+  const [name, setName] = useState(pending?.name ?? "")
+  const [slug, setSlug] = useState(pending?.slug ?? "")
+  const [slugEdited, setSlugEdited] = useState(pending !== null)
   const debounced = useDebounced(slug, 300)
 
   const availability = useQuery({
