@@ -285,7 +285,9 @@ T  AuditLog         { id, orgId, entityType, entityId, action, diff: Json,
                       actorMembershipId?, actorPlatformAdminId?, supportSessionId?, createdAt }
                                                      -- PARTITION BY RANGE (createdAt), monthly
 T  Notification     { id, orgId, userId, membershipId, type, title, body?,
-                      ticketId?, dedupeKey?, readAt? }
+                      ticketId?, dedupeKey?, count, readAt?, createdAt, updatedAt }
+                                 -- (orgId, userId) → Membership(orgId, userId): the delivery
+                                 -- address is a member of this org; unique unread dedupeKey
 T  UsageCounter     { orgId, period, metric, value, updatedAt }               -- PK (orgId, period, metric)
 
 // later milestones
