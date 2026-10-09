@@ -16,8 +16,13 @@ import { useEffect, useState } from "react"
 import { FormAlert } from "@/components/form-alert"
 import { FormField } from "@/components/form-field"
 import { clientApi } from "@/lib/api/client"
+import { newIdempotencyKey } from "@/lib/idempotency"
 import { ApiError } from "@/lib/api/errors"
 import { ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
+import {
+  PENDING_WORKSPACE_COOKIE,
+  type PendingWorkspace,
+} from "@/lib/pending-workspace"
 
 const REASON: Record<NonNullable<SlugAvailability["reason"]>, string> = {
   "too-short": "Use at least 3 characters.",
@@ -28,13 +33,10 @@ const REASON: Record<NonNullable<SlugAvailability["reason"]>, string> = {
   taken: "That address is taken. Try another.",
 }
 
-/** Set by the marketing site's signup form; cleared once the workspace exists. */
-export const PENDING_WORKSPACE_COOKIE = "pg_pending_workspace"
-
 export function CreateWorkspaceForm({
   pending,
 }: {
-  pending: { name: string; slug: string } | null
+  pending: PendingWorkspace | null
 }) {
   const [name, setName] = useState(pending?.name ?? "")
   const [slug, setSlug] = useState(pending?.slug ?? "")
@@ -57,10 +59,12 @@ export function CreateWorkspaceForm({
         method: "POST",
         body: form,
         schema: createOrganizationResponseSchema,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: newIdempotencyKey(),
       }),
-    onSuccess: (response) =>
-      window.location.assign(workspaceOrigin(response.session.slug)),
+    onSuccess: (response) => {
+      document.cookie = `${PENDING_WORKSPACE_COOKIE}=; Domain=.${ROOT_DOMAIN}; Path=/; Max-Age=0`
+      window.location.assign(workspaceOrigin(response.session.slug))
+    },
   })
 
   const settled =

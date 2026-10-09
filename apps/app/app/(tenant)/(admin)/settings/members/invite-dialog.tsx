@@ -21,6 +21,7 @@ import { FormAlert } from "@/components/form-alert"
 import { FormField } from "@/components/form-field"
 import { NativeSelect } from "@/components/native-select"
 import { clientApi } from "@/lib/api/client"
+import { newIdempotencyKey } from "@/lib/idempotency"
 import { ApiError } from "@/lib/api/errors"
 import { failureMessage } from "@/lib/failure"
 import { ROLE_LABEL } from "@/lib/labels"
@@ -41,7 +42,7 @@ export function InviteDialog({
         method: "POST",
         body: form,
         schema: invitationSchema,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: newIdempotencyKey(),
       }),
     onSuccess: (invitation) => {
       toast.success(`Invitation sent to ${invitation.email}`)

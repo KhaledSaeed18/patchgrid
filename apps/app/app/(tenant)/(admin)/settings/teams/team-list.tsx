@@ -30,6 +30,7 @@ import { useState } from "react"
 import { FormField } from "@/components/form-field"
 import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
+import { newIdempotencyKey } from "@/lib/idempotency"
 import { ApiError } from "@/lib/api/errors"
 
 export function TeamList({ initial }: { initial: Team[] }) {
@@ -102,7 +103,7 @@ function CreateTeam() {
         method: "POST",
         body: form,
         schema: teamDetailSchema,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: newIdempotencyKey(),
       }),
     onSuccess: (team) => router.push(`/settings/teams/${team.id}`),
   })
