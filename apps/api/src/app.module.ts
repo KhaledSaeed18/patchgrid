@@ -15,6 +15,7 @@ import { CategoriesModule } from "./categories/categories.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
+import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
 import { JobsModule } from "./jobs/jobs.module"
 import { MailModule } from "./mail/mail.module"
 import { MembershipsModule } from "./memberships/memberships.module"
@@ -106,6 +107,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     AuthModule,
     AuthzModule,
     JobsModule,
+    DispatchModule,
     AuditModule,
     QuotaModule,
     MailModule,
