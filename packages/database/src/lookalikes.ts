@@ -1,7 +1,7 @@
 import { randomBytes, createHash } from "node:crypto"
 
 import type { PrismaClient } from "../generated/client/client.ts"
-import type { Role } from "../generated/client/enums.ts"
+import type { Priority, Role } from "../generated/client/enums.ts"
 
 /**
  * Two organizations with deliberately similar data (TENANCY.md §10): the same
@@ -23,6 +23,8 @@ export type LookalikeOptions = {
   emailSuffix: string
   /** One Argon2id hash for every seeded account — the caller hashes; this package does not. */
   passwordHash: string
+  /** `DEFAULT_SLA_TARGETS` from contracts — passed in, so this package keeps no copy of them. */
+  slaTargets: Record<Priority, { response: number; responseWarning: number; resolution: number; resolutionWarning: number }>
 }
 
 export type SeededOrg = {
@@ -31,6 +33,9 @@ export type SeededOrg = {
   teams: Record<(typeof TEAMS)[number], string>
   members: Record<string, string>
   invitationId: string
+  categories: { hardware: string; laptop: string }
+  ticketId: string
+  commentIds: { public: string; internal: string }
 }
 
 export type SeededPerson = { userId: string; email: string }
@@ -127,7 +132,70 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       },
       select: { id: true },
     })
-    return { id: org.id, slug, teams, members, invitationId: invitation.id }
+    // The ticket world, alike on both sides: the same tree, the same policies,
+    // the same incident title with a public reply and an internal note.
+    const hardware = await db.category.create({ data: { orgId: org.id, name: "Hardware", depth: 1, defaultTeamId: teams["IT Support"] } })
+    const laptop = await db.category.create({ data: { orgId: org.id, name: "Laptop", depth: 2, parentId: hardware.id } })
+    for (const ticketType of ["INCIDENT", "SERVICE_REQUEST"] as const) {
+      for (const [priority, t] of Object.entries(options.slaTargets) as [Priority, LookalikeOptions["slaTargets"][Priority]][]) {
+        await db.sLAPolicy.create({
+          data: {
+            orgId: org.id,
+            ticketType,
+            priority,
+            responseTargetMinutes: t.response,
+            resolutionTargetMinutes: t.resolution,
+            responseWarningMinutes: t.responseWarning,
+            resolutionWarningMinutes: t.resolutionWarning,
+          },
+        })
+      }
+    }
+    const requesterKey = which === "acme" ? "rita" : "rosa"
+    const agentKey = which === "acme" ? "sam" : "tina"
+    const now = new Date()
+    const ticket = await db.ticket.create({
+      data: {
+        orgId: org.id,
+        number: 1,
+        type: "INCIDENT",
+        title: "VPN drops every hour",
+        description: "Since this morning the VPN disconnects on the hour.",
+        status: "IN_PROGRESS",
+        impact: "MEDIUM",
+        urgency: "HIGH",
+        priority: "HIGH",
+        categoryId: laptop.id,
+        requesterMembershipId: members[requesterKey] ?? "",
+        assigneeMembershipId: members[agentKey] ?? null,
+        teamId: teams.Network,
+        responseClockStartedAt: now,
+        resolutionClockStartedAt: now,
+        respondedAt: now,
+        source: "PORTAL",
+      },
+    })
+    await db.ticketCounter.create({ data: { orgId: org.id, type: "INCIDENT", nextValue: 2 } })
+    const reply = await db.comment.create({
+      data: { orgId: org.id, ticketId: ticket.id, authorMembershipId: members[agentKey] ?? null, authorKind: "MEMBER", body: "Looking into it.", visibility: "PUBLIC" },
+    })
+    const note = await db.comment.create({
+      data: { orgId: org.id, ticketId: ticket.id, authorMembershipId: members[agentKey] ?? null, authorKind: "MEMBER", body: "Looks like the concentrator's lease.", visibility: "INTERNAL" },
+    })
+    await db.ticketWatcher.create({
+      data: { orgId: org.id, ticketId: ticket.id, membershipId: members.dana ?? "", addedByMembershipId: members[agentKey] ?? "" },
+    })
+
+    return {
+      id: org.id,
+      slug,
+      teams,
+      members,
+      invitationId: invitation.id,
+      categories: { hardware: hardware.id, laptop: laptop.id },
+      ticketId: ticket.id,
+      commentIds: { public: reply.id, internal: note.id },
+    }
   }
 
   return { acme: await seedOrg("acme", "Acme"), globex: await seedOrg("globex", "Globex"), people }
@@ -137,6 +205,13 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
 export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: string[]; userIds: string[] }): Promise<void> {
   const { orgIds, userIds } = seeded
   await db.auditLog.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ticketWatcher.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.comment.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ticket.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ticketCounter.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.sLAPolicy.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.category.deleteMany({ where: { orgId: { in: orgIds }, parentId: { not: null } } })
+  await db.category.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.invitation.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.teamMembership.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.membership.updateMany({ where: { orgId: { in: orgIds } }, data: { invitedByMembershipId: null } })

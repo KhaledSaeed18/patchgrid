@@ -363,6 +363,9 @@ importers:
       '@node-rs/argon2':
         specifier: ^2.2.1
         version: 2.2.1
+      '@patchgrid/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@patchgrid/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config

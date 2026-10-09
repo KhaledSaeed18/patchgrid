@@ -24,6 +24,7 @@ import {
   seedLookalikes,
 } from "@patchgrid/database"
 import { isTenantOwned } from "@patchgrid/database"
+import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
 import { type Job, UnrecoverableError } from "bullmq"
 import { randomUUID } from "node:crypto"
 import request from "supertest"
@@ -100,7 +101,12 @@ beforeAll(async () => {
   // the shared server per request, which breaks requests made concurrently.
   await app.listen(0)
 
-  seed = await seedLookalikes(owner, { slugs, emailSuffix: suffix, passwordHash: await app.get(PasswordService).hash(PASSWORD) })
+  seed = await seedLookalikes(owner, {
+    slugs,
+    emailSuffix: suffix,
+    passwordHash: await app.get(PasswordService).hash(PASSWORD),
+    slaTargets: DEFAULT_SLA_TARGETS,
+  })
 
   // One audited change in each workspace, so the audit log has rows on both sides.
   for (const [person, slug, team] of [["alice", slugs.acme, seed.acme.teams.Security], ["gus", slugs.globex, seed.globex.teams.Security]] as const) {
@@ -194,7 +200,22 @@ describe("4 · RLS holds when the repository does not", () => {
     )
       .map((r) => r.relname)
       .filter((t) => t !== "_prisma_migrations" && isTenantOwned(t))
-    expect(tables).toEqual(expect.arrayContaining(["Membership", "Team", "TeamMembership", "Invitation", "AuditLog", "UsageCounter"]))
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        "Membership",
+        "Team",
+        "TeamMembership",
+        "Invitation",
+        "AuditLog",
+        "UsageCounter",
+        "Ticket",
+        "Comment",
+        "TicketWatcher",
+        "Category",
+        "SLAPolicy",
+        "TicketCounter",
+      ])
+    )
 
     for (const table of tables) {
       const sql = `SELECT count(*)::int AS n FROM "${table}" WHERE "orgId" = '${seed.acme.id}'`

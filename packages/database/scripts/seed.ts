@@ -13,6 +13,7 @@ import path from "node:path"
 import process from "node:process"
 
 import { type Algorithm, hash } from "@node-rs/argon2"
+import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
 
 import { createPrismaClient, lookalikeEmails, removeLookalikes, seedLookalikes } from "../src/index.ts"
 
@@ -44,7 +45,7 @@ async function main(): Promise<void> {
     // Argon2id (an ambient const enum, so its value: 2); the API verifies whatever parameters a hash carries.
     const argon2id: Algorithm = 2
     const passwordHash = await hash(DEMO_PASSWORD, { algorithm: argon2id })
-    const seeded = await seedLookalikes(db, { slugs: SLUGS, emailSuffix: "", passwordHash })
+    const seeded = await seedLookalikes(db, { slugs: SLUGS, emailSuffix: "", passwordHash, slaTargets: DEFAULT_SLA_TARGETS })
 
     console.log("seed: acme and globex are ready — every account's password is", JSON.stringify(DEMO_PASSWORD))
     for (const [key, person] of Object.entries(seeded.people)) console.log(`  ${key.padEnd(6)} ${person.email}`)
