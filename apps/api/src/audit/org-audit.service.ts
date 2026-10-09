@@ -24,6 +24,16 @@ export class OrgAuditService {
     private readonly tenant: TenantContextService,
   ) {}
 
+  /**
+   * One ticket's trail, oldest first, for whoever may read it (`ticket:read_audit`,
+   * asserted by the caller on the loaded ticket). Capped: a ticket's history is
+   * hundreds of rows at most.
+   */
+  async forEntity(orgId: string, type: string, id: string): Promise<AuditPage["items"]> {
+    const rows = await this.repository.list(orgId, { entity: { type, id }, limit: 500, before: null })
+    return rows.map(toEntry).reverse()
+  }
+
   async list(query: AuditQuery): Promise<AuditPage> {
     this.permissions.assert(this.actors.requireTenantActor(), "org:read_audit")
 
@@ -57,7 +67,7 @@ export class OrgAuditService {
   }
 }
 
-function toEntry(row: AuditListRow): AuditPage["items"][number] {
+export function toEntry(row: AuditListRow): AuditPage["items"][number] {
   return {
     id: row.id,
     // Written only through AuditService from the same catalogue; parsed rather than cast regardless.

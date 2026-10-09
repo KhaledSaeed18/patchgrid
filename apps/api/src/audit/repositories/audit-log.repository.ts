@@ -4,6 +4,8 @@ import type { AuditAction, AuditActorKind } from "@patchgrid/contracts"
 import { PrismaService } from "../../prisma/prisma.service"
 
 export type AuditListQuery = {
+  /** One entity's trail — a ticket's, say — served by the (orgId, entityType, entityId) index. */
+  entity?: { type: string; id: string } | undefined
   actorMembershipId?: string | undefined
   action?: AuditAction | undefined
   from?: Date | undefined
@@ -56,6 +58,7 @@ export class AuditLogRepository {
     const rows = await this.prisma.db.auditLog.findMany({
       where: {
         orgId,
+        ...(query.entity === undefined ? {} : { entityType: query.entity.type, entityId: query.entity.id }),
         ...(query.actorMembershipId === undefined ? {} : { actorMembershipId: query.actorMembershipId }),
         ...(query.action === undefined ? {} : { action: query.action }),
         ...(query.from === undefined && query.to === undefined

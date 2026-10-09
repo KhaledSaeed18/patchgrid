@@ -23,6 +23,7 @@ import { QuotaModule } from "./quota/quota.module"
 import { RedisModule } from "./redis/redis.module"
 import { SlaModule } from "./sla/sla.module"
 import { TeamsModule } from "./teams/teams.module"
+import { TicketsModule } from "./tickets/tickets.module"
 import { TenantContextService } from "./tenancy/tenant-context.service"
 import { TenancyModule } from "./tenancy/tenancy.module"
 import { ThrottlingModule } from "./throttling/throttling.module"
@@ -112,6 +113,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     TeamsModule,
     CategoriesModule,
     SlaModule,
+    TicketsModule,
     HealthModule,
   ],
   providers: [
