@@ -11,11 +11,13 @@ import {
   ConflictProblem,
   NotFoundProblem,
   OrganizationSuspendedProblem,
+  PlanLimitProblem,
 } from "../../common/problems/problem.exception"
 import type { OrganizationRepository } from "../../platform/repositories/organization.repository"
 import type { UserOrgIndexRepository } from "../../platform/repositories/user-org-index.repository"
 import type { AccountRecord, UserRepository } from "../../platform/repositories/user.repository"
 import type { PrismaService } from "../../prisma/prisma.service"
+import type { QuotaService } from "../../quota/quota.service"
 import type { RequestContextStore } from "../../tenancy/request-context"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import type { TeamRepository } from "../../teams/repositories/team.repository"
@@ -45,6 +47,7 @@ type Options = {
   accounts?: AccountRecord[]
   teamActive?: boolean
   consumes?: boolean
+  seatsFull?: boolean
 }
 
 function harness(options: Options = {}) {
@@ -93,6 +96,11 @@ function harness(options: Options = {}) {
     }),
   }
   const workspaces = { upsert: vi.fn(async () => undefined) }
+  const quota = {
+    consume: vi.fn(async () => {
+      if (options.seatsFull === true) throw new PlanLimitProblem("AGENT_SEATS")
+    }),
+  }
   const sessions = {
     open: vi.fn(async (_u: string, slug: string) => [{ name: `pg_at_${slug}`, value: "t", path: "/", maxAgeSeconds: 1 }]),
     startIdentity: vi.fn(async (_a: AccountRecord, _c: unknown, slug?: string) => ({
@@ -111,9 +119,10 @@ function harness(options: Options = {}) {
     sessions as unknown as SessionService,
     { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
     { record: async (_o: string, entries: AuditEntry[], actor?: AuditActorOverride) => void audit.push({ entries, actor }) } as unknown as AuditService,
+    quota as unknown as QuotaService,
     new FixedClock(NOW),
   )
-  return { service, token, secret, memberships, users, workspaces, sessions, audit, invitations, tenantsSeen }
+  return { service, token, secret, memberships, users, workspaces, sessions, audit, invitations, tenantsSeen, quota }
 }
 
 beforeEach(() => {
@@ -205,6 +214,24 @@ describe("InvitationAcceptanceService.accept", () => {
     const h = harness({ teamActive: false })
     await h.service.accept(alice.id, h.token, client)
     expect(h.memberships.joinTeam).not.toHaveBeenCalled()
+  })
+})
+
+describe("InvitationAcceptanceService — seats", () => {
+  it("an agent takes a seat on joining; with none free it is a 402 and nobody joins", async () => {
+    const h = harness()
+    await h.service.accept(alice.id, h.token, client)
+    expect(h.quota.consume).toHaveBeenCalledWith(ORG, "AGENT_SEATS")
+
+    const full = harness({ seatsFull: true })
+    await expect(full.service.accept(alice.id, full.token, client)).rejects.toBeInstanceOf(PlanLimitProblem)
+    expect(full.memberships.create).not.toHaveBeenCalled()
+  })
+
+  it("a requester takes no seat", async () => {
+    const h = harness({ invitation: { role: "REQUESTER" }, seatsFull: true })
+    await expect(h.service.accept(alice.id, h.token, client)).resolves.toBeDefined()
+    expect(h.quota.consume).not.toHaveBeenCalled()
   })
 })
 

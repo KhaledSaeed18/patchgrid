@@ -20,6 +20,7 @@ import {
 } from "../common/problems/problem.exception"
 import { UserOrgIndexRepository } from "../platform/repositories/user-org-index.repository"
 import { PrismaService } from "../prisma/prisma.service"
+import { holdsSeat, QuotaService } from "../quota/quota.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
 import { type MembershipRecord, MembershipRepository, type MemberRow } from "./repositories/membership.repository"
 
@@ -46,6 +47,7 @@ export class MembersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly epochs: RevocationEpochService,
+    private readonly quota: QuotaService,
   ) {}
 
   async list(query: MemberListQuery): Promise<MemberPage> {
@@ -100,6 +102,7 @@ export class MembersService {
       if (target.role === role) return false
       if (target.role === "OWNER") await this.assertNotLastOwner(orgId, target)
 
+      await this.seatChange(orgId, target, { ...target, role })
       await this.memberships.setRole(orgId, target.id, role)
       // Teams are where agents work; a requester leads and works in none (ADR-0025).
       const leftTeams = role === "REQUESTER" ? await this.memberships.leaveAllTeams(orgId, target.id) : []
@@ -123,6 +126,7 @@ export class MembersService {
       if (target.status !== "ACTIVE") throw new ConflictProblem("Only an active member can be disabled")
       if (target.role === "OWNER") await this.assertNotLastOwner(orgId, target)
 
+      await this.seatChange(orgId, target, { ...target, status: "DISABLED" })
       await this.memberships.setStatus(orgId, target.id, "DISABLED")
       if (target.userId !== null) await this.workspaces.mirror(target.userId, orgId, { status: "DISABLED" })
       await this.audit.record(orgId, [{ action: "MEMBER_DISABLED", entityType: "Membership", entityId: target.id }])
@@ -137,6 +141,8 @@ export class MembersService {
       this.permissions.assert(actor, "member:disable", subjectOf(actor, target))
       if (target.status !== "DISABLED") throw new ConflictProblem("Only a disabled member can be enabled")
 
+      // An enabled agent takes a seat back, and may find none free: 402.
+      await this.seatChange(orgId, target, { ...target, status: "ACTIVE" })
       await this.memberships.setStatus(orgId, target.id, "ACTIVE")
       if (target.userId !== null) await this.workspaces.mirror(target.userId, orgId, { status: "ACTIVE" })
       await this.audit.record(orgId, [{ action: "MEMBER_ENABLED", entityType: "Membership", entityId: target.id }])
@@ -152,6 +158,7 @@ export class MembersService {
       this.permissions.assert(actor, "member:remove", subjectOf(actor, target))
       if (target.role === "OWNER" && target.status === "ACTIVE") await this.assertNotLastOwner(orgId, target)
 
+      await this.seatChange(orgId, target, { ...target, status: "REMOVED" })
       await this.memberships.setStatus(orgId, target.id, "REMOVED")
       const leftTeams = await this.memberships.leaveAllTeams(orgId, target.id)
       if (target.userId !== null) await this.workspaces.remove(target.userId, orgId)
@@ -184,6 +191,12 @@ export class MembersService {
       if (target === null || target.status === "REMOVED") throw new NotFoundProblem()
       if (await apply(actor, orgId, target)) await this.epochs.bump(target.id)
     })
+  }
+
+  /** A change that starts or ends a seat consumes or releases it, in the same transaction. */
+  private async seatChange(orgId: string, before: MembershipRecord, after: MembershipRecord): Promise<void> {
+    if (!holdsSeat(before) && holdsSeat(after)) await this.quota.consume(orgId, "AGENT_SEATS")
+    if (holdsSeat(before) && !holdsSeat(after)) await this.quota.release(orgId, "AGENT_SEATS")
   }
 
   /** Under the organization lock `change` took, so the count cannot move underneath. */

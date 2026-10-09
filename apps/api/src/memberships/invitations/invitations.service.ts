@@ -12,11 +12,17 @@ import { AuditService } from "../../audit/audit.service"
 import { PermissionService } from "../../authz/permission.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import { emailHash8 } from "../../common/privacy"
-import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../../common/problems/problem.exception"
+import {
+  ConflictProblem,
+  NotFoundProblem,
+  PlanLimitProblem,
+  ValidationProblem,
+} from "../../common/problems/problem.exception"
 import { PublicUrls } from "../../common/urls"
 import { MailService } from "../../mail/mail.service"
 import { OrganizationRepository } from "../../platform/repositories/organization.repository"
 import { PrismaService } from "../../prisma/prisma.service"
+import { QuotaService } from "../../quota/quota.service"
 import { TeamRepository } from "../../teams/repositories/team.repository"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { type InvitationRecord, InvitationRepository } from "../repositories/invitation.repository"
@@ -49,6 +55,7 @@ export class InvitationsService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly urls: PublicUrls,
+    private readonly quota: QuotaService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -80,6 +87,12 @@ export class InvitationsService {
       if (existing?.status === "ACTIVE") throw new ConflictProblem("That address is already a member")
       if (existing?.status === "DISABLED") {
         throw new ConflictProblem("That address belongs to a disabled member; enable them instead")
+      }
+
+      // A hint, so the admin hears it now rather than the invitee at acceptance,
+      // where the seat is actually taken — and where the limit is enforced.
+      if (request.role !== "REQUESTER" && !(await this.quota.hasRoom(orgId, "AGENT_SEATS"))) {
+        throw new PlanLimitProblem("AGENT_SEATS", "Every agent seat on this plan is in use")
       }
 
       const superseded = await this.invitations.revokePendingFor(orgId, request.email, now)

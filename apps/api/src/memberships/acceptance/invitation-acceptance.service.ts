@@ -16,6 +16,7 @@ import { UserOrgIndexRepository } from "../../platform/repositories/user-org-ind
 import { type AccountRecord, UserRepository } from "../../platform/repositories/user.repository"
 import { runAsTenant } from "../../platform/run-as-tenant"
 import { PrismaService } from "../../prisma/prisma.service"
+import { QuotaService } from "../../quota/quota.service"
 import { TeamRepository } from "../../teams/repositories/team.repository"
 import { parseInvitationToken } from "../invitations/invitation-token"
 import { type InvitationRecord, InvitationRepository } from "../repositories/invitation.repository"
@@ -53,6 +54,7 @@ export class InvitationAcceptanceService {
     private readonly sessions: SessionService,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly quota: QuotaService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -156,6 +158,10 @@ export class InvitationAcceptanceService {
         if (existing !== null && existing.status !== "REMOVED") {
           throw new ConflictProblem("You are already a member of this workspace")
         }
+        // The seat is taken here, where the member appears — a 402 rolls the
+        // whole acceptance back, invitation included, so it can be retried.
+        if (invitation.role !== "REQUESTER") await this.quota.consume(org.id, "AGENT_SEATS")
+
         const joined = {
           role: invitation.role,
           displayName: account.name,

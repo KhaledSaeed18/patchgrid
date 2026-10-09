@@ -11,6 +11,7 @@ import {
   ConflictProblem,
   NotFoundProblem,
   NotPermittedProblem,
+  PlanLimitProblem,
   ValidationProblem,
 } from "../../common/problems/problem.exception"
 import type { PublicUrls } from "../../common/urls"
@@ -18,6 +19,7 @@ import type { MailService } from "../../mail/mail.service"
 import type { MailJob } from "../../mail/templates"
 import type { OrganizationRepository } from "../../platform/repositories/organization.repository"
 import type { PrismaService } from "../../prisma/prisma.service"
+import type { QuotaService } from "../../quota/quota.service"
 import type { TeamRecord, TeamRepository } from "../../teams/repositories/team.repository"
 import type { TenantContextService } from "../../tenancy/tenant-context.service"
 import type { InvitationRecord, InvitationRepository } from "../repositories/invitation.repository"
@@ -34,6 +36,7 @@ type Options = {
   teams?: TeamRecord[]
   mailFails?: boolean
   revokes?: boolean
+  seatsFull?: boolean
 }
 
 function harness(options: Options = {}) {
@@ -96,6 +99,7 @@ function harness(options: Options = {}) {
       },
     } as unknown as MailService,
     { app: (path: string) => `http://app.lvh.me:3001${path}` } as unknown as PublicUrls,
+    { hasRoom: async () => options.seatsFull !== true } as unknown as QuotaService,
     new FixedClock(NOW),
   )
   return { service, events, audit, created, mail, invitations }
@@ -158,6 +162,13 @@ describe("InvitationsService.create", () => {
     const h = harness({ mailFails: true })
     await expect(h.service.create(request())).resolves.toMatchObject({ id: "inv-1" })
     expect(Logger.prototype.error).toHaveBeenCalled()
+  })
+})
+
+describe("InvitationsService.create — seats", () => {
+  it("is a 402 to invite an agent with every seat in use, but a requester is always welcome", async () => {
+    await expect(harness({ seatsFull: true }).service.create(request())).rejects.toBeInstanceOf(PlanLimitProblem)
+    await expect(harness({ seatsFull: true }).service.create(request({ role: "REQUESTER" }))).resolves.toMatchObject({ role: "REQUESTER" })
   })
 })
 

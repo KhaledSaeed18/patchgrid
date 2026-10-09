@@ -21,7 +21,8 @@ export type ProvisionResult =
 
 /**
  * The provisioning transaction (TENANCY.md §4): the organization, its owner's
- * membership, the picker's projection row and the default teams — or nothing.
+ * membership, the picker's projection row, the default teams and the seat
+ * counter with the owner in it — or nothing.
  *
  * Runs inside `runAsTenant(orgId)`, so the tenant-owned rows are written under
  * RLS exactly as any request would write them. Uniqueness is decided under a
@@ -70,6 +71,8 @@ export class OrganizationProvisioningRepository {
         },
       })
       await tx.team.createMany({ data: input.teams.map((name) => ({ orgId: input.orgId, name })) })
+      // The owner is the first seat (TENANCY.md §8); the counter starts true.
+      await tx.usageCounter.create({ data: { orgId: input.orgId, period: "current", metric: "AGENT_SEATS", value: 1n } })
 
       return { outcome: "created", membershipId: membership.id }
     })

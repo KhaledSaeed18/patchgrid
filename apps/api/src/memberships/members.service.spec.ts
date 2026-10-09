@@ -14,6 +14,8 @@ import {
 import type { UserOrgIndexRepository } from "../platform/repositories/user-org-index.repository"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
+import { PlanLimitProblem } from "../common/problems/problem.exception"
+import type { QuotaService } from "../quota/quota.service"
 import { MembersService } from "./members.service"
 import type { MembershipRecord, MembershipRepository, MemberRow } from "./repositories/membership.repository"
 
@@ -26,7 +28,7 @@ type Seed = { id: string; role: Role; status?: MembershipStatus; teams?: string[
  * driven through the service exactly as a request would drive it — permission,
  * then state, then the last-owner count — with the side effects observable.
  */
-function harness(actorId: string, seeds: Seed[]) {
+function harness(actorId: string, seeds: Seed[], seatsFree = true) {
   const rows = new Map<string, MembershipRecord>(
     seeds.map((s) => [
       s.id,
@@ -45,6 +47,14 @@ function harness(actorId: string, seeds: Seed[]) {
   )
   const events: string[] = []
   const audit: AuditEntry[] = []
+  const seats: string[] = []
+  const quota = {
+    consume: vi.fn(async () => {
+      if (!seatsFree) throw new PlanLimitProblem("AGENT_SEATS")
+      seats.push("+1")
+    }),
+    release: vi.fn(async () => void seats.push("-1")),
+  }
 
   const memberships = {
     lockOrganization: vi.fn(async () => {
@@ -125,8 +135,9 @@ function harness(actorId: string, seeds: Seed[]) {
       }),
     } as unknown as AuditService,
     epochs as unknown as RevocationEpochService,
+    quota as unknown as QuotaService,
   )
-  return { service, rows, events, audit, memberships, workspaces, epochs }
+  return { service, rows, events, audit, memberships, workspaces, epochs, seats }
 }
 
 describe("MembersService.changeRole", () => {
@@ -283,5 +294,38 @@ describe("MembersService reads", () => {
     expect(page.nextCursor).not.toBeNull()
     await h.service.list({ includeRemoved: false, limit: 2, cursor: page.nextCursor ?? "" })
     expect(h.memberships.list).toHaveBeenLastCalledWith(ORG, expect.objectContaining({ after: { createdAt: created, id: "m-2" }, limit: 3 }))
+  })
+})
+
+describe("MembersService — seats (TENANCY.md §8)", () => {
+  const seeds: Seed[] = [
+    { id: "owner", role: "OWNER" },
+    { id: "req", role: "REQUESTER" },
+    { id: "a", role: "AGENT" },
+    { id: "d", role: "AGENT", status: "DISABLED" },
+  ]
+
+  it("takes a seat when a requester becomes an agent, and gives one back the other way", async () => {
+    const h = harness("owner", seeds)
+    await h.service.changeRole("req", "AGENT")
+    await h.service.changeRole("a", "REQUESTER")
+    await h.service.changeRole("owner", "OWNER")
+    expect(h.seats).toEqual(["+1", "-1"])
+  })
+
+  it("frees a seat on disable and on removing an active agent, never for one already disabled", async () => {
+    const h = harness("owner", seeds)
+    await h.service.disable("a")
+    await h.service.remove("d")
+    await h.service.remove("req")
+    expect(h.seats).toEqual(["-1"])
+  })
+
+  it("enabling takes a seat back, and with none free is a 402 that changes nothing", async () => {
+    expect((await harness("owner", seeds).service.enable("d")).status).toBe("ACTIVE")
+    const full = harness("owner", seeds, false)
+    await expect(full.service.enable("d")).rejects.toBeInstanceOf(PlanLimitProblem)
+    expect(full.rows.get("d")?.status).toBe("DISABLED")
+    expect(full.audit).toEqual([])
   })
 })
