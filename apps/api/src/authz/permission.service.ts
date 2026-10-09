@@ -7,6 +7,8 @@ import {
   type PermissionCondition,
   PERMISSIONS,
   SCOPE_GRANTS,
+  type TicketCapabilities,
+  type TicketStatus,
   USER_FACING_TICKET_TYPES,
 } from "@patchgrid/contracts"
 
@@ -14,6 +16,9 @@ import type { Actor, TenantActor } from "../auth/actor"
 import { NotFoundProblem, NotPermittedProblem } from "../common/problems/problem.exception"
 import type { ScopeBranch, ScopedResource, ScopeFilter } from "./scope-filter"
 import type { Subject } from "./subject"
+
+/** Statuses nothing more happens in (DOMAIN.md §2.4). */
+const TERMINAL: ReadonlySet<TicketStatus> = new Set(["CLOSED", "CANCELLED"])
 
 /** The org settings a scope depends on — read by the caller from the resolved organization. */
 export type ScopePolicy = { agentVisibility: AgentVisibility }
@@ -83,6 +88,33 @@ export class PermissionService {
         grantFor(actor.role, permission) !== false &&
         (actor.kind !== "service" || scopesAllow(actor, permission)),
     )
+  }
+
+  /**
+   * What this actor may do to THIS ticket (RBAC.md §7) — computed by the same
+   * `can()` calls the mutation endpoints make, so the button that is shown is
+   * the button that will succeed. Field rules are RBAC.md §6's field table.
+   */
+  capabilitiesFor(actor: Actor | undefined, subject: Subject & { ticketStatus: TicketStatus }): TicketCapabilities {
+    const open = !TERMINAL.has(subject.ticketStatus)
+    const editable: TicketCapabilities["editableFields"] = []
+    if (this.can(actor, "ticket:update", subject)) {
+      const agent = actor !== undefined && isTenantActor(actor) && actor.role !== "REQUESTER"
+      // A requester edits the text of their own ticket while it is NEW (the grant says so);
+      // an agent edits text while it is open, and classification any time.
+      if (!agent || open) editable.push("title", "description")
+      if (agent) editable.push("impact", "urgency", "categoryId")
+    }
+    return {
+      editableFields: editable,
+      canAssign: open && this.can(actor, "ticket:assign", subject),
+      canCommentPublic: this.can(actor, "comment:create_public", subject),
+      canCommentInternal: this.can(actor, "comment:create_internal", subject),
+      canReadInternal: this.can(actor, "comment:read_internal", subject),
+      canWatch: this.can(actor, "ticket:watch", subject),
+      canAddWatcher: this.can(actor, "ticket:watch_others", subject),
+      canReadAudit: this.can(actor, "ticket:read_audit", subject),
+    }
   }
 
   /** Which rows of a resource this actor may list (RBAC.md §4). */

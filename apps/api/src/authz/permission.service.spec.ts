@@ -339,3 +339,35 @@ describe("PermissionService.scopeFor (RBAC.md §4)", () => {
     expect(service.scopeFor({ kind: "identity", userId: "u-1" }, "ticket", all)).toEqual({ kind: "none" })
   })
 })
+
+describe("PermissionService.capabilitiesFor (RBAC.md §7)", () => {
+  const ticket = (over: Partial<Subject> & { ticketStatus: import("@patchgrid/contracts").TicketStatus }) => over
+
+  it("lets a requester edit the text of their own ticket while it is new, and nothing after", () => {
+    const requester = member("REQUESTER")
+    expect(service.capabilitiesFor(requester, ticket({ own: true, ticketStatus: "NEW" })).editableFields).toEqual(["title", "description"])
+    expect(service.capabilitiesFor(requester, ticket({ own: true, ticketStatus: "IN_PROGRESS" })).editableFields).toEqual([])
+    const caps = service.capabilitiesFor(requester, ticket({ own: true, ticketStatus: "NEW" }))
+    expect(caps).toMatchObject({ canAssign: false, canCommentPublic: true, canCommentInternal: false, canReadInternal: false, canReadAudit: false })
+  })
+
+  it("gives a watching requester the public thread and nothing else", () => {
+    const caps = service.capabilitiesFor(member("REQUESTER"), ticket({ own: false, watch: true, ticketStatus: "IN_PROGRESS" }))
+    expect(caps).toMatchObject({ editableFields: [], canCommentPublic: true, canCommentInternal: false, canWatch: true, canAddWatcher: false })
+  })
+
+  it("gives an agent in scope the work, text only while the ticket is open", () => {
+    const agent = member("AGENT")
+    const open = service.capabilitiesFor(agent, ticket({ scope: true, ticketStatus: "IN_PROGRESS" }))
+    expect(open.editableFields).toEqual(["title", "description", "impact", "urgency", "categoryId"])
+    expect(open).toMatchObject({ canAssign: true, canCommentInternal: true, canReadInternal: true, canAddWatcher: true, canReadAudit: true })
+    const closed = service.capabilitiesFor(agent, ticket({ scope: true, ticketStatus: "CLOSED" }))
+    expect(closed.editableFields).toEqual(["impact", "urgency", "categoryId"])
+    expect(closed.canAssign).toBe(false)
+  })
+
+  it("gives an agent out of scope nothing", () => {
+    const caps = service.capabilitiesFor(member("AGENT"), ticket({ scope: false, ticketStatus: "IN_PROGRESS" }))
+    expect(Object.values(caps).every((v) => (Array.isArray(v) ? v.length === 0 : v === false))).toBe(true)
+  })
+})
