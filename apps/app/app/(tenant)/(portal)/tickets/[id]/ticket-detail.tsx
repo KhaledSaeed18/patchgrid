@@ -3,6 +3,8 @@
 import {
   type Comment,
   commentSchema,
+  type Member,
+  type Team,
   type Ticket,
   type TicketAction,
   ticketSchema,
@@ -25,6 +27,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { Assignment } from "./assignment"
 import { PriorityBadge, StatusBadge } from "@/components/tickets/badges"
 import { DueBadge } from "@/components/tickets/due-badge"
 import { RelativeTime } from "@/components/tickets/relative-time"
@@ -53,9 +56,12 @@ const PRIMARY: readonly TicketAction[] = ["start", "resolve", "close", "resume"]
 export function TicketDetail({
   ticket,
   comments,
+  assignable,
 }: {
   ticket: Ticket
   comments: Comment[]
+  /** Present when the actor may assign: the active agents and teams to choose from. */
+  assignable: { agents: Member[]; teams: Team[] } | null
 }) {
   const actions = ticket.availableActions.filter((a) => a !== "assign")
   return (
@@ -70,7 +76,7 @@ export function TicketDetail({
         <span className="font-mono text-xs tabular-nums">{ticket.number}</span>
         <StatusBadge status={ticket.status} />
         <PriorityBadge priority={ticket.priority} />
-        {ticket.sla !== null && ticket.capabilities.canAssign && (
+        {ticket.dueAt !== null && ticket.capabilities.canAssign && (
           <DueBadge dueAt={ticket.dueAt} breached={ticket.breached} />
         )}
       </div>
@@ -106,14 +112,26 @@ export function TicketDetail({
             <Reply ticket={ticket} />
           )}
         </main>
-        <aside>
+        <aside className="grid content-start gap-8">
+          {assignable !== null && (
+            <Assignment
+              key={ticket.version}
+              ticket={ticket}
+              agents={assignable.agents}
+              teams={assignable.teams}
+            />
+          )}
           <dl className="grid gap-4 text-sm">
             <Fact label="Type">{TICKET_TYPE_LABEL[ticket.type]}</Fact>
             <Fact label="Requester">{ticket.requester.displayName}</Fact>
-            <Fact label="Assignee">
-              {ticket.assignee?.displayName ?? "Nobody yet"}
-            </Fact>
-            <Fact label="Team">{ticket.team?.name ?? "Triage"}</Fact>
+            {assignable === null && (
+              <>
+                <Fact label="Assignee">
+                  {ticket.assignee?.displayName ?? "Nobody yet"}
+                </Fact>
+                <Fact label="Team">{ticket.team?.name ?? "Triage"}</Fact>
+              </>
+            )}
             <Fact label="Category">{ticket.category?.name ?? "None"}</Fact>
             <Fact label="Affects">{IMPACT_LABEL[ticket.impact]}</Fact>
             <Fact label="Urgency">{URGENCY_LABEL[ticket.urgency]}</Fact>

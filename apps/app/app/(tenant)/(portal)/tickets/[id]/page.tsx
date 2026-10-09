@@ -1,4 +1,9 @@
-import { commentSchema, ticketSchema } from "@patchgrid/contracts"
+import {
+  commentSchema,
+  memberPageSchema,
+  teamSchema,
+  ticketSchema,
+} from "@patchgrid/contracts"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { z } from "zod"
@@ -27,5 +32,19 @@ export default async function TicketPage({
     serverApi(`/tickets/${id}`, { schema: ticketSchema }),
     serverApi(`/tickets/${id}/comments`, { schema: z.array(commentSchema) }),
   ])
-  return <TicketDetail ticket={ticket} comments={comments} />
+  // The assignment control's candidates, only for someone who may assign.
+  const assignable = ticket.capabilities.canAssign
+    ? await Promise.all([
+        serverApi("/members?limit=100", { schema: memberPageSchema }),
+        serverApi("/teams", { schema: z.array(teamSchema) }),
+      ]).then(([members, teams]) => ({
+        agents: members.items.filter(
+          (m) => m.status === "ACTIVE" && m.role !== "REQUESTER"
+        ),
+        teams,
+      }))
+    : null
+  return (
+    <TicketDetail ticket={ticket} comments={comments} assignable={assignable} />
+  )
 }
