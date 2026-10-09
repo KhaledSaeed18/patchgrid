@@ -343,9 +343,7 @@ function CategoryDialog({
                 name="defaultTeamId"
                 defaultValue={current?.defaultTeamId ?? ""}
               >
-                <option value="">
-                  Inherited from the category above
-                </option>
+                <option value="">Inherited from the category above</option>
                 {teams
                   .filter((t) => t.isActive || t.id === current?.defaultTeamId)
                   .map((t) => (
