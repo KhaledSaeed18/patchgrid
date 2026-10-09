@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  type Category,
   type Comment,
   commentSchema,
   type Member,
@@ -28,6 +29,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import { Assignment } from "./assignment"
+import { EditTicket } from "./edit-ticket"
 import { PriorityBadge, StatusBadge } from "@/components/tickets/badges"
 import { DueBadge } from "@/components/tickets/due-badge"
 import { RelativeTime } from "@/components/tickets/relative-time"
@@ -57,9 +59,12 @@ export function TicketDetail({
   ticket,
   comments,
   assignable,
+  categories,
 }: {
   ticket: Ticket
   comments: Comment[]
+  /** The picker for an editable category; empty when it is not editable. */
+  categories: Category[]
   /** Present when the actor may assign: the active agents and teams to choose from. */
   assignable: { agents: Member[]; teams: Team[] } | null
 }) {
@@ -90,7 +95,8 @@ export function TicketDetail({
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <main className="min-w-0">
-          {actions.length > 0 && (
+          {(actions.length > 0 ||
+            ticket.capabilities.editableFields.length > 0) && (
             <div className="mb-6 flex flex-wrap gap-2">
               {actions.map((action) => (
                 <TransitionButton
@@ -99,6 +105,13 @@ export function TicketDetail({
                   action={action}
                 />
               ))}
+              {ticket.capabilities.editableFields.length > 0 && (
+                <EditTicket
+                  key={ticket.version}
+                  ticket={ticket}
+                  categories={categories}
+                />
+              )}
             </div>
           )}
           <article className="rounded-lg border border-border p-4">

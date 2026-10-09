@@ -1,4 +1,5 @@
 import {
+  categorySchema,
   commentSchema,
   memberPageSchema,
   teamSchema,
@@ -44,7 +45,15 @@ export default async function TicketPage({
         teams,
       }))
     : null
+  const categories = ticket.capabilities.editableFields.includes("categoryId")
+    ? await serverApi("/categories", { schema: z.array(categorySchema) })
+    : []
   return (
-    <TicketDetail ticket={ticket} comments={comments} assignable={assignable} />
+    <TicketDetail
+      ticket={ticket}
+      comments={comments}
+      assignable={assignable}
+      categories={categories}
+    />
   )
 }
