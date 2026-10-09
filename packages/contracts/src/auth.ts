@@ -19,7 +19,7 @@ export const emailSchema = z
   .pipe(z.email({ error: "must be an email address" }).max(254))
 
 /**
- * Length only, no composition rules (NIST 800-63B): a minimum long enough to
+ * Length only, no composition rules (NIST 800-63B, ADR-0032): a minimum long enough to
  * resist online guessing behind the throttle, a maximum so Argon2id's cost is
  * bounded. Breached-password screening is a later item.
  */

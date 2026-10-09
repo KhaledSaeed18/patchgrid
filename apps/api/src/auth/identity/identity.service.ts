@@ -17,8 +17,9 @@ import type { CookieName, CookieSpec } from "../cookies"
 import { PasswordService } from "../passwords/password.service"
 import { type ClientInfo, hash, SessionService } from "../sessions/session.service"
 
+/** TENANCY.md §4. */
 export const VERIFICATION_TTL_HOURS = 24
-/** Not in any ADR: thirty minutes is long enough to open a mailbox and short enough that a forgotten link is dead. */
+/** ADR-0032: long enough to open a mailbox, short enough that a forgotten link is dead. */
 export const RESET_TTL_MINUTES = 30
 
 /**
