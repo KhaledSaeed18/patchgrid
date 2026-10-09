@@ -200,7 +200,7 @@ conflict; every step is audit-logged; transition table, priority matrix and SLA 
 - [x] Data: `TicketCounter`, `Ticket` (with clock origins, `version`, `searchVector`), `Category`,
       `SLAPolicy`, `Comment`, `TicketWatcher`, `AuditLog` (partitioned) — all tenant-owned, all with
       policies and composite keys
-- [ ] Admin UI: category tree (3 levels, unique per parent, soft-delete only, default team), SLA policies
+- [x] Admin UI: category tree (3 levels, unique per parent, soft-delete only, default team), SLA policies
 - [x] Ticket service: create (per-org numbering, priority, SLA targets, category routing, atomic quota
       check, `Idempotency-Key`), update with optimistic `version`, Incident transition table, reopen,
       cancel, create-on-behalf
