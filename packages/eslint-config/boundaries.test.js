@@ -28,6 +28,7 @@ test("api import zones", () => {
       // crossing: the named modules
       { code: 'import { runAsTenant } from "../../platform/run-as-tenant"', filename: "src/jobs/sla/sla.processor.ts", options },
       { code: 'import { runAsTenant } from "../../platform/run-as-tenant"', filename: "src/orgs/provisioning/provisioning.service.ts", options },
+      { code: 'import { runAsTenant } from "../../platform/run-as-tenant"', filename: "src/memberships/acceptance/invitation-acceptance.service.ts", options },
       { code: 'import { runAsPlatform } from "../../platform/run-as-platform"', filename: "src/jobs/dispatcher/dispatcher.ts", options },
       { code: 'import { runAsPlatform } from "../platform/run-as-platform"', filename: "src/auth/api-token.strategy.ts", options },
       { code: 'import { runAsTenant } from "./run-as-tenant"', filename: "src/platform/support-session.service.ts", options },
@@ -60,6 +61,7 @@ test("api import zones", () => {
       { code: 'import { runAsPlatform } from "../../platform/run-as-platform"', filename: "src/jobs/sla/sla.processor.ts", options, errors: errorFor("../../platform/run-as-platform") },
       { code: 'import { runAsTenant } from "../platform/run-as-tenant"', filename: "src/tickets/tickets.service.ts", options, errors: errorFor("../platform/run-as-tenant") },
       { code: 'import { runAsTenant } from "../../platform/run-as-tenant"', filename: "src/orgs/settings/settings.service.ts", options, errors: errorFor("../../platform/run-as-tenant") },
+      { code: 'import { runAsTenant } from "../platform/run-as-tenant"', filename: "src/memberships/members.service.ts", options, errors: errorFor("../platform/run-as-tenant") },
       // context writers
       { code: 'import { ClsService } from "nestjs-cls"', filename: "src/tickets/tickets.service.ts", options, errors: errorFor("nestjs-cls") },
       { code: 'import { ClsService } from "nestjs-cls"', filename: "src/orgs/orgs.service.ts", options, errors: errorFor("nestjs-cls") },

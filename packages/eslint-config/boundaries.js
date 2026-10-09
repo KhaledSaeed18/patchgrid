@@ -92,13 +92,15 @@ const tenantCrossing = {
     "src/auth/**",
     "src/jobs/**",
     "src/orgs/provisioning/**",
+    // Accepting an invitation is tenant-less until the token names the org (ADR-0033).
+    "src/memberships/acceptance/**",
     ...TESTS,
   ],
   imports: [{ regex: "(^|/)platform/run-as-tenant$" }],
   message:
-    "runAsTenant may only be imported by src/platform, src/auth, src/jobs and " +
-    "src/orgs/provisioning (ADR-0022). Everywhere else, the tenant comes from the request " +
-    "context.",
+    "runAsTenant may only be imported by src/platform, src/auth, src/jobs, " +
+    "src/orgs/provisioning and src/memberships/acceptance (ADR-0022). Everywhere else, the " +
+    "tenant comes from the request context.",
 }
 
 /**

@@ -207,7 +207,8 @@ written directly on them.
   job dispatcher, login/org-picker, and API-token authentication.
 
 Import paths are restricted by ESLint: `runAsPlatform` to `src/platform/**`, `src/auth/**` and
-`src/jobs/dispatcher/**`; `runAsTenant` additionally to `src/jobs/**` and `src/orgs/provisioning/**`.
+`src/jobs/dispatcher/**`; `runAsTenant` additionally to `src/jobs/**`, `src/orgs/provisioning/**` and
+`src/memberships/acceptance/**`.
 Both run their callback in a **child context** that hides the caller's tenant and any open transaction
 and restores them on return, validate the org id up front, and log actor, reason, origin and target.
 The context itself is written only by the tenancy module (the tenant), `PrismaService` (the
