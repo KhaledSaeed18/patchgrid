@@ -11,6 +11,7 @@ import { CommentRepository } from "./repositories/comment.repository"
 import { TicketRepository } from "./repositories/ticket.repository"
 import { WatcherRepository } from "./repositories/watcher.repository"
 import { AutoCloseProcessor, AutoCloseService } from "./sweeps/auto-close"
+import { SlaScanProcessor, SlaScanService } from "./sweeps/sla-scan"
 import { TicketAccess } from "./ticket-access"
 import { TicketAuditService } from "./ticket-audit.service"
 import { TicketsController } from "./tickets.controller"
@@ -21,7 +22,7 @@ import { WatchersService } from "./watchers.service"
 @Module({
   imports: [
     AuthModule,
-    BullModule.registerQueue({ name: "auto-close" }),
+    BullModule.registerQueue({ name: "auto-close" }, { name: "sla-scan" }),
     CategoriesModule,
     MembershipRepositoryModule,
     SlaModule,
@@ -39,6 +40,8 @@ import { WatchersService } from "./watchers.service"
     TicketAuditService,
     AutoCloseService,
     AutoCloseProcessor,
+    SlaScanService,
+    SlaScanProcessor,
   ],
 })
 export class TicketsModule {}

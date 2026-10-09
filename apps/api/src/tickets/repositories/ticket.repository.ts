@@ -10,7 +10,7 @@ import type {
 
 import type { ScopeBranch } from "../../authz/scope-filter"
 import { PrismaService } from "../../prisma/prisma.service"
-import type { SlaState } from "../domain/sla"
+import type { SlaClock, SlaState } from "../domain/sla"
 
 export type TicketRow = SlaState & {
   id: string
@@ -71,6 +71,25 @@ export type SearchFilter = {
   type?: TicketType
   status?: TicketStatus
   scope: readonly ScopeBranch[] | null
+}
+
+/** A ticket's clocks as the SLA scan reads them, with its policy's warning thresholds. */
+export type RunningClockRow = Pick<
+  SlaState,
+  | "responseClockStartedAt"
+  | "resolutionClockStartedAt"
+  | "respondedAt"
+  | "resolvedAt"
+  | "pausedAt"
+  | "respondBy"
+  | "resolveBy"
+  | "responseBreached"
+  | "resolutionBreached"
+  | "responseWarningSentAt"
+  | "resolutionWarningSentAt"
+> & {
+  id: string
+  slaPolicy: { responseWarningMinutes: number; resolutionWarningMinutes: number } | null
 }
 
 export type ListFilter = {
@@ -179,6 +198,65 @@ export class TicketRepository {
       take: limit,
       select: { id: true, version: true },
     })
+  }
+
+  /**
+   * Open incidents and service requests with a clock still able to warn or
+   * breach, a page at a time by id — the SLA scan's work list. A breached or
+   * stopped clock is not listed; a paused resolution clock only for its
+   * response clock.
+   */
+  async findRunningClocks(orgId: string, after: string | null, limit: number): Promise<RunningClockRow[]> {
+    return this.prisma.db.ticket.findMany({
+      where: {
+        orgId,
+        type: { in: ["INCIDENT", "SERVICE_REQUEST"] },
+        status: { in: ["NEW", "ASSIGNED", "IN_PROGRESS", "PENDING"] },
+        slaPolicyId: { not: null },
+        OR: [
+          { respondedAt: null, responseBreached: false, respondBy: { not: null } },
+          { pausedAt: null, resolutionBreached: false, resolveBy: { not: null } },
+        ],
+        ...(after === null ? {} : { id: { gt: after } }),
+      },
+      orderBy: { id: "asc" },
+      take: limit,
+      select: {
+        id: true,
+        responseClockStartedAt: true,
+        resolutionClockStartedAt: true,
+        respondedAt: true,
+        resolvedAt: true,
+        pausedAt: true,
+        respondBy: true,
+        resolveBy: true,
+        responseBreached: true,
+        resolutionBreached: true,
+        responseWarningSentAt: true,
+        resolutionWarningSentAt: true,
+        slaPolicy: { select: { responseWarningMinutes: true, resolutionWarningMinutes: true } },
+      },
+    })
+  }
+
+  /**
+   * Sets one SLA flag, only if it is still unset and its clock still running —
+   * the condition is in the write, so two scans racing flag once (DOMAIN.md
+   * §4.3). Not a versioned write: flags are the system's bookkeeping, and an
+   * agent mid-edit should not get a 409 because a warning fired.
+   */
+  async flagSla(orgId: string, id: string, clock: SlaClock, kind: "warning" | "breach", now: Date): Promise<boolean> {
+    const open = { orgId, id, resolvedAt: null }
+    const target =
+      clock === "response"
+        ? kind === "warning"
+          ? { where: { ...open, respondedAt: null, responseBreached: false, responseWarningSentAt: null }, data: { responseWarningSentAt: now } }
+          : { where: { ...open, respondedAt: null, responseBreached: false }, data: { responseBreached: true } }
+        : kind === "warning"
+          ? { where: { ...open, pausedAt: null, resolutionBreached: false, resolutionWarningSentAt: null }, data: { resolutionWarningSentAt: now } }
+          : { where: { ...open, pausedAt: null, resolutionBreached: false }, data: { resolutionBreached: true } }
+    const { count } = await this.prisma.db.ticket.updateMany(target)
+    return count === 1
   }
 
   /**
