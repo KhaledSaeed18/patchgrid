@@ -248,9 +248,12 @@ make the numbers mean something:
   "how many are there" rule take `SELECT … FROM "Organization" WHERE id = :orgId FOR UPDATE` inside the
   mutating transaction. Read-then-write races are how an org ends up with zero owners.
 
-`period` is `YYYY-MM` in **UTC**. Metrics: `tickets_created` (cumulative per period),
-`agent_seats`, `storage_bytes`, `automation_rules`, `kb_articles` (point-in-time, therefore
-recomputable). The nightly `usage-reconcile` job recomputes the point-in-time metrics from source and
+The metrics and the numbers above have one definition, `UsageMetric` and `PLAN_LIMITS` in
+`@patchgrid/contracts`; a test holds that table to this one. `TICKETS_CREATED` is cumulative, its
+`period` the month as `YYYY-MM` in **UTC**; `AGENT_SEATS`, `STORAGE_BYTES`, `AUTOMATION_RULES` and
+`KB_ARTICLES` are point-in-time, their `period` the literal `current`, and therefore recomputable. A
+seat is an `ACTIVE` human membership at `AGENT` or above (ADR-0033): a disabled agent frees one, a
+service account and a requester never hold one. The nightly `usage-reconcile` job recomputes the point-in-time metrics from source and
 reports drift on the cumulative one.
 
 **Downgrade below current usage** never destroys data: the downgrade is allowed, *new* creation is
