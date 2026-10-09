@@ -10,6 +10,7 @@ import { ZodValidationPipe } from "./common/problems/zod-validation.pipe"
 import { AuditModule } from "./audit/audit.module"
 import { AuthModule } from "./auth/auth.module"
 import { AuthzModule } from "./authz/authz.module"
+import { CategoriesModule } from "./categories/categories.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
@@ -108,6 +109,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     OrgsModule,
     MembershipsModule,
     TeamsModule,
+    CategoriesModule,
     HealthModule,
   ],
   providers: [
