@@ -113,7 +113,11 @@ suite proves every route asserts a permission._
       `DELETE /members/:id`. Every change locks the organization row, mirrors `UserOrgIndex`, audits and
       bumps the epoch in one transaction; a full-stack spec proves the lifecycle and two owners demoting
       each other at once. Seat limits join with `QuotaService`
-- [ ] Teams: CRUD, `TeamMembership`, lead assignment, "manage own team's members" for leads
+- [x] Teams: CRUD, `TeamMembership`, lead assignment, "manage own team's members" for leads. Shipped
+      2026-10-09: `GET/POST /teams`, `GET/PATCH /teams/:id` (deactivate, never delete), `PUT /teams/:id/lead`
+      (admins), `PUT/DELETE /teams/:id/members/:membershipId` (a lead for their own team, admins for any).
+      Team rows are locked for membership and lead changes, every affected member's epoch is bumped in the
+      transaction, requesters join no team, and demoting a member to requester takes them out of every team
 - [x] `authz` module: unified permission catalog/matrix in `@patchgrid/contracts`, pure
       `PermissionService` (`can` / `assert` / `scopeFor` / `permissionsFor` / `capabilitiesFor`),
       `@RequirePermission` guard, deny-by-default, branch-shaped `ScopeFilter` (ADR-0019, ADR-0025).
@@ -122,12 +126,19 @@ suite proves every route asserts a permission._
       loaded `Subject` and nothing else (a lint zone forbids I/O under `src/authz`); `assert` is the 403,
       `assertVisible` the 404; service actors are role ∩ scopes. `capabilitiesFor` waits for its first
       subject, the ticket, in M2
-- [ ] `GET /me` returning `{ user, membership, org, teams, permissions[] }`; `apps/app` renders from it
-- [ ] `Organization.agentVisibility` setting + `scopeFor()` unit tests (plumbed into real list queries in
-      M2, where lists first exist)
-- [~] Org-wide audit actions (`RBAC.md` §12) and `GET /org/audit` with its indexes. The partitioned
-      `AuditLog` (ADR-0034), `AuditService` and the member and invitation actions are in; `GET /org/audit`,
-      team and settings actions are next
+- [~] `GET /me` returning `{ user, membership, org, teams, permissions[] }`; `apps/app` renders from it.
+      The API half shipped 2026-10-09, with a spec holding two workspaces open as one account; the app
+      half lands with the `apps/app` item
+- [x] `Organization.agentVisibility` setting + `scopeFor()` unit tests (plumbed into real list queries in
+      M2, where lists first exist). Shipped 2026-10-09 with the org settings: `GET/PATCH /org/settings`
+      (name, notifications, agent visibility — its own audit action, and the cached summary invalidated)
+      and the owner's `POST /org/slug` (30-day cooldown, old slug retired for a 302 window, session
+      re-minted under the new cookie name)
+- [x] Org-wide audit actions (`RBAC.md` §12) and `GET /org/audit` with its indexes. Shipped 2026-10-09:
+      the partitioned `AuditLog` with forced RLS on every partition (ADR-0034), `AuditService` writing in
+      the change's transaction, the member, invitation, team and settings actions, and `GET /org/audit`
+      paged newest first and filtered by actor, action and date range. Support, token and plan actions
+      join with their items
 - [x] **Authorization suite**: exhaustive matrix test, deny-by-default, route-coverage reflection test,
       escalation negatives including concurrent last-owner demotion — wired as a CI gate. `pnpm
       test:authz` (its own `verify` step) drives every role × permission through satisfying and failing
