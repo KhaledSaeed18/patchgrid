@@ -1,6 +1,9 @@
 import { z } from "zod"
 
-import type { TicketType } from "./ticket-number.ts"
+import { idSchema } from "./id.ts"
+import { pageSchema, paginationQuerySchema } from "./pagination.ts"
+import { impactSchema, prioritySchema, urgencySchema } from "./priority.ts"
+import { type TicketType, ticketTypeSchema } from "./ticket-number.ts"
 
 /**
  * Ticket statuses (DOMAIN.md §2); the types live with their numbers in
@@ -65,3 +68,167 @@ export const ticketActionSchema = z.enum([
   "rollback",
 ])
 export type TicketAction = z.infer<typeof ticketActionSchema>
+
+/**
+ * The ticket on the wire (DOMAIN.md, RBAC.md §7). `priority` is the server's
+ * answer and is refused on every request (CLAUDE.md: priority is computed);
+ * the request schemas are strict, so an unexpected field is a 400 rather
+ * than silently dropped.
+ */
+const titleSchema = z.string().trim().min(1).max(200)
+const descriptionSchema = z.string().trim().min(1).max(20_000)
+
+export const commentInputSchema = z.object({
+  body: z.string().trim().min(1).max(20_000),
+  visibility: commentVisibilitySchema,
+})
+export type CommentInput = z.infer<typeof commentInputSchema>
+
+export const createTicketRequestSchema = z.strictObject({
+  /** Problems and Changes are raised by agents, with their milestone. */
+  type: z.enum(["INCIDENT", "SERVICE_REQUEST"]),
+  title: titleSchema,
+  description: descriptionSchema,
+  impact: impactSchema,
+  urgency: urgencySchema,
+  categoryId: idSchema.optional(),
+  /** Raising it for someone else needs `ticket:create_on_behalf`. */
+  requesterMembershipId: idSchema.optional(),
+})
+export type CreateTicketRequest = z.infer<typeof createTicketRequestSchema>
+
+/** Every edit carries the version it was made against; a mismatch is 409 `stale-write`. */
+export const updateTicketRequestSchema = z
+  .strictObject({
+    version: z.int().positive(),
+    title: titleSchema.optional(),
+    description: descriptionSchema.optional(),
+    impact: impactSchema.optional(),
+    urgency: urgencySchema.optional(),
+    categoryId: idSchema.nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 1, { error: "must change at least one field" })
+export type UpdateTicketRequest = z.infer<typeof updateTicketRequestSchema>
+
+/** Reassignment, always allowed to agents and audited (DOMAIN.md §5). `null` clears. */
+export const assignTicketRequestSchema = z
+  .strictObject({
+    version: z.int().positive(),
+    assigneeMembershipId: idSchema.nullable().optional(),
+    teamId: idSchema.nullable().optional(),
+  })
+  .refine((v) => v.assigneeMembershipId !== undefined || v.teamId !== undefined, {
+    error: "must set an assignee, a team, or both",
+  })
+export type AssignTicketRequest = z.infer<typeof assignTicketRequestSchema>
+
+/** `POST /tickets/:id/transitions` (ADR-0006). */
+export const transitionRequestSchema = z.strictObject({
+  action: ticketActionSchema,
+  version: z.int().positive(),
+  /** Required by `wait`, `resolve` and cancelling a worked ticket, in public. */
+  comment: commentInputSchema.optional(),
+  /** For `assign`. */
+  assigneeMembershipId: idSchema.optional(),
+  teamId: idSchema.optional(),
+})
+export type TransitionRequest = z.infer<typeof transitionRequestSchema>
+
+const personSchema = z.object({ membershipId: idSchema, displayName: z.string() })
+
+export const clockSchema = z.object({
+  due: z.iso.datetime().nullable(),
+  stoppedAt: z.iso.datetime().nullable(),
+  breached: z.boolean(),
+  paused: z.boolean(),
+})
+
+/** Which fields this actor may edit and what else they may do, on THIS ticket (RBAC.md §7). */
+export const ticketCapabilitiesSchema = z.object({
+  editableFields: z.array(z.enum(["title", "description", "impact", "urgency", "categoryId"])),
+  canAssign: z.boolean(),
+  canCommentPublic: z.boolean(),
+  canCommentInternal: z.boolean(),
+  canReadInternal: z.boolean(),
+  canWatch: z.boolean(),
+  canAddWatcher: z.boolean(),
+  canReadAudit: z.boolean(),
+})
+export type TicketCapabilities = z.infer<typeof ticketCapabilitiesSchema>
+
+export const ticketSummarySchema = z.object({
+  id: idSchema,
+  /** `INC-000042`. */
+  number: z.string(),
+  type: ticketTypeSchema,
+  title: z.string(),
+  status: ticketStatusSchema,
+  priority: prioritySchema,
+  requester: personSchema,
+  assignee: personSchema.nullable(),
+  team: z.object({ id: idSchema, name: z.string() }).nullable(),
+  /** The deadline that matters now — response until answered, then resolution — or `null` without a clock. */
+  dueAt: z.iso.datetime().nullable(),
+  breached: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+})
+export type TicketSummary = z.infer<typeof ticketSummarySchema>
+
+export const ticketSchema = ticketSummarySchema.extend({
+  description: z.string(),
+  version: z.int(),
+  impact: impactSchema,
+  urgency: urgencySchema,
+  category: z.object({ id: idSchema, name: z.string() }).nullable(),
+  source: ticketSourceSchema,
+  reopenCount: z.int(),
+  sla: z.object({ response: clockSchema, resolution: clockSchema }).nullable(),
+  resolvedAt: z.iso.datetime().nullable(),
+  closedAt: z.iso.datetime().nullable(),
+  availableActions: z.array(ticketActionSchema),
+  capabilities: ticketCapabilitiesSchema,
+})
+export type Ticket = z.infer<typeof ticketSchema>
+
+/**
+ * The lists (ARCHITECTURE.md §Frontend): `mine` is what the actor raised,
+ * `assigned` what is theirs to work, `teams` their teams' open work,
+ * `open` everything open they may see, `unassigned` the queue with no team.
+ */
+export const ticketViewSchema = z.enum(["mine", "assigned", "teams", "open", "unassigned"])
+export type TicketView = z.infer<typeof ticketViewSchema>
+
+export const ticketListQuerySchema = paginationQuerySchema.extend({
+  view: ticketViewSchema.default("mine"),
+  status: ticketStatusSchema.optional(),
+})
+export type TicketListQuery = z.infer<typeof ticketListQuerySchema>
+
+export const ticketPageSchema = pageSchema(ticketSummarySchema)
+export type TicketPage = z.infer<typeof ticketPageSchema>
+
+export const commentSchema = z.object({
+  id: idSchema,
+  author: personSchema.nullable(),
+  authorKind: commentAuthorKindSchema,
+  /** `null` once deleted: the thread shows that a comment was removed, not what it said. */
+  body: z.string().nullable(),
+  visibility: commentVisibilitySchema,
+  editedAt: z.iso.datetime().nullable(),
+  deletedAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  canEdit: z.boolean(),
+  canDelete: z.boolean(),
+})
+export type Comment = z.infer<typeof commentSchema>
+
+export const editCommentRequestSchema = z.strictObject({ body: z.string().trim().min(1).max(20_000) })
+
+export const watcherSchema = z.object({
+  membershipId: idSchema,
+  displayName: z.string(),
+  /** The requester and the assignee watch without a row and cannot be removed (RBAC.md §5). */
+  implicit: z.boolean(),
+})
+export type Watcher = z.infer<typeof watcherSchema>
