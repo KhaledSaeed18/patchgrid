@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation"
 import { clientApi } from "@/lib/api/client"
 import { appOrigin, ROOT_DOMAIN } from "@/lib/config"
 import { ROLE_LABEL } from "@/lib/labels"
-import { navigationFor } from "@/lib/navigation"
+import { currentHref, navigationFor } from "@/lib/navigation"
 
 import { useTenant } from "./tenant-provider"
 
@@ -28,9 +28,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const me = useTenant()
   const pathname = usePathname()
   const sections = navigationFor(me.permissions)
-  const active = (href: string) =>
-    pathname === href ||
-    (href !== "/settings" && pathname.startsWith(`${href}/`))
+  const current = currentHref(pathname, sections)
+  const active = (href: string) => href === current
 
   return (
     <div className="min-h-svh md:grid md:grid-cols-[15rem_minmax(0,1fr)]">

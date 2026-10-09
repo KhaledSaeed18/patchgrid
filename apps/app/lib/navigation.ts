@@ -55,3 +55,26 @@ export function navigationFor(
 export function homeFor(permissions: readonly Permission[]): string {
   return permissions.includes("ticket:assign") ? "/queues" : "/tickets"
 }
+
+const TICKET_PAGE = /^\/tickets\/[0-9a-f-]{36}$/
+
+/**
+ * The link to mark current for a path. A ticket's own page lives under
+ * `/tickets` for everyone, but an agent reaches it from the queues, so for
+ * them it belongs there. `/settings` is matched exactly, since every settings
+ * page sits beneath it.
+ */
+export function currentHref(
+  pathname: string,
+  sections: readonly NavSection[]
+): string | null {
+  const hrefs = sections.flatMap((s) => s.items.map((i) => i.href))
+  if (TICKET_PAGE.test(pathname) && hrefs.includes("/queues")) return "/queues"
+  const matches = hrefs.filter(
+    (href) =>
+      pathname === href ||
+      (href !== "/settings" && pathname.startsWith(`${href}/`))
+  )
+  // The longest match wins: /settings/teams/x is Teams, not Workspace.
+  return matches.sort((a, b) => b.length - a.length)[0] ?? null
+}
