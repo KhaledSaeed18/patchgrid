@@ -12,6 +12,7 @@ import { z } from "zod"
 
 import { RequirePermission } from "../authz/require-permission"
 import { TeamsService } from "./teams.service"
+import { Idempotent } from "../common/idempotency/idempotency"
 
 class TeamParamsDto extends createZodDto(z.object({ id: idSchema })) {}
 class TeamMemberParamsDto extends createZodDto(z.object({ id: idSchema, membershipId: idSchema })) {}
@@ -43,6 +44,7 @@ export class TeamsController {
   @Post()
   @HttpCode(201)
   @RequirePermission("team:write")
+  @Idempotent()
   create(@Body() body: CreateTeamDto): Promise<TeamDetail> {
     return this.teams.create(body)
   }

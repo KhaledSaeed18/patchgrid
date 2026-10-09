@@ -14,6 +14,7 @@ import { clientOf } from "../auth/auth.controller"
 import { CookieService } from "../auth/cookies"
 import { Public, TenantOptional } from "../common/decorators/route-markers"
 import { ProvisioningService } from "./provisioning/provisioning.service"
+import { Idempotent } from "../common/idempotency/idempotency"
 
 class CreateOrganizationDto extends createZodDto(createOrganizationRequestSchema) {}
 /** Any string: the answer to "not a slug" is `available: false` with the reason, never a 400. */
@@ -44,6 +45,7 @@ export class OrgsController {
   @Post()
   @TenantOptional()
   @HttpCode(201)
+  @Idempotent()
   async create(
     @Body() body: CreateOrganizationDto,
     @Req() request: Request,

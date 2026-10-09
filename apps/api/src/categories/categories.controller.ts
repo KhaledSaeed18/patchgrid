@@ -11,6 +11,7 @@ import { z } from "zod"
 
 import { RequirePermission } from "../authz/require-permission"
 import { CategoriesService } from "./categories.service"
+import { Idempotent } from "../common/idempotency/idempotency"
 
 class ListDto extends createZodDto(categoryListQuerySchema) {}
 class ParamsDto extends createZodDto(z.object({ id: idSchema })) {}
@@ -31,6 +32,7 @@ export class CategoriesController {
   @Post()
   @HttpCode(201)
   @RequirePermission("category:write")
+  @Idempotent()
   create(@Body() body: CreateDto): Promise<Category> {
     return this.categories.create(body)
   }

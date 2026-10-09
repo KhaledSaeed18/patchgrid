@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto"
 import type { IncomingMessage, ServerResponse } from "node:http"
 
 import { CommonModule } from "./common/common.module"
+import { IdempotencyModule } from "./common/idempotency/idempotency.module"
 import { ProblemDetailsFilter } from "./common/problems/problem-details.filter"
 import { ZodValidationPipe } from "./common/problems/zod-validation.pipe"
 import { AuditModule } from "./audit/audit.module"
@@ -114,6 +115,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     CategoriesModule,
     SlaModule,
     TicketsModule,
+    IdempotencyModule,
     HealthModule,
   ],
   providers: [

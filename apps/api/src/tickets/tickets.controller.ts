@@ -22,6 +22,7 @@ import { CommentsService } from "./comments.service"
 import { TicketAuditService } from "./ticket-audit.service"
 import { TicketsService } from "./tickets.service"
 import { WatchersService } from "./watchers.service"
+import { Idempotent } from "../common/idempotency/idempotency"
 
 class TicketParams extends createZodDto(z.object({ id: idSchema })) {}
 class CommentParams extends createZodDto(z.object({ id: idSchema, commentId: idSchema })) {}
@@ -58,6 +59,7 @@ export class TicketsController {
   @Post()
   @HttpCode(201)
   @RequirePermission("ticket:create")
+  @Idempotent()
   create(@Body() body: CreateDto): Promise<Ticket> {
     return this.tickets.create(body)
   }

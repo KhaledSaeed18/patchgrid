@@ -21,6 +21,7 @@ import { RequirePermission } from "../../authz/require-permission"
 import { Public, TenantOptional } from "../../common/decorators/route-markers"
 import { InvitationAcceptanceService } from "../acceptance/invitation-acceptance.service"
 import { InvitationsService } from "./invitations.service"
+import { Idempotent } from "../../common/idempotency/idempotency"
 
 class CreateInvitationDto extends createZodDto(createInvitationRequestSchema) {}
 class InvitationParamsDto extends createZodDto(z.object({ id: idSchema })) {}
@@ -53,6 +54,7 @@ export class InvitationsController {
   @Post()
   @HttpCode(201)
   @RequirePermission("member:invite")
+  @Idempotent()
   create(@Body() body: CreateInvitationDto): Promise<Invitation> {
     return this.invitations.create(body)
   }
