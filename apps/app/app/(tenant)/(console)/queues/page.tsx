@@ -1,6 +1,7 @@
 import {
   ticketPageSchema,
   ticketSearchResultSchema,
+  ticketSortSchema,
   ticketStatusSchema,
   type TicketView,
   ticketViewSchema,
@@ -45,16 +46,19 @@ export default async function QueuesPage({
       : "assigned"
   const parsedStatus = ticketStatusSchema.safeParse(one("status"))
   const status = parsedStatus.success ? parsedStatus.data : undefined
+  const parsedSort = ticketSortSchema.safeParse(one("sort"))
+  const sort = parsedSort.success ? parsedSort.data : "newest"
   const q = one("q")?.trim() ?? ""
 
   const query = new URLSearchParams({ view, limit: "25" })
   if (status !== undefined) query.set("status", status)
+  if (sort !== "newest") query.set("sort", sort)
 
   return (
     <>
       <PageHeader
         title="Queues"
-        description="Open work you can see, newest first. Deadlines count down to the next target: first response, then resolution."
+        description="Open work you can see. Deadlines count down to the next target: first response, then resolution."
       />
       <div className="px-6 py-6 md:px-10">
         <nav
@@ -64,6 +68,7 @@ export default async function QueuesPage({
           {QUEUES.map((queue) => {
             const href = new URLSearchParams({ view: queue.view })
             if (status !== undefined) href.set("status", status)
+            if (sort !== "newest") href.set("sort", sort)
             const current = q === "" && queue.view === view
             return (
               <Link
@@ -82,7 +87,7 @@ export default async function QueuesPage({
             )
           })}
         </nav>
-        <QueueFilters view={view} status={status} q={q} />
+        <QueueFilters view={view} status={status} sort={sort} q={q} />
         <div className="mt-4">
           {q === "" ? (
             <TicketFeed

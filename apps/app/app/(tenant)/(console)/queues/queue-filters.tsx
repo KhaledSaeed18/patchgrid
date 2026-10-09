@@ -1,6 +1,8 @@
 "use client"
 
 import {
+  type TicketSort,
+  ticketSortSchema,
   type TicketStatus,
   ticketStatusSchema,
   type TicketView,
@@ -22,21 +24,29 @@ const STATUSES: TicketStatus[] = [
   "CANCELLED",
 ]
 
-/** Search and status, written to the URL; the server page reads them back. */
+/** Search, status and order, written to the URL; the server page reads them back. */
 export function QueueFilters({
   view,
   status,
+  sort,
   q,
 }: {
   view: TicketView
   status: TicketStatus | undefined
+  sort: TicketSort
   q: string
 }) {
   const router = useRouter()
-  const go = (next: { status?: TicketStatus | undefined; q?: string }) => {
+  const go = (next: {
+    status?: TicketStatus | undefined
+    sort?: TicketSort
+    q?: string
+  }) => {
     const params = new URLSearchParams({ view })
     const s = "status" in next ? next.status : status
     if (s !== undefined) params.set("status", s)
+    const order = next.sort ?? sort
+    if (order !== "newest") params.set("sort", order)
     const text = next.q ?? ""
     if (text !== "") params.set("q", text)
     router.push(`/queues?${params.toString()}`)
@@ -77,6 +87,20 @@ export function QueueFilters({
               {TICKET_STATUS_LABEL[s]}
             </option>
           ))}
+        </NativeSelect>
+      )}
+      {q === "" && (
+        <NativeSelect
+          aria-label="Order"
+          className="w-40"
+          value={sort}
+          onChange={(e) => {
+            const parsed = ticketSortSchema.safeParse(e.target.value)
+            if (parsed.success) go({ sort: parsed.data })
+          }}
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
         </NativeSelect>
       )}
     </div>
