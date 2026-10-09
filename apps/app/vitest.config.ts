@@ -1,8 +1,11 @@
 import react from "@vitejs/plugin-react"
+import { fileURLToPath } from "node:url"
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({
   plugins: [react()],
+  // The `@/` alias from tsconfig.json, which Vite does not read on its own.
+  resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
     // Component tests need a DOM. Anything that does not can declare
     // `// @vitest-environment node` at the top of the file.
