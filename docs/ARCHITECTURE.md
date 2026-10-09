@@ -347,10 +347,12 @@ a **list of branches** rather than one predicate (ADR-0025), so list repositorie
 index-friendly queries. That return type is the expensive thing to change later; the table behind it is
 not.
 
-`AuditLog` is declaratively partitioned by month (`PARTITION BY RANGE (createdAt)`). The parent is
-created in hand-written SQL alongside the policies; RLS policies declared on the parent are inherited by
-every partition. A monthly job creates the next partition and detaches partitions past the plan's
-retention window.
+`AuditLog` is declaratively partitioned by month (`PARTITION BY RANGE (createdAt)`), primary key
+`(id, createdAt)`. Policies on the parent govern only queries _through_ the parent, so every partition
+carries `FORCE ROW LEVEL SECURITY` and the template policy itself. Partitions are made by
+`ensure_audit_log_partition()`, a narrow `SECURITY DEFINER` function the app role may execute — it
+never gains `CREATE`. The API ensures the current and next month at boot and daily; partitions are
+detached only past the longest retention window, since every tenant shares them (ADR-0034).
 
 **RLS policies** are hand-written SQL appended to the `migration.sql` that creates the table — Prisma
 only runs `migration.sql`, so a separate file would never execute. The SQL comes from one template

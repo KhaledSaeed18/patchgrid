@@ -55,6 +55,9 @@ Roles live on `Membership` and are strictly cumulative: `REQUESTER ⊂ AGENT ⊂
 membership (add/remove existing org members). A lead who is only an `AGENT` gains nothing else — they
 cannot invite new users or change roles. A member may lead one team while working in another.
 
+**Membership states** — what disable and remove each do, and how an invitation becomes a membership —
+are in ADR-0033.
+
 **Last-owner protection.** Every org has ≥ 1 `OWNER`. The last owner cannot be demoted, disabled,
 removed, or leave. Transfer of ownership is an explicit two-step action (promote, then the outgoing owner
 steps down). **The check takes `SELECT … FROM "Organization" WHERE id = :orgId FOR UPDATE` inside the
@@ -376,7 +379,8 @@ interface PermissionService {
 
 Beyond ticket mutations (`DOMAIN.md` §7), these are audited into the tenant's `AuditLog`:
 
-`MEMBER_INVITED`, `MEMBER_JOINED`, `MEMBER_ROLE_CHANGED`, `MEMBER_DISABLED`, `MEMBER_REMOVED`,
+`MEMBER_INVITED`, `INVITATION_REVOKED`, `MEMBER_JOINED`, `MEMBER_ROLE_CHANGED`, `MEMBER_DISABLED`,
+`MEMBER_ENABLED`, `MEMBER_REMOVED`,
 `TEAM_CREATED/UPDATED/DELETED`, `TEAM_MEMBER_ADDED/REMOVED`, `TEAM_LEAD_CHANGED`,
 `ORG_SETTINGS_UPDATED`, `ORG_SLUG_CHANGED`, `ORG_PLAN_CHANGED`, `ORG_SUSPENDED/UNSUSPENDED`,
 `ORG_DELETION_REQUESTED/CANCELLED`, `ORG_EXPORTED`, `OWNERSHIP_TRANSFERRED`, `AGENT_VISIBILITY_CHANGED`,

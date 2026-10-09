@@ -87,7 +87,8 @@ Provisioning is idempotent: retrying a failed job never double-seeds.
 
 ## 5. Joining an existing organization
 
-- **Invitation** (default): an `ADMIN`/`OWNER` invites an email with a role and optional team.
+- **Invitation** (default): an `ADMIN`/`OWNER` invites an email with a role and optional team
+  (only an `OWNER` may invite at `ADMIN` or above; lifecycle in ADR-0033).
   Single-use, hashed at rest, expires in 7 days. The token is `<orgId-base36>.<secret>` so the API can
   establish tenant context before looking the invitation up (ADR-0022) — a wrong org id and a wrong
   secret produce the same generic failure. If the email already has an account, acceptance adds a

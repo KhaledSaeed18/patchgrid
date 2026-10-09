@@ -39,6 +39,8 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0030](0030-observability-opentelemetry-per-tenant.md) | Observability: OpenTelemetry with per-tenant dimensions | Accepted |
 | [0031](0031-identity-flow-hardening.md) | Identity-flow hardening: invite binding, uniform responses, a revocable `pg_id` | Accepted |
 | [0032](0032-password-policy-and-link-lifetimes.md) | Password policy and one-time link lifetimes | Accepted |
+| [0033](0033-membership-lifecycle.md) | Membership lifecycle: invite, join, disable, remove | Accepted |
+| [0034](0034-audit-log-partitions-under-rls.md) | Audit-log partitions under RLS | Accepted |
 
 ## Reading order for someone new
 
