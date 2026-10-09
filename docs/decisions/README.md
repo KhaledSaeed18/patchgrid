@@ -38,6 +38,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0029](0029-mfa-and-step-up-authentication.md) | MFA (TOTP) and step-up authentication | Accepted |
 | [0030](0030-observability-opentelemetry-per-tenant.md) | Observability: OpenTelemetry with per-tenant dimensions | Accepted |
 | [0031](0031-identity-flow-hardening.md) | Identity-flow hardening: invite binding, uniform responses, a revocable `pg_id` | Accepted |
+| [0032](0032-password-policy-and-link-lifetimes.md) | Password policy and one-time link lifetimes | Accepted |
 
 ## Reading order for someone new
 
