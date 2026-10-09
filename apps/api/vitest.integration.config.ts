@@ -8,6 +8,8 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   test: {
     include: ["test/**/*.int-spec.ts"],
+    // The isolation suite is its own gate: `test:tenancy`.
+    exclude: ["test/tenancy/**"],
     // Files share one database; the rows they seed must not interleave.
     fileParallelism: false,
     globals: false,
