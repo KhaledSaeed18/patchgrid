@@ -115,6 +115,10 @@ jobs:
       - run: pnpm db:bootstrap
       - run: pnpm db:generate
       - run: pnpm db:doctor
+      # The API ensures this and next month's audit partitions at boot, through
+      # a function the migrations create (ADR-0034) — as any deploy would, it
+      # boots against a migrated database.
+      - run: pnpm --filter @patchgrid/database run migrate:deploy
       - run: pnpm --filter @patchgrid/api run build
 
       - name: Boot the API and assert readiness
