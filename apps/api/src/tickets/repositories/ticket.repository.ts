@@ -166,18 +166,23 @@ export class TicketRepository {
    */
   async listBranch(orgId: string, branch: ScopeBranch | null, filter: ListFilter): Promise<TicketSummaryRow[]> {
     return this.prisma.db.ticket.findMany({
+      // ANDed, never spread together: a view and a branch may both constrain
+      // the same column (`teams` and the no-team branch both name teamId),
+      // and a spread would let one silently replace the other.
       where: {
         orgId,
-        ...filter.where,
-        ...branchWhere(branch),
-        ...(filter.after === null
-          ? {}
-          : {
-              OR: [
-                { createdAt: { lt: filter.after.createdAt } },
-                { createdAt: filter.after.createdAt, id: { lt: filter.after.id } },
-              ],
-            }),
+        AND: [
+          filter.where,
+          branchWhere(branch),
+          filter.after === null
+            ? {}
+            : {
+                OR: [
+                  { createdAt: { lt: filter.after.createdAt } },
+                  { createdAt: filter.after.createdAt, id: { lt: filter.after.id } },
+                ],
+              },
+        ],
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: filter.limit,
