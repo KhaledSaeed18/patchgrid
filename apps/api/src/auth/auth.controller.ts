@@ -1,5 +1,6 @@
-import { Body, Controller, HttpCode, Post, Req, Res } from "@nestjs/common"
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common"
 import {
+  type IdentityResponse,
   type LoginResponse,
   loginRequestSchema,
   logoutRequestSchema,
@@ -53,6 +54,13 @@ export class AuthController {
     const result = await this.sessions.login(body.email, body.password, body.slug, clientOf(request))
     this.cookies.set(response, result.cookies)
     return result.response
+  }
+
+  /** The picker's data: the signed-in account and its workspaces. */
+  @Get("identity")
+  @TenantOptional()
+  identity(): Promise<IdentityResponse> {
+    return this.sessions.identity(this.actors.requireIdentity().userId)
   }
 
   /** The org switcher: mint a pair for a workspace the `pg_id` holder belongs to. */

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common"
-import type { LoginResponse } from "@patchgrid/contracts"
+import type { IdentityResponse, LoginResponse } from "@patchgrid/contracts"
 import { createHash, randomBytes } from "node:crypto"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
@@ -140,6 +140,16 @@ export class SessionService {
     }
     clear.push({ name: this.cookies.identity("").name, path: "/" })
     return clear
+  }
+
+  /** Who a `pg_id` holder is and which workspaces the picker lists for them. */
+  async identity(userId: string): Promise<IdentityResponse> {
+    const account = await this.users.findById(userId)
+    if (account === null || !isUsable(account)) throw new NotAuthenticatedProblem("A session is required")
+    return {
+      user: { id: account.id, email: account.email, name: account.name },
+      workspaces: await this.workspaces.listWorkspacesForUser(account.id),
+    }
   }
 
   /** The org switcher: a `pg_id` holder opens one workspace they belong to. */

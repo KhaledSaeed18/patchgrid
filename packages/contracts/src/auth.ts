@@ -65,6 +65,16 @@ export const loginResponseSchema = z.object({
 })
 export type LoginResponse = z.infer<typeof loginResponseSchema>
 
+/**
+ * `GET /auth/identity` — the `pg_id` holder and the workspaces the picker
+ * lists. Display only: entering one re-reads the membership (ADR-0031).
+ */
+export const identityResponseSchema = z.object({
+  user: sessionUserSchema,
+  workspaces: z.array(workspaceSummarySchema),
+})
+export type IdentityResponse = z.infer<typeof identityResponseSchema>
+
 /** The org switcher: mint a pair for one workspace the `pg_id` holder belongs to. */
 export const openSessionRequestSchema = z.object({ slug: slugSchema })
 export const openSessionResponseSchema = z.object({ session: z.object({ slug: slugSchema }) })

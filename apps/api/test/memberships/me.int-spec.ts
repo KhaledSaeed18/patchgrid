@@ -73,6 +73,16 @@ describe("GET /me", () => {
     expect(requester.body.teams).toEqual([])
   })
 
+  it("lists both workspaces for the picker, from the identity cookie alone", async () => {
+    const identity = await request(app.getHttpServer()).get("/api/v1/auth/identity").set("Cookie", acme.people.dana.pgId)
+    expect(identity.status).toBe(200)
+    expect(identity.body.user.email).toBe(acme.people.dana.email)
+    expect(identity.body.workspaces.map((w: { slug: string; role: string }) => [w.slug, w.role]).toSorted()).toEqual(
+      [[acme.slug, "ADMIN"], [globex.slug, "AGENT"]].toSorted(),
+    )
+    expect((await request(app.getHttpServer()).get("/api/v1/auth/identity")).status).toBe(401)
+  })
+
   it("holds two workspaces open at once: one account, two cookies, two answers", async () => {
     const opened = await request(app.getHttpServer())
       .post("/api/v1/auth/sessions")
