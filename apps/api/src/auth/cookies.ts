@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common"
-import { parse as parseCookies } from "cookie"
+import { parseCookie } from "cookie"
 import type { Request, Response } from "express"
 
 import { InjectConfig, type AppConfig } from "../config/app-config"
@@ -94,6 +94,6 @@ export class CookieService {
 export function readCookie(request: Request, name: string): string | undefined {
   const header = request.headers.cookie
   if (header === undefined) return undefined
-  const value = parseCookies(header)[name]
+  const value = parseCookie(header)[name]
   return value === undefined || value === "" ? undefined : value
 }

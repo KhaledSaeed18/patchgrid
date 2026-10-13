@@ -1,4 +1,4 @@
-import { parse as parseCookies } from "cookie"
+import { parseCookie } from "cookie"
 
 import { peekOrgClaim, accessCookieName } from "../auth/tokens/access-token"
 import { classifyOrigin, type OriginClass, type OriginPolicy } from "../common/http/origin-policy"
@@ -75,7 +75,7 @@ export function locateCredential(headers: RequestHeaders, policy: OriginPolicy):
   const slug = assertedSlug(assertion)
   if (slug === undefined || slug === null) return { credential: { kind: "none" }, assertion }
 
-  const cookies = headers.cookie === undefined ? {} : parseCookies(headers.cookie)
+  const cookies = headers.cookie === undefined ? {} : parseCookie(headers.cookie)
   const token = cookies[accessCookieName(slug)]
   if (token === undefined || token === "") return { credential: { kind: "none" }, assertion }
 
