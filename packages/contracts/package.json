@@ -18,7 +18,7 @@
     "@patchgrid/eslint-config": "workspace:*",
     "@patchgrid/typescript-config": "workspace:*",
     "@types/node": "^24",
-    "eslint": "^9",
+    "eslint": "^10",
     "typescript": "^5",
     "vitest": "^5.0.1"
   },
