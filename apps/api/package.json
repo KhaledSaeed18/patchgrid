@@ -33,7 +33,7 @@
     "nestjs-cls": "7.0.1",
     "nestjs-pino": "^5.3.1",
     "nestjs-zod": "^5.5.0",
-    "nodemailer": "^10.0.14",
+    "nodemailer": "^10.1.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "react": "19.2.4",
