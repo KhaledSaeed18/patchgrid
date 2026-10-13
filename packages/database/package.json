@@ -34,7 +34,7 @@
     "@patchgrid/contracts": "workspace:*",
     "@patchgrid/eslint-config": "workspace:*",
     "@patchgrid/typescript-config": "workspace:*",
-    "@types/node": "^24",
+    "@types/node": "^26",
     "@types/pg": "^8.23.1",
     "eslint": "^9",
     "prisma": "7.10.0",
