@@ -39,6 +39,7 @@ export type SeededOrg = {
   /** A Problem the incident is CAUSED_BY, and a Change that RESOLVES it, once rejected and resubmitted. */
   problemId: string
   changeId: string
+  assetId: string
 }
 
 export type SeededPerson = { userId: string; email: string }
@@ -280,6 +281,19 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       ],
     })
 
+    // The same serial in both orgs — unique per org, never globally (ADR-0013).
+    const asset = await db.asset.create({
+      data: {
+        orgId: org.id,
+        name: "ThinkPad T14",
+        type: "LAPTOP",
+        status: "IN_USE",
+        serialNumber: "PF-LOOKALIKE-1",
+        ownerMembershipId: members[requesterKey] ?? null,
+      },
+    })
+    await db.ticketAsset.create({ data: { orgId: org.id, ticketId: ticket.id, assetId: asset.id } })
+
     return {
       id: org.id,
       slug,
@@ -291,6 +305,7 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       commentIds: { public: reply.id, internal: note.id },
       problemId: problem.id,
       changeId: change.id,
+      assetId: asset.id,
     }
   }
 
@@ -304,6 +319,8 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.notification.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketWatcher.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.attachment.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ticketAsset.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.asset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketLink.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.changeApproval.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.problemDetails.deleteMany({ where: { orgId: { in: orgIds } } })

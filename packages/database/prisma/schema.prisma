@@ -143,6 +143,8 @@ model Organization {
   changeApprovals ChangeApproval[]
   ticketLinks     TicketLink[]
   attachments     Attachment[]
+  assets          Asset[]
+  ticketAssets    TicketAsset[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -338,6 +340,7 @@ model Membership {
   notifications            Notification[]   @relation("NotificationMembership")
   notificationsAsRecipient Notification[]   @relation("NotificationRecipient")
   attachments              Attachment[]
+  assetsOwned              Asset[]
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -539,6 +542,27 @@ enum AttachmentStatus {
   READY
 }
 
+/// What an asset is (DOMAIN.md §9.3). Anything finer is its name.
+enum AssetType {
+  LAPTOP
+  DESKTOP
+  MONITOR
+  PHONE
+  TABLET
+  PRINTER
+  NETWORK
+  SERVER
+  SOFTWARE
+  OTHER
+}
+
+enum AssetStatus {
+  IN_STOCK
+  IN_USE
+  IN_REPAIR
+  RETIRED
+}
+
 enum ChangeRisk {
   LOW
   MEDIUM
@@ -690,6 +714,7 @@ model Ticket {
   linksFrom     TicketLink[]     @relation("LinkFrom")
   linksTo       TicketLink[]     @relation("LinkTo")
   attachments   Attachment[]
+  assets        TicketAsset[]
 
   @@unique([orgId, id])
   @@unique([orgId, type, number])
@@ -889,4 +914,49 @@ model Attachment {
   @@unique([orgId, storageKey])
   @@index([orgId, ticketId, createdAt])
   @@index([orgId, status, createdAt])
+}
+
+/// Something the organization owns (DOMAIN.md §9.3). A requester sees the
+/// ones they hold; agents see them all. Retired, never deleted, once a ticket
+/// names it.
+model Asset {
+  id                String      @id @default(uuid(7)) @db.Uuid
+  orgId             String      @db.Uuid
+  name              String
+  type              AssetType
+  status            AssetStatus @default(IN_STOCK)
+  /// Unique per org when set; several assets may have none.
+  serialNumber      String?
+  ownerMembershipId String?     @db.Uuid
+  /// Calendar days, not instants (DOMAIN.md §9.3).
+  purchaseDate      DateTime?   @db.Date
+  warrantyExpiresAt DateTime?   @db.Date
+  notes             String?
+  createdAt         DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime    @updatedAt @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  owner        Membership?   @relation(fields: [orgId, ownerMembershipId], references: [orgId, id])
+  tickets      TicketAsset[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, serialNumber])
+  @@index([orgId, name, id])
+  @@index([orgId, ownerMembershipId])
+}
+
+/// A ticket raised about an asset. Both ends are the same org's (ADR-0023).
+model TicketAsset {
+  orgId     String   @db.Uuid
+  ticketId  String   @db.Uuid
+  assetId   String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id])
+  asset        Asset        @relation(fields: [orgId, assetId], references: [orgId, id])
+
+  @@id([orgId, ticketId, assetId])
+  /// "Tickets for this asset", newest first.
+  @@index([orgId, assetId, createdAt(sort: Desc)])
 }

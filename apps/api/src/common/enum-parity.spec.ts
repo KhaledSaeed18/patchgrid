@@ -28,6 +28,8 @@ import {
   changeRiskSchema,
   approvalDecisionSchema,
   linkRelationSchema,
+  assetTypeSchema,
+  assetStatusSchema,
 } from "@patchgrid/contracts"
 import {
   AgentVisibility,
@@ -50,6 +52,8 @@ import {
   ChangeRisk,
   ApprovalDecision,
   LinkRelation,
+  AssetType,
+  AssetStatus,
 } from "@patchgrid/database"
 import type { z } from "zod"
 import { describe, expect, expectTypeOf, it } from "vitest"
@@ -76,6 +80,8 @@ expectTypeOf<z.infer<typeof notificationTypeSchema>>().toEqualTypeOf<Values<type
 expectTypeOf<z.infer<typeof changeRiskSchema>>().toEqualTypeOf<Values<typeof ChangeRisk>>()
 expectTypeOf<z.infer<typeof approvalDecisionSchema>>().toEqualTypeOf<Values<typeof ApprovalDecision>>()
 expectTypeOf<z.infer<typeof linkRelationSchema>>().toEqualTypeOf<Values<typeof LinkRelation>>()
+expectTypeOf<z.infer<typeof assetTypeSchema>>().toEqualTypeOf<Values<typeof AssetType>>()
+expectTypeOf<z.infer<typeof assetStatusSchema>>().toEqualTypeOf<Values<typeof AssetStatus>>()
 
 describe("wire and storage enums", () => {
   it.each([
@@ -99,6 +105,8 @@ describe("wire and storage enums", () => {
     ["ChangeRisk", changeRiskSchema.options, ChangeRisk],
     ["ApprovalDecision", approvalDecisionSchema.options, ApprovalDecision],
     ["LinkRelation", linkRelationSchema.options, LinkRelation],
+    ["AssetType", assetTypeSchema.options, AssetType],
+    ["AssetStatus", assetStatusSchema.options, AssetStatus],
   ] as const)("%s has the same values on both sides", (_name, wire, storage) => {
     expect([...wire]).toEqual(Object.values(storage))
   })
