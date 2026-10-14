@@ -21,6 +21,7 @@ import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
 import { StorageModule } from "./storage/storage.module"
 import { MaintenanceModule } from "./jobs/maintenance/maintenance.module"
 import { JobsModule } from "./jobs/jobs.module"
+import { KnowledgeModule } from "./knowledge/knowledge.module"
 import { NotificationsModule } from "./notifications/notifications.module"
 import { MailModule } from "./mail/mail.module"
 import { MembershipsModule } from "./memberships/memberships.module"
@@ -117,6 +118,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     StorageModule,
     AssetsModule,
     AttachmentsModule,
+    KnowledgeModule,
     AuditModule,
     QuotaModule,
     MailModule,
