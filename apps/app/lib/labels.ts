@@ -1,4 +1,5 @@
 import type {
+  ArticleVisibility,
   AssetStatus,
   AssetType,
   ChangeRisk,
@@ -115,6 +116,19 @@ export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = {
   IN_USE: "In use",
   IN_REPAIR: "In repair",
   RETIRED: "Retired",
+}
+
+/** Who reads an article, as its editor chooses (DOMAIN.md §9.2). */
+export const ARTICLE_VISIBILITY_LABEL: Record<ArticleVisibility, string> = {
+  DRAFT: "Draft",
+  INTERNAL: "Internal",
+  PUBLISHED: "Published",
+}
+
+export const ARTICLE_VISIBILITY_HINT: Record<ArticleVisibility, string> = {
+  DRAFT: "Only you and admins can read it.",
+  INTERNAL: "Agents can read it; requesters can't.",
+  PUBLISHED: "Everyone in the workspace can read it.",
 }
 
 export const IMPACT_LABEL: Record<Impact, string> = {

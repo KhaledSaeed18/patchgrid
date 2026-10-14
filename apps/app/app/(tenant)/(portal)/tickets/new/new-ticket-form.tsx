@@ -34,6 +34,7 @@ import { useMemo, useState } from "react"
 import { FormAlert } from "@/components/form-alert"
 import { useTenant } from "@/components/tenant-provider"
 import { AssetPicker } from "@/components/assets/asset-picker"
+import { ArticleSuggestions } from "@/components/knowledge/article-suggestions"
 import { FormField } from "@/components/form-field"
 import { NativeSelect } from "@/components/native-select"
 import { clientApi } from "@/lib/api/client"
@@ -76,6 +77,7 @@ export function NewTicketForm({
   const router = useRouter()
   const { creatableTypes, holds } = useTenant()
   const [assets, setAssets] = useState<LinkedAsset[]>([])
+  const [title, setTitle] = useState("")
   const [type, setType] = useState<TicketType>(
     creatableTypes.includes(initialType)
       ? initialType
@@ -191,8 +193,12 @@ export function NewTicketForm({
           maxLength={200}
           required
           autoFocus
+          onChange={(e) => setTitle(e.target.value)}
           error={fieldError("title")}
         />
+        {(type === "INCIDENT" || type === "SERVICE_REQUEST") && (
+          <ArticleSuggestions title={title} />
+        )}
         <Field data-invalid={fieldError("description") ? true : undefined}>
           <FieldLabel htmlFor="ticket-description">Details</FieldLabel>
           <Textarea
