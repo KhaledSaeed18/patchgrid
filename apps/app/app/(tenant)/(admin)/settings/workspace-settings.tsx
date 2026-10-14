@@ -39,6 +39,8 @@ import { ApiError } from "@/lib/api/errors"
 import { appOrigin, ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
 import { failureMessage } from "@/lib/failure"
 
+import { WorkspaceExport } from "./workspace-export"
+
 const VISIBILITY: Record<AgentVisibility, string> = {
   ALL_TICKETS: "Every ticket in the workspace",
   OWN_TEAM_ONLY: "Their teams' tickets, unassigned ones, and their own",
@@ -202,6 +204,8 @@ export function WorkspaceSettings({
           ))}
         </dl>
       </Section>
+
+      {holds("org:export") && <WorkspaceExport />}
 
       {holds("org:delete") && <DeleteWorkspace settings={settings} />}
     </>
