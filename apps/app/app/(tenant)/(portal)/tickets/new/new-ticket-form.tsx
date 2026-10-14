@@ -7,6 +7,8 @@ import {
   type CreateTicketRequest,
   type Impact,
   impactSchema,
+  type LinkedAsset,
+  MAX_TICKET_ASSETS,
   ticketSchema,
   type TicketType,
   type Urgency,
@@ -31,6 +33,7 @@ import { useMemo, useState } from "react"
 
 import { FormAlert } from "@/components/form-alert"
 import { useTenant } from "@/components/tenant-provider"
+import { AssetPicker } from "@/components/assets/asset-picker"
 import { FormField } from "@/components/form-field"
 import { NativeSelect } from "@/components/native-select"
 import { clientApi } from "@/lib/api/client"
@@ -62,13 +65,17 @@ export function NewTicketForm({
   categories,
   initialType,
   raisedFrom,
+  offerAssets,
 }: {
   categories: Category[]
   initialType: TicketType
   raisedFrom: RaisedFrom
+  /** Whether there is any asset this member could name — a requester with none is not asked. */
+  offerAssets: boolean
 }) {
   const router = useRouter()
-  const { creatableTypes } = useTenant()
+  const { creatableTypes, holds } = useTenant()
+  const [assets, setAssets] = useState<LinkedAsset[]>([])
   const [type, setType] = useState<TicketType>(
     creatableTypes.includes(initialType)
       ? initialType
@@ -131,6 +138,7 @@ export function NewTicketForm({
           impact: impactSchema.parse(data.get("impact")),
           urgency: urgencySchema.parse(data.get("urgency")),
           ...(categoryId === "" ? {} : { categoryId }),
+          ...(assets.length === 0 ? {} : { assetIds: assets.map((a) => a.id) }),
           ...extrasFor(type, data, raisedFrom),
         })
       }}
@@ -219,6 +227,44 @@ export function NewTicketForm({
             <FieldDescription>
               Picking one gets it to the right team sooner.
             </FieldDescription>
+          </Field>
+        )}
+        {offerAssets && (
+          <Field data-invalid={fieldError("assetIds") ? true : undefined}>
+            <FieldLabel>Which device or system, if any</FieldLabel>
+            {assets.length > 0 && (
+              <ul className="flex flex-wrap gap-2">
+                {assets.map((asset) => (
+                  <li
+                    key={asset.id}
+                    className="flex items-center gap-1 rounded-md border border-input px-2 py-1 text-sm"
+                  >
+                    {asset.name}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${asset.name}`}
+                      onClick={() =>
+                        setAssets((all) => all.filter((a) => a.id !== asset.id))
+                      }
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {assets.length < MAX_TICKET_ASSETS && (
+              <AssetPicker
+                label="Which device or system"
+                exclude={assets.map((a) => a.id)}
+                browse={!holds("asset:read_all")}
+                onPick={(asset) => setAssets((all) => [...all, asset])}
+              />
+            )}
+            {fieldError("assetIds") !== undefined && (
+              <FieldError>{fieldError("assetIds")}</FieldError>
+            )}
           </Field>
         )}
         <Choice<Impact>

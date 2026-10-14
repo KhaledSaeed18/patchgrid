@@ -1,4 +1,5 @@
 import {
+  assetPageSchema,
   categorySchema,
   ticketSchema,
   ticketTypeSchema,
@@ -32,9 +33,11 @@ export default async function NewTicketPage({
     return typeof value === "string" ? value : undefined
   }
   const type = ticketTypeSchema.safeParse(one("type"))
-  const [categories, raisedFrom] = await Promise.all([
+  const [categories, raisedFrom, assets] = await Promise.all([
     serverApi("/categories", { schema: z.array(categorySchema) }),
     source(one("incident"), one("problem")),
+    // One row is enough to know whether to ask; a requester's list is their own.
+    serverApi("/assets?limit=1", { schema: assetPageSchema }),
   ])
   return (
     <>
@@ -54,6 +57,7 @@ export default async function NewTicketPage({
                 : "INCIDENT"
         }
         raisedFrom={raisedFrom}
+        offerAssets={assets.items.length > 0}
       />
     </>
   )

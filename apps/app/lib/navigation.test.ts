@@ -10,6 +10,17 @@ describe("navigation", () => {
     expect(homeFor(["ticket:create"])).toBe("/tickets")
   })
 
+  it("lists assets for whoever holds asset:read, a requester included", () => {
+    const nav = navigationFor(["ticket:create", "asset:read"])
+    expect(nav.flatMap((s) => s.items.map((i) => i.href))).toEqual([
+      "/tickets",
+      "/assets",
+    ])
+    expect(
+      currentHref("/assets/01a12143-4880-7565-af57-28f3376d6bd7", nav)
+    ).toBe("/assets")
+  })
+
   it("offers the inbox to whoever holds notification:read", () => {
     const nav = navigationFor(["ticket:create", "notification:read"])
     expect(nav.flatMap((s) => s.items.map((i) => i.href))).toEqual([

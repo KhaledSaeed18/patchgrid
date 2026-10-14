@@ -1,4 +1,6 @@
 import type {
+  AssetStatus,
+  AssetType,
   ChangeRisk,
   Impact,
   LinkKind,
@@ -93,6 +95,26 @@ export const LINK_KIND_LABEL: Record<LinkKind, string> = {
   DUPLICATE_OF: "Duplicate of",
   HAS_DUPLICATE: "Has duplicate",
   RELATES_TO: "Relates to",
+}
+
+export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
+  LAPTOP: "Laptop",
+  DESKTOP: "Desktop",
+  MONITOR: "Monitor",
+  PHONE: "Phone",
+  TABLET: "Tablet",
+  PRINTER: "Printer",
+  NETWORK: "Network device",
+  SERVER: "Server",
+  SOFTWARE: "Software licence",
+  OTHER: "Other",
+}
+
+export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = {
+  IN_STOCK: "In stock",
+  IN_USE: "In use",
+  IN_REPAIR: "In repair",
+  RETIRED: "Retired",
 }
 
 export const IMPACT_LABEL: Record<Impact, string> = {

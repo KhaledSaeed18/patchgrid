@@ -14,6 +14,8 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: "My tickets", href: "/tickets", requires: "ticket:create" },
       { label: "Queues", href: "/queues", requires: "ticket:assign" },
+      // A requester holds `asset:read` for the assets they own; the page lists exactly those.
+      { label: "Assets", href: "/assets", requires: "asset:read" },
       {
         label: "Notifications",
         href: "/notifications",

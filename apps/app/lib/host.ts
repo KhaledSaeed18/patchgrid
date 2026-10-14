@@ -8,9 +8,7 @@ import { slugSchema } from "@patchgrid/contracts"
  * API could resolve.
  */
 export type HostKind =
-  | { kind: "app" }
-  | { kind: "tenant"; slug: string }
-  | { kind: "foreign" }
+  { kind: "app" } | { kind: "tenant"; slug: string } | { kind: "foreign" }
 
 export function parseHost(host: string | null, rootDomain: string): HostKind {
   if (host === null) return { kind: "foreign" }

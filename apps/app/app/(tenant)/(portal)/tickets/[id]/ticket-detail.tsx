@@ -35,6 +35,7 @@ import { Assignment } from "./assignment"
 import { CommentItem } from "./comment-item"
 import { EditTicket } from "./edit-ticket"
 import { Files } from "./files"
+import { Assets } from "./assets"
 import { Links } from "./links"
 import { RecordDetails } from "./record-details"
 import { Watchers } from "./watchers"
@@ -203,6 +204,7 @@ export function TicketDetail({
               </Fact>
             )}
           </dl>
+          <Assets ticket={ticket} />
           <Links ticket={ticket} links={links} />
           <Watchers
             ticket={ticket}
