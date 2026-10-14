@@ -76,6 +76,17 @@ members who could open that ticket — a CI test holds that decision equal to th
 - **Housekeeping jobs** — audit-log partitions kept a month ahead and archived past
   seven years, a nightly repair of the org picker's projection, and a sweep that
   clears uploads nobody finished and gives their quota back.
+- **The platform layer** —
+  - an operator back-office at `admin.<domain>`, behind its own login and a TOTP second
+    factor, that sees workspace metadata and never their content;
+  - support access an owner grants for a few hours: read-only, through the workspace's own
+    routes, every page it opens written to the workspace's audit log;
+  - scoped API tokens, each its own service account, so a monitoring system can raise
+    incidents and can never manage members, settings or other tokens;
+  - deleting a workspace: thirty days to change your mind, then a purge that leaves only
+    a nameless record, so its address is never reused;
+  - a workspace export streamed as a zip, self-service account erasure that keeps what
+    you wrote under "Former member", and retention sweeps.
 
 ## Running it
 
@@ -100,7 +111,7 @@ Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
 
 | Account | Who they are |
 | --- | --- |
-| `dana@patchgrid.test` | Admin at Acme and agent at Globex — sees the workspace picker |
+| `dana@patchgrid.test` | Admin at Acme and agent at Globex — sees the workspace picker; also the platform operator at `admin.lvh.me:3001`, who enrols a TOTP factor on first sign-in |
 | `sam@patchgrid.test` | Agent at Acme |
 | `rita@patchgrid.test` | Requester at Acme |
 
@@ -129,21 +140,21 @@ The docs are the specification, not a description written afterwards.
 | [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
 | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
 | [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
-| [`docs/decisions/`](docs/decisions/)                                                | 41 ADRs — _why_ any of it is this way                         |
+| [`docs/decisions/`](docs/decisions/)                                                | 44 ADRs — _why_ any of it is this way                         |
 
 ## Status
 
-**M0 (foundation) through M6 are complete:**
+**M0 (foundation) through M6, and M8, are complete:**
 - tenancy and identity;
 - the incident lifecycle;
 - SLA sweeps and notifications;
 - service requests, problems and changes;
 - attachments, assets and the knowledge base;
-- tickets raised and answered by email.
+- tickets raised and answered by email;
+- the platform layer: back-office, support access, API tokens, deletion and data protection.
 
-Next is M8, the platform layer: the operator back-office, consent-based support access,
-scoped API tokens, org deletion and data export. M9 (hardening) and M10 (ship) follow.
-M7 comes last because it needs local models: LLM triage, phishing scoring, duplicate
+Next is M9, hardening: MFA for members, end-to-end tests across two tenants, observability
+and a security review. M10 (ship) follows. M7 comes last because it needs local models: LLM triage, phishing scoring, duplicate
 detection and automation rules.
 `docs/HANDOFF.md` has the detail. Screenshots, an architecture
 diagram and a public demo arrive with the final milestone.

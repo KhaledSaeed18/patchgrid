@@ -1,6 +1,6 @@
-# Handoff — M6 complete, M8 next
+# Handoff — M8 complete, M9 next
 
-Written 2026-10-15, at the M6 boundary, after the roadmap was re-ordered. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
+Written 2026-10-15, at the M8 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
 whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
 an ADR, they are right and this is stale.
 
@@ -22,191 +22,181 @@ addressed by subdomain, and tenant data isolated at the database level.
 | `patchgrid.xyz`        | `apps/www` | Landing, pricing, signup                         |
 | `<slug>.patchgrid.xyz` | `apps/app` | A tenant's workspace — the product               |
 | `app.patchgrid.xyz`    | `apps/app` | Tenant-less: login, picker, create workspace     |
+| `admin.patchgrid.xyz`  | `apps/app` | The operators' back-office (ADR-0040)            |
 | `api.patchgrid.xyz`    | `apps/api` | NestJS — all business logic and data access      |
 
-Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `api.lvh.me:4000`.
+Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3001`, `api.lvh.me:4000`.
 
 ---
 
 ## Where we are
 
-**M0** (Foundation): complete 2026-09-22. **M1** (Tenancy and identity) and **M2** (Incident lifecycle):
-complete 2026-10-09. **M3** (Time and attention) and **M4** (Four record types): complete 2026-10-14.
-**M5** (Context: assets, knowledge, attachments): complete 2026-10-15.
+**M0–M6** are complete (M6, email intake, on 2026-10-15). **The build order is M0–M6, then M8 → M9 →
+M10, and M7 last**: M7 is the one milestone that needs local models (Ollama, embeddings, the phishing
+service), so it lands on a running system. Milestone numbers did not change; `FEATURES.md` lists M7 last.
 
-**M6 (Email intake): complete 2026-10-15.** Every item is checked. The exit criterion was walked with
-the dev harness against the running stack and in headless Chromium, before and after the review's fixes:
+**M8 (Platform layer): complete 2026-10-15.** Every item is checked. The exit criterion holds, and each
+part was walked in headless Chromium against the running stack:
 
-- Rita's mail became an incident badged "Email", with its attached file.
-- Her reply to the confirmation email threaded onto that incident, with the quoted text cut.
-- A forged message (DMARC fail) and a stranger's were recorded, and nothing else happened.
-- An admin's Settings → Inbound email shows each message, its verdict and what became of it.
+- An operator signs in at `admin.` with a password and a TOTP factor, lists workspaces, suspends,
+  restores and re-plans them, and sees counts, never content.
+- An owner grants that operator a few hours of read-only access. The operator opens the workspace and
+  reads tickets, internal notes included, while every page they open lands in the workspace's own audit
+  log. Writes are refused. The owner ends it, and the operator's next request is refused.
+- An admin mints a scoped token; `curl` with it raised an incident marked `API`, attributed to the
+  token's service account, and was refused `/members` and refused again the moment it was revoked.
 
-**The build order changed on 2026-10-15: M0–M6, then M8 → M9 → M10, and M7 last.** M7 is the one
-milestone that needs local models: Ollama, embeddings, the phishing service. So the platform layer,
-hardening and shipping come first, and M7 lands on a running system. The milestone numbers did not
-change: ADRs, the threat model and code comments cite them, so renumbering would have made them wrong.
-`FEATURES.md` lists M7 last.
+**An adversarial review of all of M8 ran before it was called done** (three read-only reviewers: platform
+credential and support; tokens and deletion; data protection). Everything they confirmed is fixed, with
+tests:
 
-Three items moved into M7 with it: the prompt-injection review (from M9), and the `phishing-svc`
-Dockerfile and Ollama deployment (from M10). ADR-0010 has an erratum. **Next is M8.**
+- A per-person TOTP lockout. Five wrong codes in 15 minutes lock the factor for an hour; the lock is
+  audited and the operator is emailed. A recovery code ends the operator's other sessions and is
+  emailed too.
+- A support session dies with the operator's sign-out and with a re-grant (`PlatformAdmin.grantedAt`).
+- A support read is recorded even if the operator hangs up mid-response.
+- A token without `comments:internal` reading a ticket's audit trail gets internal notes' words and
+  filenames redacted. Comment and attachment entries now record `internal`.
+- The export streams through `yazl` (ZIP64, piped backpressure). The `fflate` writer could hang on a
+  failed upload part and corrupted archives past 4 GiB.
+- Erasure tombstones as `deleted+<userId>@invalid` (ADR-0028 erratum: the email hash was reversible).
+  It retries cleanly, renames invitations to the address, and never leaves a workspace ownerless,
+  even through a restore.
+- The purge records itself inside the tombstone's transaction. A non-owner's cancel is the same 404
+  whatever the window.
 
-**CI is green on `main`.** The secret scan needed the inbound webhook's public dev secret listed as a
-reviewed false positive (`.gitleaksignore`).
-
-The decisions taken before M6 started:
-- the provider-neutral feed (ADR-0039);
-- external requesters deferred;
-- stop after M6.
+**CI is green on `main`.**
 
 ---
 
-## What M6 built — ADR-0027, ADR-0039
+## What M8 built — ADR-0040 to ADR-0044
 
-### The webhook — `apps/api/src/inbound/`
+### The platform credential and the back-office — ADR-0040
 
-- **`POST /api/v1/inbound/email`** is `@Public` and `@SignedWebhook`. Its credential is a Standard
-  Webhooks HMAC over the raw bytes. `main.ts` mounts `inboundBodyParser()` ahead of Nest's JSON parser
-  so the bytes stay raw, and any spec that boots the app must do the same.
-- **The body** is `{ type: "email.received", data: { recipients, raw } }`: the envelope recipients, and
-  the base64 RFC 5322 message (25 MB at most).
-- **Each recipient `<slug>@inbound.<root>`** (with or without `+tag`) resolves like a host: the exact
-  slug, then a retired one inside its window, active orgs only. The answer is `202` whatever it
-  resolved to.
-- **Caps**: 500 messages a workspace an hour, in Redis, before anything is stored. The raw message goes
-  to `org/<orgId>/inbound/<delivery>.eml`, then an `inbound-email` job carries it.
+- Its own login under `/api/v1/platform/auth`: password → a five-minute challenge cookie → TOTP enrolment
+  (QR, ten recovery codes shown once) or verification → a one-hour session in `pg_pa`, path-scoped to
+  `/api/v1/platform`. No refresh.
+- `@PlatformRoute` routes take only `pg_pa`, only from the `admin.` origin (or `X-Patchgrid-Surface: admin`
+  server-side), and check the epoch `platform:<id>`, the admin row and its `grantedAt` on every request.
+- MFA: AES-256-GCM secrets under `MFA_ENCRYPTION_KEY`, ±1 step, the last step stored so a code works once,
+  Argon2id recovery codes, and the Redis lockout above (it fails closed if Redis is down).
+- `pnpm platform:grant|revoke <email>` is the only way in. `PlatformAuditLog` records every grant, sign-in,
+  lock and purge.
+- **Back-office** (`apps/app`, `admin.` host rewritten to `/backoffice/*`, client-rendered because `pg_pa`
+  never reaches the Next server): org list and detail with counts, suspend (every member's epoch bumped),
+  unsuspend, plan, restore a pending deletion, request and enter support. Each action lands in both
+  logs.
 
-### The pipeline — `InboundIntakeService`, per tenant
+### Support access — ADR-0020, ADR-0041
 
-1. Parse with mailparser. The text is cleaned of NUL, control characters and broken surrogates.
-2. The verdict: exactly one `From:` header holding exactly one mailbox. Then the topmost
-   `Authentication-Results` carrying `INBOUND_AUTHSERV_ID`, with DMARC `pass` aligned to that address's
-   domain.
-3. Record or find the row, keyed `(orgId, messageKey)`. A passing delivery takes over a row nothing was
-   made of, so a forged copy cannot shadow the real message.
-4. Claim the row (`processedAt`), so two deliveries of one message cannot both act on it.
-5. Refuse, in this order:
-   - not PASS → `UNAUTHENTICATED`, with no reply (no backscatter);
-   - automatic mail → `AUTO_REPLY`;
-   - more than 20 authenticated messages from this sender this hour → `RATE_LIMITED`;
-   - workspace no longer active → `FAILED`;
-   - no active human member at that address → `UNKNOWN_SENDER`.
-6. Act as that member, through `TicketsService.createAs` or `CommentsService.addAs`:
-   - A reply threads when it names the ticket — our Message-ID in `In-Reply-To`/`References`, or
-     `[INC-…]` — and the sender may reply there. It becomes a public comment with the quote cut.
-   - Otherwise it becomes a new Incident, `source: EMAIL`, linked `RELATES_TO` the ticket it named.
-   - The row is marked `CREATED` or `THREADED` **inside** that transaction, so a retry never makes a
-     second ticket.
-7. Files go through `AttachmentsService.ingest`: the same allow-list, sniffing, size cap and quota,
-   written straight to the final key. A refused file is listed on the row, never fatal.
+- `SupportSession` (tenant-owned): an operator asks with a reason; an owner grants (≤ 72 h, on a consent
+  screen naming internal notes and the audit log), declines or revokes. Owners are emailed at each turn
+  and on first use. `support-sweep` ends expired sessions every five minutes.
+- Entering mints a support JWT into `pg_st_<slug>`; the credential locator prefers it. The actor is
+  `{ kind: "support", role: "ADMIN" }` narrowed to `SUPPORT_READ_PERMISSIONS`, with the session id as its
+  `membershipId` so no "own"/"assignee"/"watcher" relation can hold. Non-GET is refused at the guard.
+- One `SUPPORT_READ` row per request, written on the response's `close`; a failed write ends the session
+  (`AUDIT_FAILED`).
+- `/me.support` drives the banners: the operator's ("read-only, everything recorded") and the admins'
+  ("Dana from Patchgrid support can read this workspace until …"). The operator lands on Queues (all
+  open), sees read-navigation (`NavItem.reads`), and is offered no ticket actions.
 
-**`inbound-sweep`** runs hourly per tenant. It fails a message claimed more than 10 minutes ago, or
-never claimed within an hour. It deletes raw messages after 30 days. It drops the rows of mail nothing
-was made of after 90.
+### Scoped API tokens — ADR-0021, ADR-0042
 
-### Outbound, so replies can thread — `apps/api/src/mail/`
+- `ApiToken` (tenant-owned) beside `ApiTokenIndex`, one `SERVICE_ACCOUNT` membership per token,
+  `pg_<12 [a-z0-9]>_<43 base64url>`, Argon2id with a five-minute digest cache; the row is read every
+  request, so revocation holds on the next one.
+- Effective permission is role ∩ `SCOPE_GRANTS`; `webhooks:write` is not offered. A per-token throttler
+  (300/min, keyed by prefix) runs before verification. `lastUsedAt` is written at most once a minute.
+- Service accounts appear in Members marked "API token" and can't be re-roled, disabled, removed, put in a
+  team, assigned or made watchers. Creation is deliberately not `@Idempotent` (the answer is the
+  secret).
+- Settings → API tokens: create (secret shown once), list with last-used and expiry, revoke. The
+  `api-token-sweep` warns a token's creator (or the owners) a week before it lapses.
 
-Every message is `Auto-Submitted: auto-generated`. Ticket notifications also carry:
-- `Reply-To` set to the inbound address;
-- `Message-ID <t.<ticketId>.<uuid>@inbound.<root>>`;
-- `References` with one thread root per ticket;
-- the number bracketed where the headline says it (`We've received [INC-000042]: …`);
-- a "Reply above this line" marker.
+### Deleting a workspace — ADR-0043
 
-### Elsewhere
+- An owner types the slug in Settings → Workspace. Everyone is signed out; the subdomain, the bearer path,
+  support, session open and invitations all answer 404.
+- The picker shows owners "Deleting on …" and "Keep it"; an operator can restore from the back-office.
+  Both are refused from the purge date on, and a restore is refused if no owner is left.
+- `org-purge` (daily, dispatched only for orgs due + 1 h grace) runs inside the tenant: objects under
+  `org/<id>/` and `staging/org/<id>/`, then every tenant table child-first (a test holds the list to the
+  schema), then a `DELETED` tombstone that keeps the slug forever.
 
-- The admin log is `GET /org/inbound-emails` (`org:read_audit`), Settings → Inbound email.
-- The workspace settings show the inbound address.
-- Ticket summaries carry `source`, and an email-raised ticket shows an "Email" badge.
-- Role mailboxes (`postmaster`, `abuse`, `hostmaster`, `webmaster`, `administrator`, `mailer-daemon`,
-  `noreply`, `no-reply`) are reserved slugs.
-- **Dev harness**: `pnpm --filter @patchgrid/api run inbound:send -- --from rita@patchgrid.test --to acme
-  [--dmarc fail] [--in-reply-to "<t.…>"] [--attach file] [--header "Auto-Submitted: auto-replied"]`. It
-  shares `test/support/inbound-mail.ts` with the specs.
-- **Seed**: four of each requester's incidents arrived by email, plus a threaded reply, a forged CEO, a
-  stranger and an out-of-office in the log.
+### Data protection — ADR-0028, ADR-0044
+
+- **Export**: `POST /org/exports` (owner, one a day, `429` with `Retry-After`) → `org-export` job → a zip
+  of NDJSON per entity plus every file with its SHA-256, streamed into storage; the requester (if still
+  an owner) is mailed a 24-hour link, Settings mints fresh short links. Secrets and notifications are
+  left out.
+- **Erasure**: `POST /auth/account/erase` from the picker's "Your account", password again. In each
+  workspace the membership becomes a nameless `REMOVED` "Former member"; the account becomes a tombstone.
+  Removed memberships now keep a hidden `UserOrgIndex` row so erasure can find them.
+- **Retention**: `retention-sweep` (per tenant, daily) drops notifications past 90 days and lapsed
+  exports; `credential-retention` (platform, daily) drops tokens 30 days past expiry.
 
 ### Tests at the boundary
 
 | Suite | Count |
 | --- | --- |
-| `apps/api` unit | 920 |
-| `apps/api` integration | 154 |
-| `pnpm test:tenancy` | 13 catalog + 32 (3 pointers) |
+| `apps/api` unit | 966 |
+| `apps/api` integration | 194 |
+| `pnpm test:tenancy` | 13 catalog + 37 (3 pointers skipped) |
 | `pnpm test:authz` | 380 |
 | `packages/database` unit / catalog / integration | 8 / 13 / 23 |
-| `packages/contracts` | 182 |
-| `apps/app` | 53 |
+| `packages/contracts` | 188 |
+| `apps/app` | 57 |
 
-Browser walkthroughs live in the git-ignored `apps/app/node_modules/.cache/shots/` (`inbound.mjs`,
-`kb.mjs`, `assets.mjs`, `files.mjs`, `m4.mjs`), run with `node` from `apps/app` against `pnpm dev`.
-`solo.mjs` creates a `solo-*` workspace owned by a demo user each run; remove it before
-`db:seed --reset`, which otherwise fails on `UserOrgIndex_userId_fkey`.
+Browser walkthroughs live in the git-ignored `apps/app/node_modules/.cache/shots/` (`support.mjs`,
+`tokens.mjs`, `deletion.mjs`, `export.mjs`, `backoffice.mjs`, and the M5/M6 ones), run with `node` from
+`apps/app` against `pnpm dev`. The back-office scripts enrol Dana's factor; clear her `UserMfaFactor` and
+`UserMfaRecovery` rows (`reset-support.sh` does) before running them again. `deletion.mjs` leaves a
+`doomed-*` workspace owned by Alice each run.
 
 ---
 
 ## Earlier milestones, in brief
 
-- **M5** gave:
-  - attachments through staging and byte sniffing on their own domain (ADR-0037, ADR-0038);
-  - the asset register and its ticket history (the `all` view);
-  - the knowledge base with its one readable filter.
-- **M4** gave:
-  - transition tables as data;
-  - change approval (rules 1–3);
-  - versioned detail fields;
-  - links stored once and read from both ends.
-- **M3** gave notifications (one `mayRead`), the live stream and the per-tenant sweeps.
+- **M6** gave email intake: signed raw MIME, the DMARC verdict, explicit-actor `createAs`/`addAs`, threading
+  by our Message-ID or `[INC-…]`, and the inbound log.
+- **M5** gave attachments through staging and byte sniffing on their own domain, the asset register and
+  the knowledge base.
+- **M4** gave transition tables as data, change approval and links read from both ends.
+- **M3** gave notifications, the live stream and the per-tenant sweeps.
 
 The detail is in the git history of this file, at those boundaries.
 
-## Decisions made in M6
+## Decisions made in M8
 
 | Decision | Where |
 | --- | --- |
-| Inbound mail is signed raw MIME (Standard Webhooks); the verdict is our receiver's `Authentication-Results`; a provider is an adapter in front | ADR-0039 |
-| An authenticated sender acts through explicit-actor entry points (`createAs`, `addAs`) — no context writing, no "act as" helper | ADR-0039 |
-| External requesters are deferred; unknown senders are always dropped and recorded | ADR-0039 |
-| One `From:` and one mailbox, or no verdict | `InboundIntakeService`, review fix |
-| Rate limits count only authenticated mail; a workspace cap runs before storage | review fixes |
-| Acting is recorded in the create's own transaction; what follows is best effort | `createAs`/`addAs` `within` |
-| Email never writes an internal note; a sender who may not reply gets a related ticket of their own | DOMAIN.md §7.1 |
-| A signed webhook is exempt from the CSRF header; it carries no cookie | `@SignedWebhook`, `RequestedWithGuard` |
-| Raw mail is kept 30 days; the log of unacted mail 90 | `inbound-sweep` |
+| The platform actor comes from its own credential, minted only after a second factor; platform MFA arrives now | ADR-0040 (resolves TM-2) |
+| A support session reads through the tenant's own routes as a read-only support actor | ADR-0041 |
+| One token, one service account; the row decides every request; creation is not replayable | ADR-0042 |
+| A deleted workspace becomes a tombstone; time, not a race, decides between restore and purge | ADR-0043 |
+| Exports stream; erasure is self-service and pseudonymous; retention runs per tenant (credentials on the platform) | ADR-0044 |
+| Removed memberships keep a hidden picker row, for erasure to find | ADR-0044 erratum |
+| The erasure tombstone names the account id, not a hash of the address | ADR-0028 erratum |
+| Every `RateLimitedProblem` carries `Retry-After` | problem filter |
 
 ---
 
-## Recommended next steps — M8
+## Recommended next steps — M9
 
-`FEATURES.md` §M8, the platform layer. Its exit: an operator can run the platform without being able to
-read anyone's mail; an owner can grant a time-boxed read-only support session and see exactly what was
-looked at; a monitoring system can raise incidents through a scoped token. In order:
+`FEATURES.md` §M9, hardening. Its exit: the security review has no open findings; E2E covers the core
+flows across two tenants in a real browser, including the negative cases; observability answers "which
+tenant is slow" without grepping. In order:
 
-1. **Resolve TM-2 first** (`THREAT-MODEL.md`). The platform actor is "resolved from the host" in
-   `RBAC.md` §2, which is the inversion ADR-0024 fixed for tenants: `api.patchgrid.xyz` never sees
-   `admin.` in its `Host`. Decide the platform credential in an ADR before any back-office code: its own
-   cookie and token audience, and how `admin.` reaches the API.
-2. **Platform admins and the back-office** (`admin.patchgrid.xyz`, `RBAC.md` §8). Admins are created by
-   CLI only. The back-office lists orgs and can suspend, unsuspend, set a plan, and request or restore
-   deletion. It shows metadata only, never tenant content. Suspension must bump every member's
-   revocation epoch (Still open).
-3. **Consent-based support access** (ADR-0020):
-   - an owner grants a read-only session, time-boxed;
-   - one `SUPPORT_READ` audit row per request, in the tenant's own log;
-   - an in-app banner;
-   - owner email on grant, first use and expiry;
-   - revocation through the epoch;
-   - reads through `runAsTenant`, so RLS keeps enforcing.
-4. **Scoped API tokens** (ADR-0021):
-   - `ApiToken` beside the existing `ApiTokenIndex`;
-   - the bearer path `AuthGuard` already stubs;
-   - `SCOPE_GRANTS` is already in contracts and honoured by `PermissionService`;
-   - once-only secret display, per-token rate limits, `lastUsedAt`;
-   - `source: API` and `actorKind: SERVICE` attribution.
-5. **Org deletion**: an owner's request, a 30-day soft window, then a hard purge under `runAsTenant`,
-   object storage included (attachments, inbound mail). The slug stays reserved for good.
-6. **Data protection** (ADR-0028): `GET /org/export` as an async owner-only job, pseudonymised user
-   erasure, and retention per entity (inbound mail's 30/90 days are the first).
+1. **MFA for members** (ADR-0029). The tables, TOTP, recovery codes and lockout already exist for
+   operators (`auth/mfa/`). Add per-org `requireMfa`, member enrolment, and step-up re-authentication for
+   `org:delete`, `org:transfer_ownership`, `support:grant_access` and `token:create`.
+2. **Playwright E2E**: signup → provision → invite → incident lifecycle; an SLA breach on a one-minute
+   policy; change approval; the cross-tenant, role-escalation and two-tabs-two-tenants negatives. The
+   `.cache/shots` scripts are a head start on selectors.
+3. **Observability** (ADR-0030): OpenTelemetry for the no-op `Tracer`, per-tenant metrics, the collector
+   and Grafana behind a Compose profile.
+4. **The security review** against the threat model, then OpenAPI polish and the 100k-ticket load check.
 
 ---
 
@@ -214,20 +204,23 @@ looked at; a monitoring system can raise incidents through a scoped token. In or
 
 | Item | Needed by | Notes |
 | --- | --- | --- |
-| **External requesters** (`allowExternalRequesters`) | when asked for | Deferred by ADR-0039: needs a requester who is not a membership |
-| **A production inbound adapter** | deploy | Verify the provider's signature, re-sign in ADR-0039's shape; the receiving MTA must add `Authentication-Results` with a stable authserv-id |
-| **TM-2** platform actor resolved from the host | M8 | Same inversion ADR-0024 fixed for tenants |
-| Plan-limit-reached notification (`DOMAIN.md` §8) | M8 | Needs its own event, a `NotificationType`, and a dedupe key per metric and period |
-| Org suspension must bump every member's revocation epoch | M8 | Until then a running stream outlives a suspension by at most one token (≤ 15 min) |
-| A usage-counter reconcile | M8 | Nothing recomputes `KB_ARTICLES` or `STORAGE_BYTES` after a bug |
+| **External requesters** (`allowExternalRequesters`) | when asked for | Deferred by ADR-0039 |
+| **A production inbound adapter** | deploy | Verify the provider's signature, re-sign in ADR-0039's shape |
+| `MFA_ENCRYPTION_KEY` kept apart from the database | deploy | A dump without it yields no second factors (ADR-0040) |
+| A known token prefix can spend the token's 300/min | M9 review | Prefixes are public; the limit also caps Argon2 work. Consider an IP component |
+| Tokens are unlimited per plan; service accounts hold no seat | spec decision | A plan-limit question, not isolation |
+| A deletion request can leave a cached `ACTIVE` summary for up to 60 s | M9 review | An in-flight resolution can re-write the lookup cache after `invalidate`; bearer tokens have no epoch |
+| The export lists every file's row before streaming | load check | Rows, not bytes; fine to tens of thousands |
+| The back-office "Restore workspace" button was not walked in a browser | any time | Unit- and integration-tested |
+| Plan-limit-reached notification (`DOMAIN.md` §8) | any time | Needs its own event, type and dedupe key |
+| A usage-counter reconcile | any time | Nothing recomputes `KB_ARTICLES` or `STORAGE_BYTES` after a bug |
 | Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | deploy | Local MinIO sets the rule in `docker/minio/init.sh` |
-| The webhook is under the global throttler | deploy | A provider delivering a burst from one IP may be throttled; give the route its own limit or exempt it |
+| The inbound webhook is under the global throttler | deploy | Give the route its own limit or exempt it |
 | CLAUDE.md says no raw SQL outside `packages/database`, but the lint allows `src/**/repositories/**` | docs | Align the rule with the lint |
 | Requester receipt can repeat if a notify job stalls after commit | any time | Email-only, so there is no row to fold against |
 | `ProjectionRepository` duplicates part of `UserOrgIndexRepository` | any time | Merge them |
 | `pg` "client.query() while executing" deprecation warning in integration runs | any time | Present since M2 |
 | Rule 3 can be engineered: an owner may assign their change to the only other admin | spec decision | What DOMAIN.md §2.3 says today |
-| The owner's approval inbox omits changes only they could approve (rule 3) | UX | They see them on the ticket |
 | Per-member capabilities in the admin UI | any time | Member actions are offered by role |
 | `next-themes` inline-script warning under React 19 | any time | Dev-only |
 | Doc formatting drift | any time | Docs and API code are not Prettier-clean at 80 cols; commits skip the format hook |
@@ -249,12 +242,30 @@ pnpm --filter @patchgrid/database run test:integration
 pnpm dev                         # www :3000, app :3001, api :4000; Mailpit UI :8025
 ```
 
-Sign in at `http://app.lvh.me:3001` as `dana@patchgrid.test` to see two workspaces. `rita@` is a
+Sign in at `http://app.lvh.me:3001` as `dana@patchgrid.test` to see two workspaces; Dana is also the
+seeded operator at `http://admin.lvh.me:3001` (she enrols a TOTP factor on first sign-in). `rita@` is a
 requester at Acme and `sam@` an agent. Notification email lands in Mailpit at `http://localhost:8025`;
 files are served by MinIO at `http://localhost:9000`, a different site from `lvh.me` on purpose.
 
 Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session cookies are scoped to
 `.lvh.me`, so a `localhost` cookie jar stays empty and every call is a `401`.
+
+## Gotchas paid for in M8
+
+- **A bare string in a Zod object shape is not a schema.** `z.object({ kind: "operator" })` type-checks and
+  throws the first time it parses; use `z.literal`. It crashed the workspace whenever a support session
+  was active.
+- **A role check is not a permission check.** The transition table decides by role, so a narrowed actor
+  (support, a token) was offered an admin's buttons until `view()` asked `ticket:transition` first.
+- **The revocation epoch revokes the second it was bumped in.** A token minted in the same second as a
+  bump is dead; `bump(key, { before: true })` is how a recovery code ends older sessions but not its own.
+- **A synchronous zip callback has no backpressure, and lib-storage ends a failed upload's stream with
+  `close`, not `error`.** A drain wait on it never settles. Pipe a real stream into the upload.
+- **Postgres cannot use an enum value in the transaction that adds it.** `DELETED` and the CHECKs that
+  name it are two migrations.
+- **Run `prisma migrate diff` before `mkdir` of the migration folder**, or the empty folder makes the diff
+  fail and the SQL is empty.
+- **Anything derived from a person's address can be recomputed by anyone who knew it.** Tombstone by id.
 
 ## Gotchas paid for in M6
 
@@ -271,19 +282,5 @@ Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session
   it, and make everything after it best effort.
 - **gitleaks scans history.** A high-entropy dev fixture needs a reviewed fingerprint in
   `.gitleaksignore` with a reason.
-
-## Gotchas paid for in M5
-
-- **A raw query outside `prisma.transaction` has no tenant.** The extension sets
-  `app.current_org_id` only for model calls and transactions, so a bare `$queryRaw` under RLS returns
-  nothing — the knowledge search came back empty until it was wrapped.
-- **A presigned PUT is reusable until it expires.** Anything decided about "the uploaded object" must be
-  about a copy the URL cannot reach (ADR-0038).
-- **react-markdown hands every custom component a `node` prop.** Spreading props onto a DOM element
-  passes it through; take `children` (and `href`, `alt`) only.
-- **A static route shadows a dynamic one.** `/knowledge/new` would hide an article slugged `new`, so
-  those slugs are reserved.
-- **CI's service containers cannot run MinIO** (no `command`); the integration job starts the compose
-  file's instead.
 
 Older gotchas are in the previous handoffs in git history, and in the module headers where they bite.
