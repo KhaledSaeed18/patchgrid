@@ -45,6 +45,11 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   CHANGE_APPROVED: "approved the change",
   CHANGE_REJECTED: "rejected the change",
   CHANGE_SELF_APPROVED: "approved their own change — nobody else could",
+  ASSET_CREATED: "added an asset",
+  ASSET_UPDATED: "updated an asset",
+  ASSET_DELETED: "deleted an asset",
+  TICKET_ASSET_LINKED: "named an asset on the ticket",
+  TICKET_ASSET_UNLINKED: "took an asset off the ticket",
 }
 
 export function actorName(entry: AuditEntry): string {
