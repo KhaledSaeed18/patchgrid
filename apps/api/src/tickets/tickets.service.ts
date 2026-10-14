@@ -101,10 +101,13 @@ export class TicketsService {
     @InjectClock() private readonly clock: Clock,
   ) {}
 
+  /** One logical read, one transaction: the row, the actor's watch, and who else could approve. */
   async get(id: string): Promise<Ticket> {
     const actor = this.actors.requireTenantActor()
-    const loaded = await this.access.load(this.tenant.requireOrgId(), id, actor, this.visibility())
-    return this.view(actor, loaded)
+    return this.prisma.transaction(async () => {
+      const loaded = await this.access.load(this.tenant.requireOrgId(), id, actor, this.visibility())
+      return this.view(actor, loaded)
+    })
   }
 
   /**
@@ -124,6 +127,10 @@ export class TicketsService {
       if (requester === null || requester.status !== "ACTIVE") {
         throw fieldError("requesterMembershipId", "is not an active member of this workspace")
       }
+      // Problems and Changes belong to agents (DOMAIN.md §2.2, §2.3), on whosever behalf they are raised.
+      if (requester.role === "REQUESTER" && (request.type === "PROBLEM" || request.type === "CHANGE")) {
+        throw fieldError("requesterMembershipId", "must be an agent for a problem or a change")
+      }
     }
 
     if (request.problem !== undefined && request.type !== "PROBLEM") throw fieldError("problem", "is only for a problem")
@@ -134,6 +141,8 @@ export class TicketsService {
     if (request.resolvesProblemId !== undefined && request.type !== "CHANGE") {
       throw fieldError("resolvesProblemId", "only a change is created from a problem")
     }
+    // The outcome is written once the change is carried out, never with the draft.
+    if (request.change?.outcomeNotes !== undefined) throw fieldError("change.outcomeNotes", "is recorded once the change is carried out")
     const change = request.change === undefined ? undefined : changeFields(request.change, null)
 
     const categoryId = request.categoryId ?? null
@@ -222,6 +231,10 @@ export class TicketsService {
       const problemChanges = problem === undefined ? {} : changedOnly(defined(problem), row.problem)
       const changeChanges = change === undefined ? {} : changedOnly(changeFields(change, row.change), row.change)
       if (problem !== undefined && row.type !== "PROBLEM") throw fieldError("problem", "is only for a problem")
+      // A known error IS its workaround (DOMAIN.md §2.2): it can be rewritten, never taken away.
+      if (row.status === "KNOWN_ERROR" && problemChanges.workaround === null) {
+        throw new ConflictProblem("A known error keeps its workaround; change it rather than clearing it")
+      }
       if (change !== undefined && row.type !== "CHANGE") throw fieldError("change", "is only for a change")
       const refused = [...changed, ...Object.keys(problemChanges), ...Object.keys(changeChanges)].filter((field) => !editable.has(field))
       if (refused.length > 0) throw new NotPermittedProblem(`You can't change ${refused.join(", ")} on this ticket`)
@@ -268,6 +281,8 @@ export class TicketsService {
       const loaded = await this.access.load(orgId, id, actor, this.visibility())
       this.permissions.assert(actor, "ticket:assign", loaded.subject)
       if (TERMINAL.has(loaded.row.status)) throw new ConflictProblem("A closed or cancelled ticket can't be reassigned")
+      // Who may decide depends on the assignee and the team (DOMAIN.md §2.3): they hold still while a decision is pending.
+      if (loaded.row.status === "AWAITING_APPROVAL") throw new ConflictProblem("A change awaiting a decision keeps its assignee and team")
       const changes = await this.assignment(orgId, request.assigneeMembershipId, request.teamId)
       const touched = changes.assigneeMembershipId ?? changes.teamId ?? null
       if (loaded.row.status === "NEW" && touched !== null) changes.status = "ASSIGNED"
@@ -638,7 +653,8 @@ export class TicketsService {
     const own = row.requesterMembershipId === actor.membershipId || row.assigneeMembershipId === actor.membershipId
     const lead = actor.kind === "member" && row.teamId !== null && actor.leadOfTeamIds.includes(row.teamId)
     if (this.permissions.can(actor, "ticket:approve_change", { lead, own })) return "eligible"
-    if (!own || actor.role !== "OWNER") return "none"
+    // Rule 3 is a person's, never a token's: an API token is no one's last resort.
+    if (!own || actor.role !== "OWNER" || actor.kind !== "member") return "none"
     const involved = [row.requesterMembershipId, ...(row.assigneeMembershipId === null ? [] : [row.assigneeMembershipId])]
     return (await this.tickets.hasOtherApprover(orgId, { teamId: row.teamId, involved })) ? "none" : "self"
   }

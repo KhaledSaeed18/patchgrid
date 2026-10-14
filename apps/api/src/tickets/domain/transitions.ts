@@ -176,7 +176,9 @@ const CHANGE_TABLE: readonly TransitionRow[] = [
     comment: "public",
     commentReason: "Say why the change is rejected, so it can be fixed and resubmitted",
   },
-  { from: ["APPROVED"], action: "start", to: "IN_PROGRESS", who: "worker", comment: "none", confirm: windowOpen },
+  // "Assignee, Admin+" (DOMAIN.md §2.3) — unlike a Problem, nobody becomes the
+  // implementer of an approved change by starting it.
+  { from: ["APPROVED"], action: "start", to: "IN_PROGRESS", who: "assignee_or_admin", comment: "none", confirm: windowOpen },
   { from: ["IN_PROGRESS"], action: "complete", to: "IMPLEMENTED", who: "assignee_or_admin", comment: "none", guard: hasOutcome },
   { from: ["IN_PROGRESS"], action: "rollback", to: "ROLLED_BACK", who: "assignee_or_admin", comment: "none", guard: hasOutcome },
   { from: ["IMPLEMENTED", "ROLLED_BACK"], action: "close", to: "CLOSED", who: "agent", comment: "none" },

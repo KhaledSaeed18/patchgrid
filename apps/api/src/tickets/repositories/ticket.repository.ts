@@ -244,6 +244,17 @@ export class TicketRepository {
     return row === null ? null : toRow(row)
   }
 
+  /**
+   * Row locks on these tickets, in id order so two transactions locking the
+   * same pair cannot deadlock — for a decision over more than one row, such
+   * as which ticket a duplicate stands for. Raw, as a lock has no Prisma form.
+   */
+  async lock(orgId: string, ids: readonly string[]): Promise<void> {
+    const sorted = [...new Set(ids)].toSorted()
+    await this.prisma.db.$queryRaw`
+      SELECT id FROM "Ticket" WHERE "orgId" = ${orgId}::uuid AND id = ANY(${sorted}::uuid[]) ORDER BY id FOR UPDATE`
+  }
+
   async findManyById(orgId: string, ids: readonly string[]): Promise<TicketRow[]> {
     const rows = await this.prisma.db.ticket.findMany({ where: { orgId, id: { in: [...ids] } }, include: FULL })
     return rows.map(toRow)
@@ -326,13 +337,13 @@ export class TicketRepository {
    * Resolved tickets whose resolution is at least as old as `cutoff`, oldest
    * first — the auto-close sweep's work list, a batch at a time.
    */
-  async findResolvedBefore(orgId: string, cutoff: Date, limit: number): Promise<{ id: string; version: number }[]> {
+  async findResolvedBefore(orgId: string, cutoff: Date, limit: number): Promise<{ id: string; version: number; status: TicketStatus }[]> {
     return this.prisma.db.ticket.findMany({
       // A Change's work ends IMPLEMENTED or ROLLED_BACK; `resolvedAt` marks either (DOMAIN.md §2.3).
       where: { orgId, status: { in: ["RESOLVED", "IMPLEMENTED", "ROLLED_BACK"] }, resolvedAt: { lte: cutoff } },
       orderBy: [{ resolvedAt: "asc" }, { id: "asc" }],
       take: limit,
-      select: { id: true, version: true },
+      select: { id: true, version: true, status: true },
     })
   }
 

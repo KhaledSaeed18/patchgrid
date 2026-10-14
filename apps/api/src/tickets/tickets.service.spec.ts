@@ -1,7 +1,7 @@
 import type { Role } from "@patchgrid/contracts"
 import { describe, expect, it, vi } from "vitest"
 
-import type { ActorService, MemberActor } from "../auth/actor"
+import type { ActorService, MemberActor, TenantActor } from "../auth/actor"
 import type { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import type { CategoriesService } from "../categories/categories.service"
@@ -92,10 +92,12 @@ function harness(
     membershipId?: string
     otherApprover?: boolean
     visible?: TicketRow[]
+    /** Act as an API token with every scope rather than a person. */
+    service?: boolean
   } = {},
 ) {
   const calls: string[] = []
-  const actor: MemberActor = {
+  const member: MemberActor = {
     kind: "member",
     userId: "u",
     orgId: ORG,
@@ -104,6 +106,10 @@ function harness(
     teamIds: options.teamIds ?? ["team-a"],
     leadOfTeamIds: options.leadOfTeamIds ?? [],
   }
+  const actor: TenantActor =
+    options.service === true
+      ? { kind: "service", orgId: ORG, membershipId: member.membershipId, role, scopes: ["tickets:read", "tickets:write", "comments:internal"] }
+      : member
   const permissions = new PermissionService()
   const loaded = (): LoadedTicket => ({
     row: ticket,
@@ -371,6 +377,30 @@ describe("TicketsService — problems and changes", () => {
     expect(draft.tickets.updateDetails).toHaveBeenCalledWith(ORG, "t-1", { problem: {}, change: { rollbackPlan: "Restore from backup" } })
     await expect(harness("AGENT", change({ status: "DRAFT" })).service.update("t-1", { version: 3, change: { outcomeNotes: "Done" } })).rejects.toBeInstanceOf(NotPermittedProblem)
     await expect(harness("AGENT", change({ status: "APPROVED" })).service.update("t-1", { version: 3, change: { risk: "HIGH" } })).rejects.toBeInstanceOf(NotPermittedProblem)
+  })
+
+  it("keeps a known error's workaround, and a change's outcome off its draft", async () => {
+    const known = harness("AGENT", row({ type: "PROBLEM", status: "KNOWN_ERROR", slaPolicyId: null, problem: { rootCause: null, workaround: "Reconnect", knownErrorAt: NOW } }))
+    await expect(known.service.update("t-1", { version: 3, problem: { workaround: null } })).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(harness("AGENT").service.create({ ...problemRequest, type: "CHANGE", change: { outcomeNotes: "Done already" } })).rejects.toBeInstanceOf(ValidationProblem)
+  })
+
+  it("raises a problem or change on behalf of an agent only", async () => {
+    await expect(harness("AGENT").service.create({ ...problemRequest, requesterMembershipId: "m-req" })).rejects.toBeInstanceOf(ValidationProblem)
+  })
+
+  it("holds a change's assignee and team still while a decision is pending", async () => {
+    await expect(harness("ADMIN", change(), { membershipId: "m-admin" }).service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })).rejects.toBeInstanceOf(ConflictProblem)
+  })
+
+  it("lets only the assignee or an admin start an approved change — approving it is not a claim on it", async () => {
+    const lead = harness("AGENT", change({ status: "APPROVED", assigneeMembershipId: null }), { membershipId: "m-lead", leadOfTeamIds: ["team-net"] })
+    await expect(lead.service.transition("t-1", { action: "start", version: 3, confirm: true })).rejects.toBeInstanceOf(NotPermittedProblem)
+  })
+
+  it("never lets an owner's API token self-approve", async () => {
+    const h = harness("OWNER", change({ requesterMembershipId: "m-owner" }), { membershipId: "m-owner", otherApprover: false, service: true })
+    await expect(h.service.transition("t-1", { action: "approve", version: 3 })).rejects.toBeInstanceOf(NotPermittedProblem)
   })
 
   it("files a Problem as a known error with the time it became one", async () => {

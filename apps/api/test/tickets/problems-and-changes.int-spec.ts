@@ -168,6 +168,9 @@ describe("a change", () => {
   })
 
   it("asks before starting more than an hour early, then runs to implemented and closed", async () => {
+    // Approving is not a claim on the work: only the assignee or an admin starts it.
+    expect((await move("lead", change, "start", { confirm: true })).status).toBe(403)
+    change = (await as("admin").put(`/tickets/${change.id}/assignment`, { version: change.version, assigneeMembershipId: ws.people.agent.membershipId })).body
     const early = await move("agent", change, "start")
     expect(early.status).toBe(409)
     expect(early.body.type).toContain("change-window-early")
@@ -207,6 +210,18 @@ describe("links", () => {
     expect(dup).toBeDefined()
     const removed = await as("agent").delete(`/tickets/${a}/links/${dup?.id ?? ""}`)
     expect(removed.status).toBe(200)
+  })
+
+  it("never let duplicates chain or loop, whichever end asks", async () => {
+    const a = (await raise("requester", { type: "INCIDENT", title: "Printer jams on tray 2" })).id
+    const b = (await raise("requester", { type: "INCIDENT", title: "Tray 2 jams again" })).id
+    expect((await as("agent").post(`/tickets/${b}/links`, { kind: "DUPLICATE_OF", ticketId: a })).status).toBe(201)
+    // b is a duplicate of a. a cannot become a duplicate of b, from either end…
+    expect((await as("agent").post(`/tickets/${b}/links`, { kind: "HAS_DUPLICATE", ticketId: a })).status).toBe(409)
+    expect((await as("agent").post(`/tickets/${a}/links`, { kind: "DUPLICATE_OF", ticketId: b })).status).toBe(409)
+    // …nor can b stand for a second survivor.
+    const other = (await raise("requester", { type: "INCIDENT", title: "VPN drops at noon" })).id
+    expect((await as("agent").post(`/tickets/${b}/links`, { kind: "DUPLICATE_OF", ticketId: other })).status).toBe(409)
   })
 })
 

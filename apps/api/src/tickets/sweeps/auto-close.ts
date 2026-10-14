@@ -21,7 +21,8 @@ const MAX_BATCHES = 20
 
 /**
  * `RESOLVED` → `CLOSED` once a resolution has stood for `AUTO_CLOSE_DAYS`
- * (DOMAIN.md §2.1), for the tenant the job names. Each close is its own
+ * (DOMAIN.md §2.1) — and a Change `IMPLEMENTED` or `ROLLED_BACK` as long ago
+ * (§2.3) — for the tenant the job names. Each close is its own
  * versioned write with its audit entry, attributed to the system: a requester
  * who reopens in the same instant wins, and the sweep skips that ticket.
  * The requester and watchers hear about each close once they have all
@@ -60,7 +61,7 @@ export class AutoCloseService {
                 action: "TICKET_TRANSITIONED",
                 entityType: "Ticket",
                 entityId: ticket.id,
-                diff: { action: "close", from: "RESOLVED", to: "CLOSED", automatic: true },
+                diff: { action: "close", from: ticket.status, to: "CLOSED", automatic: true },
               },
             ],
             { kind: "system" },
