@@ -1,7 +1,6 @@
-import type { LinkKind, TicketType } from "@patchgrid/contracts"
+import type { LinkKind, LinkRelation, TicketType } from "@patchgrid/contracts"
 
-/** What a link is stored as (DOMAIN.md §1): Prisma's `LinkRelation`. */
-export type LinkRelation = "CAUSED_BY" | "RELATES_TO" | "RESOLVED_BY" | "DUPLICATE_OF"
+export type { LinkRelation }
 
 export type LinkEnd = { id: string; type: TicketType }
 export type StoredLink = { fromTicketId: string; toTicketId: string; relation: LinkRelation }

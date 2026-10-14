@@ -329,6 +329,10 @@ export type Ticket = z.infer<typeof ticketSchema>
  * direction; each end reads it its own way — `CAUSED_BY` from the incident is
  * `CAUSES` from the problem.
  */
+/** How a link is stored, in its canonical direction (DOMAIN.md §1). Storage twin: Prisma's `LinkRelation`. */
+export const linkRelationSchema = z.enum(["CAUSED_BY", "RELATES_TO", "RESOLVED_BY", "DUPLICATE_OF"])
+export type LinkRelation = z.infer<typeof linkRelationSchema>
+
 export const linkKindSchema = z.enum([
   "CAUSED_BY",
   "CAUSES",
