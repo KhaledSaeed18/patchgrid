@@ -71,11 +71,17 @@ observe "not the last one" and leave the org with zero owners (`TENANCY.md` §8)
 | Value | An `AGENT` may read |
 | --- | --- |
 | `ALL_TICKETS` | every ticket in the org |
-| `OWN_TEAM_ONLY` | tickets in **any of their teams**, plus tickets with no team, plus tickets assigned to them personally, plus tickets they raised, plus tickets they watch |
+| `OWN_TEAM_ONLY` | tickets in **any of their teams**, plus tickets with no team, plus tickets assigned to them personally, plus tickets they watch — and, as their requester, tickets they raised |
 
 `ADMIN` and `OWNER` always see everything. The setting affects reads, list queries, search and SSE
 fan-out — never the ability to be *assigned* a ticket, and a cross-team reassignment remains possible for
 admins. Changing the setting is an `OWNER`/`ADMIN` action and is audited.
+
+A ticket an agent raised for themselves stays theirs to **read and reply to** wherever it is routed —
+the `own` condition on `ticket:read` and `comment:create_public`, exactly what a requester has. It is
+not in their scope: working it (internal notes, reassignment, transitions an agent alone may make) is
+for the team it was routed to. Lists and search still include it, through a requester branch that
+selects rows but never grants `scope`.
 
 This is expressed once, as a **subject scope filter** the list repositories consume. It is not
 re-implemented per endpoint, and — because the `OWN_TEAM_ONLY` case is an `OR` across five different
@@ -122,7 +128,7 @@ the actor.
 | `ticket:create` (Incident, Service Request) | ✅ | ✅ | ✅ | ✅ |
 | `ticket:create` (Problem, Change) | — | ✅ | ✅ | ✅ |
 | `ticket:create_on_behalf` | — | ✅ | ✅ | ✅ |
-| `ticket:read` | own, watch | scope | ✅ | ✅ |
+| `ticket:read` | own, watch | scope, own | ✅ | ✅ |
 | `ticket:update` | own, while `NEW` | scope | ✅ | ✅ |
 | `ticket:transition` | own: cancel from `NEW`, close from `RESOLVED`, reopen | scope | ✅ | ✅ |
 | `ticket:assign` | — | scope | ✅ | ✅ |
@@ -136,7 +142,7 @@ the actor.
 
 | Permission | Requester | Agent | Admin | Owner |
 | --- | --- | --- | --- | --- |
-| `comment:create_public` | own, watch | scope | ✅ | ✅ |
+| `comment:create_public` | own, watch | scope, own | ✅ | ✅ |
 | `comment:create_internal` | — | scope | ✅ | ✅ |
 | `comment:read_internal` | — | scope | ✅ | ✅ |
 | `comment:update_own` (15 min window) | `self` | `self` | `self` | `self` |

@@ -64,7 +64,8 @@ export const PERMISSION_MATRIX = {
   // Tickets
   "ticket:create": { REQUESTER: ["user_facing_type"], AGENT: true, ADMIN: true, OWNER: true },
   "ticket:create_on_behalf": agents,
-  "ticket:read": { REQUESTER: ["own", "watch"], AGENT: ["scope"], ADMIN: true, OWNER: true },
+  /** An agent's own tickets are theirs to read wherever they are routed (RBAC.md §4) — reading, not working. */
+  "ticket:read": { REQUESTER: ["own", "watch"], AGENT: ["scope", "own"], ADMIN: true, OWNER: true },
   "ticket:update": { REQUESTER: ["own_while_new"], AGENT: ["scope"], ADMIN: true, OWNER: true },
   /** A requester's transitions are further narrowed by the transition table (DOMAIN.md §2). */
   "ticket:transition": { REQUESTER: ["own"], AGENT: ["scope"], ADMIN: true, OWNER: true },
@@ -82,7 +83,7 @@ export const PERMISSION_MATRIX = {
   "ticket:read_audit": scoped,
 
   // Comments and attachments — always evaluated after `ticket:read` on the same ticket.
-  "comment:create_public": { REQUESTER: ["own", "watch"], AGENT: ["scope"], ADMIN: true, OWNER: true },
+  "comment:create_public": { REQUESTER: ["own", "watch"], AGENT: ["scope", "own"], ADMIN: true, OWNER: true },
   "comment:create_internal": scoped,
   "comment:read_internal": scoped,
   "comment:update_own": {

@@ -6,8 +6,10 @@
 
 > **Erratum (2026-10-14).** The `OWN_TEAM_ONLY` branches below are four; there are now five. An agent who
 > raised a ticket for themselves lost sight of it the moment it was routed to a team they are not in —
-> they were its requester, but an agent's `ticket:read` is `scope` alone. The scope gains a **requester**
-> branch (tickets I raised), the same branch a requester's own scope has. `RBAC.md` §4 is the rule.
+> they were its requester, but an agent's `ticket:read` was `scope` alone. The list scope gains a
+> **requester** branch (tickets I raised) so lists and search include them, and an agent's `ticket:read`
+> and `comment:create_public` gain the `own` condition; the branch selects rows but never grants
+> `scope`, so the team the ticket was routed to still owns the work. `RBAC.md` §4 is the rule.
 
 ## Context
 

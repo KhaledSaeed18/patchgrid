@@ -80,6 +80,9 @@ async function setVisibility(value: "OWN_TEAM_ONLY" | "ALL_TICKETS") {
 }
 
 afterAll(async () => {
+  await db.notification.deleteMany({ where: { orgId: ws.orgId } })
+  await db.comment.deleteMany({ where: { orgId: ws.orgId } })
+  await db.ticketLink.deleteMany({ where: { orgId: ws.orgId } })
   await db.ticketWatcher.deleteMany({ where: { orgId: ws.orgId } })
   await db.ticket.deleteMany({ where: { orgId: ws.orgId } })
   await ws?.cleanup()
@@ -99,6 +102,24 @@ describe("OWN_TEAM_ONLY", () => {
     const agent = browser(app, ws.origin, ws.people.agent.access)
     expect((await agent.get(`/tickets/${tickets["team-c"]}`)).status).toBe(404)
     expect((await agent.get(`/tickets/${tickets["team-b"]}`)).status).toBe(200)
+  })
+
+  it("reads and replies to the agent's own ticket in another team, but leaves the working of it to that team", async () => {
+    const agent = browser(app, ws.origin, ws.people.agent.access)
+    const id = tickets["team-c-raised"] ?? ""
+    expect((await agent.get(`/tickets/${id}`)).status).toBe(200)
+    expect((await agent.post(`/tickets/${id}/comments`, { body: "Any news?", visibility: "PUBLIC" })).status).toBe(201)
+    expect((await agent.post(`/tickets/${id}/comments`, { body: "note", visibility: "INTERNAL" })).status).toBe(403)
+    const internal = (await agent.get(`/tickets/${id}`)).body.capabilities
+    expect(internal).toMatchObject({ canReadInternal: false, canAssign: false })
+  })
+
+  it("is a 404 to link to a ticket outside the scope — its existence included", async () => {
+    const agent = browser(app, ws.origin, ws.people.agent.access)
+    for (const kind of ["RELATES_TO", "DUPLICATE_OF"]) {
+      const r = await agent.post(`/tickets/${tickets["no-team"] ?? ""}/links`, { kind, ticketId: tickets["team-c"] ?? "" })
+      expect(r.status, kind).toBe(404)
+    }
   })
 
   it("never narrows an admin", async () => {

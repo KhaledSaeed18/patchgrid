@@ -143,8 +143,8 @@ export class PermissionService {
           ...(teamIds.length > 0 ? [{ kind: "teams", teamIds } as const] : []),
           { kind: "no-team" },
           { kind: "assignee", membershipId: me },
-          // An agent raising a ticket for themselves is still its requester,
-          // wherever it is routed (RBAC.md §4).
+          // Lists an agent's own tickets wherever they are routed; reading them
+          // is the `own` condition, not scope (RBAC.md §4).
           { kind: "requester", membershipId: me },
           { kind: "watcher", membershipId: me },
         ])

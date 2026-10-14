@@ -52,7 +52,9 @@ export function ticketInScope(filter: ScopeFilter, ticket: ScopedTicket, watch: 
       case "assignee":
         return ticket.assigneeMembershipId === branch.membershipId
       case "requester":
-        return ticket.requesterMembershipId === branch.membershipId
+        // Selects a member's own tickets into a list; being the requester is
+        // `own`, decided on its own, never `scope` (RBAC.md §4).
+        return false
       case "watcher":
         return watch
       case "owner":

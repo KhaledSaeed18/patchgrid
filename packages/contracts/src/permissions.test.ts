@@ -40,6 +40,7 @@ const CELLS: Record<string, Grant> = {
   "own, within 15 min": ["own_within_window"],
   "`ownerMembershipId = self`": ["own"],
   scope: ["scope"],
+  "scope, own": ["scope", "own"],
   "`lead`": ["lead"],
   "`lead`, never own change": ["lead_not_own"],
   "`self`": ["self"],
