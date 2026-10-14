@@ -303,16 +303,25 @@ _Exit: mail to a tenant's inbound address creates a ticket in that tenant, attri
 sender; a reply threads onto the existing ticket; an unresolvable tenant or an unauthenticated sender is
 dropped, never guessed._
 
-- [ ] `InboundEmail`, signature-verified webhook, `mailparser`, tenant resolution from the recipient
+- [x] `InboundEmail`, signature-verified webhook, `mailparser`, tenant resolution from the recipient
       address **before** anything else (ADR-0018)
-- [ ] **Sender authentication**: require the provider's DMARC-aligned verdict; map the sender to an
+- [x] **Sender authentication**: require the provider's DMARC-aligned verdict; map the sender to an
       active `Membership`; unknown senders dropped by default, or created as a visibly-badged external
       requester if the org opts in. Never silently attribute (ADR-0027)
-- [ ] Threading by `In-Reply-To` and `[INC-000042]` in the subject, **and** only when the verified sender
+- [x] Threading by `In-Reply-To` and `[INC-000042]` in the subject, **and** only when the verified sender
       is a participant on that ticket; otherwise a new linked ticket
-- [ ] Server-side attachment ingest to MinIO with the same allow-list, size cap and quota accounting
-- [ ] Bounce/auto-reply detection (`Auto-Submitted`, `Precedence: bulk`); loop protection
-- [ ] Dev harness: a script posting a sample inbound payload; `source: EMAIL` visible in the console
+- [x] Server-side attachment ingest to MinIO with the same allow-list, size cap and quota accounting
+- [x] Bounce/auto-reply detection (`Auto-Submitted`, `Precedence: bulk`); loop protection
+- [x] Dev harness: a script posting a sample inbound payload; `source: EMAIL` visible in the console
+
+_Met 2026-10-15. Each step was walked through `inbound:send` against the dev stack and the browser:_
+
+- _Rita's mail became an incident badged "Email", with its file._
+- _Her reply to the confirmation email threaded onto it, with the quote cut._
+- _A forged message and a stranger's were recorded and nothing more._
+- _The admin's inbound log showed each outcome._
+
+_External requesters are deferred by ADR-0039; until then unknown senders are always dropped._
 
 ## M7 — Differentiators
 

@@ -57,6 +57,10 @@ members who could open that ticket — a CI test holds that decision equal to th
 - **Assets** — a register of laptops, phones, printers, network kit and licences:
   who has each, its warranty, and every ticket raised about it. Requesters see
   their own and name them when they raise a ticket.
+- **Email intake** — mail to `<slug>@inbound.<domain>` becomes a ticket, and a reply to a
+  ticket email lands on its ticket. That only happens when the sender passes DMARC and is a
+  member. Everything else is recorded in an admin's inbound log and left at that: forged
+  senders, strangers, autoresponders and floods.
 - **Knowledge base** — markdown articles that are drafts, internal runbooks or
   published to the workspace. Full-text search; versioned edits; suggestions under
   a new ticket's title while a requester types.
@@ -86,7 +90,10 @@ pnpm dev
 ```
 
 `www` on `lvh.me:3000`, `app` on `<slug>.lvh.me:3001`, `api` on `api.lvh.me:4000`.
-Outgoing mail lands in Mailpit at `localhost:8025`. Attachments are served by MinIO
+Outgoing mail lands in Mailpit at `localhost:8025`. To mail a ticket in, run
+`pnpm --filter @patchgrid/api run inbound:send -- --from rita@patchgrid.test --to acme`.
+It signs the message as the receiving server would; add `--dmarc fail` to see a forged one
+refused. Attachments are served by MinIO
 at `localhost:9000` — a different site from `lvh.me`, as files must be (ADR-0037).
 
 Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
@@ -126,10 +133,16 @@ The docs are the specification, not a description written afterwards.
 
 ## Status
 
-**M0 (foundation) through M5 are complete:** tenancy and identity, the incident
-lifecycle, SLA sweeps and notifications, service requests, problems and changes, and
-then attachments, assets and the knowledge base. M6 — tickets raised and answered by
-email — is next. `docs/HANDOFF.md` has the detail. Screenshots, an architecture
+**M0 (foundation) through M6 are complete:**
+- tenancy and identity;
+- the incident lifecycle;
+- SLA sweeps and notifications;
+- service requests, problems and changes;
+- attachments, assets and the knowledge base;
+- tickets raised and answered by email.
+
+M7 is next: LLM triage, phishing scoring, duplicate detection and automation rules.
+`docs/HANDOFF.md` has the detail. Screenshots, an architecture
 diagram and a public demo arrive with the final milestone.
 
 MIT licensed — the value of this repository is that people read it.
