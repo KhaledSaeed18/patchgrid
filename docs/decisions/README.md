@@ -33,7 +33,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0024](0024-per-tenant-cookies-and-api-tenant-resolution.md) | Per-tenant session cookies, API tenant resolution, and revocation | Accepted |
 | [0025](0025-multi-team-membership.md) | An agent can belong to several teams | Accepted |
 | [0026](0026-wildcard-tls-and-dns-operations.md) | Wildcard TLS and DNS operations | Accepted |
-| [0027](0027-email-dns-and-inbound-sender-authentication.md) | Email DNS and inbound sender authentication | Accepted |
+| [0027](0027-email-dns-and-inbound-sender-authentication.md) | Email DNS and inbound sender authentication | Accepted — feed and verdict format by 0039 |
 | [0028](0028-data-protection-export-erasure-retention.md) | Data protection: export, pseudonymised erasure, retention | Accepted |
 | [0029](0029-mfa-and-step-up-authentication.md) | MFA (TOTP) and step-up authentication | Accepted |
 | [0030](0030-observability-opentelemetry-per-tenant.md) | Observability: OpenTelemetry with per-tenant dimensions | Accepted |
@@ -45,6 +45,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0036](0036-live-stream-fan-out-and-lifetime.md) | Live stream: who hears a ticket change, and how long a stream lives | Accepted |
 | [0037](0037-attachments-on-their-own-registrable-domain.md) | Attachments are served from their own registrable domain | Accepted |
 | [0038](0038-uploads-land-in-staging.md) | Uploads land in staging, and only checked bytes are served | Accepted |
+| [0039](0039-inbound-mail-feed-and-verdict.md) | Inbound mail arrives as signed raw MIME; the verdict is the receiver's Authentication-Results | Accepted |
 
 ## Reading order for someone new
 

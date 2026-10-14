@@ -1,6 +1,7 @@
 # 0027 — Email DNS and inbound sender authentication
 
-- **Status:** Accepted
+- **Status:** Accepted — the feed, the verdict's source and the deferral of external requesters are
+  specified by [0039](0039-inbound-mail-feed-and-verdict.md)
 - **Date:** 2026-09-22
 - **Refines:** [0018](0018-tenant-aware-jobs-and-events.md), which specified tenant-scoped mail rendering but not its authentication
 
