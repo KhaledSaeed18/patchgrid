@@ -352,8 +352,9 @@ incidents through a scoped token._
 - [x] Org deletion flow (ADR-0043): owner request, 30-day soft window, hard purge under `runAsTenant` including
       object storage; permanent slug reservation. An owner cancels from the picker, an operator restores from the
       back-office, both until the purge date; the purge leaves a `DELETED` tombstone
-- [ ] **Data protection** (ADR-0028): `POST /org/exports` as an async owner-only job (ADR-0044); pseudonymised user
-      erasure; retention windows per entity
+- [x] **Data protection** (ADR-0028, ADR-0044): `POST /org/exports` as an async owner-only job, a zip streamed into
+      storage and mailed as a 24-hour link; pseudonymised self-service erasure from the picker; retention windows per
+      entity (notifications and lapsed exports per tenant, expired credentials on the platform)
 
 ## M9 — Hardening
 
