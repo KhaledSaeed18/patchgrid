@@ -29,4 +29,15 @@ export class MailService {
     await this.queue.add(data.kind, data, { jobId: id })
     this.logger.log({ msg: "mail enqueued", kind: data.kind, jobId: id, to: emailHash8(data.to) })
   }
+
+  /** Many at once, in one round trip; each idempotent on its own `entityId` as `enqueue` is. */
+  async enqueueAll(mails: readonly { job: MailJob; entityId: string }[]): Promise<void> {
+    if (mails.length === 0) return
+    const jobs = mails.map(({ job, entityId }) => {
+      const data = mailJobSchema.parse(job)
+      return { name: data.kind, data, opts: { jobId: jobId(MAIL_QUEUE, data.orgId, entityId, data.kind) } }
+    })
+    await this.queue.addBulk(jobs)
+    this.logger.log({ msg: "mail enqueued", count: jobs.length, kinds: [...new Set(jobs.map((j) => j.name))] })
+  }
 }

@@ -6,6 +6,7 @@ import { z } from "zod"
 import { AccountExists } from "./account-exists"
 import { Invite } from "./invite"
 import { ResetPassword } from "./reset-password"
+import { TicketNotification } from "./ticket-notification"
 import { VerifyEmail } from "./verify-email"
 
 /**
@@ -47,6 +48,18 @@ export const MAIL_KINDS = {
     subject: () => "Reset your Patchgrid password",
     component: ResetPassword,
   },
+  "ticket-notification": {
+    params: z.object({
+      orgName: z.string(),
+      headline: z.string(),
+      reason: z.string(),
+      ticketUrl: url,
+      preferencesUrl: url,
+    }),
+    // A ticket title is typed by a tenant; a subject is a header, and stays one line.
+    subject: (p: { headline: string }) => p.headline.replace(/[\r\n]+/g, " "),
+    component: TicketNotification,
+  },
 } as const
 
 export type MailKind = keyof typeof MAIL_KINDS
@@ -64,6 +77,7 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("account-exists"), ...envelope, params: MAIL_KINDS["account-exists"].params }),
   z.object({ kind: z.literal("invite"), ...envelope, params: MAIL_KINDS.invite.params }),
   z.object({ kind: z.literal("reset-password"), ...envelope, params: MAIL_KINDS["reset-password"].params }),
+  z.object({ kind: z.literal("ticket-notification"), ...envelope, params: MAIL_KINDS["ticket-notification"].params }),
 ])
 export type MailJob = z.infer<typeof mailJobSchema>
 
@@ -85,6 +99,8 @@ function elementFor(job: MailJob): ReactElement {
       return <Invite {...job.params} />
     case "reset-password":
       return <ResetPassword {...job.params} />
+    case "ticket-notification":
+      return <TicketNotification {...job.params} />
   }
 }
 
@@ -92,6 +108,8 @@ function subjectFor(job: MailJob): string {
   switch (job.kind) {
     case "invite":
       return MAIL_KINDS.invite.subject(job.params)
+    case "ticket-notification":
+      return MAIL_KINDS["ticket-notification"].subject(job.params)
     default:
       return MAIL_KINDS[job.kind].subject()
   }

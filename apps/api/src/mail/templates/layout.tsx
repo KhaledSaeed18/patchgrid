@@ -5,7 +5,7 @@ import type { ReactNode } from "react"
  * clients render roughly what browsers rendered in 2005. The accent is the
  * Tangerine theme's primary; everything else is neutral on purpose.
  */
-export function MailLayout({ preview, children }: { preview: string; children: ReactNode }) {
+export function MailLayout({ preview, footer, children }: { preview: string; footer?: ReactNode; children: ReactNode }) {
   return (
     <html lang="en">
       <head>
@@ -30,7 +30,8 @@ export function MailLayout({ preview, children }: { preview: string; children: R
                   </tbody>
                 </table>
                 <p style={{ maxWidth: 560, margin: "16px auto 0", fontSize: 12, lineHeight: "18px", color: "#7a736b" }}>
-                  You received this because an action was taken on Patchgrid with this address. If it was not you, you can ignore this message.
+                  {footer ??
+                    "You received this because an action was taken on Patchgrid with this address. If it was not you, you can ignore this message."}
                 </p>
               </td>
             </tr>
