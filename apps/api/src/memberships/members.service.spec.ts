@@ -96,7 +96,7 @@ function harness(actorId: string, seeds: Seed[], seatsFree = true) {
   }
   const workspaces = {
     mirror: vi.fn(async () => undefined),
-    remove: vi.fn(async () => undefined),
+    markRemoved: vi.fn(async () => undefined),
   }
   const epochs = {
     bump: vi.fn(async (id: string) => {
@@ -243,11 +243,11 @@ describe("MembersService.disable / enable", () => {
 })
 
 describe("MembersService.remove", () => {
-  it("marks the row removed, leaves every team, drops the picker row and revokes", async () => {
+  it("marks the row removed, leaves every team, hides the picker row and revokes", async () => {
     const h = harness("admin", [{ id: "admin", role: "ADMIN" }, { id: "a", role: "AGENT", teams: ["t-1"] }])
     await h.service.remove("a")
     expect(h.rows.get("a")).toMatchObject({ status: "REMOVED", teamIds: [] })
-    expect(h.workspaces.remove).toHaveBeenCalledWith("u-a", ORG)
+    expect(h.workspaces.markRemoved).toHaveBeenCalledWith("u-a", ORG)
     expect(h.epochs.bump).toHaveBeenCalledWith("a")
     expect(h.audit[0]).toMatchObject({ action: "MEMBER_REMOVED", diff: { status: { from: "ACTIVE", to: "REMOVED" }, leftTeams: ["t-1"] } })
   })

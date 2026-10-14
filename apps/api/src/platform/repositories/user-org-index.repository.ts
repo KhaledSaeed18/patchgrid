@@ -17,7 +17,8 @@ export class UserOrgIndexRepository {
 
   async listWorkspacesForUser(userId: string): Promise<WorkspaceSummary[]> {
     const rows = await this.prisma.db.userOrgIndex.findMany({
-      where: { userId },
+      // A removed membership keeps its row, for erasure to find; the picker never shows it (ADR-0044).
+      where: { userId, statusForDisplay: { not: "REMOVED" } },
       orderBy: { orgName: "asc" },
       select: {
         orgId: true,
@@ -77,8 +78,23 @@ export class UserOrgIndexRepository {
     })
   }
 
-  /** A removed member loses the workspace from the picker entirely (ADR-0033). */
-  async remove(userId: string, orgId: string): Promise<void> {
-    await this.prisma.db.userOrgIndex.deleteMany({ where: { userId, orgId } })
+  /**
+   * A removed member loses the workspace from the picker (ADR-0033); the row
+   * stays, marked, so erasure can still find every workspace a person was in
+   * and take their name out of it (ADR-0044).
+   */
+  async markRemoved(userId: string, orgId: string): Promise<void> {
+    await this.prisma.db.userOrgIndex.updateMany({ where: { userId, orgId }, data: { statusForDisplay: "REMOVED" } })
+  }
+
+  /** Every workspace this account has a membership in, removed ones included — erasure's list. */
+  async allOrgIdsForUser(userId: string): Promise<string[]> {
+    const rows = await this.prisma.db.userOrgIndex.findMany({ where: { userId }, select: { orgId: true } })
+    return rows.map((r) => r.orgId)
+  }
+
+  /** The account is gone (ADR-0044): its picker goes with it. */
+  async removeAllForUser(userId: string): Promise<void> {
+    await this.prisma.db.userOrgIndex.deleteMany({ where: { userId } })
   }
 }

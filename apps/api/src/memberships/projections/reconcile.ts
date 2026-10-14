@@ -21,13 +21,13 @@ export type ReconcilePlan = { create: IndexRow[]; update: IndexRow[]; remove: st
 
 /**
  * What `UserOrgIndex` should hold for one org, from its source: a row per
- * human member who is active or disabled — ADR-0033 takes a removed member
- * off the picker, and an invited one is not on it yet —
- * carrying their role and status and the org's name, slug and status.
+ * human member who is active, disabled or removed — the picker hides a
+ * removed one (ADR-0033), and erasure finds it (ADR-0044); an invited one is
+ * not on it yet — carrying their role and status and the org's name, slug and status.
  */
 export function expectedRows(source: ProjectionSource): IndexRow[] {
   return source.members
-    .filter((m) => m.status === "ACTIVE" || m.status === "DISABLED")
+    .filter((m) => m.status !== "INVITED")
     .map((m) => ({
       userId: m.userId,
       roleForDisplay: m.role,

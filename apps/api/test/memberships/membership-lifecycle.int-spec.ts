@@ -238,7 +238,10 @@ describe("membership lifecycle", () => {
   it("removes: gone from the list and the picker, kept for history, and invitable back as the same row", async () => {
     expect((await as(state.bob).delete(`/members/${state.carolMembership}`)).status).toBe(204)
     const carol = await db.user.findUniqueOrThrow({ where: { email: people.carol } })
-    expect(await db.userOrgIndex.findUnique({ where: { userId_orgId: { userId: carol.id, orgId } } })).toBeNull()
+    // Off the picker; the row stays, marked, for erasure to find (ADR-0044).
+    expect(await db.userOrgIndex.findUnique({ where: { userId_orgId: { userId: carol.id, orgId } } })).toMatchObject({ statusForDisplay: "REMOVED" })
+    const picker = await http().get("/api/v1/auth/identity").set("Cookie", state.carolPgId)
+    expect(picker.body.workspaces.map((w: { orgId: string }) => w.orgId)).not.toContain(orgId)
     expect((await as(state.bob).get("/members")).body.items.map((m: { id: string }) => m.id)).not.toContain(state.carolMembership)
     expect((await as(state.bob).get(`/members/${state.carolMembership}`)).status).toBe(200)
     const withRemoved = await as(state.owner).get("/members?includeRemoved=true")

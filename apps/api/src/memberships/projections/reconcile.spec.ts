@@ -23,8 +23,13 @@ const row = (userId: string, over: Partial<IndexRow> = {}): IndexRow => ({
 })
 
 describe("the org picker's projection (ADR-0022)", () => {
-  it("expects a row per active or disabled member, none for the removed or invited, with their role and status and the org's names", () => {
-    expect(expectedRows(source)).toEqual([row("u-owner"), row("u-agent", { roleForDisplay: "AGENT", statusForDisplay: "DISABLED" })])
+  it("expects a row per active, disabled or removed member, none for the invited, with their role and status and the org's names", () => {
+    expect(expectedRows(source)).toEqual([
+      row("u-owner"),
+      row("u-agent", { roleForDisplay: "AGENT", statusForDisplay: "DISABLED" }),
+      // Hidden from the picker, kept for erasure to find (ADR-0044).
+      row("u-gone", { roleForDisplay: "AGENT", statusForDisplay: "REMOVED" }),
+    ])
   })
 
   it("plans nothing when the rows are true", () => {
@@ -32,7 +37,7 @@ describe("the org picker's projection (ADR-0022)", () => {
     expect(driftOf(plan)).toBe(0)
   })
 
-  it("adds a missing row, rewrites a stale one, and drops one for someone removed or never there", () => {
+  it("adds a missing row, rewrites a stale one — a removal included — and drops one for someone never there", () => {
     const actual = [
       row("u-owner", { orgName: "Acme (old name)" }),
       row("u-gone", { roleForDisplay: "AGENT" }),
@@ -40,8 +45,8 @@ describe("the org picker's projection (ADR-0022)", () => {
     ]
     const plan = planReconcile(expectedRows(source), actual)
     expect(plan.create.map((r) => r.userId)).toEqual(["u-agent"])
-    expect(plan.update).toEqual([row("u-owner")])
-    expect(plan.remove).toEqual(["u-gone", "u-stranger"])
+    expect(plan.update).toEqual([row("u-owner"), row("u-gone", { roleForDisplay: "AGENT", statusForDisplay: "REMOVED" })])
+    expect(plan.remove).toEqual(["u-stranger"])
     expect(driftOf(plan)).toBe(4)
   })
 })

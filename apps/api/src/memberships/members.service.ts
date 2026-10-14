@@ -165,7 +165,7 @@ export class MembersService {
       await this.seatChange(orgId, target, { ...target, status: "REMOVED" })
       await this.memberships.setStatus(orgId, target.id, "REMOVED")
       const leftTeams = await this.memberships.leaveAllTeams(orgId, target.id)
-      if (target.userId !== null) await this.workspaces.remove(target.userId, orgId)
+      if (target.userId !== null) await this.workspaces.markRemoved(target.userId, orgId)
       await this.audit.record(orgId, [
         {
           action: "MEMBER_REMOVED",
