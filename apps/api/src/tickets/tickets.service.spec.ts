@@ -243,13 +243,13 @@ describe("TicketsService.list", () => {
   })
 
   it("merges the scope branches newest first, without duplicates, and pages with a cursor", async () => {
-    // OWN_TEAM_ONLY: four branches — my teams, no team, assigned to me, watched by me.
+    // OWN_TEAM_ONLY: five branches — my teams, no team, assigned to me, raised by me, watched by me.
     const h = harness("AGENT", row(), {
       ownTeamOnly: true,
-      branches: [[summary("a", 1), summary("c", 3)], [summary("b", 2), summary("a", 1)], [], []],
+      branches: [[summary("a", 1), summary("c", 3)], [summary("b", 2), summary("a", 1)], [], [], []],
     })
     const page = await h.service.list({ view: "open", sort: "newest", limit: 2 })
-    expect(h.tickets.listBranch).toHaveBeenCalledTimes(4)
+    expect(h.tickets.listBranch).toHaveBeenCalledTimes(5)
     expect(page.items.map((t) => t.id)).toEqual(["a", "b"])
     expect(page.nextCursor).not.toBeNull()
   })
@@ -257,7 +257,7 @@ describe("TicketsService.list", () => {
   it("merges oldest first when asked, and asks each branch for the same direction", async () => {
     const h = harness("AGENT", row(), {
       ownTeamOnly: true,
-      branches: [[summary("c", 3), summary("a", 1)], [summary("b", 2)], [], []],
+      branches: [[summary("c", 3), summary("a", 1)], [summary("b", 2)], [], [], []],
     })
     const page = await h.service.list({ view: "open", sort: "oldest", limit: 25 })
     expect(page.items.map((t) => t.id)).toEqual(["c", "b", "a"])

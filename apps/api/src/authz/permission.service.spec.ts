@@ -298,6 +298,7 @@ describe("PermissionService.scopeFor (RBAC.md §4)", () => {
         { kind: "teams", teamIds: ["t-1", "t-2"] },
         { kind: "no-team" },
         { kind: "assignee", membershipId: "m-1" },
+        { kind: "requester", membershipId: "m-1" },
         { kind: "watcher", membershipId: "m-1" },
       ],
     })
@@ -306,7 +307,7 @@ describe("PermissionService.scopeFor (RBAC.md §4)", () => {
   it("an OWN_TEAM_ONLY agent in no team has no team branch, never an empty IN ()", () => {
     const filter = service.scopeFor(member("AGENT"), "ticket", own)
     expect(filter.kind).toBe("any")
-    if (filter.kind === "any") expect(filter.branches.map((b) => b.kind)).toEqual(["no-team", "assignee", "watcher"])
+    if (filter.kind === "any") expect(filter.branches.map((b) => b.kind)).toEqual(["no-team", "assignee", "requester", "watcher"])
   })
 
   it("a requester sees what they raised and what they watch, whatever the setting", () => {

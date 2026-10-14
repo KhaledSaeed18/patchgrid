@@ -4,6 +4,11 @@
 - **Date:** 2026-09-22
 - **Refines:** [0019](0019-rbac-model-and-enforcement.md) — agent visibility scope and team-lead capability
 
+> **Erratum (2026-10-14).** The `OWN_TEAM_ONLY` branches below are four; there are now five. An agent who
+> raised a ticket for themselves lost sight of it the moment it was routed to a team they are not in —
+> they were its requester, but an agent's `ticket:read` is `scope` alone. The scope gains a **requester**
+> branch (tickets I raised), the same branch a requester's own scope has. `RBAC.md` §4 is the rule.
+
 ## Context
 
 `Membership` carried a single optional `teamId`, and `Team` carried a single `leadId`. That makes three

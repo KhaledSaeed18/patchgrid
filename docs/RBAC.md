@@ -71,14 +71,14 @@ observe "not the last one" and leave the org with zero owners (`TENANCY.md` §8)
 | Value | An `AGENT` may read |
 | --- | --- |
 | `ALL_TICKETS` | every ticket in the org |
-| `OWN_TEAM_ONLY` | tickets in **any of their teams**, plus tickets with no team, plus tickets assigned to them personally, plus tickets they watch |
+| `OWN_TEAM_ONLY` | tickets in **any of their teams**, plus tickets with no team, plus tickets assigned to them personally, plus tickets they raised, plus tickets they watch |
 
 `ADMIN` and `OWNER` always see everything. The setting affects reads, list queries, search and SSE
 fan-out — never the ability to be *assigned* a ticket, and a cross-team reassignment remains possible for
 admins. Changing the setting is an `OWNER`/`ADMIN` action and is audited.
 
 This is expressed once, as a **subject scope filter** the list repositories consume. It is not
-re-implemented per endpoint, and — because the `OWN_TEAM_ONLY` case is an `OR` across four different
+re-implemented per endpoint, and — because the `OWN_TEAM_ONLY` case is an `OR` across five different
 columns that no single index can serve — `scopeFor()` returns a **list of branches** rather than one
 predicate, so repositories emit a `UNION ALL` of index-friendly queries:
 

@@ -38,7 +38,7 @@ beforeAll(async () => {
   // The agent's team facts are read per request by the auth guard; their old token is fine.
   const now = new Date()
   let number = 0
-  const make = async (key: string, over: { teamId?: string | null | undefined; assigneeMembershipId?: string | null }) => {
+  const make = async (key: string, over: { teamId?: string | null | undefined; assigneeMembershipId?: string | null; requesterMembershipId?: string }) => {
     number += 1
     tickets[key] = (
       await db.ticket.create({
@@ -51,7 +51,7 @@ beforeAll(async () => {
           impact: "LOW",
           urgency: "LOW",
           priority: "LOW",
-          requesterMembershipId: ws.people.requester.membershipId,
+          requesterMembershipId: over.requesterMembershipId ?? ws.people.requester.membershipId,
           responseClockStartedAt: now,
           resolutionClockStartedAt: now,
           source: "PORTAL",
@@ -67,6 +67,7 @@ beforeAll(async () => {
   await make("team-c", { teamId: ws.teams.C })
   await make("team-c-assigned", { teamId: ws.teams.C, assigneeMembershipId: ws.people.agent.membershipId })
   await make("team-c-watched", { teamId: ws.teams.C })
+  await make("team-c-raised", { teamId: ws.teams.C, requesterMembershipId: ws.people.agent.membershipId })
   await db.ticketWatcher.create({
     data: { orgId: ws.orgId, ticketId: tickets["team-c-watched"] ?? "", membershipId: ws.people.agent.membershipId, addedByMembershipId: ws.people.admin.membershipId },
   })
@@ -91,7 +92,7 @@ const titles = (body: { items: { title: string }[] }) => body.items.map((t) => t
 describe("OWN_TEAM_ONLY", () => {
   it("shows a two-team agent every branch of their scope, and not the other team's ticket", async () => {
     const open = await browser(app, ws.origin, ws.people.agent.access).get("/tickets?view=open&limit=100")
-    expect(titles(open.body)).toEqual(["no-team", "team-a", "team-b", "team-c-assigned", "team-c-watched"])
+    expect(titles(open.body)).toEqual(["no-team", "team-a", "team-b", "team-c-assigned", "team-c-raised", "team-c-watched"])
   })
 
   it("is a 404 by id for the ticket outside it, and a read for one inside", async () => {
@@ -102,7 +103,7 @@ describe("OWN_TEAM_ONLY", () => {
 
   it("never narrows an admin", async () => {
     const all = await browser(app, ws.origin, ws.people.admin.access).get("/tickets?view=open&limit=100")
-    expect(all.body.items).toHaveLength(6)
+    expect(all.body.items).toHaveLength(7)
   })
 
   it("lets an agent stop watching a ticket that watching alone let them see — an empty list, not a 404", async () => {
@@ -127,6 +128,6 @@ describe("ALL_TICKETS", () => {
   it("lifts the narrowing for agents", async () => {
     await setVisibility("ALL_TICKETS")
     const open = await browser(app, ws.origin, ws.people.agent.access).get("/tickets?view=open&limit=100")
-    expect(open.body.items).toHaveLength(6)
+    expect(open.body.items).toHaveLength(7)
   })
 })
