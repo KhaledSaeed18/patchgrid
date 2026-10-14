@@ -17,7 +17,7 @@ import {
 import type { Request, Response } from "express"
 import { ZodError } from "zod"
 
-import { ProblemException } from "./problem.exception"
+import { ProblemException, RateLimitedProblem } from "./problem.exception"
 
 type Resolved = {
   type: ProblemTypeSlug
@@ -77,6 +77,10 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         : {}),
     }
 
+    // The header clients honour, for every rate limit — the throttler's sets it first, the rest here.
+    if (exception instanceof RateLimitedProblem && !response.hasHeader("Retry-After")) {
+      response.setHeader("Retry-After", String(exception.retryAfterSeconds))
+    }
     response.status(status).type(PROBLEM_CONTENT_TYPE).json(body)
   }
 }

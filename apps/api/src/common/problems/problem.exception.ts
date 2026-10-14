@@ -108,7 +108,7 @@ export class StaleWriteProblem extends ProblemException {
 
 /** Too many requests from this IP, address, organization or token (pipeline steps 3 and 6). */
 export class RateLimitedProblem extends ProblemException {
-  constructor(retryAfterSeconds: number) {
+  constructor(readonly retryAfterSeconds: number) {
     super("rate-limited", `Too many requests. Retry in ${String(retryAfterSeconds)} seconds`)
   }
 }
