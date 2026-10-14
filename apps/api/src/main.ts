@@ -88,15 +88,15 @@ async function bootstrap(): Promise<void> {
     // Cookies are the session mechanism, so credentialed requests are the norm.
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Patchgrid-Tenant", "Idempotency-Key"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Patchgrid-Tenant", "X-Patchgrid-Surface", "Idempotency-Key"],
     exposedHeaders: ["X-Request-Id"],
     maxAge: 600,
   })
 
-  // Health lives outside the version prefix so orchestrators find it where they
-  // expect, and so a future /api/v2 does not move it.
   // The inbound webhook is signed over its bytes (ADR-0039): they are kept raw, ahead of Nest's JSON parser.
   app.use(INBOUND_WEBHOOK_PATH, inboundBodyParser())
+  // Health lives outside the version prefix so orchestrators find it where they
+  // expect, and so a future /api/v2 does not move it.
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
 
   if (config.isProduction) {

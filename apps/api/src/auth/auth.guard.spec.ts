@@ -6,7 +6,7 @@ import request from "supertest"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FixedClock } from "../common/clock/clock"
-import { Public, TenantOptional } from "../common/decorators/route-markers"
+import { PlatformRoute, Public, TenantOptional } from "../common/decorators/route-markers"
 import { ProblemDetailsFilter } from "../common/problems/problem-details.filter"
 import { APP_CONFIG, type AppConfig } from "../config/app-config"
 import { MembershipRepository, type MembershipRecord } from "../memberships/repositories/membership.repository"
@@ -20,6 +20,8 @@ import { AuthGuard } from "./auth.guard"
 import { RequestedWithGuard } from "./requested-with.guard"
 import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
+import { PlatformAdminRepository } from "../platform/repositories/platform-admin.repository"
+import { PlatformTokenService } from "./platform/platform-token.service"
 import { AccessTokenService } from "./tokens/access-token.service"
 
 const config = {
@@ -55,6 +57,10 @@ const membership: MembershipRecord = {
 }
 const memberships = { findById: vi.fn(async () => membership as MembershipRecord | null) }
 const epochs = { isRevoked: vi.fn(async (): Promise<boolean | null> => false) }
+const ADMIN = "0190b2f0-0000-7000-8000-0000000000ad"
+const platformAdmins = {
+  active: vi.fn(async (id: string) => (id === ADMIN ? { id: ADMIN, userId: USER, email: "dana@x.test", name: "Dana" } : null) as unknown),
+}
 const sessions = { identityFor: vi.fn(async (secret?: string) => (secret === "good-pg-id" ? USER : null)) }
 
 @Controller("probe")
@@ -77,6 +83,12 @@ class ProbeController {
     return this.actors.current() ?? null
   }
 
+  @Get("platform")
+  @PlatformRoute()
+  platform() {
+    return this.actors.current() ?? null
+  }
+
   @Get("open")
   @Public()
   open() {
@@ -87,6 +99,7 @@ class ProbeController {
 let app: INestApplication
 const clock = new FixedClock(new Date("2026-10-05T12:00:00Z"))
 let accessTokens: AccessTokenService
+let platformTokens: PlatformTokenService
 
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({
@@ -102,6 +115,8 @@ beforeAll(async () => {
       { provide: RevocationEpochService, useValue: epochs },
       { provide: SessionService, useValue: sessions },
       { provide: MembershipRepository, useValue: memberships },
+      { provide: PlatformTokenService, useValue: new PlatformTokenService(config, clock) },
+      { provide: PlatformAdminRepository, useValue: platformAdmins },
       // The production order: resolve, CSRF, authenticate.
       { provide: APP_GUARD, useClass: TenantResolutionGuard },
       { provide: APP_GUARD, useClass: RequestedWithGuard },
@@ -112,6 +127,7 @@ beforeAll(async () => {
   app = moduleRef.createNestApplication({ logger: false })
   await app.init()
   accessTokens = moduleRef.get(AccessTokenService)
+  platformTokens = moduleRef.get(PlatformTokenService)
 })
 
 afterAll(async () => {
@@ -204,5 +220,41 @@ describe("AuthGuard over HTTP", () => {
     expect((await http().get("/probe").set("Origin", "http://nobody.lvh.me:3001")).status).toBe(404)
     // A resolving API token is not yet an actor (M8).
     expect((await http().get("/probe").set("Authorization", "Bearer pg_acmetok_s")).status).toBe(401)
+  })
+})
+
+describe("AuthGuard on platform routes (ADR-0040)", () => {
+  const ADMIN_ORIGIN = "http://admin.lvh.me:3001"
+  const session = async () => (await platformTokens.session(USER, ADMIN)).token
+
+  it("turns a platform session from the admin surface into a platform actor", async () => {
+    const response = await http().get("/probe/platform").set({ Origin: ADMIN_ORIGIN, Cookie: `pg_pa=${await session()}` })
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ kind: "platform", platformAdminId: ADMIN, userId: USER })
+    // A server, which sends no Origin, names the surface instead.
+    const server = await http().get("/probe/platform").set({ "X-Patchgrid-Surface": "admin", Cookie: `pg_pa=${await session()}` })
+    expect(server.status).toBe(200)
+  })
+
+  it("refuses the platform session from any other surface, and a tenant's credential on a platform route", async () => {
+    expect((await http().get("/probe/platform").set({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_pa=${await session()}` })).status).toBe(403)
+    expect((await http().get("/probe/platform").set({ Origin: ADMIN_ORIGIN, Cookie: `pg_at_acme=${await signed()}` })).status).toBe(401)
+    // The surface header cannot override a browser's Origin.
+    expect((await http().get("/probe/platform").set({ Origin: "http://acme.lvh.me:3001", "X-Patchgrid-Surface": "admin", Cookie: `pg_pa=${await session()}` })).status).toBe(403)
+  })
+
+  it("never accepts a tenant access token as a platform session, nor the reverse", async () => {
+    expect((await http().get("/probe/platform").set({ Origin: ADMIN_ORIGIN, Cookie: `pg_pa=${await signed()}` })).status).toBe(401)
+    expect((await http().get("/probe").set({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_at_acme=${await session()}` })).status).toBe(401)
+  })
+
+  it("ends with the epoch, the hour, or the grant", async () => {
+    const headers = { Origin: ADMIN_ORIGIN, Cookie: `pg_pa=${await session()}` }
+    epochs.isRevoked.mockResolvedValueOnce(true)
+    expect((await http().get("/probe/platform").set(headers)).status).toBe(401)
+    platformAdmins.active.mockResolvedValueOnce(null)
+    expect((await http().get("/probe/platform").set(headers)).status).toBe(401)
+    clock.advance(3_601_000)
+    expect((await http().get("/probe/platform").set(headers)).status).toBe(401)
   })
 })

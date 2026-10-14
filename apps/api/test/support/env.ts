@@ -26,6 +26,7 @@ const defaults: Record<string, string> = {
   S3_SECRET_ACCESS_KEY: "patchgrid-local-dev",
   INBOUND_WEBHOOK_SECRET: "whsec_cGF0Y2hncmlkLWxvY2FsLWluYm91bmQtc2VjcmV0",
   INBOUND_AUTHSERV_ID: "mx.inbound.lvh.me",
+  MFA_ENCRYPTION_KEY: "cGF0Y2hncmlkLWxvY2FsLW1mYS1rZXktMzJieXRlcyE=",
 }
 for (const [name, value] of Object.entries(defaults)) {
   if (process.env[name] === undefined || process.env[name] === "") process.env[name] = value

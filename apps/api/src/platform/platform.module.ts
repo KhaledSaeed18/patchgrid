@@ -1,6 +1,9 @@
 import { Module } from "@nestjs/common"
 
 import { ApiTokenIndexRepository } from "./repositories/api-token-index.repository"
+import { MfaRepository } from "./repositories/mfa.repository"
+import { PlatformAdminRepository } from "./repositories/platform-admin.repository"
+import { PlatformAuditRepository } from "./repositories/platform-audit.repository"
 import { EmailVerificationRepository, PasswordResetTokenRepository } from "./repositories/one-time-token.repository"
 import { OrganizationRepository } from "./repositories/organization.repository"
 import { RefreshTokenRepository } from "./repositories/refresh-token.repository"
@@ -21,6 +24,9 @@ import { UserRepository } from "./repositories/user.repository"
     UserOrgIndexRepository,
     EmailVerificationRepository,
     PasswordResetTokenRepository,
+    PlatformAdminRepository,
+    MfaRepository,
+    PlatformAuditRepository,
   ],
   exports: [
     OrganizationRepository,
@@ -30,6 +36,9 @@ import { UserRepository } from "./repositories/user.repository"
     UserOrgIndexRepository,
     EmailVerificationRepository,
     PasswordResetTokenRepository,
+    PlatformAdminRepository,
+    MfaRepository,
+    PlatformAuditRepository,
   ],
 })
 export class PlatformModule {}

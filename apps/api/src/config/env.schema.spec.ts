@@ -13,6 +13,7 @@ const valid = {
   JWT_SECRET: "local-development-secret-that-is-at-least-32-chars",
   INBOUND_WEBHOOK_SECRET: "whsec_cGF0Y2hncmlkLWxvY2FsLWluYm91bmQtc2VjcmV0",
   INBOUND_AUTHSERV_ID: "mx.inbound.lvh.me",
+  MFA_ENCRYPTION_KEY: "cGF0Y2hncmlkLWxvY2FsLW1mYS1rZXktMzJieXRlcyE=",
 }
 
 const issues = (overrides: Record<string, string>) => {

@@ -105,7 +105,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
         ? "anonymous"
         : actor.kind === "identity"
           ? `user:${actor.userId}`
-          : `member:${actor.membershipId}`
+          : actor.kind === "platform"
+            ? `platform:${actor.platformAdminId}`
+            : `member:${actor.membershipId}`
     const org = this.tenant.current()?.orgId ?? "platform"
     return `idem:${org}:${who}:${request.method}:${request.route?.path ?? request.path}:${key}`
   }

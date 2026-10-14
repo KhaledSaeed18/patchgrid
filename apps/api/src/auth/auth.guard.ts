@@ -3,9 +3,13 @@ import { Reflector } from "@nestjs/core"
 import type { Request } from "express"
 import { ClsService } from "nestjs-cls"
 
-import { IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
+import { IS_PLATFORM, IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
+import { originPolicyFrom } from "../common/http/origin-policy"
+import { InjectConfig, type AppConfig } from "../config/app-config"
+import { PlatformAdminRepository } from "../platform/repositories/platform-admin.repository"
 import {
   NotAuthenticatedProblem,
+  NotPermittedProblem,
   ServiceUnavailableProblem,
   TenantMismatchProblem,
 } from "../common/problems/problem.exception"
@@ -14,6 +18,9 @@ import { type RequestContextStore, TenantContextMissingError } from "../tenancy/
 import { TenantContextService } from "../tenancy/tenant-context.service"
 import type { Actor } from "./actor"
 import { readCookie } from "./cookies"
+import { platformEpochKey } from "./platform/platform-auth.service"
+import { PlatformTokenService } from "./platform/platform-token.service"
+import { fromAdminSurface, PLATFORM_SESSION_COOKIE } from "./platform/surface"
 import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
 import { accessCookieName, IDENTITY_COOKIE } from "./tokens/access-token"
@@ -47,6 +54,9 @@ export class AuthGuard implements CanActivate {
     private readonly epochs: RevocationEpochService,
     private readonly sessions: SessionService,
     private readonly memberships: MembershipRepository,
+    private readonly platformTokens: PlatformTokenService,
+    private readonly platformAdmins: PlatformAdminRepository,
+    @InjectConfig() private readonly config: AppConfig,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -54,6 +64,8 @@ export class AuthGuard implements CanActivate {
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, targets) === true) return true
 
     const request = context.switchToHttp().getRequest<Request>()
+
+    if (this.reflector.getAllAndOverride<boolean>(IS_PLATFORM, targets) === true) return this.platform(request)
 
     if (this.reflector.getAllAndOverride<boolean>(IS_TENANT_OPTIONAL, targets) === true) {
       const userId = await this.sessions.identityFor(readCookie(request, IDENTITY_COOKIE))
@@ -106,6 +118,30 @@ export class AuthGuard implements CanActivate {
       teamIds: membership.teamIds,
       leadOfTeamIds: membership.leadOfTeamIds,
     })
+    return true
+  }
+
+  /**
+   * A platform route (ADR-0040): only `pg_pa`, only from the `admin.`
+   * surface, then the epoch and the admin row itself — a revoked grant is out
+   * on the next request, whatever the token says. Tenant cookies are never
+   * read here.
+   */
+  private async platform(request: Request): Promise<boolean> {
+    if (!fromAdminSurface(request, originPolicyFrom(this.config))) {
+      throw new NotPermittedProblem("Platform routes answer only the admin surface")
+    }
+    const token = readCookie(request, PLATFORM_SESSION_COOKIE)
+    const session = token === undefined ? null : await this.platformTokens.verifySession(token)
+    if (session === null) throw new NotAuthenticatedProblem("A platform session is required")
+    const revoked = await this.epochs.isRevoked(platformEpochKey(session.platformAdminId), session.iat)
+    if (revoked === true) throw new NotAuthenticatedProblem("The session was ended")
+    if (revoked === null && !SAFE_METHODS.has(request.method)) {
+      throw new ServiceUnavailableProblem("The session could not be confirmed; retry shortly")
+    }
+    const admin = await this.platformAdmins.active(session.platformAdminId)
+    if (admin?.userId !== session.userId) throw new NotAuthenticatedProblem("The platform grant is no longer active")
+    this.setActor({ kind: "platform", platformAdminId: admin.id, userId: admin.userId, sessionExpiresAt: session.exp })
     return true
   }
 

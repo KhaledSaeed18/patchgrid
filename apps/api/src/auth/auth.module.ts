@@ -11,6 +11,9 @@ import { CookieService } from "./cookies"
 import { IdentityController } from "./identity/identity.controller"
 import { IdentityService } from "./identity/identity.service"
 import { PasswordService } from "./passwords/password.service"
+import { PlatformAuthController } from "./platform/platform-auth.controller"
+import { PlatformAuthService } from "./platform/platform-auth.service"
+import { PlatformTokenService } from "./platform/platform-token.service"
 import { RequestedWithGuard } from "./requested-with.guard"
 import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
@@ -24,7 +27,7 @@ import { AccessTokenService } from "./tokens/access-token.service"
  */
 @Module({
   imports: [PlatformModule, MembershipRepositoryModule, MailModule],
-  controllers: [AuthController, IdentityController],
+  controllers: [AuthController, IdentityController, PlatformAuthController],
   providers: [
     CookieService,
     PasswordService,
@@ -34,6 +37,8 @@ import { AccessTokenService } from "./tokens/access-token.service"
     StandingService,
     IdentityService,
     ActorService,
+    PlatformTokenService,
+    PlatformAuthService,
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],

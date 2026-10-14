@@ -3,15 +3,15 @@ import { METHOD_METADATA, MODULE_METADATA, PATH_METADATA } from "@nestjs/common/
 import { describe, expect, it } from "vitest"
 
 import { AppModule } from "../app.module"
-import { IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
+import { IS_PLATFORM, IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
 import { REQUIRED_PERMISSION } from "./require-permission"
 
 /**
  * The route-coverage test (ADR-0019, RBAC.md §13.3) — the real protection
  * against an unguarded endpoint shipping. Walks the module graph from
  * `AppModule` by its decorator metadata, without booting anything, and fails
- * for any route that is neither `@Public`, `@TenantOptional`, nor carrying a
- * `@RequirePermission`.
+ * for any route that is neither `@Public`, `@TenantOptional`, `@PlatformRoute`,
+ * nor carrying a `@RequirePermission`.
  */
 
 type Route = { route: string; markers: string[] }
@@ -49,6 +49,7 @@ function routesOf(controller: Type): Route[] {
       const markers = [
         [IS_PUBLIC, "public"],
         [IS_TENANT_OPTIONAL, "tenant-optional"],
+        [IS_PLATFORM, "platform"],
         [REQUIRED_PERMISSION, "permission"],
       ].flatMap(([key, label]) =>
         Reflect.getMetadata(key, handler) !== undefined || Reflect.getMetadata(key, controller) !== undefined
@@ -74,7 +75,7 @@ describe("route coverage", () => {
     expect(routes.map((r) => r.route)).toContain("POST /orgs")
   })
 
-  it("every route is public, tenant-optional, or requires a permission", () => {
+  it("every route is public, tenant-optional, a platform route, or requires a permission", () => {
     expect(routes.filter((r) => r.markers.length === 0).map((r) => r.route)).toEqual([])
   })
 

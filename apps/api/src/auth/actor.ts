@@ -26,6 +26,8 @@ export type Actor =
     }
   | { kind: "service"; orgId: string; membershipId: string; role: Role; scopes: TokenScope[] }
   | { kind: "identity"; userId: string }
+  /** An operator, from the platform credential only (ADR-0040). Holds no tenant permission. */
+  | { kind: "platform"; platformAdminId: string; userId: string; sessionExpiresAt: number }
 
 /**
  * When the credential behind a member actor was minted and when it lapses.
@@ -37,6 +39,7 @@ export type Credential = { issuedAt: number; expiresAt: number }
 export type MemberActor = Extract<Actor, { kind: "member" }>
 export type ServiceActor = Extract<Actor, { kind: "service" }>
 export type IdentityActor = Extract<Actor, { kind: "identity" }>
+export type PlatformActor = Extract<Actor, { kind: "platform" }>
 /** Someone acting inside one organization — what authorization decides about. */
 export type TenantActor = MemberActor | ServiceActor
 
@@ -74,6 +77,13 @@ export class ActorService {
   /** The member's credential, when the actor came from an access token. */
   credential(): Credential | undefined {
     return this.cls.isActive() ? this.cls.get("credential") : undefined
+  }
+
+  /** An operator signed in with the platform credential; anyone else is a 401 on a platform route. */
+  requirePlatform(): PlatformActor {
+    const actor = this.current()
+    if (actor?.kind !== "platform") throw new NotAuthenticatedProblem()
+    return actor
   }
 
   requireIdentity(): IdentityActor {

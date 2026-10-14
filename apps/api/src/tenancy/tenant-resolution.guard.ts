@@ -3,7 +3,7 @@ import { Reflector } from "@nestjs/core"
 import type { Request } from "express"
 import { ClsService } from "nestjs-cls"
 
-import { IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
+import { IS_PLATFORM, IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
 import { originPolicyFrom } from "../common/http/origin-policy"
 import {
   NotAuthenticatedProblem,
@@ -44,7 +44,9 @@ export class TenantResolutionGuard implements CanActivate {
     const targets = [context.getHandler(), context.getClass()]
     const exempt =
       this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, targets) === true ||
-      this.reflector.getAllAndOverride<boolean>(IS_TENANT_OPTIONAL, targets) === true
+      this.reflector.getAllAndOverride<boolean>(IS_TENANT_OPTIONAL, targets) === true ||
+      // A platform route has no tenant to resolve; its credential is the platform session (ADR-0040).
+      this.reflector.getAllAndOverride<boolean>(IS_PLATFORM, targets) === true
     if (exempt) return true
 
     const request = context.switchToHttp().getRequest<Request>()

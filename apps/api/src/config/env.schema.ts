@@ -109,6 +109,16 @@ export const envSchema = z
      * Authentication-Results header carrying it is the verdict; any other is
      * the sender's own claim (ADR-0039, RFC 8601).
      */
+    /**
+     * Encrypts second-factor secrets at rest (ADR-0029, ADR-0040): base64 of
+     * exactly 32 bytes, kept apart from the database, so a dump alone yields
+     * no factors.
+     */
+    MFA_ENCRYPTION_KEY: z
+      .string()
+      .refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
+        error: "MFA_ENCRYPTION_KEY must be base64 of exactly 32 bytes",
+      }),
     INBOUND_AUTHSERV_ID: z.string().regex(/^[A-Za-z0-9.-]+$/, { error: "INBOUND_AUTHSERV_ID must be a host name" }),
 
     /**

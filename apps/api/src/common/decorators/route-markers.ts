@@ -40,3 +40,12 @@ export const IS_SIGNED_WEBHOOK = Symbol("IS_SIGNED_WEBHOOK")
  * signature before anything else. Always paired with `@Public`.
  */
 export const SignedWebhook = (): MethodDecorator & ClassDecorator => SetMetadata(IS_SIGNED_WEBHOOK, true)
+
+export const IS_PLATFORM = Symbol("IS_PLATFORM")
+
+/**
+ * An operator route under `/platform` (ADR-0040): no tenant is resolved, and
+ * the only credential accepted is the platform session, from the `admin.`
+ * surface. The service still asserts the actor kind.
+ */
+export const PlatformRoute = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PLATFORM, true)
