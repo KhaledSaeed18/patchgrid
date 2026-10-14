@@ -339,9 +339,8 @@ incidents through a scoped token._
       verification with recovery codes (the platform-admin half of ADR-0029, brought forward from M9),
       a path-scoped one-hour `pg_pa` session, `@PlatformRoute`, CLI-only `platform:grant`/`revoke`,
       `PlatformAuditLog`
-- [~] Platform back-office (`admin.patchgrid.xyz`): org list, suspend/unsuspend, set plan (done);
-      request/restore deletion (with the deletion flow below); metadata only, no tenant content (`RBAC.md` §8). Platform admins created
-      by CLI only
+- [x] Platform back-office (`admin.patchgrid.xyz`): org list, suspend/unsuspend, set plan, restore a
+      pending deletion; metadata only, no tenant content (`RBAC.md` §8). Platform admins created by CLI only
 - [x] **Consent-based support access** (ADR-0020, ADR-0041): owner grants a time-boxed read-only session,
       `SupportSession`, **per-request** `SUPPORT_READ` audit into the tenant's log, in-app banner, owner
       emails on grant/first use/expiry, instant revoke via the epoch. The operator reads through the
@@ -350,8 +349,9 @@ incidents through a scoped token._
       scope→permission mapping, once-only secret display, per-token rate limits, admin UI with
       `lastUsedAt`, `source: API` and `actorKind: SERVICE` attribution. One service account per token,
       kept out of member admin, teams, assignment and watching; expiry warned a week ahead
-- [ ] Org deletion flow: owner request, 30-day soft window, hard purge under `runAsTenant` including
-      object storage; permanent slug reservation
+- [x] Org deletion flow (ADR-0043): owner request, 30-day soft window, hard purge under `runAsTenant` including
+      object storage; permanent slug reservation. An owner cancels from the picker, an operator restores from the
+      back-office, both until the purge date; the purge leaves a `DELETED` tombstone
 - [ ] **Data protection** (ADR-0028): `GET /org/export` as an async owner-only job; pseudonymised user
       erasure; retention windows per entity
 
