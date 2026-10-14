@@ -18,6 +18,7 @@ import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
 import { createPrismaClient, lookalikeEmails, removeLookalikes, seedLookalikes } from "../src/index.ts"
 import { seedDemoArticles } from "./demo-articles.ts"
 import { seedDemoAssets } from "./demo-assets.ts"
+import { seedDemoInbound } from "./demo-inbound.ts"
 import { seedDemoProblemsAndChanges, seedDemoTickets } from "./demo-tickets.ts"
 
 try {
@@ -64,6 +65,8 @@ async function main(): Promise<void> {
     const articles =
       (await seedDemoArticles(db, seeded.acme, { agent: seeded.acme.members.sam ?? "", admin: seeded.acme.members.alice ?? "" })) +
       (await seedDemoArticles(db, seeded.globex, { agent: seeded.globex.members.tina ?? "", admin: seeded.globex.members.gus ?? "" }))
+    await seedDemoInbound(db, seeded.acme, { membershipId: seeded.acme.members.rita ?? "", email: seeded.people.rita.email })
+    await seedDemoInbound(db, seeded.globex, { membershipId: seeded.globex.members.rosa ?? "", email: seeded.people.rosa.email })
     const problems = records.reduce((n, r) => n + r.problems, 0)
     const changes = records.reduce((n, r) => n + r.changes, 0)
     console.log(
@@ -73,6 +76,7 @@ async function main(): Promise<void> {
     for (const [key, person] of Object.entries(seeded.people)) console.log(`  ${key.padEnd(6)} ${person.email}`)
     console.log("  dana is an admin at http://acme.lvh.me:3001 and an agent at http://globex.lvh.me:3001")
     console.log("  sam leads Network at Acme: changes awaiting approval are in his queues")
+    console.log("  mail a ticket in: pnpm --filter @patchgrid/api run inbound:send -- --from rita@patchgrid.test --to acme")
   } finally {
     await db.$disconnect()
   }
