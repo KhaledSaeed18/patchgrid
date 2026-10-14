@@ -14,3 +14,10 @@ b1e86886401e1056917c51fe8e165c41dd34285e:apps/api/src/config/env.schema.spec.ts:
 b1e86886401e1056917c51fe8e165c41dd34285e:apps/api/test/support/env.ts:generic-api-key:27
 b1e86886401e1056917c51fe8e165c41dd34285e:apps/api/test/inbound/inbound.int-spec.ts:generic-api-key:92
 7fb74a20344538e46038c85f19190c10f01589f0:apps/api/src/inbound/domain/domain.spec.ts:generic-api-key:10
+
+# The development MFA_ENCRYPTION_KEY and the specs' copies of it — base64 of a readable phrase, public,
+# encrypting nothing outside a local or test process; production keeps its own apart from the database
+# (ADR-0040).
+26ddf51586882bace7f089512f0715dc2ba1909e:.env.example:generic-api-key:65
+26ddf51586882bace7f089512f0715dc2ba1909e:apps/api/src/config/env.schema.spec.ts:generic-api-key:16
+26ddf51586882bace7f089512f0715dc2ba1909e:apps/api/test/support/env.ts:generic-api-key:29
