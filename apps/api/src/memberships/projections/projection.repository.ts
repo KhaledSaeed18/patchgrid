@@ -1,0 +1,54 @@
+import { Injectable } from "@nestjs/common"
+
+import { PrismaService } from "../../prisma/prisma.service"
+import type { IndexRow, ProjectionSource } from "./reconcile"
+
+const ROW = {
+  userId: true,
+  roleForDisplay: true,
+  statusForDisplay: true,
+  orgSlug: true,
+  orgName: true,
+  orgStatus: true,
+} as const
+
+/**
+ * Both sides of one org's `UserOrgIndex` projection (ADR-0022): the source —
+ * the organization and its memberships, read in tenant context — and the
+ * derived rows. Every method takes the org; the reads and the writes are a fixed
+ * number of statements whatever the size of the org.
+ */
+@Injectable()
+export class ProjectionRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async source(orgId: string): Promise<ProjectionSource | null> {
+    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { slug: true, name: true, status: true } })
+    if (org === null) return null
+    const members = await this.prisma.db.membership.findMany({
+      where: { orgId, kind: "HUMAN", userId: { not: null } },
+      select: { userId: true, role: true, status: true },
+    })
+    return { org, members: members.flatMap((m) => (m.userId === null ? [] : [{ userId: m.userId, role: m.role, status: m.status }])) }
+  }
+
+  async rows(orgId: string): Promise<IndexRow[]> {
+    return this.prisma.db.userOrgIndex.findMany({ where: { orgId }, select: ROW })
+  }
+
+  async create(orgId: string, rows: readonly IndexRow[]): Promise<void> {
+    if (rows.length === 0) return
+    await this.prisma.db.userOrgIndex.createMany({ data: rows.map((row) => ({ orgId, ...row })), skipDuplicates: true })
+  }
+
+  /** Rewrites drifted rows: out and back in, two statements however many there are. */
+  async replace(orgId: string, rows: readonly IndexRow[]): Promise<void> {
+    await this.remove(orgId, rows.map((row) => row.userId))
+    await this.create(orgId, rows)
+  }
+
+  async remove(orgId: string, userIds: readonly string[]): Promise<void> {
+    if (userIds.length === 0) return
+    await this.prisma.db.userOrgIndex.deleteMany({ where: { orgId, userId: { in: [...userIds] } } })
+  }
+}

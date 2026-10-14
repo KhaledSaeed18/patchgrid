@@ -1,0 +1,66 @@
+import type { MembershipStatus, OrganizationStatus, Role } from "@patchgrid/contracts"
+
+/** One picker row (ADR-0022), as it should be or as it is. */
+export type IndexRow = {
+  userId: string
+  roleForDisplay: Role
+  statusForDisplay: MembershipStatus
+  orgSlug: string
+  orgName: string
+  orgStatus: OrganizationStatus
+}
+
+/** The source the projection derives from: one org, and its human members. */
+export type ProjectionSource = {
+  org: { slug: string; name: string; status: OrganizationStatus }
+  members: { userId: string; role: Role; status: MembershipStatus }[]
+}
+
+export type ReconcilePlan = { create: IndexRow[]; update: IndexRow[]; remove: string[] }
+
+/**
+ * What `UserOrgIndex` should hold for one org, from its source: a row per
+ * human member who is active or disabled — ADR-0033 takes a removed member
+ * off the picker, and an invited one is not on it yet —
+ * carrying their role and status and the org's name, slug and status.
+ */
+export function expectedRows(source: ProjectionSource): IndexRow[] {
+  return source.members
+    .filter((m) => m.status === "ACTIVE" || m.status === "DISABLED")
+    .map((m) => ({
+      userId: m.userId,
+      roleForDisplay: m.role,
+      statusForDisplay: m.status,
+      orgSlug: source.org.slug,
+      orgName: source.org.name,
+      orgStatus: source.org.status,
+    }))
+}
+
+/** The writes that make `actual` what `expected` says. Pure; an empty plan means no drift. */
+export function planReconcile(expected: readonly IndexRow[], actual: readonly IndexRow[]): ReconcilePlan {
+  const have = new Map(actual.map((row) => [row.userId, row]))
+  const want = new Set(expected.map((row) => row.userId))
+  const plan: ReconcilePlan = { create: [], update: [], remove: [] }
+  for (const row of expected) {
+    const current = have.get(row.userId)
+    if (current === undefined) plan.create.push(row)
+    else if (!same(current, row)) plan.update.push(row)
+  }
+  for (const row of actual) if (!want.has(row.userId)) plan.remove.push(row.userId)
+  return plan
+}
+
+export function driftOf(plan: ReconcilePlan): number {
+  return plan.create.length + plan.update.length + plan.remove.length
+}
+
+function same(a: IndexRow, b: IndexRow): boolean {
+  return (
+    a.roleForDisplay === b.roleForDisplay &&
+    a.statusForDisplay === b.statusForDisplay &&
+    a.orgSlug === b.orgSlug &&
+    a.orgName === b.orgName &&
+    a.orgStatus === b.orgStatus
+  )
+}

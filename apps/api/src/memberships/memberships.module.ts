@@ -1,3 +1,4 @@
+import { BullModule } from "@nestjs/bullmq"
 import { Module } from "@nestjs/common"
 
 import { AuthModule } from "../auth/auth.module"
@@ -12,6 +13,8 @@ import { MeService } from "./me.service"
 import { MembersController } from "./members.controller"
 import { MembershipRepositoryModule } from "./membership-repository.module"
 import { MembersService } from "./members.service"
+import { ProjectionReconcileProcessor, ProjectionReconcileService } from "./projections/projection-reconcile"
+import { ProjectionRepository } from "./projections/projection.repository"
 import { InvitationRepository } from "./repositories/invitation.repository"
 
 /**
@@ -20,8 +23,24 @@ import { InvitationRepository } from "./repositories/invitation.repository"
  * services need the auth module — the split keeps that dependency one-way.
  */
 @Module({
-  imports: [AuthModule, PlatformModule, MailModule, MembershipRepositoryModule, TeamsModule],
+  imports: [
+    AuthModule,
+    PlatformModule,
+    MailModule,
+    MembershipRepositoryModule,
+    TeamsModule,
+    BullModule.registerQueue({ name: "projection-reconcile" }),
+  ],
   controllers: [MeController, MembersController, InvitationsController],
-  providers: [InvitationRepository, MeService, MembersService, InvitationsService, InvitationAcceptanceService],
+  providers: [
+    InvitationRepository,
+    MeService,
+    MembersService,
+    InvitationsService,
+    InvitationAcceptanceService,
+    ProjectionRepository,
+    ProjectionReconcileService,
+    ProjectionReconcileProcessor,
+  ],
 })
 export class MembershipsModule {}
