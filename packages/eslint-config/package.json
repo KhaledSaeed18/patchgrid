@@ -25,7 +25,7 @@
     "eslint-plugin-turbo": "^2.9.15",
     "globals": "^17.6.0",
     "minimatch": "^10.2.5",
-    "typescript": "^5",
+    "typescript": "^7",
     "typescript-eslint": "^8.71.1"
   },
   "license": "MIT"
