@@ -22,7 +22,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "policy": "tsx scripts/policy.ts",
     "migrations:check": "tsx scripts/migration-safety.ts",
-    "migrations:drift": "prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code"
+    "migrations:drift": "prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code",
+    "platform": "tsx scripts/platform-admin.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

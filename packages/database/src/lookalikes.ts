@@ -405,5 +405,11 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.organization.deleteMany({ where: { id: { in: orgIds } } })
   await db.emailVerification.deleteMany({ where: { userId: { in: userIds } } })
   await db.passwordResetToken.deleteMany({ where: { userId: { in: userIds } } })
+  // An operator grant and its log point at the account; they go first (ADR-0040).
+  const admins = await db.platformAdmin.findMany({ where: { userId: { in: userIds } }, select: { id: true } })
+  await db.platformAuditLog.deleteMany({
+    where: { OR: [{ platformAdminId: { in: admins.map((a) => a.id) } }, { targetUserId: { in: userIds } }] },
+  })
+  await db.platformAdmin.deleteMany({ where: { userId: { in: userIds } } })
   await db.user.deleteMany({ where: { id: { in: userIds } } })
 }
