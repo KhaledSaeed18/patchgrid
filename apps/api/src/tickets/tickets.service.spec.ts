@@ -139,7 +139,7 @@ function harness(
     hasOtherApprover: vi.fn(async () => options.otherApprover ?? true),
   }
   const links = { createMany: vi.fn(async () => undefined) }
-  const assetLinks = { linkMany: vi.fn(async () => undefined) }
+  const assetLinks = { linkMany: vi.fn(async () => undefined), lockMany: vi.fn(async () => undefined) }
   const audit = { record: vi.fn(async () => undefined) }
   const service = new TicketsService(
     tickets as unknown as TicketRepository,

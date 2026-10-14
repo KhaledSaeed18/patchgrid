@@ -56,8 +56,12 @@ export type AssetCapabilities = z.infer<typeof assetCapabilitiesSchema>
 
 export const assetDetailSchema = assetSchema.extend({
   notes: z.string().nullable(),
-  /** Linked tickets, all of them; the ones this actor may open are listed by `GET /assets/:id/tickets`. */
-  ticketCount: z.int().nonnegative(),
+  /**
+   * How many tickets name it — only for a reader who can open every ticket
+   * (`null` otherwise), since a count of tickets one cannot see says something
+   * about them. The ones this reader may open are `GET /tickets?view=all&assetId=…`.
+   */
+  ticketCount: z.int().nonnegative().nullable(),
   capabilities: assetCapabilitiesSchema,
 })
 export type AssetDetail = z.infer<typeof assetDetailSchema>

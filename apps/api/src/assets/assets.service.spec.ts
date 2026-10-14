@@ -63,7 +63,7 @@ function harness(role: Role, membershipId: string, rows: AssetRow[] = [asset()],
     { findById: async (_o: string, id: string) => (id === "m-gone" ? { id, status: "REMOVED" } : id === "m-ghost" ? null : { id, status: "ACTIVE" }) } as unknown as MembershipRepository,
     new PermissionService(),
     { requireTenantActor: () => actor } as unknown as ActorService,
-    { requireOrgId: () => ORG } as unknown as TenantContextService,
+    { requireOrgId: () => ORG, organization: () => ({ agentVisibility: "OWN_TEAM_ONLY" }) } as unknown as TenantContextService,
     { transaction: async <T>(fn: () => Promise<T>) => fn() } as unknown as PrismaService,
     { record: async (_o: string, entries: AuditEntry[]) => void audit.push(...entries) } as unknown as AuditService,
   )
@@ -85,7 +85,10 @@ describe("AssetsService reads", () => {
   it("is 404 for an asset a requester does not hold, and shows them theirs without edit rights", async () => {
     await expect(harness("REQUESTER", "m-rosa").service.get("a-1")).rejects.toBeInstanceOf(NotFoundProblem)
     const own = await harness("REQUESTER", "m-rita").service.get("a-1")
-    expect(own).toMatchObject({ purchaseDate: "2025-01-10", capabilities: { canEdit: false, canDelete: false } })
+    // Rita may open her laptop, not every ticket about it: no count.
+    expect(own).toMatchObject({ purchaseDate: "2025-01-10", ticketCount: null, capabilities: { canEdit: false, canDelete: false } })
+    expect((await harness("AGENT", "m-sam", [asset()], { "a-1": 3 }).service.get("a-1")).ticketCount).toBeNull()
+    expect((await harness("ADMIN", "m-alice", [asset()], { "a-1": 3 }).service.get("a-1")).ticketCount).toBe(3)
     expect((await harness("ADMIN", "m-alice").service.get("a-1")).capabilities).toEqual({ canEdit: true, canDelete: true })
   })
 

@@ -662,6 +662,8 @@ export class TicketsService {
   private async assetTargets(orgId: string, actor: TenantActor, requested: readonly string[]): Promise<string[]> {
     const ids = [...new Set(requested)]
     if (ids.length === 0) return []
+    // Locked first, so an asset deleted mid-create is a 400 here rather than a foreign-key failure later.
+    await this.assetLinks.lockMany(orgId, ids)
     const visible = await this.assets.visible(orgId, actor, ids)
     if (visible.length !== ids.length) throw fieldError("assetIds", "names an asset that does not exist")
     return ids

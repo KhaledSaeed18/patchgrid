@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common"
 import {
+  type AgentVisibility,
   type Asset,
   type AssetDetail,
   type AssetListQuery,
@@ -76,7 +77,9 @@ export class AssetsService {
     const orgId = this.tenant.requireOrgId()
     return this.prisma.transaction(async () => {
       const row = await this.visibleOne(orgId, id, actor)
-      const ticketCount = await this.assets.ticketCount(orgId, id)
+      // A count of tickets the reader cannot open would tell them something about those tickets (DOMAIN.md §9.3).
+      const seesEveryTicket = this.permissions.scopeFor(actor, "ticket", { agentVisibility: this.visibility() }).kind === "all"
+      const ticketCount = seesEveryTicket ? await this.assets.ticketCount(orgId, id) : null
       return {
         ...toAsset(row),
         notes: row.notes,
@@ -184,6 +187,12 @@ export class AssetsService {
     if (row === null) throw new NotFoundProblem()
     this.permissions.assertVisible(actor, "asset:read", { own: row.ownerMembershipId === actor.membershipId })
     return row
+  }
+
+  private visibility(): AgentVisibility {
+    const org = this.tenant.organization()
+    if (org === undefined) throw new NotFoundProblem()
+    return org.agentVisibility
   }
 
   private async requireOwner(orgId: string, membershipId: string): Promise<void> {

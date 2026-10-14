@@ -113,7 +113,9 @@ describe("tickets about an asset", () => {
     expect((await history("agent")).body.items).toHaveLength(2)
     // Rita owns the laptop but did not raise Rosa's ticket about it.
     expect((await history("rita")).body.items).toHaveLength(1)
-    expect((await as("agent").get(`/assets/${laptop}`)).body.ticketCount).toBe(2)
+    expect((await as("admin").get(`/assets/${laptop}`)).body.ticketCount).toBe(2)
+    // Rita cannot open Rosa's ticket, so she is not told it exists.
+    expect((await as("rita").get(`/assets/${laptop}`)).body.ticketCount).toBeNull()
   })
 
   it("keeps an asset a ticket names: delete is refused, retiring is not", async () => {

@@ -125,7 +125,15 @@ export class AssetRepository {
 
   /** A row lock, so a delete and a link cannot cross (`lock` → count → delete). */
   async lock(orgId: string, id: string): Promise<void> {
-    await this.prisma.db.$queryRaw`SELECT id FROM "Asset" WHERE "orgId" = ${orgId}::uuid AND id = ${id}::uuid FOR UPDATE`
+    await this.lockMany(orgId, [id])
+  }
+
+  /** Several, in id order, so two transactions locking the same pair cannot deadlock. */
+  async lockMany(orgId: string, ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return
+    const sorted = [...new Set(ids)].toSorted()
+    await this.prisma.db.$queryRaw`
+      SELECT id FROM "Asset" WHERE "orgId" = ${orgId}::uuid AND id = ANY(${sorted}::uuid[]) ORDER BY id FOR UPDATE`
   }
 
   ticketCount(orgId: string, assetId: string): Promise<number> {

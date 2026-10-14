@@ -115,7 +115,7 @@ export function AssetDetailView({
                 <p className="text-sm text-muted-foreground">
                   {asset.ticketCount === 0
                     ? "No ticket has named this asset yet."
-                    : "None that you can open."}
+                    : "No tickets about this asset that you can open."}
                 </p>
               }
             />
@@ -165,7 +165,8 @@ function DeleteAsset({ asset }: { asset: AssetDetail }) {
       toast.error(failureMessage(error, "The asset wasn't deleted."))
     },
   })
-  const named = asset.ticketCount > 0
+  // Deleting is an admin's, and an admin is always told the count; unknown counts as named.
+  const named = asset.ticketCount !== 0
   return (
     <>
       <Button variant="outline" onClick={() => setConfirming(true)}>
