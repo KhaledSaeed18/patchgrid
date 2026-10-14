@@ -63,6 +63,19 @@ export function OrgDetail({ id }: { id: string }) {
     onError: (error) =>
       toast.error(failureMessage(error, "It wasn't restored.")),
   })
+  const restore = useMutation({
+    mutationFn: () =>
+      platformApi(`/orgs/${id}/restore`, {
+        method: "POST",
+        schema: platformOrgDetailSchema,
+      }),
+    onSuccess: (fresh) => {
+      settle(fresh)
+      toast.success("The workspace won't be deleted.")
+    },
+    onError: (error) =>
+      toast.error(failureMessage(error, "It wasn't restored.")),
+  })
   const plan = useMutation({
     mutationFn: (next: Plan) =>
       platformApi(`/orgs/${id}/plan`, {
@@ -137,7 +150,7 @@ export function OrgDetail({ id }: { id: string }) {
           aria-label="Plan"
           className="w-40"
           value={o.plan}
-          disabled={plan.isPending}
+          disabled={plan.isPending || o.status === "DELETED"}
           onChange={(e) => {
             const parsed = planSchema.safeParse(e.target.value)
             if (parsed.success) plan.mutate(parsed.data)
@@ -170,12 +183,35 @@ export function OrgDetail({ id }: { id: string }) {
           </Button>
         )}
         {o.status === "PENDING_DELETION" && (
+          <div className="grid gap-3">
+            <p className="text-sm text-muted-foreground">
+              An owner asked for it to be deleted. It is erased for good
+              {o.purgeAt === null
+                ? " when its window closes"
+                : ` on ${new Date(o.purgeAt).toLocaleString()}`}
+              ; until then it can be restored as it was.
+            </p>
+            <Button
+              variant="outline"
+              className="justify-self-start"
+              disabled={restore.isPending}
+              onClick={() => restore.mutate()}
+            >
+              {restore.isPending && <Spinner />}
+              Restore workspace
+            </Button>
+          </div>
+        )}
+        {o.status === "DELETED" && (
           <p className="text-sm text-muted-foreground">
-            Its owner has asked for deletion.
+            Purged. Only this record and its address remain, and the address is
+            never given to anyone else.
           </p>
         )}
       </Section>
-      <SupportSection id={id} deleting={o.status === "PENDING_DELETION"} />
+      {o.status !== "DELETED" && (
+        <SupportSection id={id} deleting={o.status === "PENDING_DELETION"} />
+      )}
       <SuspendDialog
         id={id}
         open={suspending}

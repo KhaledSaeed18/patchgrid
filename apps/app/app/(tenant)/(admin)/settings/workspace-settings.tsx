@@ -3,11 +3,21 @@
 import {
   type AgentVisibility,
   changeSlugResponseSchema,
+  ORG_DELETION_WINDOW_DAYS,
   type OrganizationSettings,
   organizationSettingsSchema,
   type Usage,
 } from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@patchgrid/ui/components/dialog"
+import { Input } from "@patchgrid/ui/components/input"
 import {
   Field,
   FieldDescription,
@@ -26,7 +36,8 @@ import { Section } from "@/components/page-header"
 import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
-import { ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
+import { appOrigin, ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
+import { failureMessage } from "@/lib/failure"
 
 const VISIBILITY: Record<AgentVisibility, string> = {
   ALL_TICKETS: "Every ticket in the workspace",
@@ -191,7 +202,75 @@ export function WorkspaceSettings({
           ))}
         </dl>
       </Section>
+
+      {holds("org:delete") && <DeleteWorkspace settings={settings} />}
     </>
+  )
+}
+
+/**
+ * The owner's way out (ADR-0043): typed, not clicked. Everyone is signed out
+ * at once; the purge waits the window, and any owner can take it back from
+ * the workspace list until then.
+ */
+function DeleteWorkspace({ settings }: { settings: OrganizationSettings }) {
+  const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState("")
+  const remove = useMutation({
+    mutationFn: () =>
+      clientApi("/org/deletion", {
+        method: "POST",
+        body: { confirmSlug: typed },
+        schema: null,
+      }),
+    onSuccess: () => window.location.assign(`${appOrigin()}/workspaces`),
+    onError: (error) =>
+      toast.error(failureMessage(error, "The workspace wasn't deleted.")),
+  })
+  return (
+    <Section
+      title="Delete workspace"
+      description={`Signs everyone out and closes ${settings.slug}.${ROOT_DOMAIN} at once. After ${String(ORG_DELETION_WINDOW_DAYS)} days every ticket, file, asset, article and audit entry is erased for good. Until then any owner can cancel it from the workspace list.`}
+    >
+      <Button
+        variant="destructive"
+        className="w-fit"
+        onClick={() => setOpen(true)}
+      >
+        Delete workspace
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {settings.name}?</DialogTitle>
+            <DialogDescription>
+              Type <span className="font-mono">{settings.slug}</span> to
+              confirm. Everyone, you included, is signed out now.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            aria-label="Type the address to confirm"
+            value={typed}
+            autoComplete="off"
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder={settings.slug}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Keep it
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={typed !== settings.slug || remove.isPending}
+              onClick={() => remove.mutate()}
+            >
+              {remove.isPending && <Spinner />}
+              Delete workspace
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Section>
   )
 }
 

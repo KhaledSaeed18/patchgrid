@@ -5,9 +5,11 @@ import { Badge } from "@patchgrid/ui/components/badge"
 import { Button } from "@patchgrid/ui/components/button"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { clientApi } from "@/lib/api/client"
+import { failureMessage } from "@/lib/failure"
 import { appOrigin, ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
 import { ROLE_LABEL } from "@/lib/labels"
 
@@ -29,11 +31,30 @@ export function WorkspaceList({
         "That workspace couldn't be opened. It may have been suspended, or your access removed."
       ),
   })
+  const router = useRouter()
+  // A workspace waiting to be purged: its subdomain 404s, so its owners take it back from here (ADR-0043).
+  const keep = useMutation({
+    mutationFn: (orgId: string) =>
+      clientApi(`/orgs/${orgId}/cancel-deletion`, {
+        method: "POST",
+        schema: null,
+      }),
+    onSuccess: () => {
+      toast.success("It won't be deleted. Open it to sign in again.")
+      router.refresh()
+    },
+    onError: (error) =>
+      toast.error(failureMessage(error, "The deletion wasn't cancelled.")),
+  })
 
   return (
     <ul className="flex flex-col divide-y divide-border border-y border-border">
       {workspaces.map((workspace) => {
         const blocked = unavailable(workspace)
+        const keepable =
+          workspace.orgStatus === "PENDING_DELETION" &&
+          workspace.role === "OWNER" &&
+          workspace.status === "ACTIVE"
         return (
           <li
             key={workspace.orgId}
@@ -53,17 +74,31 @@ export function WorkspaceList({
               ) : (
                 <Badge variant="outline">{blocked}</Badge>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={blocked !== null || open.isPending}
-                onClick={() => open.mutate(workspace.slug)}
-              >
-                {open.isPending && open.variables === workspace.slug && (
-                  <Spinner />
-                )}
-                Open
-              </Button>
+              {keepable ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={keep.isPending}
+                  onClick={() => keep.mutate(workspace.orgId)}
+                >
+                  {keep.isPending && keep.variables === workspace.orgId && (
+                    <Spinner />
+                  )}
+                  Keep it
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={blocked !== null || open.isPending}
+                  onClick={() => open.mutate(workspace.slug)}
+                >
+                  {open.isPending && open.variables === workspace.slug && (
+                    <Spinner />
+                  )}
+                  Open
+                </Button>
+              )}
             </div>
           </li>
         )
@@ -75,6 +110,11 @@ export function WorkspaceList({
 /** Why a listed workspace cannot be entered, or `null` if it can. */
 function unavailable(workspace: WorkspaceSummary): string | null {
   if (workspace.orgStatus === "SUSPENDED") return "Suspended"
+  if (workspace.orgStatus === "PENDING_DELETION") {
+    return workspace.purgeAt === null
+      ? "Being deleted"
+      : `Deleting on ${new Date(workspace.purgeAt).toLocaleDateString()}`
+  }
   if (workspace.status === "DISABLED") return "Access paused"
   return null
 }

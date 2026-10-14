@@ -65,6 +65,8 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   SUPPORT_READ: "read as support",
   TOKEN_CREATED: "created an API token",
   TOKEN_REVOKED: "revoked an API token",
+  ORG_DELETION_REQUESTED: "asked for this workspace to be deleted",
+  ORG_DELETION_CANCELLED: "cancelled this workspace's deletion",
 }
 
 export function actorName(entry: AuditEntry): string {
