@@ -26,7 +26,10 @@ with nothing keeping them consistent. The four relations are:
 
 Unique on `(orgId, fromTicketId, toTicketId, relation)`, with `fromTicketId <> toTicketId` as a `CHECK`.
 A `DUPLICATE_OF` target that is itself a duplicate is followed to the survivor rather than chained, so
-merge chains cannot form a cycle.
+merge chains cannot form a cycle. Whichever end asks (`DUPLICATE_OF` or `HAS_DUPLICATE`), a ticket stands
+for **one** survivor — a partial unique index says so — and one that has duplicates of its own cannot
+itself be marked a duplicate until they are re-pointed at the survivor. Both tickets are row-locked while
+this is decided.
 
 Every type shares the core `Ticket` row (number, title, description, category, requester, assignee, team, impact, urgency, priority, timestamps). Type-specific fields live in **extension tables** (`ProblemDetails`, `ChangeDetails`) — see ADR-0002.
 
@@ -135,6 +138,9 @@ A Change with no team simply has no route (2); admins remain eligible.
    is not a loophole — it is the honest description of how a one-admin organization operates, and every
    freshly provisioned workspace is one. Blocking submission instead would make the very first Change in
    a new workspace fail.
+
+**While a Change is `AWAITING_APPROVAL` its assignee and team hold still**: who may decide depends on
+both, so a reassignment then is a `409`. Rule 3 is a person's: an API token never self-approves.
 
 "Not before `plannedStart − 1 hour`" is a soft block, not a warning: the transition returns `409` with
 `type: …/change-window-early` unless the body carries `confirm: true`. Successful mutations never carry
