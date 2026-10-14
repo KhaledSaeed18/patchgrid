@@ -1,8 +1,14 @@
 # Patchgrid — Feature Backlog by Milestone
 
 Vertical slices, not horizontal layers: every milestone ends with something you can click through. Do not
-start milestone N+1 until milestone N's exit criteria are met. Do not add a feature that is not on this
+start the next milestone until the current one's exit criteria are met. Do not add a feature that is not on this
 list without adding it here first (and an ADR if it is a real decision).
+
+**Build order: M0 → M6, then M8 → M9 → M10, then M7 last** (re-planned 2026-10-15). M7 is the only
+milestone that needs local models — Ollama, embeddings, the phishing service — so the platform, hardening
+and ship work come first and M7 lands on a running system. Milestone numbers are kept as they were: ADRs,
+the threat model and code comments refer to them by number, so M7 keeps its name and moves to the end of
+this file. "Milestone N+1" below means the next one in this order.
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
@@ -323,23 +329,6 @@ _Met 2026-10-15. Each step was walked through `inbound:send` against the dev sta
 
 _External requesters are deferred by ADR-0039; until then unknown senders are always dropped._
 
-## M7 — Differentiators
-
-_Exit: new tickets get an LLM suggestion an agent can accept; a phishing report is scored and lands in the
-Security queue; likely duplicates surface with a merge action; admins define automation rules that
-demonstrably fire — all per tenant, none blocking ticket creation._
-
-- [ ] `ollama` in Compose, `TicketClassifier` + Ollama impl, per-tenant `triage` queue, `TicketTriage`,
-      accept/dismiss UI, `Noop` impl for tests, gated on plan
-- [ ] `apps/phishing-svc` (FastAPI) wrapping the thesis model, `UrlRiskScorer`, portal "Report phishing"
-      form, `PhishingReport`, risk badge, Security routing (ADR-0010)
-- [ ] `EmbeddingProvider` (`nomic-embed-text`), `TicketEmbedding` + pgvector HNSW, similar-tickets panel
-      scoped to the tenant, merge via `DUPLICATE_OF` + cancel
-- [ ] `AutomationRule` engine (`DOMAIN.md` §10), admin UI, per-rule execution audit, per-tenant evaluation
-- [ ] Prompt-injection posture documented and tested: ticket text is attacker-controlled, so model output
-      is **data an agent accepts**, never an instruction and never auto-applied
-- [ ] Seed: rules replicating hard-coded escalation; sample phishing tickets
-
 ## M8 — Platform layer
 
 _Exit: an operator can run the platform without being able to read anyone's mail; an owner can grant a
@@ -375,7 +364,8 @@ browser, including the negative cases; observability answers "which tenant is sl
       attributes, Prometheus metrics (request duration, DB transaction duration, queue depth and job
       duration per tenant, SLA breaches per tenant), collector + Grafana behind a Compose profile
 - [ ] Security review against the M1 threat model: headers, rate limits, dependency audit, attachment
-      handling, cookie tossing, token leakage, prompt injection
+      handling, inbound mail, cookie tossing, token leakage (prompt injection is reviewed with M7, which
+      brings the models)
 - [ ] OpenAPI polished (tags, examples) at `/api/docs`
 - [ ] Load sanity check: one tenant with 100k tickets, confirming the scope-filter `UNION ALL` and the
       keyset cursors hold up
@@ -385,17 +375,41 @@ browser, including the negative cases; observability answers "which tenant is sl
 _Exit: a stranger clones the repo, runs three commands, signs up, and uses a realistic system; the public
 demo is live; the README explains the decisions._
 
-- [ ] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, rules; idempotent
-      `db:reset`
+- [ ] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, inbound mail; idempotent
+      `db:reset` (M7 adds its rules and phishing tickets to it)
 - [ ] `apps/www` finished: docs, pricing, blog, `/problems/*`, OG images, sitemap, robots, Lighthouse pass
-- [ ] Dockerfiles (multi-stage `turbo prune`) for `www`, `app`, `api`, `phishing-svc`;
-      `docker-compose.prod.yml`
+- [ ] Dockerfiles (multi-stage `turbo prune`) for `www`, `app`, `api`; `docker-compose.prod.yml`
 - [ ] **DNS and TLS** (ADR-0026, ADR-0027): wildcard `*.patchgrid.xyz`, DNS-01 via delegated
       `_acme-challenge`, CAA records, SPF/DKIM/DMARC progression, MX for `inbound.`
 - [ ] Deploy: Coolify on Hetzner, managed Postgres/Redis/MinIO, migrations in a post-deploy hook, nightly
-      demo reset, Ollama on-server or degraded
+      demo reset — without models: nothing before M7 calls one
 - [ ] README: architecture diagram, screenshots/GIF, "why these decisions" linking to ADRs, run
       instructions
+
+## M7 — Differentiators (built last)
+
+_Built after M10: the one milestone that needs local models (Ollama, embeddings, the phishing model), so
+everything else ships first and this lands on a running system. Nothing before it calls a model; its
+ports (`TicketClassifier`, `EmbeddingProvider`, `UrlRiskScorer`) and their `Noop` implementations arrive
+with it._
+
+_Exit: new tickets get an LLM suggestion an agent can accept; a phishing report is scored and lands in the
+Security queue; likely duplicates surface with a merge action; admins define automation rules that
+demonstrably fire — all per tenant, none blocking ticket creation._
+
+- [ ] `ollama` in Compose, `TicketClassifier` + Ollama impl, per-tenant `triage` queue, `TicketTriage`,
+      accept/dismiss UI, `Noop` impl for tests, gated on plan
+- [ ] `apps/phishing-svc` (FastAPI) wrapping the thesis model, `UrlRiskScorer`, portal "Report phishing"
+      form, `PhishingReport`, risk badge, Security routing (ADR-0010)
+- [ ] `EmbeddingProvider` (`nomic-embed-text`), `TicketEmbedding` + pgvector HNSW, similar-tickets panel
+      scoped to the tenant, merge via `DUPLICATE_OF` + cancel
+- [ ] `AutomationRule` engine (`DOMAIN.md` §10), admin UI, per-rule execution audit, per-tenant evaluation
+- [ ] Prompt-injection posture documented and tested: ticket text is attacker-controlled, so model output
+      is **data an agent accepts**, never an instruction and never auto-applied
+- [ ] Seed: rules replicating hard-coded escalation; sample phishing tickets
+- [ ] Prompt-injection review against TB8 (`THREAT-MODEL.md`), moved here from M9's security review
+- [ ] Ship the models: `phishing-svc` Dockerfile, Ollama on-server or the degraded mode (ADR-0010), and the
+      demo seed's rules and phishing tickets on the live demo
 
 ---
 

@@ -16,7 +16,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0007](0007-web-calls-api-directly-no-bff.md) | Next.js calls the NestJS API directly; no BFF layer | Accepted |
 | [0008](0008-sse-for-in-app-notifications.md) | Server-Sent Events for live notifications | Accepted — refined by 0036 |
 | [0009](0009-ticket-numbering.md) | Per-type ticket numbers from a counter table | Accepted |
-| [0010](0010-ml-services-behind-interfaces-in-monorepo.md) | LLM and phishing model as swappable, non-blocking services inside the monorepo | Accepted |
+| [0010](0010-ml-services-behind-interfaces-in-monorepo.md) | LLM and phishing model as swappable, non-blocking services inside the monorepo | Accepted — erratum: model deployment is M7, now built last |
 | [0011](0011-testing-strategy.md) | Testing strategy: Vitest everywhere, real Postgres for integration, Playwright for E2E | Accepted |
 | [0012](0012-error-format-and-pagination.md) | RFC 9457 Problem Details and cursor pagination | Accepted — erratum: domain, search exception |
 | [0013](0013-full-multi-tenant-saas.md) | Patchgrid is a full multi-tenant SaaS | Accepted |

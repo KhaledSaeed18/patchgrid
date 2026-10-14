@@ -1,6 +1,6 @@
-# Handoff — M6 complete, M7 next
+# Handoff — M6 complete, M8 next
 
-Written 2026-10-15, at the M6 → M7 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
+Written 2026-10-15, at the M6 boundary, after the roadmap was re-ordered. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
 whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
 an ADR, they are right and this is stale.
 
@@ -41,6 +41,15 @@ the dev harness against the running stack and in headless Chromium, before and a
 - Her reply to the confirmation email threaded onto that incident, with the quoted text cut.
 - A forged message (DMARC fail) and a stranger's were recorded, and nothing else happened.
 - An admin's Settings → Inbound email shows each message, its verdict and what became of it.
+
+**The build order changed on 2026-10-15: M0–M6, then M8 → M9 → M10, and M7 last.** M7 is the one
+milestone that needs local models: Ollama, embeddings, the phishing service. So the platform layer,
+hardening and shipping come first, and M7 lands on a running system. The milestone numbers did not
+change: ADRs, the threat model and code comments cite them, so renumbering would have made them wrong.
+`FEATURES.md` lists M7 last.
+
+Three items moved into M7 with it: the prompt-injection review (from M9), and the `phishing-svc`
+Dockerfile and Ollama deployment (from M10). ADR-0010 has an erratum. **Next is M8.**
 
 **CI is green on `main`.** The secret scan needed the inbound webhook's public dev secret listed as a
 reviewed false positive (`.gitleaksignore`).
@@ -167,20 +176,37 @@ The detail is in the git history of this file, at those boundaries.
 
 ---
 
-## Recommended next steps — M7
+## Recommended next steps — M8
 
-`FEATURES.md` §M7. This is the first milestone with models in the loop, so the posture item comes first:
+`FEATURES.md` §M8, the platform layer. Its exit: an operator can run the platform without being able to
+read anyone's mail; an owner can grant a time-boxed read-only support session and see exactly what was
+looked at; a monitoring system can raise incidents through a scoped token. In order:
 
-1. **Prompt-injection posture**, written before any model is wired. Ticket text is attacker-controlled
-   (M6 just made that literal: anyone a member can be impersonated by is now a ticket author). Model
-   output is data an agent accepts: never an instruction, never auto-applied, never priority.
-2. **`TicketClassifier`** with an Ollama implementation behind the port, `Noop` in tests, a per-tenant
-   `triage` queue after commit, `TicketTriage` rows, accept/dismiss in the console, gated on plan.
-3. **Duplicate detection** with `nomic-embed-text` into pgvector HNSW, scoped to the tenant in the
-   query. The merge is the existing `DUPLICATE_OF` link plus a cancel.
-4. **`AutomationRule`** (DOMAIN.md §10), evaluated in a job after the commit, every execution audited.
-5. **Phishing**: `apps/phishing-svc` (FastAPI) and the portal's report form (ADR-0010). The largest
-   item; it can go last.
+1. **Resolve TM-2 first** (`THREAT-MODEL.md`). The platform actor is "resolved from the host" in
+   `RBAC.md` §2, which is the inversion ADR-0024 fixed for tenants: `api.patchgrid.xyz` never sees
+   `admin.` in its `Host`. Decide the platform credential in an ADR before any back-office code: its own
+   cookie and token audience, and how `admin.` reaches the API.
+2. **Platform admins and the back-office** (`admin.patchgrid.xyz`, `RBAC.md` §8). Admins are created by
+   CLI only. The back-office lists orgs and can suspend, unsuspend, set a plan, and request or restore
+   deletion. It shows metadata only, never tenant content. Suspension must bump every member's
+   revocation epoch (Still open).
+3. **Consent-based support access** (ADR-0020):
+   - an owner grants a read-only session, time-boxed;
+   - one `SUPPORT_READ` audit row per request, in the tenant's own log;
+   - an in-app banner;
+   - owner email on grant, first use and expiry;
+   - revocation through the epoch;
+   - reads through `runAsTenant`, so RLS keeps enforcing.
+4. **Scoped API tokens** (ADR-0021):
+   - `ApiToken` beside the existing `ApiTokenIndex`;
+   - the bearer path `AuthGuard` already stubs;
+   - `SCOPE_GRANTS` is already in contracts and honoured by `PermissionService`;
+   - once-only secret display, per-token rate limits, `lastUsedAt`;
+   - `source: API` and `actorKind: SERVICE` attribution.
+5. **Org deletion**: an owner's request, a 30-day soft window, then a hard purge under `runAsTenant`,
+   object storage included (attachments, inbound mail). The slug stays reserved for good.
+6. **Data protection** (ADR-0028): `GET /org/export` as an async owner-only job, pseudonymised user
+   erasure, and retention per entity (inbound mail's 30/90 days are the first).
 
 ---
 

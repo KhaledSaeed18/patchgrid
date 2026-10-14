@@ -147,7 +147,7 @@ Built in M6 (ADR-0039), each step proven by `apps/api/test/inbound/inbound.int-s
 - Each sender is limited to 20 messages an hour per workspace.
 - Our own mail is marked `Auto-Submitted`, so it never comes back in as a ticket.
 
-### TB8 · Model output → agent (M7)
+### TB8 · Model output → agent (M7, built last)
 
 Ticket text is attacker-controlled, so model output is **data an agent accepts**, never an instruction and
 never auto-applied. The model suggests impact and urgency, never priority. It runs locally, so tenant text

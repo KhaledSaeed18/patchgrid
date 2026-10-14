@@ -141,7 +141,10 @@ The docs are the specification, not a description written afterwards.
 - attachments, assets and the knowledge base;
 - tickets raised and answered by email.
 
-M7 is next: LLM triage, phishing scoring, duplicate detection and automation rules.
+Next is M8, the platform layer: the operator back-office, consent-based support access,
+scoped API tokens, org deletion and data export. M9 (hardening) and M10 (ship) follow.
+M7 comes last because it needs local models: LLM triage, phishing scoring, duplicate
+detection and automation rules.
 `docs/HANDOFF.md` has the detail. Screenshots, an architecture
 diagram and a public demo arrive with the final milestone.
 

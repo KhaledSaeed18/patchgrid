@@ -56,7 +56,7 @@ Patchgrid is a **multi-tenant SaaS**: three deployables (`apps/www` marketing, `
 
 ## Build order
 
-Follow `docs/FEATURES.md` milestone by milestone; don't start one until the previous milestone's exit criteria are met. M1 (tenancy + identity) precedes all feature work — retrofitting isolation is not an option. Don't build anything under "out of scope".
+Follow `docs/FEATURES.md` milestone by milestone, **in its build order: M0–M6, then M8, M9, M10, and M7 last** (M7 needs local models; milestone numbers stay as they are). Don't start one until the previous milestone's exit criteria are met. M1 (tenancy + identity) precedes all feature work — retrofitting isolation is not an option. Don't build anything under "out of scope".
 
 ## Testing expectations
 

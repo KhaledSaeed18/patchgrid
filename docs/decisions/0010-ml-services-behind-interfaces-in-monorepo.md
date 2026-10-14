@@ -3,6 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-09-22
 
+> **Erratum (2026-10-15).** Consequences says the deployment of Ollama for a public demo "is deferred to
+> M8". The roadmap now builds M7 last, after M10 ships (`FEATURES.md`, build order). Deploying the models,
+> Ollama on-server or the degraded mode, is an M7 item, and the ADR it calls for is written then. The
+> shipped system before M7 calls no model at all.
+
 ## Context
 
 Two differentiators depend on models that do not run inside Node: ticket triage via Ollama (an HTTP server) and URL phishing scoring via a Python model from the MS thesis (scikit-learn/PyTorch stack). Both are later milestones, but the boundaries must be decided early so the core is built to accommodate them.
