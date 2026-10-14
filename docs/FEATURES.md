@@ -232,15 +232,34 @@ _Exit: SLA warnings and breaches fire from the per-tenant dispatcher, arrive liv
 Mailpit; resolved tickets auto-close after 7 days under an injected clock; the notification bell works and
 never shows another tenant's events — nor a ticket the agent may not read._
 
+**Met on 2026-10-14.** Against the seeded workspaces with the dev stack: Rita raises a ticket and Mailpit
+holds her emailed receipt from "Acme"; Sam's reply reaches her inbox and her email; with its response
+deadline moved into the past, the live per-tenant dispatcher flags the breach within a minute, audits
+`SLA_BREACHED`, and Mailpit holds the breach for Sam (assignee) and Alice and Dana (admins). In a real
+browser signed in as Sam: Dana assigning him a ticket raises the "Assigned to you" toast and the bell's
+count without a reload; the queue gains the ticket live; Rita's reply appears on his open ticket page;
+he adds Dana as a watcher, replies, and edits his reply (marked edited); the inbox and email preferences
+work and persist. A second `EventSource` in his page, recording every frame while Globex raises a ticket
+and, under `OWN_TEAM_ONLY`, an Acme ticket is routed to Security and commented on, receives that ticket
+only at creation — while unteamed and in his scope — then nothing until the unteamed sentinel. Auto-close
+at seven days runs under fake timers (`worker-timeline.spec.ts`) and through its processor against a real
+database (`sweeps.int-spec.ts`). The stream's isolation and scope are CI gates: the tenancy suite and an
+authz-suite spec holding the fan-out equal to `TicketAccess` for every role, visibility, relationship and
+team placement.
+
 - [x] BullMQ: `tenant-dispatch` dispatcher, per-tenant `sla-scan` and `auto-close`, `Clock` provider,
       `WORKER_MODE` (ADR-0018)
-- [ ] SLA warning/breach flags with the split thresholds, notifications, audit entries (`DOMAIN.md` §4.3)
-- [ ] `Notification` + `GET /notifications` + mark read + `dedupeKey` + SSE stream namespaced
-      `org:<orgId>`, fan-out filtered through `scopeFor()` (ADR-0008)
-- [ ] `apps/app`: bell, inbox, live query invalidation, assignment toast
-- [ ] Email notifications for `DOMAIN.md` §8 events; per-**membership** preferences + org kill switch
-- [ ] Worker tests with fake timers; dispatcher tests covering suspended-org skipping
-- [ ] Maintenance jobs: `attachment-sweep` scaffold, `audit-partition`, `projection-reconcile`
+- [x] SLA warning/breach flags with the split thresholds, notifications, audit entries (`DOMAIN.md` §4.3)
+- [x] `Notification` + `GET /notifications` + mark read + `dedupeKey` + SSE stream namespaced
+      `org:<orgId>`, fan-out filtered through `scopeFor()` (ADR-0008, ADR-0036)
+- [x] `apps/app`: bell, inbox, live query invalidation, assignment toast — plus live updates, watchers and
+      comment edit/delete on the ticket page
+- [x] Email notifications for `DOMAIN.md` §8 events; per-**membership** preferences + org kill switch
+      (invitations already email; plan-limit and change-approval notifications are deferred — see
+      `HANDOFF.md`)
+- [x] Worker tests with fake timers; dispatcher tests covering suspended-org skipping
+- [x] Maintenance jobs: `attachment-sweep` scaffold, `audit-partition` (with retention archive),
+      `projection-reconcile`
 
 ## M4 — Four record types
 
