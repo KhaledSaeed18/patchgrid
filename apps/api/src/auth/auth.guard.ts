@@ -96,6 +96,7 @@ export class AuthGuard implements CanActivate {
       throw new NotAuthenticatedProblem("The membership is no longer active")
     }
 
+    this.cls.set("credential", { issuedAt: claims.iat, expiresAt: claims.exp })
     this.setActor({
       kind: "member",
       userId: claims.sub,

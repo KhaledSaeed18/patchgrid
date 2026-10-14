@@ -27,6 +27,13 @@ export type Actor =
   | { kind: "service"; orgId: string; membershipId: string; role: Role; scopes: TokenScope[] }
   | { kind: "identity"; userId: string }
 
+/**
+ * When the credential behind a member actor was minted and when it lapses.
+ * A long-lived response — the notification stream — lives no longer than the
+ * token that opened it, and re-checks the revocation epoch against `issuedAt`.
+ */
+export type Credential = { issuedAt: number; expiresAt: number }
+
 export type MemberActor = Extract<Actor, { kind: "member" }>
 export type ServiceActor = Extract<Actor, { kind: "service" }>
 export type IdentityActor = Extract<Actor, { kind: "identity" }>
@@ -37,6 +44,8 @@ declare module "../tenancy/request-context" {
   interface RequestContextStore {
     /** Set only by `AuthGuard`, after the credential is verified. */
     actor?: Actor
+    /** The verified access token's lifetime, in unix seconds — set beside `actor` for a member. */
+    credential?: Credential
   }
 }
 
@@ -60,6 +69,11 @@ export class ActorService {
     const actor = this.current()
     if (actor?.kind !== "member" && actor?.kind !== "service") throw new NotAuthenticatedProblem()
     return actor
+  }
+
+  /** The member's credential, when the actor came from an access token. */
+  credential(): Credential | undefined {
+    return this.cls.isActive() ? this.cls.get("credential") : undefined
   }
 
   requireIdentity(): IdentityActor {
