@@ -62,10 +62,12 @@ export class OrgPurgeService {
 
     const done = await this.prisma.transaction(async () => {
       if ((await this.purge.lock(orgId))?.status !== "PENDING_DELETION") return false
-      return this.purge.tombstone(orgId, now)
+      if (!(await this.purge.tombstone(orgId, now))) return false
+      // In the tombstone's own transaction: a workspace is never DELETED without its record.
+      await this.platformAudit.record({ platformAdminId: null, action: "PLATFORM_ORG_PURGED", targetOrgId: orgId, diff: { objects, rows } })
+      return true
     })
     if (!done) return null
-    await this.platformAudit.record({ platformAdminId: null, action: "PLATFORM_ORG_PURGED", targetOrgId: orgId, diff: { objects, rows } })
     this.logger.log({ msg: "workspace purged", orgId, objects, rows: Object.values(rows).reduce((a, b) => a + b, 0) })
     return { objects, rows }
   }
