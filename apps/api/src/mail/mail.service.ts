@@ -33,10 +33,17 @@ export class MailService {
   /** Many at once, in one round trip; each idempotent on its own `entityId` as `enqueue` is. */
   async enqueueAll(mails: readonly { job: MailJob; entityId: string }[]): Promise<void> {
     if (mails.length === 0) return
-    const jobs = mails.map(({ job, entityId }) => {
-      const data = mailJobSchema.parse(job)
-      return { name: data.kind, data, opts: { jobId: jobId(MAIL_QUEUE, data.orgId, entityId, data.kind) } }
+    // One unreadable message is logged and left out, not allowed to sink the rest.
+    const jobs = mails.flatMap(({ job, entityId }) => {
+      const parsed = mailJobSchema.safeParse(job)
+      if (!parsed.success) {
+        this.logger.error({ msg: "mail not enqueued: invalid", kind: job.kind, entityId, error: parsed.error.message })
+        return []
+      }
+      const data = parsed.data
+      return [{ name: data.kind, data, opts: { jobId: jobId(MAIL_QUEUE, data.orgId, entityId, data.kind) } }]
     })
+    if (jobs.length === 0) return
     await this.queue.addBulk(jobs)
     this.logger.log({ msg: "mail enqueued", count: jobs.length, kinds: [...new Set(jobs.map((j) => j.name))] })
   }
