@@ -32,14 +32,14 @@ export class NotificationsService {
   async list(query: NotificationListQuery): Promise<NotificationPage> {
     const actor = this.self("notification:read")
     const orgId = this.tenant.requireOrgId()
-    let after: { createdAt: Date; id: string } | null = null
+    let after: { updatedAt: Date; id: string } | null = null
     if (query.cursor !== undefined) {
       const parts = decodeCursor(query.cursor)
-      const createdAt = parts === null ? null : new Date(parts.sortValue)
-      if (parts === null || createdAt === null || Number.isNaN(createdAt.getTime())) {
+      const updatedAt = parts === null ? null : new Date(parts.sortValue)
+      if (parts === null || updatedAt === null || Number.isNaN(updatedAt.getTime())) {
         throw new ValidationProblem([{ path: "cursor", message: "is not a cursor this endpoint issued", code: "invalid_cursor" }])
       }
-      after = { createdAt, id: parts.id }
+      after = { updatedAt, id: parts.id }
     }
     const [rows, unreadCount] = await Promise.all([
       this.notifications.list(orgId, actor.userId, { unread: query.unread, after, limit: query.limit + 1 }),
@@ -51,7 +51,7 @@ export class NotificationsService {
       items: page.map(toNotification),
       nextCursor:
         rows.length > query.limit && last !== undefined
-          ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id })
+          ? encodeCursor({ sortValue: last.updatedAt.toISOString(), id: last.id })
           : null,
       unreadCount,
     }

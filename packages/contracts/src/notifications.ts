@@ -21,7 +21,7 @@ export type NotificationType = z.infer<typeof notificationTypeSchema>
 /**
  * One row of the inbox. `count` is how many events a burst collapsed into
  * (the `dedupeKey`) and `updatedAt` the latest of them; the inbox orders by
- * `createdAt`, the order its index keeps.
+ * `updatedAt`, so a burst on an old unread thread brings it back to the top.
  */
 export const notificationSchema = z.object({
   id: idSchema,

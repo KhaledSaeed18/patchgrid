@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { ActorService, TenantActor } from "../auth/actor"
 import { PermissionService } from "../authz/permission.service"
 import { FixedClock } from "../common/clock/clock"
-import { NotFoundProblem, NotPermittedProblem } from "../common/problems/problem.exception"
+import { NotFoundProblem, NotPermittedProblem, ValidationProblem } from "../common/problems/problem.exception"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
 import { NotificationsService } from "./notifications.service"
 import type { NotificationRepository, NotificationRow } from "./repositories/notification.repository"
@@ -49,6 +49,14 @@ describe("NotificationsService", () => {
     expect(page.items.map((n) => n.id)).toEqual(["a", "b"])
     expect(page.nextCursor).not.toBeNull()
     expect(page.unreadCount).toBe(7)
+  })
+
+  it("pages on the last row's updatedAt — a fold moves it — and refuses a cursor it did not issue", async () => {
+    const h = harness(member("AGENT"), [row("a", 1), row("b", 2)])
+    const first = await h.service.list({ unread: false, limit: 1 })
+    await h.service.list({ unread: false, limit: 1, cursor: first.nextCursor ?? "" })
+    expect(h.repo.list).toHaveBeenLastCalledWith("o-1", "u-1", { unread: false, after: { updatedAt: NOW, id: "a" }, limit: 2 })
+    await expect(h.service.list({ unread: false, limit: 1, cursor: "nonsense" })).rejects.toBeInstanceOf(ValidationProblem)
   })
 
   it("is a 404 to mark someone else's notification read", async () => {

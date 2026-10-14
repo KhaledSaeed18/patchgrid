@@ -50,11 +50,15 @@ const ROW = {
 export class NotificationRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Newest first, keyset-paged on (createdAt, id) — the `(orgId, userId, readAt, createdAt)` index. */
+  /**
+   * Most recently active first, keyset-paged on (updatedAt, id) — the
+   * `(orgId, userId, updatedAt)` index. A fold moves `updatedAt`, so a burst
+   * on an old unread thread brings it back to the top.
+   */
   async list(
     orgId: string,
     userId: string,
-    filter: { unread: boolean; after: { createdAt: Date; id: string } | null; limit: number },
+    filter: { unread: boolean; after: { updatedAt: Date; id: string } | null; limit: number },
   ): Promise<NotificationRow[]> {
     return this.prisma.db.notification.findMany({
       where: {
@@ -65,12 +69,12 @@ export class NotificationRepository {
           ? {}
           : {
               OR: [
-                { createdAt: { lt: filter.after.createdAt } },
-                { createdAt: filter.after.createdAt, id: { lt: filter.after.id } },
+                { updatedAt: { lt: filter.after.updatedAt } },
+                { updatedAt: filter.after.updatedAt, id: { lt: filter.after.id } },
               ],
             }),
       },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: filter.limit,
       select: ROW,
     })
