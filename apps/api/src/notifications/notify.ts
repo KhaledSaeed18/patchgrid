@@ -8,6 +8,7 @@ import { runJob } from "../jobs/dispatcher/run-job"
 import { jobId } from "../jobs/job-id"
 import { PrismaService } from "../prisma/prisma.service"
 import { TicketAudience } from "./audience"
+import { StreamBus } from "./live/stream-bus"
 import { deliveriesFor, type Person } from "./fan-out"
 import { type NotifyEvent, notifyJobSchema } from "./notify-events"
 import { type AddedNotification, NotificationRepository } from "./repositories/notification.repository"
@@ -116,6 +117,7 @@ export class NotifyService {
 export class NotifyProcessor extends WorkerHost implements OnApplicationBootstrap {
   constructor(
     private readonly service: NotifyService,
+    private readonly bus: StreamBus,
     @InjectConfig() private readonly config: AppConfig,
   ) {
     super()
@@ -132,6 +134,16 @@ export class NotifyProcessor extends WorkerHost implements OnApplicationBootstra
     }
     const { orgId, event } = parsed.data
     const delivered = await runJob({ orgId }, "job:notify", event.kind, () => this.service.deliver(orgId, event))
+    // The rows have committed; now each recipient's open streams hear of theirs.
+    await Promise.all(
+      delivered.map(({ person, row }) =>
+        this.bus.publish(orgId, {
+          kind: "notification",
+          membershipId: person.membershipId,
+          event: { id: row.id, type: row.type, title: row.title, ticketId: row.ticketId },
+        }),
+      ),
+    )
     return delivered.length
   }
 }

@@ -80,6 +80,26 @@ export class NotificationRepository {
     })
   }
 
+  /**
+   * What a reconnecting stream missed (ADR-0008): this member's rows written
+   * or folded into after the one the stream last sent, oldest first, capped.
+   * Best effort by design — a row committed late can fall behind the mark —
+   * which is why the client also re-reads the inbox whenever a stream opens.
+   * An id that is not this member's replays nothing.
+   */
+  async since(orgId: string, userId: string, afterId: string, limit: number): Promise<NotificationRow[]> {
+    return this.prisma.transaction(async () => {
+      const mark = await this.prisma.db.notification.findFirst({ where: { orgId, userId, id: afterId }, select: { updatedAt: true } })
+      if (mark === null) return []
+      return this.prisma.db.notification.findMany({
+        where: { orgId, userId, updatedAt: { gt: mark.updatedAt } },
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+        take: limit,
+        select: ROW,
+      })
+    })
+  }
+
   async unreadCount(orgId: string, userId: string): Promise<number> {
     return this.prisma.db.notification.count({ where: { orgId, userId, readAt: null } })
   }
