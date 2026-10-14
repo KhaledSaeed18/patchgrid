@@ -39,7 +39,9 @@ const LiveContext = createContext<Subscribe | null>(null)
  * hint, and what was missed while it was down is in the table.
  */
 export function LiveProvider({ children }: { children: React.ReactNode }) {
-  const { org } = useTenant()
+  const { org, support } = useTenant()
+  // An operator in a support session has no inbox and no stream (ADR-0041): nothing to connect.
+  const operator = support?.kind === "operator"
   const queryClient = useQueryClient()
   const router = useRouter()
   const listeners = useRef(new Set<(frame: LiveFrame) => void>())
@@ -61,6 +63,7 @@ export function LiveProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (operator) return
     const dispatch = (frame: LiveFrame) => {
       for (const listener of listeners.current) listener(frame)
       if (frame.name !== "notification") return
@@ -86,7 +89,7 @@ export function LiveProvider({ children }: { children: React.ReactNode }) {
         void queryClient.invalidateQueries({ queryKey: ["notifications"] }),
       onSessionLost: toLogin,
     })
-  }, [org.slug, queryClient])
+  }, [org.slug, queryClient, operator])
 
   const value = useMemo(() => subscribe, [subscribe])
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>

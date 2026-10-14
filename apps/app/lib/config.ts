@@ -30,3 +30,7 @@ export const workspaceOrigin = (slug: string): string =>
 /** The apex — the marketing site. */
 export const marketingOrigin = (): string =>
   withPort(ROOT_DOMAIN, MARKETING_PORT)
+
+/** `admin.` — the operators' back-office (ADR-0040). */
+export const adminOrigin = (): string =>
+  withPort(`admin.${ROOT_DOMAIN}`, APP_PORT)

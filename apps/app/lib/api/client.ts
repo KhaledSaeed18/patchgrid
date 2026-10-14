@@ -1,6 +1,6 @@
 import type { z } from "zod"
 
-import { appOrigin, ROOT_DOMAIN } from "@/lib/config"
+import { adminOrigin, appOrigin, ROOT_DOMAIN } from "@/lib/config"
 import { parseHost } from "@/lib/host"
 
 import { buildRequest, type Call, readResult, type Result } from "./request"
@@ -21,7 +21,8 @@ export async function clientApi<S extends z.ZodType | null>(
     return readResult(response, call.schema)
 
   const slug = currentSlug()
-  if (slug !== null && (await refresh(slug))) {
+  // A support session has nothing to refresh from: its end is the end.
+  if (slug !== null && !supportOperator && (await refresh(slug))) {
     const retried = await send(path, call)
     if (retried.status !== 401) return readResult(retried, call.schema)
   }
@@ -63,7 +64,23 @@ export function currentSlug(): string | null {
   return host.kind === "tenant" ? host.slug : null
 }
 
+let supportOperator = false
+
+/** Set by the workspace shell when this browser is an operator's support session (ADR-0041). */
+export function markSupportOperator(value: boolean): void {
+  supportOperator = value
+}
+
+/**
+ * Where a lost session goes. A member signs in again on `app.`; an operator
+ * whose support session ended goes back to the back-office it came from —
+ * there is no member login for them to land on.
+ */
 export function toLogin(): void {
+  if (supportOperator) {
+    window.location.assign(`${adminOrigin()}/orgs`)
+    return
+  }
   window.location.assign(
     `${appOrigin()}/login?next=${encodeURIComponent(window.location.href)}`
   )

@@ -5,12 +5,14 @@ import {
   type IdentityResponse,
   identityResponseSchema,
   IDENTITY_COOKIE,
+  supportCookieName,
   TENANT_HEADER,
 } from "@patchgrid/contracts"
 import { cookies, headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import type { z } from "zod"
 
+import { adminOrigin } from "@/lib/config"
 import { PATH_HEADER, REFRESH_PATH, SLUG_HEADER } from "@/lib/routing"
 
 import { buildRequest, type Call, readResult, type Result } from "./request"
@@ -37,7 +39,8 @@ export async function serverApi<S extends z.ZodType | null>(
 
   const forwarded = [
     IDENTITY_COOKIE,
-    ...(slug === null ? [] : [accessCookieName(slug)]),
+    // An operator's support session reads through these routes too (ADR-0041).
+    ...(slug === null ? [] : [accessCookieName(slug), supportCookieName(slug)]),
   ]
     .map((name) => {
       const value = jar.get(name)?.value
@@ -52,6 +55,10 @@ export async function serverApi<S extends z.ZodType | null>(
   const [url, init] = buildRequest(path, call, outgoing)
   const response = await fetch(url, { ...init, cache: "no-store" })
   if (response.status === 401) {
+    // A support session that ended goes back to the back-office; it has nothing to refresh.
+    if (slug !== null && jar.get(supportCookieName(slug)) !== undefined) {
+      redirect(`${adminOrigin()}/orgs`)
+    }
     redirect(
       slug === null
         ? `/login?next=${encodeURIComponent(page)}`

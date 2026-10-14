@@ -192,3 +192,17 @@ describe("the admin surface (ADR-0040)", () => {
     ).toEqual({ kind: "not-found" })
   })
 })
+
+describe("a support session (ADR-0041)", () => {
+  it("enters a workspace on its own cookie, with no identity and no refresh", () => {
+    expect(
+      route("acme.lvh.me:3001", "/tickets", { pg_st_acme: "token" })
+    ).toEqual({ kind: "next", slug: "acme" })
+    expect(
+      route("acme.lvh.me:3001", "/tickets", { pg_st_globex: "token" })
+    ).toEqual({
+      kind: "redirect",
+      to: `${APP}/login?next=${encodeURIComponent("http://acme.lvh.me:3001/tickets")}`,
+    })
+  })
+})

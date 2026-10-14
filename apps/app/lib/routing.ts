@@ -97,6 +97,10 @@ export function decideRoute(input: RouteInput): RouteDecision {
     }
   if (input.pathname === REFRESH_PATH) return { kind: "next", slug: host.slug }
 
+  // An operator's support session (ADR-0041): its token runs to the session's end and is never refreshed.
+  if (input.cookies(`pg_st_${host.slug}`) !== undefined)
+    return { kind: "next", slug: host.slug }
+
   const back = input.pathname + input.search
   const access = input.cookies(`pg_at_${host.slug}`)
   if (access === undefined && !hasIdentity) {
