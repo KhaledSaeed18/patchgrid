@@ -76,12 +76,13 @@ export class OrgDeletionService {
     // Not a member, not an owner, or not pending: the same 404 — the picker shows only what it may.
     if (org === null || org.status !== "PENDING_DELETION" || org.deletionRequestedAt === null) throw new NotFoundProblem()
     const requestedAt = org.deletionRequestedAt
-    // From the purge date on, the purge owns it; never restore a workspace it may be emptying.
-    if (this.clock.now().getTime() >= purgeDateFor(requestedAt).getTime()) throw new ConflictProblem("This workspace's deletion window has closed")
     await runAsTenant(orgId, { actor: `user:${userId}`, reason: "cancel workspace deletion" }, async () => {
       const owner = await this.prisma.transaction(async () => {
         const membership = await this.memberships.findByUser(orgId, userId)
         if (membership === null || membership.role !== "OWNER" || membership.status !== "ACTIVE") throw new NotFoundProblem()
+        // Only an owner learns the window has closed; anyone else got the same 404 above.
+        // From the purge date on, the purge owns it; never restore a workspace it may be emptying.
+        if (this.clock.now().getTime() >= purgeDateFor(requestedAt).getTime()) throw new ConflictProblem("This workspace's deletion window has closed")
         if (!(await this.lifecycle.cancelDeletion(orgId))) throw new ConflictProblem("This workspace is no longer pending deletion")
         await this.audit.record(orgId, [{ action: "ORG_DELETION_CANCELLED", entityType: "Organization", entityId: orgId }], {
           kind: "member",
