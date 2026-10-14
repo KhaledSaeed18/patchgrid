@@ -151,7 +151,8 @@ describe("the incident lifecycle", () => {
   it("gives two agents editing at once a clean conflict, not a lost update", async () => {
     const [a, b] = await Promise.all([
       as("agent").patch(`/tickets/${id}`, { version, title: "Laptop won't boot after update" }),
-      as("admin").patch(`/tickets/${id}`, { version, urgency: "LOW" }),
+      // Neither edit touches priority, so the later SLA assertions hold whichever wins.
+      as("admin").patch(`/tickets/${id}`, { version, description: "Boot loop since the update" }),
     ])
     expect([a.status, b.status].toSorted()).toEqual([200, 409])
     expect((a.status === 409 ? a : b).body.type).toContain("stale-write")
