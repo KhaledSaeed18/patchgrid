@@ -28,8 +28,9 @@ Building it raises seven questions:
 
 - **The route.** `POST /org/exports` (`org:export`) answers `202` with the export's row. ADR-0028's verb
   is right, because an export is a thing created. `FEATURES.md` is corrected to match.
-- **A tenant-owned `OrgExport` row** records each export: who asked, when, its status (`QUEUED →
-  RUNNING → READY | FAILED`, later `EXPIRED`), its object key and size, and when its link lapses.
+- **A tenant-owned `OrgExport` row** records each export: who asked, when, its status, its object key
+  and size, and when its link lapses. The status runs `QUEUED`, `RUNNING`, then `READY` or `FAILED`,
+  and later `EXPIRED`.
   - The one-a-day limit is a check on that table under the organization row lock. Inside 24 hours it is
     `429` with `Retry-After`, a rate limit rather than a plan limit, so not `402`.
   - `GET /org/exports` lists them in Settings.
