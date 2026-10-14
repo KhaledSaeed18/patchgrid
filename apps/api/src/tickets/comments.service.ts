@@ -59,7 +59,12 @@ export class CommentsService {
    * member replying by authenticated email (ADR-0039). Every check, effect
    * and notification is the request's.
    */
-  async addAs(acting: Acting, ticketId: string, input: CommentInput): Promise<{ created: CommentRow; loaded: LoadedTicket }> {
+  async addAs(
+    acting: Acting,
+    ticketId: string,
+    input: CommentInput,
+    options: { within?: (commentId: string) => Promise<void> } = {},
+  ): Promise<{ created: CommentRow; loaded: LoadedTicket }> {
     const { actor } = acting
     const orgId = this.tenant.requireOrgId()
     const row = await this.prisma.transaction(async () => {
@@ -96,6 +101,8 @@ export class CommentsService {
       }
       if (Object.keys(changes).length > 0) await this.tickets.update(orgId, ticketId, changes)
       await this.audit.record(orgId, entries)
+      // The caller's own record of the reply, committed with it or not at all (ADR-0039).
+      if (options.within !== undefined) await options.within(created.id)
       return { created, loaded }
     })
     await this.notifier.notify(

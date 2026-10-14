@@ -130,7 +130,11 @@ export class TicketsService {
    * the request's; only where the actor and the org's visibility come from
    * differs. Returns the new ticket's id.
    */
-  async createAs(acting: Acting, request: CreateTicketRequest, options: { source?: TicketSource } = {}): Promise<string> {
+  async createAs(
+    acting: Acting,
+    request: CreateTicketRequest,
+    options: { source?: TicketSource; within?: (ticketId: string) => Promise<void> } = {},
+  ): Promise<string> {
     const { actor } = acting
     const orgId = this.tenant.requireOrgId()
     this.permissions.assert(actor, "ticket:create", { ticketType: request.type })
@@ -225,6 +229,8 @@ export class TicketsService {
         ...links.map((link): AuditEntry => ({ action: "TICKET_LINKED", entityType: "Ticket", entityId: created, diff: { ...link } })),
         ...assetIds.map((assetId): AuditEntry => ({ action: "TICKET_ASSET_LINKED", entityType: "Ticket", entityId: created, diff: { assetId } })),
       ])
+      // The caller's own record of the create, committed with it or not at all (ADR-0039).
+      if (options.within !== undefined) await options.within(created)
       return created
     })
     await this.announce(orgId, id, [

@@ -10,11 +10,13 @@ import { requireEnv } from "../support/env"
 import type { INestApplication } from "@nestjs/common"
 import { Test } from "@nestjs/testing"
 import { createPrismaClient, type PrismaClient } from "@patchgrid/database"
+import type { Job } from "bullmq"
 import request from "supertest"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { AppModule } from "../../src/app.module"
 import { SENDER_HOURLY_LIMIT } from "../../src/inbound/inbound-intake.service"
+import { InboundSweepProcessor } from "../../src/inbound/inbound-sweep"
 import { INBOUND_QUEUE } from "../../src/inbound/inbound-receiver.service"
 import { INBOUND_WEBHOOK_PATH, inboundBodyParser } from "../../src/inbound/inbound.controller"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
@@ -149,6 +151,33 @@ describe("mail that is not trusted", () => {
     expect(recorder.sent.slice(sentBefore)).toEqual([])
   })
 
+  it("does not let forged mail use up a member's allowance", async () => {
+    for (let i = 0; i <= SENDER_HOURLY_LIMIT; i += 1) {
+      await deliver({ from: ws.people.agent.email, subject: `Forged ${String(i)}`, text: "x", dmarc: "fail" })
+    }
+    await deliver({ from: ws.people.agent.email, subject: "Switch in room 4 is down", text: "Since 9." })
+    expect(await latest()).toMatchObject({ outcome: "CREATED", senderMembershipId: ws.people.agent.membershipId })
+  })
+
+  it("refuses a message with two senders, whichever one DMARC judged", async () => {
+    await deliver({ from: ws.people.rosa.email, subject: "Two senders", text: "x", headers: { From: ws.people.admin.email } })
+    expect(await latest()).toMatchObject({ outcome: "UNAUTHENTICATED", authVerdict: "NONE" })
+  })
+
+  it("keeps a subject with a NUL in it in the log, without the NUL", async () => {
+    await deliver({ from: "nul@elsewhere.test", subject: "=?utf-8?B?SGVsbG8AV29ybGQ=?=", text: "x", dmarc: "fail" })
+    expect(await latest()).toMatchObject({ outcome: "UNAUTHENTICATED", subject: "HelloWorld" })
+  })
+
+  it("lets the real message through when a forged copy took its Message-ID first", async () => {
+    const messageId = "<guessed-1@mail.test>"
+    await deliver({ from: ws.people.rosa.email, subject: "Monitor flickers", text: "forged", dmarc: "fail", messageId })
+    expect(await latest()).toMatchObject({ outcome: "UNAUTHENTICATED" })
+    await deliver({ from: ws.people.rosa.email, subject: "Monitor flickers", text: "Desk 22 again.", messageId })
+    const row = await db.inboundEmail.findUniqueOrThrow({ where: { orgId_messageKey: { orgId: ws.orgId, messageKey: messageId } } })
+    expect(row).toMatchObject({ outcome: "CREATED", authVerdict: "PASS", senderMembershipId: ws.people.rosa.membershipId })
+  })
+
   it("holds back one sender's flood past the hourly limit", async () => {
     for (let i = 0; i <= SENDER_HOURLY_LIMIT; i += 1) {
       await deliver({ from: "flood@elsewhere.test", subject: `Message ${String(i)}`, text: "x" })
@@ -198,6 +227,35 @@ describe("replies", () => {
     expect((await as("rosa").get(`/tickets/${ritasTicket}`)).status).toBe(404)
     const links = await as("agent").get(`/tickets/${row.ticketId ?? ""}/links`)
     expect(links.body).toEqual([expect.objectContaining({ kind: "RELATES_TO", ticket: expect.objectContaining({ id: ritasTicket }) })])
+  })
+})
+
+describe("the inbound sweep", () => {
+  it("fails what no worker will finish, and keeps raw mail only as long as retention says", async () => {
+    const old = new Date(Date.now() - 31 * 24 * 60 * 60_000)
+    const stuck = await db.inboundEmail.create({
+      data: { orgId: ws.orgId, messageKey: "<stuck@mail.test>", fromAddress: "x@y.test", subject: "Stuck", rawStorageKey: `org/${ws.orgId}/inbound/stuck.eml`, receivedAt: old, processedAt: old },
+    })
+    const ancient = await db.inboundEmail.create({
+      data: {
+        orgId: ws.orgId,
+        messageKey: "<ancient@mail.test>",
+        fromAddress: "x@y.test",
+        subject: "Ancient",
+        outcome: "UNAUTHENTICATED",
+        rawStorageKey: `org/${ws.orgId}/inbound/ancient.eml`,
+        receivedAt: new Date(Date.now() - 91 * 24 * 60 * 60_000),
+      },
+    })
+    await app.get(StorageService).put(ancient.rawStorageKey, Buffer.from("From: x@y.test\r\n\r\nold"), "message/rfc822")
+    const swept = await app.get(InboundSweepProcessor).process({ id: "spec/inbound-sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
+    expect(swept.failed).toBe(1)
+    expect(await db.inboundEmail.findUnique({ where: { id: stuck.id } })).toMatchObject({ outcome: "FAILED", error: "Processing did not finish" })
+    // Past both retentions: its bytes go, then its row.
+    expect(await app.get(StorageService).size(ancient.rawStorageKey)).toBeNull()
+    expect(await db.inboundEmail.findUnique({ where: { id: ancient.id } })).toBeNull()
+    // A message that became a ticket keeps its row.
+    expect(await db.inboundEmail.count({ where: { orgId: ws.orgId, outcome: "CREATED" } })).toBeGreaterThan(0)
   })
 })
 

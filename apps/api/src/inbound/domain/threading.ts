@@ -23,8 +23,10 @@ export function ticketReference(input: {
   inboundDomain: string
 }): TicketReference | null {
   const ours = new RegExp(`^<?t\\.(${UUID})\\.[^@>]+@${escape(input.inboundDomain)}>?$`, "i")
-  for (const id of [input.inReplyTo, ...[...input.references].reverse()]) {
-    const match = id === undefined ? null : ours.exec(id.trim())
+  // A header may hold several ids, separated by whitespace (RFC 5322 §3.6.4).
+  const ids = [input.inReplyTo ?? "", ...[...input.references].reverse()].flatMap((value) => value.split(/\s+/)).filter((v) => v !== "")
+  for (const id of ids) {
+    const match = ours.exec(id)
     if (match?.[1] !== undefined) return { kind: "id", ticketId: match[1].toLowerCase() }
   }
   const numbered = findTicketNumberInSubject(input.subject)

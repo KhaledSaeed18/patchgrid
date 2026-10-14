@@ -5,6 +5,7 @@ import { slugFromRecipient } from "./recipient"
 import { REPLY_ABOVE_LINE, replyText } from "./reply-text"
 import { sign, verifySignature } from "./signature"
 import { ticketMessageId, ticketReference, titleFromSubject } from "./threading"
+import { storableText, truncate } from "./text"
 import { verdictFrom } from "./verdict"
 
 const SECRET = "whsec_cGF0Y2hncmlkLWxvY2FsLWluYm91bmQtc2VjcmV0"
@@ -63,6 +64,11 @@ describe("threading", () => {
   const id = "01a13900-0000-7000-8000-000000000042"
   const domain = "inbound.lvh.me"
 
+  it("finds our id among several in In-Reply-To", () => {
+    const ours = ticketMessageId(id, "x1", domain)
+    expect(ticketReference({ inReplyTo: `<other@mail.test> ${ours}`, references: [], subject: "", inboundDomain: domain })).toEqual({ kind: "id", ticketId: id })
+  })
+
   it("finds our own Message-ID before a subject tag, and only at our domain", () => {
     const ours = ticketMessageId(id, "x1", domain)
     expect(ticketReference({ inReplyTo: ours, references: [], subject: "Re: [INC-000007] hi", inboundDomain: domain })).toEqual({ kind: "id", ticketId: id })
@@ -98,5 +104,13 @@ describe("the recipient", () => {
     expect(slugFromRecipient("acme@lvh.me", "lvh.me")).toBeNull()
     expect(slugFromRecipient("acme@inbound.evil.test", "lvh.me")).toBeNull()
     expect(slugFromRecipient("-bad@inbound.lvh.me", "lvh.me")).toBeNull()
+  })
+})
+
+describe("storable text", () => {
+  it("drops NUL and control characters, keeps tabs, newlines and whole characters", () => {
+    expect(storableText("a\u0000b\u0007c\td\ne")).toBe("abc\td\ne")
+    expect(storableText("x\uD83D")).toBe("x")
+    expect(truncate("ab😀cd", 3)).toBe("ab😀")
   })
 })

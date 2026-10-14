@@ -9,6 +9,7 @@ import { type Clock, InjectClock } from "../common/clock/clock"
 import { NotAuthenticatedProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { type AppConfig, InjectConfig } from "../config/app-config"
 import { jobId } from "../jobs/job-id"
+import { RedisService } from "../redis/redis.service"
 import { StorageService } from "../storage/storage.service"
 import { OrganizationLookupService } from "../tenancy/organization-lookup.service"
 import { slugFromRecipient } from "./domain/recipient"
@@ -16,6 +17,8 @@ import { type SignedHeaders, verifySignature } from "./domain/signature"
 import type { InboundJob } from "./inbound-intake.service"
 
 export const INBOUND_QUEUE = "inbound-email"
+/** Messages one workspace takes in an hour (ADR-0027 §6); past it, mail is dropped before it is stored. */
+export const WORKSPACE_HOURLY_LIMIT = 500
 
 /**
  * The webhook's half of intake (ADR-0039), before any tenant: the signature
@@ -34,6 +37,7 @@ export class InboundReceiver {
     private readonly lookup: OrganizationLookupService,
     private readonly storage: StorageService,
     @InjectQueue(INBOUND_QUEUE) private readonly queue: Queue,
+    private readonly redis: RedisService,
     @InjectConfig() private readonly config: AppConfig,
     @InjectClock() private readonly clock: Clock,
   ) {}
@@ -62,6 +66,10 @@ export class InboundReceiver {
     const delivery = createHash("sha256").update(headers.id ?? "").digest("hex").slice(0, 32)
     const receivedAt = this.clock.now().toISOString()
     for (const orgId of await this.tenantsFor(parsed.data.data.recipients)) {
+      if (!(await this.withinWorkspaceLimit(orgId))) {
+        this.logger.warn({ msg: "inbound message dropped: workspace hourly limit", orgId })
+        continue
+      }
       const rawStorageKey = `org/${orgId}/inbound/${delivery}.eml`
       await this.storage.put(rawStorageKey, raw, "message/rfc822")
       const job: InboundJob = { orgId, rawStorageKey, receivedAt }
@@ -83,6 +91,25 @@ export class InboundReceiver {
       orgIds.add(org.id)
     }
     return [...orgIds]
+  }
+
+  /**
+   * One count per workspace per clock hour, in Redis, before anything is
+   * stored — forged mail with a new sender each time would otherwise grow the
+   * log and the bucket without end. Redis unreachable: the message is taken;
+   * the signature still had to be right for it to get here.
+   */
+  private async withinWorkspaceLimit(orgId: string): Promise<boolean> {
+    const hour = Math.floor(this.clock.now().getTime() / 3_600_000)
+    const key = `inbound:count:${orgId}:${String(hour)}`
+    try {
+      const results = await this.redis.client.multi().incr(key).expire(key, 7_200).exec()
+      const count = results?.[0]?.[1]
+      return typeof count !== "number" || count <= WORKSPACE_HOURLY_LIMIT
+    } catch (error) {
+      this.logger.warn({ msg: "inbound workspace limit unavailable", orgId, error: String(error) })
+      return true
+    }
   }
 
   private async retired(slug: string) {

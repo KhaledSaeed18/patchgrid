@@ -34,12 +34,14 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue("sla-scan") slaScan: Queue,
     @InjectQueue("auto-close") autoClose: Queue,
     @InjectQueue("attachment-sweep") attachmentSweep: Queue,
+    @InjectQueue("inbound-sweep") inboundSweep: Queue,
     @InjectQueue("projection-reconcile") projectionReconcile: Queue,
   ) {
     this.queues = {
       "sla-scan": slaScan,
       "auto-close": autoClose,
       "attachment-sweep": attachmentSweep,
+      "inbound-sweep": inboundSweep,
       "projection-reconcile": projectionReconcile,
     }
   }

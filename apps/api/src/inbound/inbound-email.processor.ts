@@ -6,7 +6,7 @@ import { z } from "zod"
 
 import { InjectConfig, type AppConfig } from "../config/app-config"
 import { runJob } from "../jobs/dispatcher/run-job"
-import { InboundBusyError, InboundIntakeService } from "./inbound-intake.service"
+import { InboundIntakeService } from "./inbound-intake.service"
 import { INBOUND_QUEUE } from "./inbound-receiver.service"
 
 const payloadSchema = z.object({ orgId: idSchema, rawStorageKey: z.string().startsWith("org/"), receivedAt: z.iso.datetime() })
@@ -14,7 +14,8 @@ const payloadSchema = z.object({ orgId: idSchema, rawStorageKey: z.string().star
 /**
  * One inbound message, in its tenant (ADR-0018): the intake runs in the
  * context a request to that workspace would have. A message still unsettled
- * when its last attempt fails is marked `FAILED`, so the log never shows one
+ * when its last attempt fails is marked `FAILED`, and the hourly inbound
+ * sweep fails whatever a dead worker left claimed — the log never shows one
  * waiting forever.
  */
 @Injectable()
@@ -37,15 +38,8 @@ export class InboundEmailProcessor extends WorkerHost implements OnApplicationBo
     const payload = parsed.data
     // Keys are written under the org they belong to; one that is not is a bug, not mail.
     if (!payload.rawStorageKey.startsWith(`org/${payload.orgId}/`)) throw new UnrecoverableError(`inbound job ${String(job.id)} names another org's key`)
-    try {
-      return await runJob(payload, "job:inbound-email", "process", () => this.intake.process(payload))
-    } catch (error) {
-      if (error instanceof InboundBusyError) throw error
-      const last = job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
-      await runJob(payload, "job:inbound-email", last ? "give up" : "release", () =>
-        last ? this.intake.fail(payload, String(error)) : this.intake.release(payload),
-      )
-      throw error
-    }
+    // The intake settles or releases the message itself; a final attempt fails it rather than leaving it waiting.
+    const last = job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
+    return runJob(payload, "job:inbound-email", "process", () => this.intake.process(payload, { last }))
   }
 }

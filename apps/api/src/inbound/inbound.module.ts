@@ -7,6 +7,7 @@ import { MembershipRepositoryModule } from "../memberships/membership-repository
 import { TicketsModule } from "../tickets/tickets.module"
 import { InboundEmailProcessor } from "./inbound-email.processor"
 import { InboundIntakeService } from "./inbound-intake.service"
+import { InboundSweepProcessor, InboundSweepService } from "./inbound-sweep"
 import { InboundLogController } from "./inbound-log.controller"
 import { InboundLogService } from "./inbound-log.service"
 import { INBOUND_QUEUE, InboundReceiver } from "./inbound-receiver.service"
@@ -15,8 +16,16 @@ import { InboundEmailRepository } from "./repositories/inbound-email.repository"
 
 /** Email intake (M6, ADR-0027, ADR-0039): the signed webhook, the per-tenant pipeline, and the admins' log of it. */
 @Module({
-  imports: [AuthModule, AttachmentsModule, MembershipRepositoryModule, TicketsModule, BullModule.registerQueue({ name: INBOUND_QUEUE })],
+  imports: [AuthModule, AttachmentsModule, MembershipRepositoryModule, TicketsModule, BullModule.registerQueue({ name: INBOUND_QUEUE }, { name: "inbound-sweep" })],
   controllers: [InboundController, InboundLogController],
-  providers: [InboundEmailRepository, InboundReceiver, InboundIntakeService, InboundEmailProcessor, InboundLogService],
+  providers: [
+    InboundEmailRepository,
+    InboundReceiver,
+    InboundIntakeService,
+    InboundEmailProcessor,
+    InboundLogService,
+    InboundSweepService,
+    InboundSweepProcessor,
+  ],
 })
 export class InboundModule {}

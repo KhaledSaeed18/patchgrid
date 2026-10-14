@@ -11,8 +11,10 @@ export const SWEEPS = {
   "sla-scan": { everyMs: 60_000 },
   /** Close what has sat resolved for AUTO_CLOSE_DAYS (DOMAIN.md §2.1). */
   "auto-close": { everyMs: 15 * 60_000 },
-  /** Remove uploads never confirmed (ARCHITECTURE.md §Background jobs) — a scaffold until M5. */
+  /** Remove uploads never confirmed (ARCHITECTURE.md §Background jobs, ADR-0038). */
   "attachment-sweep": { everyMs: 60 * 60_000 },
+  /** Fail inbound mail no worker will finish, and keep raw mail only as long as retention says (ADR-0039). */
+  "inbound-sweep": { everyMs: 60 * 60_000 },
   /** Recompute the org picker's projection from source; drift is a bug (ADR-0022). */
   "projection-reconcile": { everyMs: 24 * 60 * 60_000 },
 } as const
