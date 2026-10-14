@@ -22,6 +22,7 @@ import { StorageModule } from "./storage/storage.module"
 import { MaintenanceModule } from "./jobs/maintenance/maintenance.module"
 import { InboundModule } from "./inbound/inbound.module"
 import { BackofficeModule } from "./platform/backoffice/backoffice.module"
+import { SupportModule } from "./support/support.module"
 import { JobsModule } from "./jobs/jobs.module"
 import { KnowledgeModule } from "./knowledge/knowledge.module"
 import { NotificationsModule } from "./notifications/notifications.module"
@@ -123,6 +124,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     KnowledgeModule,
     InboundModule,
     BackofficeModule,
+    SupportModule,
     AuditModule,
     QuotaModule,
     MailModule,

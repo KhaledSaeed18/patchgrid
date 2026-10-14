@@ -26,6 +26,13 @@ export type Actor =
     }
   | { kind: "service"; orgId: string; membershipId: string; role: Role; scopes: TokenScope[] }
   | { kind: "identity"; userId: string }
+  /**
+   * An operator inside a granted support session, on the tenant's own routes
+   * (ADR-0041): role `ADMIN` for the matrix, narrowed to the support read set,
+   * read-only at the guard. `membershipId` is the session id — never a
+   * membership, so no "own", "assignee" or "watcher" relation can hold.
+   */
+  | { kind: "support"; orgId: string; sessionId: string; platformAdminId: string; userId: string; role: "ADMIN"; membershipId: string }
   /** An operator, from the platform credential only (ADR-0040). Holds no tenant permission. */
   | { kind: "platform"; platformAdminId: string; userId: string; sessionExpiresAt: number }
 
@@ -40,8 +47,9 @@ export type MemberActor = Extract<Actor, { kind: "member" }>
 export type ServiceActor = Extract<Actor, { kind: "service" }>
 export type IdentityActor = Extract<Actor, { kind: "identity" }>
 export type PlatformActor = Extract<Actor, { kind: "platform" }>
+export type SupportActor = Extract<Actor, { kind: "support" }>
 /** Someone acting inside one organization — what authorization decides about. */
-export type TenantActor = MemberActor | ServiceActor
+export type TenantActor = MemberActor | ServiceActor | SupportActor
 
 declare module "../tenancy/request-context" {
   interface RequestContextStore {
@@ -70,7 +78,7 @@ export class ActorService {
   /** A member or a service account: anyone authorization can decide about. */
   requireTenantActor(): TenantActor {
     const actor = this.current()
-    if (actor?.kind !== "member" && actor?.kind !== "service") throw new NotAuthenticatedProblem()
+    if (actor?.kind !== "member" && actor?.kind !== "service" && actor?.kind !== "support") throw new NotAuthenticatedProblem()
     return actor
   }
 

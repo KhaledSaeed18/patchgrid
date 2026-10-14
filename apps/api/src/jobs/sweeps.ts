@@ -15,6 +15,8 @@ export const SWEEPS = {
   "attachment-sweep": { everyMs: 60 * 60_000 },
   /** Fail inbound mail no worker will finish, and keep raw mail only as long as retention says (ADR-0039). */
   "inbound-sweep": { everyMs: 60 * 60_000 },
+  /** End support sessions past their expiry, on the record, and tell the owners (ADR-0041). */
+  "support-sweep": { everyMs: 5 * 60_000 },
   /** Recompute the org picker's projection from source; drift is a bug (ADR-0022). */
   "projection-reconcile": { everyMs: 24 * 60 * 60_000 },
 } as const

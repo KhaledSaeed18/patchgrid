@@ -108,6 +108,8 @@ export class KnowledgeService {
     const orgId = this.tenant.requireOrgId()
     return this.prisma.transaction(async () => {
       const row = this.readableOne(actor, await this.articles.findBySlug(orgId, slug))
+      // A support session reads without leaving a mark (ADR-0041): no view is counted for it.
+      if (actor.kind === "support") return this.view(actor, row)
       await this.articles.countView(orgId, row.id)
       return this.view(actor, { ...row, viewCount: row.viewCount + 1 })
     })

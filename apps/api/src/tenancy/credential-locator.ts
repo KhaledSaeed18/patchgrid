@@ -1,3 +1,4 @@
+import { supportCookieName } from "@patchgrid/contracts"
 import { parseCookie } from "cookie"
 
 import { peekOrgClaim, accessCookieName } from "../auth/tokens/access-token"
@@ -76,7 +77,9 @@ export function locateCredential(headers: RequestHeaders, policy: OriginPolicy):
   if (slug === undefined || slug === null) return { credential: { kind: "none" }, assertion }
 
   const cookies = headers.cookie === undefined ? {} : parseCookie(headers.cookie)
-  const token = cookies[accessCookieName(slug)]
+  // A support session's cookie wins over a member's own (ADR-0041); both name the org the same way.
+  const support = cookies[supportCookieName(slug)]
+  const token = support !== undefined && support !== "" ? support : cookies[accessCookieName(slug)]
   if (token === undefined || token === "") return { credential: { kind: "none" }, assertion }
 
   return { credential: { kind: "cookie", slug, orgId: peekOrgClaim(token) }, assertion }

@@ -36,6 +36,8 @@ export type AuditRow = {
   actorMembershipId: string | null
   /** An operator's action on this tenant (RBAC.md §8); never alongside a membership. */
   actorPlatformAdminId?: string | null
+  /** The support session an operator read inside (ADR-0041). */
+  supportSessionId?: string | null
   createdAt: Date
 }
 

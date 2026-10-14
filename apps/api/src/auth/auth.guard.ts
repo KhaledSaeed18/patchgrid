@@ -1,12 +1,17 @@
 import { type CanActivate, type ExecutionContext, Injectable, Logger } from "@nestjs/common"
 import { Reflector } from "@nestjs/core"
-import type { Request } from "express"
+import { supportCookieName } from "@patchgrid/contracts"
+import type { Request, Response } from "express"
 import { ClsService } from "nestjs-cls"
 
+import { type Clock, InjectClock } from "../common/clock/clock"
 import { IS_PLATFORM, IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
 import { originPolicyFrom } from "../common/http/origin-policy"
 import { InjectConfig, type AppConfig } from "../config/app-config"
 import { PlatformAdminRepository } from "../platform/repositories/platform-admin.repository"
+import { statusOf } from "../support/domain"
+import { SupportSessionRepository } from "../support/repositories/support-session.repository"
+import { SupportMail } from "../support/support-mail"
 import {
   NotAuthenticatedProblem,
   NotPermittedProblem,
@@ -22,6 +27,8 @@ import { platformEpochKey } from "./platform/platform-auth.service"
 import { PlatformTokenService } from "./platform/platform-token.service"
 import { fromAdminSurface, PLATFORM_SESSION_COOKIE } from "./platform/surface"
 import { RevocationEpochService } from "./revocation/revocation-epoch.service"
+import { SupportReadLog } from "./support/support-read-log"
+import { supportEpochKey, SupportTokenService } from "./support/support-token.service"
 import { SessionService } from "./sessions/session.service"
 import { accessCookieName, IDENTITY_COOKIE } from "./tokens/access-token"
 import { AccessTokenService } from "./tokens/access-token.service"
@@ -56,6 +63,11 @@ export class AuthGuard implements CanActivate {
     private readonly memberships: MembershipRepository,
     private readonly platformTokens: PlatformTokenService,
     private readonly platformAdmins: PlatformAdminRepository,
+    private readonly supportTokens: SupportTokenService,
+    private readonly supportSessions: SupportSessionRepository,
+    private readonly supportMail: SupportMail,
+    private readonly supportReadLog: SupportReadLog,
+    @InjectClock() private readonly clock: Clock,
     @InjectConfig() private readonly config: AppConfig,
   ) {}
 
@@ -84,6 +96,12 @@ export class AuthGuard implements CanActivate {
       // API tokens are an M8 item (ADR-0021); until then a prefix that resolves
       // still authenticates nothing.
       throw new NotAuthenticatedProblem("API tokens are not available yet")
+    }
+
+    // An operator's support session in this workspace (ADR-0041), preferred as resolution preferred it.
+    const supportToken = readCookie(request, supportCookieName(organization.slug))
+    if (supportToken !== undefined) {
+      return this.support(request, context.switchToHttp().getResponse<Response>(), organization.id, supportToken)
     }
 
     const token = readCookie(request, accessCookieName(organization.slug))
@@ -118,6 +136,47 @@ export class AuthGuard implements CanActivate {
       teamIds: membership.teamIds,
       leadOfTeamIds: membership.leadOfTeamIds,
     })
+    return true
+  }
+
+  /**
+   * A support session on the tenant's own routes (ADR-0041): the token, the
+   * epoch, then the session row itself — granted, not ended, not expired,
+   * this operator — and the operator's grant, all on every request. From the
+   * moment the actor is known, the request's outcome is recorded, whatever it
+   * is; a write is then refused before any handler runs.
+   */
+  private async support(request: Request, response: Response, orgId: string, token: string): Promise<boolean> {
+    const claims = await this.supportTokens.verify(token)
+    if (claims === null) throw new NotAuthenticatedProblem("The support session is not valid")
+    if (claims.orgId !== orgId) throw new TenantMismatchProblem("The support session belongs to a different workspace")
+    if ((await this.epochs.isRevoked(supportEpochKey(claims.sessionId), claims.iat)) === true) {
+      throw new NotAuthenticatedProblem("The support session was ended")
+    }
+    const now = this.clock.now()
+    const session = await this.supportSessions.find(orgId, claims.sessionId)
+    if (session === null || session.platformAdminId !== claims.platformAdminId || statusOf(session, now) !== "ACTIVE") {
+      throw new NotAuthenticatedProblem("The support session has ended")
+    }
+    const admin = await this.platformAdmins.active(claims.platformAdminId)
+    if (admin?.userId !== claims.userId) throw new NotAuthenticatedProblem("The platform grant is no longer active")
+    const actor = {
+      kind: "support" as const,
+      orgId,
+      sessionId: claims.sessionId,
+      platformAdminId: claims.platformAdminId,
+      userId: claims.userId,
+      role: "ADMIN" as const,
+      membershipId: claims.sessionId,
+    }
+    this.setActor(actor)
+    // From here every outcome is recorded — this refusal, any other guard's, the handler's answer.
+    this.supportReadLog.watch(actor, request, response)
+    if (!SAFE_METHODS.has(request.method)) throw new NotPermittedProblem("A support session is read-only")
+    // The owners hear about the first read as it happens (ADR-0020).
+    if (await this.supportSessions.markFirstUse(orgId, claims.sessionId, now)) {
+      await this.supportMail.tell(orgId, "first-use", { id: claims.sessionId, operatorName: admin.name }, `It runs until ${session.expiresAt?.toUTCString() ?? "it is ended"}.`)
+    }
     return true
   }
 

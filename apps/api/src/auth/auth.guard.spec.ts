@@ -22,6 +22,11 @@ import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
 import { PlatformAdminRepository } from "../platform/repositories/platform-admin.repository"
 import { PlatformTokenService } from "./platform/platform-token.service"
+import { SupportReadLog } from "./support/support-read-log"
+import { SupportTokenService } from "./support/support-token.service"
+import { SupportSessionRepository } from "../support/repositories/support-session.repository"
+import { SupportMail } from "../support/support-mail"
+import { CLOCK } from "../common/clock/clock"
 import { AccessTokenService } from "./tokens/access-token.service"
 
 const config = {
@@ -61,6 +66,19 @@ const ADMIN = "0190b2f0-0000-7000-8000-0000000000ad"
 const platformAdmins = {
   active: vi.fn(async (id: string) => (id === ADMIN ? { id: ADMIN, userId: USER, email: "dana@x.test", name: "Dana" } : null) as unknown),
 }
+const SESSION = "0190b2f0-0000-7000-8000-0000000000cc"
+const liveSession = () => ({
+  id: SESSION,
+  platformAdminId: ADMIN,
+  grantedAt: new Date("2026-10-05T11:00:00Z"),
+  declinedAt: null,
+  expiresAt: new Date("2026-10-05T20:00:00Z"),
+  endedAt: null,
+  platformAdmin: { user: { name: "Olga" } },
+})
+const supportSessions = { find: vi.fn(async () => liveSession() as unknown), markFirstUse: vi.fn(async () => false) }
+const supportMail = { tell: vi.fn(async () => undefined) }
+const readLog = { watch: vi.fn() }
 const sessions = { identityFor: vi.fn(async (secret?: string) => (secret === "good-pg-id" ? USER : null)) }
 
 @Controller("probe")
@@ -100,6 +118,7 @@ let app: INestApplication
 const clock = new FixedClock(new Date("2026-10-05T12:00:00Z"))
 let accessTokens: AccessTokenService
 let platformTokens: PlatformTokenService
+let supportTokens: SupportTokenService
 
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({
@@ -117,6 +136,11 @@ beforeAll(async () => {
       { provide: MembershipRepository, useValue: memberships },
       { provide: PlatformTokenService, useValue: new PlatformTokenService(config, clock) },
       { provide: PlatformAdminRepository, useValue: platformAdmins },
+      { provide: SupportTokenService, useValue: new SupportTokenService(config, clock) },
+      { provide: SupportSessionRepository, useValue: supportSessions },
+      { provide: SupportMail, useValue: supportMail },
+      { provide: SupportReadLog, useValue: readLog },
+      { provide: CLOCK, useValue: clock },
       // The production order: resolve, CSRF, authenticate.
       { provide: APP_GUARD, useClass: TenantResolutionGuard },
       { provide: APP_GUARD, useClass: RequestedWithGuard },
@@ -128,6 +152,7 @@ beforeAll(async () => {
   await app.init()
   accessTokens = moduleRef.get(AccessTokenService)
   platformTokens = moduleRef.get(PlatformTokenService)
+  supportTokens = moduleRef.get(SupportTokenService)
 })
 
 afterAll(async () => {
@@ -256,5 +281,46 @@ describe("AuthGuard on platform routes (ADR-0040)", () => {
     expect((await http().get("/probe/platform").set(headers)).status).toBe(401)
     clock.advance(3_601_000)
     expect((await http().get("/probe/platform").set(headers)).status).toBe(401)
+  })
+})
+
+describe("AuthGuard with a support session (ADR-0041)", () => {
+  const supportToken = (org = acme.id) =>
+    supportTokens.sign({ userId: USER, platformAdminId: ADMIN, sessionId: SESSION, orgId: org, expiresAt: Math.floor(Date.now() / 1000) + 3600 * 24 * 365 })
+  const asSupport = async (org?: string) => ({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_st_acme=${await supportToken(org)}` })
+
+  it("turns a live session into a read-only support actor, and tells the owners of its first read", async () => {
+    supportSessions.markFirstUse.mockResolvedValueOnce(true)
+    const response = await http().get("/probe").set(await asSupport())
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ kind: "support", sessionId: SESSION, platformAdminId: ADMIN, role: "ADMIN", membershipId: SESSION })
+    expect(supportMail.tell).toHaveBeenCalledWith(acme.id, "first-use", expect.objectContaining({ id: SESSION }), expect.any(String))
+  })
+
+  it("refuses a write once the actor is known, so the refusal is on the record", async () => {
+    readLog.watch.mockClear()
+    const write = await http().post("/probe").set({ ...(await asSupport()), "X-Requested-With": "patchgrid" })
+    expect(write.status).toBe(403)
+    expect(readLog.watch).toHaveBeenCalledTimes(1)
+  })
+
+  it("prefers the support cookie over a member's own in the same browser", async () => {
+    const both = { Origin: "http://acme.lvh.me:3001", Cookie: `pg_at_acme=${await signed()}; pg_st_acme=${await supportToken()}` }
+    expect((await http().get("/probe").set(both)).body.kind).toBe("support")
+  })
+
+  it("refuses a session that ended, was declined, belongs to another operator or workspace, or was revoked", async () => {
+    supportSessions.find.mockResolvedValueOnce({ ...liveSession(), endedAt: new Date("2026-10-05T11:30:00Z") })
+    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    supportSessions.find.mockResolvedValueOnce({ ...liveSession(), grantedAt: null, expiresAt: null, declinedAt: new Date() })
+    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    supportSessions.find.mockResolvedValueOnce({ ...liveSession(), platformAdminId: "0190b2f0-0000-7000-8000-0000000000ee" })
+    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    expect((await http().get("/probe").set(await asSupport(globex.id))).status).toBe(403)
+    epochs.isRevoked.mockResolvedValueOnce(true)
+    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    // Past its expiry before any sweep: already over.
+    clock.advance(9 * 3_600_000)
+    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
   })
 })

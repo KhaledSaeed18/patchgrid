@@ -7,6 +7,7 @@ import {
   type PermissionCondition,
   PERMISSIONS,
   SCOPE_GRANTS,
+  SUPPORT_READ_PERMISSIONS,
   type TicketCapabilities,
   type TicketStatus,
   type TicketType,
@@ -62,6 +63,8 @@ export class PermissionService {
     }
     if (actor === undefined || !isTenantActor(actor)) return false
     if (actor.kind === "service" && !scopesAllow(actor, permission)) return false
+    // A support session reads as an admin reads, and does nothing else (ADR-0020, ADR-0041).
+    if (actor.kind === "support" && !SUPPORT_READS.has(permission)) return false
 
     const grant = grantFor(actor.role, permission)
     if (typeof grant === "boolean") return grant
@@ -89,7 +92,8 @@ export class PermissionService {
     return PERMISSIONS.filter(
       (permission) =>
         grantFor(actor.role, permission) !== false &&
-        (actor.kind !== "service" || scopesAllow(actor, permission)),
+        (actor.kind !== "service" || scopesAllow(actor, permission)) &&
+        (actor.kind !== "support" || SUPPORT_READS.has(permission)),
     )
   }
 
@@ -162,8 +166,10 @@ export class PermissionService {
 }
 
 function isTenantActor(actor: Actor): actor is TenantActor {
-  return actor.kind === "member" || actor.kind === "service"
+  return actor.kind === "member" || actor.kind === "service" || actor.kind === "support"
 }
+
+const SUPPORT_READS: ReadonlySet<Permission> = new Set(SUPPORT_READ_PERMISSIONS)
 
 /** Effective = role ∩ scopes (ADR-0021). Scopes only ever narrow. */
 function scopesAllow(actor: Extract<TenantActor, { kind: "service" }>, permission: Permission): boolean {

@@ -35,6 +35,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue("auto-close") autoClose: Queue,
     @InjectQueue("attachment-sweep") attachmentSweep: Queue,
     @InjectQueue("inbound-sweep") inboundSweep: Queue,
+    @InjectQueue("support-sweep") supportSweep: Queue,
     @InjectQueue("projection-reconcile") projectionReconcile: Queue,
   ) {
     this.queues = {
@@ -42,6 +43,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
       "auto-close": autoClose,
       "attachment-sweep": attachmentSweep,
       "inbound-sweep": inboundSweep,
+      "support-sweep": supportSweep,
       "projection-reconcile": projectionReconcile,
     }
   }

@@ -9,6 +9,7 @@ import { InvitationAcceptanceService } from "./acceptance/invitation-acceptance.
 import { InvitationsController } from "./invitations/invitations.controller"
 import { InvitationsService } from "./invitations/invitations.service"
 import { MeController } from "./me.controller"
+import { SupportModule } from "../support/support.module"
 import { MeService } from "./me.service"
 import { MembersController } from "./members.controller"
 import { MembershipRepositoryModule } from "./membership-repository.module"
@@ -24,6 +25,7 @@ import { InvitationRepository } from "./repositories/invitation.repository"
  */
 @Module({
   imports: [
+    SupportModule,
     AuthModule,
     PlatformModule,
     MailModule,

@@ -14,6 +14,6 @@ import { AuditLogRepository } from "./repositories/audit-log.repository"
   imports: [AuthModule, BullModule.registerQueue({ name: AUDIT_PARTITION_QUEUE })],
   controllers: [OrgAuditController],
   providers: [AuditLogRepository, AuditService, OrgAuditService, AuditPartitionService, AuditPartitionProcessor],
-  exports: [AuditService, OrgAuditService],
+  exports: [AuditService, OrgAuditService, AuditLogRepository],
 })
 export class AuditModule {}

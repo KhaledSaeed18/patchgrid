@@ -5,6 +5,7 @@ import { PermissionService } from "../authz/permission.service"
 import { NotAuthenticatedProblem } from "../common/problems/problem.exception"
 import type { OrganizationRepository } from "../platform/repositories/organization.repository"
 import type { UserRepository } from "../platform/repositories/user.repository"
+import type { SupportService } from "../support/support.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
 import { MeService } from "./me.service"
 import type { MembershipRepository, MemberRow } from "./repositories/membership.repository"
@@ -32,12 +33,21 @@ function serviceFor(actor: Actor, member: MemberRow | null = row) {
     new PermissionService(),
     { requireTenantActor: () => actor } as unknown as ActorService,
     { organization: () => tenant } as unknown as TenantContextService,
+    { stateFor: async (a: Actor) => (a.kind === "support" ? { kind: "operator", sessionId: "s-1", operatorName: "Olga", expiresAt: "2026-10-16T00:00:00.000Z" } : null) } as unknown as SupportService,
   )
 }
 
 const agent: Actor = { kind: "member", userId: "u-1", orgId: "o-1", membershipId: "m-1", role: "AGENT", teamIds: ["t-1"], leadOfTeamIds: ["t-1"] }
 
 describe("MeService", () => {
+  it("names an operator in a support session as support, with reads only and nothing to create", async () => {
+    const support: Actor = { kind: "support", orgId: "o-1", sessionId: "s-1", platformAdminId: "pa-1", userId: "u-9", role: "ADMIN", membershipId: "s-1" }
+    const me = await serviceFor(support, null).me()
+    expect(me).toMatchObject({ user: null, membership: { role: "ADMIN", displayName: "Patchgrid support · Olga" }, creatableTypes: [], support: { kind: "operator" } })
+    expect(me.permissions).toContain("comment:read_internal")
+    expect(me.permissions.some((p) => /:(create|update|write|delete|assign)/.test(p))).toBe(false)
+  })
+
   it("answers who, where, which teams, and the role-level permission list", async () => {
     const me = await serviceFor(agent).me()
     expect(me.user).toEqual({ id: "u-1", email: "ada@acme.test", name: "Ada L." })

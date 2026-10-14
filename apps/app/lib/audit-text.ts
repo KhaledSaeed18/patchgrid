@@ -57,6 +57,12 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   ORG_SUSPENDED: "suspended the workspace",
   ORG_UNSUSPENDED: "restored the workspace",
   ORG_PLAN_CHANGED: "changed the workspace's plan",
+  SUPPORT_ACCESS_REQUESTED: "asked for support access",
+  SUPPORT_ACCESS_GRANTED: "granted support access",
+  SUPPORT_ACCESS_DECLINED: "declined support access",
+  SUPPORT_ACCESS_REVOKED: "revoked support access",
+  SUPPORT_ACCESS_EXPIRED: "saw support access expire",
+  SUPPORT_READ: "read as support",
 }
 
 export function actorName(entry: AuditEntry): string {

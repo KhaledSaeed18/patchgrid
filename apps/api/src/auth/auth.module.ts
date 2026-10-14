@@ -14,6 +14,9 @@ import { PasswordService } from "./passwords/password.service"
 import { PlatformAuthController } from "./platform/platform-auth.controller"
 import { PlatformAuthService } from "./platform/platform-auth.service"
 import { PlatformTokenService } from "./platform/platform-token.service"
+import { SupportReadLog } from "./support/support-read-log"
+import { SupportTokenService } from "./support/support-token.service"
+import { SupportCoreModule } from "../support/support-core.module"
 import { RequestedWithGuard } from "./requested-with.guard"
 import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
@@ -26,7 +29,7 @@ import { AccessTokenService } from "./tokens/access-token.service"
  * refuse cookie-borne mutations without the CSRF header, verify the credential.
  */
 @Module({
-  imports: [PlatformModule, MembershipRepositoryModule, MailModule],
+  imports: [PlatformModule, MembershipRepositoryModule, MailModule, SupportCoreModule],
   controllers: [AuthController, IdentityController, PlatformAuthController],
   providers: [
     CookieService,
@@ -39,9 +42,11 @@ import { AccessTokenService } from "./tokens/access-token.service"
     ActorService,
     PlatformTokenService,
     PlatformAuthService,
+    SupportTokenService,
+    SupportReadLog,
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [ActorService, RevocationEpochService, SessionService, StandingService, CookieService, PasswordService],
+  exports: [ActorService, RevocationEpochService, SessionService, StandingService, CookieService, PasswordService, SupportTokenService, SupportReadLog],
 })
 export class AuthModule {}

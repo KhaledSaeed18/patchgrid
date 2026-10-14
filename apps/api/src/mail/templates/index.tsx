@@ -6,6 +6,7 @@ import { z } from "zod"
 import { AccountExists } from "./account-exists"
 import { Invite } from "./invite"
 import { ResetPassword } from "./reset-password"
+import { SupportAccess, supportSubject } from "./support-access"
 import { TicketNotification } from "./ticket-notification"
 import { VerifyEmail } from "./verify-email"
 
@@ -66,6 +67,17 @@ export const MAIL_KINDS = {
     subject: (p: { headline: string; ticketNumber: string }) => taggedSubject(p.headline.replace(/[\r\n]+/g, " "), p.ticketNumber),
     component: TicketNotification,
   },
+  "support-access": {
+    params: z.object({
+      orgName: z.string(),
+      operatorName: z.string(),
+      event: z.enum(["requested", "granted", "first-use", "ended"]),
+      detail: z.string().max(500),
+      settingsUrl: url,
+    }),
+    subject: supportSubject,
+    component: SupportAccess,
+  },
 } as const
 
 export type MailKind = keyof typeof MAIL_KINDS
@@ -84,6 +96,7 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("invite"), ...envelope, params: MAIL_KINDS.invite.params }),
   z.object({ kind: z.literal("reset-password"), ...envelope, params: MAIL_KINDS["reset-password"].params }),
   z.object({ kind: z.literal("ticket-notification"), ...envelope, params: MAIL_KINDS["ticket-notification"].params }),
+  z.object({ kind: z.literal("support-access"), ...envelope, params: MAIL_KINDS["support-access"].params }),
 ])
 export type MailJob = z.infer<typeof mailJobSchema>
 
@@ -116,6 +129,8 @@ function elementFor(job: MailJob): ReactElement {
       return <ResetPassword {...job.params} />
     case "ticket-notification":
       return <TicketNotification {...job.params} />
+    case "support-access":
+      return <SupportAccess {...job.params} />
   }
 }
 
@@ -125,6 +140,8 @@ function subjectFor(job: MailJob): string {
       return MAIL_KINDS.invite.subject(job.params)
     case "ticket-notification":
       return MAIL_KINDS["ticket-notification"].subject(job.params)
+    case "support-access":
+      return MAIL_KINDS["support-access"].subject(job.params)
     default:
       return MAIL_KINDS[job.kind].subject()
   }
