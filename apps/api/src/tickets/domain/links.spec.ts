@@ -1,4 +1,4 @@
-import { linkKindSchema } from "@patchgrid/contracts"
+import { LINK_KINDS_FROM, linkKindSchema, ticketTypeSchema } from "@patchgrid/contracts"
 import { describe, expect, it } from "vitest"
 
 import { canonicalLink, readFrom } from "./links"
@@ -39,6 +39,17 @@ describe("links, stored once and read from both ends (DOMAIN.md §1)", () => {
       const made = canonicalLink(kind, self, other)
       if (!made.ok) throw new Error(made.reason)
       expect(readFrom(made.link, self.id)).toBe(kind)
+    }
+  })
+})
+
+describe("the kinds a form offers (LINK_KINDS_FROM)", () => {
+  it("are exactly the kinds the API accepts from that type, against some other type", () => {
+    for (const selfType of ticketTypeSchema.options) {
+      const accepted = linkKindSchema.options.filter((kind) =>
+        ticketTypeSchema.options.some((otherType) => canonicalLink(kind, { id: "a", type: selfType }, { id: "b", type: otherType }).ok),
+      )
+      expect(accepted.toSorted(), selfType).toEqual([...LINK_KINDS_FROM[selfType]].toSorted())
     }
   })
 })

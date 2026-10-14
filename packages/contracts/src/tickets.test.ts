@@ -49,3 +49,14 @@ describe("ticket search", () => {
     expect(ticketSearchQuerySchema.safeParse({ q: "printer", cursor: "x" }).success).toBe(false)
   })
 })
+
+describe("statuses by type", () => {
+  it("cover every status, and call open exactly what comes before done", async () => {
+    const { TICKET_STATUSES_BY_TYPE, OPEN_TICKET_STATUSES, ticketStatusSchema } = await import("./tickets.ts")
+    const all = new Set(Object.values(TICKET_STATUSES_BY_TYPE).flat())
+    expect([...all].toSorted()).toEqual([...ticketStatusSchema.options].toSorted())
+    for (const done of ["RESOLVED", "CLOSED", "CANCELLED", "IMPLEMENTED", "ROLLED_BACK"] as const) {
+      expect(OPEN_TICKET_STATUSES).not.toContain(done)
+    }
+  })
+})

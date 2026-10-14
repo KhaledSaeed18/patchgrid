@@ -34,6 +34,33 @@ export const ticketStatusSchema = z.enum([
 ])
 export type TicketStatus = z.infer<typeof ticketStatusSchema>
 
+/**
+ * Each type's statuses, in lifecycle order (DOMAIN.md §2) — the set the
+ * database's type/status CHECK enforces, stated once for the app to offer.
+ */
+export const TICKET_STATUSES_BY_TYPE: Readonly<Record<TicketType, readonly TicketStatus[]>> = {
+  INCIDENT: ["NEW", "ASSIGNED", "IN_PROGRESS", "PENDING", "RESOLVED", "CLOSED", "CANCELLED"],
+  SERVICE_REQUEST: ["NEW", "ASSIGNED", "IN_PROGRESS", "PENDING", "RESOLVED", "CLOSED", "CANCELLED"],
+  PROBLEM: ["NEW", "ASSIGNED", "IN_PROGRESS", "KNOWN_ERROR", "RESOLVED", "CLOSED", "CANCELLED"],
+  CHANGE: ["DRAFT", "AWAITING_APPROVAL", "APPROVED", "IN_PROGRESS", "IMPLEMENTED", "ROLLED_BACK", "CLOSED", "CANCELLED"],
+}
+
+/**
+ * Still being worked, of any type: what a queue shows when no status is
+ * asked for. A resolved incident, a resolved problem and a change carried
+ * out are done; everything before them is open.
+ */
+export const OPEN_TICKET_STATUSES: readonly TicketStatus[] = [
+  "NEW",
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "PENDING",
+  "KNOWN_ERROR",
+  "DRAFT",
+  "AWAITING_APPROVAL",
+  "APPROVED",
+]
+
 /** Where a ticket came from; a token's tickets are `API`, so machine work is never misread (RBAC.md §10). */
 export const ticketSourceSchema = z.enum(["PORTAL", "CONSOLE", "EMAIL", "API"])
 export type TicketSource = z.infer<typeof ticketSourceSchema>
@@ -312,6 +339,20 @@ export const linkKindSchema = z.enum([
   "RELATES_TO",
 ])
 export type LinkKind = z.infer<typeof linkKindSchema>
+
+/**
+ * The readings a ticket of each type can start a link with (DOMAIN.md §1's
+ * table): an incident is caused by a problem, a problem resolved by a
+ * change, a duplicate only of its own type, and anything relates to
+ * anything. The API decides every link; this lets a form offer only what it
+ * would accept, and a test holds the two together.
+ */
+export const LINK_KINDS_FROM: Readonly<Record<TicketType, readonly LinkKind[]>> = {
+  INCIDENT: ["CAUSED_BY", "DUPLICATE_OF", "HAS_DUPLICATE", "RELATES_TO"],
+  SERVICE_REQUEST: ["DUPLICATE_OF", "HAS_DUPLICATE", "RELATES_TO"],
+  PROBLEM: ["CAUSES", "RESOLVED_BY", "RELATES_TO"],
+  CHANGE: ["RESOLVES", "RELATES_TO"],
+}
 
 export const ticketLinkSchema = z.object({
   id: idSchema,

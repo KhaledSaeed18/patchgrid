@@ -16,6 +16,7 @@ import {
   type TicketStatus,
   type TransitionRequest,
   type UpdateTicketRequest,
+  OPEN_TICKET_STATUSES,
   parseTicketNumber,
 } from "@patchgrid/contracts"
 
@@ -69,8 +70,8 @@ import {
 import { type LoadedTicket, TicketAccess } from "./ticket-access"
 import { toSummary, toTicket } from "./ticket-view"
 
-/** Statuses a ticket is still being worked in (DOMAIN.md §2.1). */
-export const OPEN_STATUSES: TicketStatus[] = ["NEW", "ASSIGNED", "IN_PROGRESS", "PENDING"]
+/** Statuses a ticket of any type is still being worked in (DOMAIN.md §2). */
+export const OPEN_STATUSES: TicketStatus[] = [...OPEN_TICKET_STATUSES]
 const TERMINAL: ReadonlySet<TicketStatus> = new Set(["CLOSED", "CANCELLED"])
 
 /**
