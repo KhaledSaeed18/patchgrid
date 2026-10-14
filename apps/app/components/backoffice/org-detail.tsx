@@ -4,6 +4,9 @@ import {
   type Plan,
   planSchema,
   platformOrgDetailSchema,
+  type SupportSession,
+  supportEntrySchema,
+  supportSessionSchema,
 } from "@patchgrid/contracts"
 import { Badge } from "@patchgrid/ui/components/badge"
 import { Button } from "@patchgrid/ui/components/button"
@@ -21,6 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
+import { z } from "zod"
 
 import { NativeSelect } from "@/components/native-select"
 import { PageHeader, Section } from "@/components/page-header"
@@ -171,6 +175,7 @@ export function OrgDetail({ id }: { id: string }) {
           </p>
         )}
       </Section>
+      <SupportSection id={id} deleting={o.status === "PENDING_DELETION"} />
       <SuspendDialog
         id={id}
         open={suspending}
@@ -241,5 +246,134 @@ function SuspendDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const SESSION_LABEL: Record<SupportSession["status"], string> = {
+  REQUESTED: "Waiting for an owner",
+  DECLINED: "Declined",
+  ACTIVE: "Granted",
+  ENDED: "Ended",
+}
+
+/**
+ * Support access (ADR-0041): ask the workspace's owners, with a reason they
+ * read; once an owner grants it, open the workspace read-only in a new tab.
+ * Every page opened there is in the workspace's own audit log.
+ */
+function SupportSection({ id, deleting }: { id: string; deleting: boolean }) {
+  const queries = useQueryClient()
+  const key = ["platform", "org", id, "support"]
+  const sessions = useQuery({
+    queryKey: key,
+    queryFn: () =>
+      platformApi(`/orgs/${id}/support`, {
+        schema: z.array(supportSessionSchema),
+      }),
+  })
+  const [reason, setReason] = useState("")
+  const request = useMutation({
+    mutationFn: () =>
+      platformApi(`/orgs/${id}/support`, {
+        method: "POST",
+        body: { reason: reason.trim() },
+        schema: supportSessionSchema,
+      }),
+    onSuccess: () => {
+      setReason("")
+      void queries.invalidateQueries({ queryKey: key })
+      toast.success("Asked. The workspace's owners decide.")
+    },
+    onError: (error) =>
+      toast.error(failureMessage(error, "The request wasn't sent.")),
+  })
+  const enter = useMutation({
+    mutationFn: (sessionId: string) =>
+      platformApi(`/orgs/${id}/support/${sessionId}/enter`, {
+        method: "POST",
+        schema: supportEntrySchema,
+      }),
+    onSuccess: (entry) => window.open(entry.workspaceUrl, "_blank"),
+    onError: (error) =>
+      toast.error(failureMessage(error, "The workspace couldn't be opened.")),
+  })
+  const leave = useMutation({
+    mutationFn: () =>
+      platformApi(`/orgs/${id}/support/leave`, {
+        method: "POST",
+        schema: null,
+      }),
+    onSuccess: () => toast.success("Left the workspace."),
+    onError: (error) => toast.error(failureMessage(error, "That didn't work.")),
+  })
+
+  const list = sessions.data ?? []
+  const open = list.some(
+    (s) => s.status === "REQUESTED" || s.status === "ACTIVE"
+  )
+  return (
+    <Section
+      title="Support access"
+      description="Reading this workspace needs an owner's yes, for a time they choose. It is read-only, and every page you open is written to its audit log."
+    >
+      <div className="grid gap-4">
+        {list.map((s) => (
+          <div
+            key={s.id}
+            className="grid gap-2 border-b border-border pb-3 text-sm"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">{s.operator.name}</span>
+              <Badge
+                variant={s.status === "ACTIVE" ? "destructive" : "outline"}
+              >
+                {SESSION_LABEL[s.status]}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground">“{s.reason}”</p>
+            {s.status === "ACTIVE" && s.expiresAt !== null && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  disabled={enter.isPending}
+                  onClick={() => enter.mutate(s.id)}
+                >
+                  {enter.isPending && <Spinner />}
+                  Open read-only
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={leave.isPending}
+                  onClick={() => leave.mutate()}
+                >
+                  Leave
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  until {new Date(s.expiresAt).toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
+        {!open && !deleting && (
+          <div className="grid gap-2">
+            <Textarea
+              aria-label="Why you need access"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ticket #482 shows no SLA timer; I need to see its policy and history."
+            />
+            <Button
+              className="justify-self-start"
+              disabled={reason.trim().length < 10 || request.isPending}
+              onClick={() => request.mutate()}
+            >
+              {request.isPending && <Spinner />}
+              Ask the owners
+            </Button>
+          </div>
+        )}
+      </div>
+    </Section>
   )
 }
