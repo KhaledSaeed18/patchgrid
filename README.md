@@ -129,7 +129,7 @@ The docs are the specification, not a description written afterwards.
 | [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
 | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
 | [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
-| [`docs/decisions/`](docs/decisions/)                                                | 39 ADRs — _why_ any of it is this way                         |
+| [`docs/decisions/`](docs/decisions/)                                                | 40 ADRs — _why_ any of it is this way                         |
 
 ## Status
 

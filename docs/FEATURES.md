@@ -335,6 +335,10 @@ _Exit: an operator can run the platform without being able to read anyone's mail
 time-boxed read-only support session and see exactly what was looked at; a monitoring system can raise
 incidents through a scoped token._
 
+- [ ] **The platform credential** (ADR-0040, resolves TM-2): its own login, TOTP enrolment and
+      verification with recovery codes (the platform-admin half of ADR-0029, brought forward from M9),
+      a path-scoped one-hour `pg_pa` session, `@PlatformRoute`, CLI-only `platform:grant`/`revoke`,
+      `PlatformAuditLog`
 - [ ] Platform back-office (`admin.patchgrid.xyz`): org list, suspend/unsuspend, set plan,
       request/restore deletion; metadata only, no tenant content (`RBAC.md` §8). Platform admins created
       by CLI only
@@ -354,8 +358,8 @@ incidents through a scoped token._
 _Exit: the security review has no open findings; E2E covers the core flows across two tenants in a real
 browser, including the negative cases; observability answers "which tenant is slow" without grepping._
 
-- [ ] **MFA (TOTP)** (ADR-0029): mandatory for `PlatformAdmin`, optional-but-enforceable per org, with
-      recovery codes and step-up re-authentication for `org:delete`, `org:transfer_ownership`,
+- [ ] **MFA (TOTP)** (ADR-0029) for members — platform admins have it from M8 (ADR-0040):
+      optional-but-enforceable per org, with recovery codes and step-up re-authentication for `org:delete`, `org:transfer_ownership`,
       `support:grant_access` and `token:create`
 - [ ] Playwright E2E: signup → provision → invite → incident lifecycle; SLA breach with a 1-minute
       policy; change approval; **a cross-tenant negative test, a role-escalation negative test, and the

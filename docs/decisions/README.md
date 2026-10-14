@@ -46,6 +46,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0037](0037-attachments-on-their-own-registrable-domain.md) | Attachments are served from their own registrable domain | Accepted |
 | [0038](0038-uploads-land-in-staging.md) | Uploads land in staging, and only checked bytes are served | Accepted |
 | [0039](0039-inbound-mail-feed-and-verdict.md) | Inbound mail arrives as signed raw MIME; the verdict is the receiver's Authentication-Results | Accepted |
+| [0040](0040-platform-credential-and-the-admin-host.md) | The platform credential, and MFA for platform admins ahead of M9 | Accepted |
 
 ## Reading order for someone new
 

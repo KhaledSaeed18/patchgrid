@@ -34,10 +34,14 @@ tokens), ADR-0025 (multi-team membership).
 | **Platform admin** | `PlatformAdmin` row | Above tenants; metadata always, tenant content only inside a consented support session (ADR-0020) |
 | **Anonymous** | none | `apps/www` public pages, signup, slug availability, login, invite acceptance, password reset |
 
-**The member and platform actor kinds are mutually exclusive per request**, resolved from the host:
-`admin.patchgrid.xyz` produces a `platform` actor, a tenant subdomain produces a `member` actor. A
-platform admin who is also a member of some tenant carries no platform power on that tenant's subdomain,
-and no membership power on `admin.`.
+**The member and platform actor kinds are mutually exclusive per request**, and each comes from its own
+credential, never from the host (ADR-0040).
+- A `platform` actor comes from `pg_pa`. Its own login mints it, and only after a second factor. The
+  cookie is sent only to `/api/v1/platform`, and only with the `admin.` origin.
+- A `member` actor comes from a tenant session.
+
+A platform admin who is also a member of some tenant carries no platform power on that tenant's
+subdomain, and no membership power on `admin.`.
 
 ## 3. Roles
 
