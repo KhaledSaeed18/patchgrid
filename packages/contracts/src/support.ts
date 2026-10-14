@@ -37,10 +37,19 @@ export const SUPPORT_READ_PERMISSIONS = [
   "org:read_audit",
 ] as const satisfies readonly Permission[]
 
-export const supportSessionStatusSchema = z.enum(["REQUESTED", "DECLINED", "ACTIVE", "ENDED"])
+export const supportSessionStatusSchema = z.enum([
+  "REQUESTED",
+  "DECLINED",
+  "ACTIVE",
+  "ENDED",
+])
 export type SupportSessionStatus = z.infer<typeof supportSessionStatusSchema>
 
-export const supportEndReasonSchema = z.enum(["EXPIRED", "REVOKED", "AUDIT_FAILED"])
+export const supportEndReasonSchema = z.enum([
+  "EXPIRED",
+  "REVOKED",
+  "AUDIT_FAILED",
+])
 export type SupportEndReason = z.infer<typeof supportEndReasonSchema>
 
 export const supportSessionSchema = z.object({
@@ -59,17 +68,31 @@ export const supportSessionSchema = z.object({
 export type SupportSession = z.infer<typeof supportSessionSchema>
 
 /** An operator asks, saying why; the owners read the reason before deciding. */
-export const requestSupportRequestSchema = z.strictObject({ reason: z.string().trim().min(10).max(500) })
+export const requestSupportRequestSchema = z.strictObject({
+  reason: z.string().trim().min(10).max(500),
+})
 export type RequestSupportRequest = z.infer<typeof requestSupportRequestSchema>
 
-export const grantSupportRequestSchema = z.strictObject({ hours: z.int().min(1).max(MAX_SUPPORT_HOURS) })
+export const grantSupportRequestSchema = z.strictObject({
+  hours: z.int().min(1).max(MAX_SUPPORT_HOURS),
+})
 export type GrantSupportRequest = z.infer<typeof grantSupportRequestSchema>
 
 /** What a member's `/me` says about support while it matters (ADR-0041). */
 export const supportStateSchema = z.discriminatedUnion("kind", [
   /** This browser IS the support session: read-only, everything recorded. */
-  z.object({ kind: "operator", sessionId: idSchema, operatorName: z.string(), expiresAt: z.iso.datetime() }),
+  z.object({
+    kind: z.literal("operator"),
+    sessionId: idSchema,
+    operatorName: z.string(),
+    expiresAt: z.iso.datetime(),
+  }),
   /** An admin or owner looking at their own workspace while an operator can read it. */
-  z.object({ kind: "watched", sessionId: idSchema, operatorName: z.string(), expiresAt: z.iso.datetime() }),
+  z.object({
+    kind: z.literal("watched"),
+    sessionId: idSchema,
+    operatorName: z.string(),
+    expiresAt: z.iso.datetime(),
+  }),
 ])
 export type SupportState = z.infer<typeof supportStateSchema>
