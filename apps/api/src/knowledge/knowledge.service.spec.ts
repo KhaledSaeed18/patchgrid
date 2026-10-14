@@ -1,13 +1,14 @@
 import type { Role } from "@patchgrid/contracts"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import type { ActorService, MemberActor } from "../auth/actor"
 import type { AuditEntry, AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import type { CategoriesService } from "../categories/categories.service"
 import { FixedClock } from "../common/clock/clock"
-import { ConflictProblem, NotFoundProblem, NotPermittedProblem, StaleWriteProblem } from "../common/problems/problem.exception"
+import { ConflictProblem, NotFoundProblem, NotPermittedProblem, PlanLimitProblem, StaleWriteProblem } from "../common/problems/problem.exception"
 import type { PrismaService } from "../prisma/prisma.service"
+import type { QuotaService } from "../quota/quota.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
 import { KnowledgeService } from "./knowledge.service"
 import type { ArticleChanges, ArticleRepository, ArticleRow, Readable } from "./repositories/article.repository"
@@ -36,9 +37,11 @@ function article(over: Partial<ArticleRow> = {}): ArticleRow {
 }
 
 /** An in-memory knowledge base behind the repository, so each rule runs through the service. */
-function harness(role: Role, membershipId: string, rows: ArticleRow[] = [], options: { slugRaces?: number } = {}) {
+function harness(role: Role, membershipId: string, rows: ArticleRow[] = [], options: { slugRaces?: number; full?: boolean } = {}) {
   const store = new Map(rows.map((r) => [r.id, r]))
   const audit: AuditEntry[] = []
+  const quota = { consume: vi.fn(async () => undefined), release: vi.fn(async () => undefined) }
+  if (options.full === true) quota.consume.mockRejectedValue(new PlanLimitProblem("KB_ARTICLES", "full"))
   const readables: Readable[] = []
   let races = options.slugRaces ?? 0
   const repo = {
@@ -82,9 +85,10 @@ function harness(role: Role, membershipId: string, rows: ArticleRow[] = [], opti
     { requireOrgId: () => ORG } as unknown as TenantContextService,
     { transaction: async <T>(fn: () => Promise<T>) => fn() } as unknown as PrismaService,
     { record: async (_o: string, entries: AuditEntry[]) => void audit.push(...entries) } as unknown as AuditService,
+    quota as unknown as QuotaService,
     new FixedClock(NOW),
   )
-  return { service, store, audit, readables }
+  return { service, store, audit, readables, quota }
 }
 
 describe("who reads what", () => {
@@ -124,6 +128,15 @@ describe("writing", () => {
     const h = harness("AGENT", "m-sam", [article()])
     const created = await h.service.create({ title: "VPN", body: "More steps", visibility: "PUBLISHED" })
     expect(created).toMatchObject({ slug: "vpn-2", visibility: "PUBLISHED", publishedAt: NOW.toISOString() })
+  })
+
+  it("counts an article against the plan once its slug is won, and gives it back on delete", async () => {
+    await expect(harness("AGENT", "m-sam", [], { full: true }).service.create({ title: "VPN", body: "x" })).rejects.toBeInstanceOf(PlanLimitProblem)
+    const raced = harness("AGENT", "m-sam", [], { slugRaces: 1 })
+    await raced.service.create({ title: "VPN", body: "x" })
+    expect(raced.quota.consume).toHaveBeenCalledTimes(1)
+    await raced.service.remove("a-new")
+    expect(raced.quota.release).toHaveBeenCalledWith(ORG, "KB_ARTICLES")
   })
 
   it("tries again when a concurrent create takes the slug, and gives up after a few", async () => {

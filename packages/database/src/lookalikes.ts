@@ -317,6 +317,14 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       },
     })
 
+    // What the rows above use of the plan, so a delete releases what a create consumed (TENANCY.md §8).
+    await db.usageCounter.createMany({
+      data: [
+        { orgId: org.id, period: "current", metric: "KB_ARTICLES", value: 2n },
+        { orgId: org.id, period: "current", metric: "STORAGE_BYTES", value: 2048n },
+      ],
+    })
+
     return {
       id: org.id,
       slug,

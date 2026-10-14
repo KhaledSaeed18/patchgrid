@@ -21,6 +21,7 @@ import { CategoriesService } from "../categories/categories.service"
 import { ConflictProblem, NotFoundProblem, StaleWriteProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { PrismaService } from "../prisma/prisma.service"
+import { QuotaService } from "../quota/quota.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
 import {
   type ArticleChanges,
@@ -50,6 +51,7 @@ export class KnowledgeService {
     private readonly tenant: TenantContextService,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly quota: QuotaService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -134,6 +136,8 @@ export class KnowledgeService {
           publishedAt: visibility === "PUBLISHED" ? now : null,
         })
         if (created === "slug-taken") return null
+        // After the slug is won: a lost race must not hold a unit of the plan (TENANCY.md §8).
+        await this.quota.consume(orgId, "KB_ARTICLES")
         await this.audit.record(orgId, [
           { action: "ARTICLE_CREATED", entityType: "KnowledgeArticle", entityId: created, diff: { title: request.title, slug, visibility } },
         ])
@@ -202,6 +206,7 @@ export class KnowledgeService {
       const row = this.readableOne(actor, await this.articles.find(orgId, id))
       this.permissions.assert(actor, "kb:delete", { own: row.authorMembershipId === actor.membershipId })
       if (!(await this.articles.remove(orgId, id))) throw new NotFoundProblem()
+      await this.quota.release(orgId, "KB_ARTICLES")
       await this.audit.record(orgId, [
         { action: "ARTICLE_DELETED", entityType: "KnowledgeArticle", entityId: id, diff: { title: row.title, slug: row.slug } },
       ])

@@ -217,5 +217,10 @@ export async function seedDemoArticles(db: PrismaClient, org: SeededOrg, authors
       },
     })
   }
+  // Counted as the API counts them, so a delete gives back what was taken.
+  await db.usageCounter.update({
+    where: { orgId_period_metric: { orgId: org.id, period: "current", metric: "KB_ARTICLES" } },
+    data: { value: { increment: ARTICLES.length } },
+  })
   return ARTICLES.length
 }

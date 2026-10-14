@@ -124,4 +124,14 @@ describe("publishing and deleting", () => {
     const trail = await db.auditLog.findMany({ where: { orgId: ws.orgId, entityType: "KnowledgeArticle", action: "ARTICLE_DELETED" } })
     expect(trail).toHaveLength(2)
   })
+
+  it("counts articles against the plan: a free workspace's 26th is a 402", async () => {
+    const counter = { orgId: ws.orgId, period: "current", metric: "KB_ARTICLES" as const }
+    // Four written above, two deleted.
+    expect((await db.usageCounter.findUniqueOrThrow({ where: { orgId_period_metric: counter } })).value).toBe(2n)
+    await db.usageCounter.update({ where: { orgId_period_metric: counter }, data: { value: 25n } })
+    const refused = await as("agent").post("/articles", { title: "One too many", body: "x" })
+    expect(refused.status).toBe(402)
+    expect(await db.knowledgeArticle.count({ where: { orgId: ws.orgId, title: "One too many" } })).toBe(0)
+  })
 })
