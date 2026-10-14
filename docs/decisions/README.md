@@ -14,7 +14,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0005](0005-attachments-s3-presigned.md) | Attachments in S3-compatible storage via presigned URLs | Accepted — erratum: upload constraints and serving |
 | [0006](0006-explicit-transition-endpoint.md) | State changes through an explicit transitions endpoint | Accepted |
 | [0007](0007-web-calls-api-directly-no-bff.md) | Next.js calls the NestJS API directly; no BFF layer | Accepted |
-| [0008](0008-sse-for-in-app-notifications.md) | Server-Sent Events for live notifications | Accepted |
+| [0008](0008-sse-for-in-app-notifications.md) | Server-Sent Events for live notifications | Accepted — refined by 0036 |
 | [0009](0009-ticket-numbering.md) | Per-type ticket numbers from a counter table | Accepted |
 | [0010](0010-ml-services-behind-interfaces-in-monorepo.md) | LLM and phishing model as swappable, non-blocking services inside the monorepo | Accepted |
 | [0011](0011-testing-strategy.md) | Testing strategy: Vitest everywhere, real Postgres for integration, Playwright for E2E | Accepted |
@@ -42,6 +42,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0033](0033-membership-lifecycle.md) | Membership lifecycle: invite, join, disable, remove | Accepted |
 | [0034](0034-audit-log-partitions-under-rls.md) | Audit-log partitions under RLS | Accepted |
 | [0035](0035-browser-owned-refresh.md) | The browser owns the refresh; the Next server never sees a refresh token | Accepted |
+| [0036](0036-live-stream-fan-out-and-lifetime.md) | Live stream: who hears a ticket change, and how long a stream lives | Accepted |
 
 ## Reading order for someone new
 

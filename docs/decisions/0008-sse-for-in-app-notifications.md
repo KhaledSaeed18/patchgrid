@@ -1,6 +1,6 @@
 # 0008 — Server-Sent Events for live in-app notifications
 
-- **Status:** Accepted
+- **Status:** Accepted — the `ticket-updated` audience and the stream's lifetime refined by [0036](0036-live-stream-fan-out-and-lifetime.md)
 - **Date:** 2026-09-22
 
 ## Context
