@@ -6,10 +6,12 @@ import { type Clock, InjectClock } from "../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../config/app-config"
 import { runJob } from "../jobs/dispatcher/run-job"
 import { jobId } from "../jobs/job-id"
+import { PublicUrls } from "../common/urls"
+import { MailService } from "../mail/mail.service"
 import { PrismaService } from "../prisma/prisma.service"
 import { TicketAudience } from "./audience"
 import { StreamBus } from "./live/stream-bus"
-import { deliveriesFor, type Person } from "./fan-out"
+import { deliveriesFor, type Mailing, mailingsFor, type Person, type TicketCircle } from "./fan-out"
 import { type NotifyEvent, notifyJobSchema } from "./notify-events"
 import { type AddedNotification, NotificationRepository } from "./repositories/notification.repository"
 import { TicketCircleRepository } from "./repositories/ticket-circle.repository"
@@ -60,41 +62,54 @@ export class Notifier {
 }
 
 /**
- * Turns one event into inbox rows, inside the tenant the job names: loads the
- * ticket's people, lets `deliveriesFor` decide, writes each with its
- * de-duplication. Returns what it delivered, for the live stream.
+ * Turns one event into inbox rows and emails, inside the tenant the job
+ * names: loads the ticket's people, lets `deliveriesFor` decide, keeps only
+ * those who may read the ticket, writes the rows with their de-duplication,
+ * then — once they have committed — queues the emails `mailingsFor` allows.
+ * Returns what it delivered in-app, for the live stream.
  */
 @Injectable()
 export class NotifyService {
+  private readonly logger = new Logger(NotifyService.name)
+
   constructor(
     private readonly circles: TicketCircleRepository,
     private readonly notifications: NotificationRepository,
     private readonly audience: TicketAudience,
     private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly urls: PublicUrls,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
   /**
    * One transaction for the event: the reads see one state, the rows land
    * together — and the raw upsert runs where the tenant setting is applied,
-   * which RLS insists on.
+   * which RLS insists on. Email is a side effect, so it waits for the commit.
    */
   async deliver(orgId: string, event: NotifyEvent): Promise<Delivered[]> {
-    return this.prisma.transaction(() => this.write(orgId, event))
+    const outcome = await this.prisma.transaction(() => this.write(orgId, event))
+    if (outcome === null) return []
+    await this.send(orgId, outcome.circle, outcome.mailings)
+    return outcome.delivered
   }
 
-  private async write(orgId: string, event: NotifyEvent): Promise<Delivered[]> {
+  private async write(
+    orgId: string,
+    event: NotifyEvent,
+  ): Promise<{ circle: TicketCircle; delivered: Delivered[]; mailings: Mailing[] } | null> {
     const circle = await this.circles.load(orgId, event.ticketId, event.actorMembershipId)
-    if (circle === null) return []
+    if (circle === null) return null
     const ticket = { ...circle.ticket, watcherMembershipIds: new Set(circle.watchers.map((w) => w.membershipId)) }
     // A notification about a ticket is a read of it: nobody hears about one
     // they could not open, nor about an internal note they could not see.
     const deliveries = deliveriesFor(event, circle).filter((d) =>
-      this.audience.mayRead(orgId, d.person, ticket, circle.visibility, d.type === "COMMENT_INTERNAL" ? "internal" : "ticket"),
+      this.audience.mayRead(orgId, d.person, ticket, circle.org.visibility, d.type === "COMMENT_INTERNAL" ? "internal" : "ticket"),
     )
+    const inApp = deliveries.filter((d) => d.channels.inApp)
     const rows = await this.notifications.addMany(
       orgId,
-      deliveries.map((d) => ({
+      inApp.map((d) => ({
         userId: d.person.userId,
         membershipId: d.person.membershipId,
         type: d.type,
@@ -105,11 +120,43 @@ export class NotifyService {
       })),
       this.clock.now(),
     )
-    const byMember = new Map(deliveries.map((d) => [d.person.membershipId, d.person]))
-    return rows.flatMap((row) => {
+    const byMember = new Map(inApp.map((d) => [d.person.membershipId, d.person]))
+    const delivered = rows.flatMap((row) => {
       const person = byMember.get(row.membershipId)
       return person === undefined ? [] : [{ person, row }]
     })
+    const written = new Map(rows.map((row) => [row.membershipId, row]))
+    return { circle, delivered, mailings: mailingsFor(circle, deliveries, written) }
+  }
+
+  /**
+   * Never throws: the rows have committed, and a job retried for a lost
+   * email would fold every row it wrote a second time.
+   */
+  private async send(orgId: string, circle: TicketCircle, mailings: Mailing[]): Promise<void> {
+    const { org, ticket } = circle
+    try {
+      await this.mail.enqueueAll(
+        mailings.map((m) => ({
+          entityId: m.entityId,
+          job: {
+            kind: "ticket-notification",
+            to: m.person.email,
+            orgId,
+            fromName: org.name,
+            params: {
+              orgName: org.name,
+              headline: m.headline,
+              reason: m.reason,
+              ticketUrl: this.urls.workspace(org.slug, `/tickets/${ticket.id}`),
+              preferencesUrl: this.urls.workspace(org.slug, "/notifications/preferences"),
+            },
+          },
+        })),
+      )
+    } catch (error) {
+      this.logger.error({ msg: "notification email not queued", orgId, count: mailings.length, error: String(error) })
+    }
   }
 }
 

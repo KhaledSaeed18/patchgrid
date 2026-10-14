@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest"
 
-import { deliveriesFor, type Person, type TicketCircle } from "./fan-out"
+import { deliveriesFor, mailingsFor, type Person, reasonFor, type TicketCircle } from "./fan-out"
 
 const ID = (n: number) => `0190b2f0-0000-7000-8000-${String(n).padStart(12, "0")}`
-const person = (n: number, active = true): Person => ({ membershipId: ID(n), userId: `u-${n}`, role: "AGENT", teamIds: [], leadOfTeamIds: [], active })
+const person = (n: number, active = true): Person => ({
+  membershipId: ID(n),
+  userId: `u-${n}`,
+  email: `p${n}@example.test`,
+  emailPrefs: {},
+  role: "AGENT",
+  teamIds: [],
+  leadOfTeamIds: [],
+  active,
+})
 const REQ = person(1)
 const AGENT = person(2)
 const LEAD = person(3)
@@ -23,7 +32,7 @@ const circle = (over: Partial<TicketCircle> = {}): TicketCircle => ({
     requesterMembershipId: ID(1),
     assigneeMembershipId: ID(2),
   },
-  visibility: "ALL_TICKETS",
+  org: { name: "Acme", slug: "acme", visibility: "ALL_TICKETS", emailEnabled: true },
   requester: REQ,
   assignee: AGENT,
   teamMembers: [LEAD, TEAMMATE, AGENT],
@@ -53,9 +62,19 @@ describe("who hears about what (DOMAIN.md §8)", () => {
     expect(who(out)).toEqual([REQ, LEAD, TEAMMATE].map((p) => p.membershipId).toSorted())
   })
 
-  it("a requester's own ticket does not notify them", () => {
+  it("a requester's own ticket confirms by email alone, and reaches the team in-app alone", () => {
     const out = deliveriesFor({ kind: "ticket-created", ticketId: TICKET, actorMembershipId: REQ.membershipId }, circle())
     expect(out.map((d) => d.type)).not.toContain("TICKET_RAISED_FOR_YOU")
+    expect(out.find((d) => d.person === REQ)).toMatchObject({
+      type: "TICKET_CREATED",
+      title: "We've received INC-000042: Printer",
+      channels: { inApp: false, email: true },
+    })
+    expect(out.filter((d) => d.person !== REQ).map((d) => d.channels)).toEqual([
+      { inApp: true, email: false },
+      { inApp: true, email: false },
+      { inApp: true, email: false },
+    ])
   })
 
   it("status changes the requester cares about, and only those", () => {
@@ -99,5 +118,43 @@ describe("who hears about what (DOMAIN.md §8)", () => {
       [LEAD.membershipId, "TICKET_REOPENED"],
       [WATCHER.membershipId, "COMMENT_PUBLIC"],
     ])
+  })
+})
+
+describe("who is also emailed (DOMAIN.md §8)", () => {
+  const assigned = () =>
+    deliveriesFor({ kind: "ticket-assigned", ticketId: TICKET, actorMembershipId: LEAD.membershipId, assigneeMembershipId: AGENT.membershipId }, circle())
+  const row = (inserted: boolean) => new Map([[AGENT.membershipId, { id: ID(500), inserted }]])
+
+  it("emails a new inbox row, idempotent on it, saying why", () => {
+    expect(mailingsFor(circle(), assigned(), row(true))).toEqual([
+      { person: AGENT, type: "TICKET_ASSIGNED", headline: "Assigned to you — INC-000042: Printer", reason: "this ticket is assigned to you", entityId: ID(500) },
+    ])
+  })
+
+  it("does not email a burst folded into an unread row", () => {
+    expect(mailingsFor(circle(), assigned(), row(false))).toEqual([])
+  })
+
+  it("respects the member's choice and the workspace's kill switch", () => {
+    const muted = circle({ assignee: { ...AGENT, emailPrefs: { TICKET_ASSIGNED: false } } })
+    const deliveries = deliveriesFor({ kind: "ticket-assigned", ticketId: TICKET, actorMembershipId: LEAD.membershipId, assigneeMembershipId: AGENT.membershipId }, muted)
+    expect(mailingsFor(muted, deliveries, row(true))).toEqual([])
+    const off = circle({ org: { name: "Acme", slug: "acme", visibility: "ALL_TICKETS", emailEnabled: false } })
+    expect(mailingsFor(off, assigned(), row(true))).toEqual([])
+  })
+
+  it("emails a requester's confirmation once per ticket, and never the team", () => {
+    const out = deliveriesFor({ kind: "ticket-created", ticketId: TICKET, actorMembershipId: REQ.membershipId }, circle())
+    expect(mailingsFor(circle(), out, new Map())).toEqual([
+      expect.objectContaining({ person: REQ, entityId: `${TICKET}-ticket_created`, reason: "you raised this ticket" }),
+    ])
+  })
+
+  it("names the closest tie as the reason", () => {
+    expect(reasonFor(circle(), WATCHER.membershipId)).toBe("you're watching this ticket")
+    expect(reasonFor(circle(), LEAD.membershipId)).toBe("you lead this ticket's team")
+    expect(reasonFor(circle(), TEAMMATE.membershipId)).toBe("this ticket is in your team's queue")
+    expect(reasonFor(circle(), ADMIN.membershipId)).toBe("you're an administrator of this workspace")
   })
 })

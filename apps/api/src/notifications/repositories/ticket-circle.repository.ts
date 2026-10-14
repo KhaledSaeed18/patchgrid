@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common"
+import { emailPrefsSchema } from "@patchgrid/contracts"
 
 import { PrismaService } from "../../prisma/prisma.service"
 import type { Person, TicketCircle } from "../fan-out"
@@ -8,6 +9,8 @@ const PERSON = {
   userId: true,
   status: true,
   role: true,
+  emailPrefs: true,
+  user: { select: { email: true } },
   teams: { select: { teamId: true, isLead: true } },
 } as const
 type PersonRow = {
@@ -15,16 +18,21 @@ type PersonRow = {
   userId: string | null
   status: string
   role: Person["role"]
+  emailPrefs: unknown
+  user: { email: string } | null
   teams: { teamId: string; isLead: boolean }[]
 }
 
 /** A human member, or nothing: a service account has no inbox (ADR-0021). */
 const toPerson = (row: PersonRow | null): Person | null =>
-  row === null || row.userId === null
+  row === null || row.userId === null || row.user === null
     ? null
     : {
         membershipId: row.id,
         userId: row.userId,
+        email: row.user.email,
+        // A stored value this code cannot read means nothing was turned off.
+        emailPrefs: emailPrefsSchema.catch({}).parse(row.emailPrefs),
         active: row.status === "ACTIVE",
         role: row.role,
         teamIds: row.teams.map((t) => t.teamId),
@@ -36,7 +44,8 @@ const people = (rows: PersonRow[]): Person[] => rows.flatMap((r) => toPerson(r) 
  * The people around one ticket, read when a `notify` job runs (DOMAIN.md §8):
  * its requester and assignee, its team and the team's leads, its explicit
  * watchers, the workspace's admins — each with the role and teams that decide
- * whether they may read it. Tenant-owned reads, each taking the org; a fixed
+ * whether they may read it, and the address and choices that decide whether
+ * they are also emailed. Tenant-owned reads, each taking the org; a fixed
  * number of statements whatever the size of the circle.
  */
 @Injectable()
@@ -66,7 +75,10 @@ export class TicketCircleRepository {
 
     // One after another: these run on the caller's transaction, and one
     // connection takes one statement at a time.
-    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { agentVisibility: true } })
+    const org = await this.prisma.db.organization.findUnique({
+      where: { id: orgId },
+      select: { name: true, slug: true, agentVisibility: true, emailNotificationsEnabled: true },
+    })
     const team =
       ticket.teamId === null
         ? []
@@ -98,7 +110,7 @@ export class TicketCircleRepository {
         requesterMembershipId: ticket.requesterMembershipId,
         assigneeMembershipId: ticket.assigneeMembershipId,
       },
-      visibility: org.agentVisibility,
+      org: { name: org.name, slug: org.slug, visibility: org.agentVisibility, emailEnabled: org.emailNotificationsEnabled },
       requester,
       assignee: toPerson(ticket.assignee),
       teamMembers: people(team.map((t) => t.membership)),
