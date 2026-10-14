@@ -92,7 +92,7 @@ export class AttachmentsService {
         storageKey: storageKey(orgId, request.ticketId, request.filename),
       })
     })
-    const upload = await this.storage.presignPut(row.storageKey, request.mimeType, request.sizeBytes, UPLOAD_TTL_SECONDS, this.clock.now())
+    const upload = await this.storage.presignPut(stagingKey(row.storageKey), request.mimeType, request.sizeBytes, UPLOAD_TTL_SECONDS, this.clock.now())
     return { attachment: this.toAttachment(actor, row), upload: { method: "PUT", url: upload.url, headers: upload.headers, expiresAt: upload.expiresAt.toISOString() } }
   }
 
@@ -105,11 +105,14 @@ export class AttachmentsService {
     await this.access.load(orgId, row.ticketId, actor, this.visibility())
     if (row.status === "READY") return this.toAttachment(actor, row)
 
-    const stored = await this.storage.size(row.storageKey)
+    // The checked bytes are the served bytes: sniffed in staging, then copied where no upload URL reaches.
+    const staged = stagingKey(row.storageKey)
+    const stored = await this.storage.size(staged)
     if (stored === null) throw new ConflictProblem("Nothing has been uploaded for this file yet")
-    const sniffed = stored === row.sizeBytes ? sniff(await this.storage.readStart(row.storageKey, SNIFF_BYTES), row.declaredMimeType as AttachmentMimeType) : null
+    const sniffed = stored === row.sizeBytes ? sniff(await this.storage.readStart(staged, SNIFF_BYTES), row.declaredMimeType as AttachmentMimeType) : null
     if (sniffed === null) {
-      await this.discard(orgId, row)
+      // Refused bytes go; the row and its quota stay PENDING until the sweep, when the upload URL is long dead.
+      await this.removeObject(staged)
       throw new ValidationProblem([
         {
           path: "file",
@@ -118,6 +121,8 @@ export class AttachmentsService {
         },
       ])
     }
+    await this.storage.copy(staged, row.storageKey)
+    await this.removeObject(staged)
 
     const now = this.clock.now()
     await this.prisma.transaction(async () => {
@@ -166,6 +171,8 @@ export class AttachmentsService {
       if (found === null) throw new NotFoundProblem()
       this.assertVisible(actor, await this.access.load(orgId, found.ticketId, actor, this.visibility()), found)
       this.permissions.assert(actor, "attachment:delete", this.ownership(actor, found))
+      // While its upload URL may still work, giving the quota back would let the URL store bytes for free.
+      if (found.status !== "READY") throw new ConflictProblem("This upload is unfinished; it is cleared within the hour")
       if (!(await this.attachments.remove(orgId, id))) throw new NotFoundProblem()
       await this.quota.release(orgId, "STORAGE_BYTES", found.sizeBytes)
       await this.audit.record(orgId, [
@@ -176,14 +183,6 @@ export class AttachmentsService {
     // The bytes go once the row has: a lost delete leaves an object nothing points at, never a row pointing at nothing.
     await this.removeObject(row.storageKey)
     await this.pulse.changed(orgId, row.ticketId, row.comment?.visibility === "INTERNAL" ? "internal" : "ticket")
-  }
-
-  /** A rejected upload goes entirely: row and quota in one transaction, then the object. */
-  private async discard(orgId: string, row: AttachmentRow): Promise<void> {
-    await this.prisma.transaction(async () => {
-      if (await this.attachments.remove(orgId, row.id)) await this.quota.release(orgId, "STORAGE_BYTES", row.sizeBytes)
-    })
-    await this.removeObject(row.storageKey)
   }
 
   private async removeObject(key: string): Promise<void> {
@@ -230,6 +229,15 @@ export class AttachmentsService {
     if (org === undefined) throw new NotFoundProblem()
     return org.agentVisibility
   }
+}
+
+/**
+ * Where the browser's PUT lands (ADR-0038): `staging/` + the final key. Only
+ * the presigned URL writes here; `complete` copies checked bytes out, and a
+ * bucket lifecycle rule expires whatever is left.
+ */
+export function stagingKey(storageKey: string): string {
+  return `staging/${storageKey}`
 }
 
 /** `org/<orgId>/tickets/<ticketId>/<uuid>-<name>`: the tenant first, a fresh id, a name safe as a key. */

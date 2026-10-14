@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { Injectable } from "@nestjs/common"
 
@@ -72,6 +72,13 @@ export class StorageService {
   async readStart(key: string, length: number): Promise<Uint8Array> {
     const object = await this.internal.send(new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: `bytes=0-${String(length - 1)}` }))
     return object.Body === undefined ? new Uint8Array() : object.Body.transformToByteArray()
+  }
+
+  /** A server-side copy: the bytes never pass through the API. */
+  async copy(from: string, to: string): Promise<void> {
+    await this.internal.send(
+      new CopyObjectCommand({ Bucket: this.bucket, Key: to, CopySource: `${this.bucket}/${from.split("/").map(encodeURIComponent).join("/")}` }),
+    )
   }
 
   /** Idempotent: deleting what is not there is not an error. */

@@ -54,6 +54,7 @@ function harness(role: Role, found: AttachmentRow | null = row(), options: { sto
     size: vi.fn(async () => (options.stored === undefined ? PNG.length : options.stored)),
     readStart: vi.fn(async () => options.bytes ?? PNG),
     remove: vi.fn(async () => undefined),
+    copy: vi.fn(async () => undefined),
   }
   const quota = { consume: vi.fn(async () => undefined), release: vi.fn(async () => undefined) }
   const audit = { record: vi.fn(async () => undefined) }
@@ -88,7 +89,7 @@ describe("AttachmentsService.presign", () => {
     const h = harness("REQUESTER")
     const out = await h.service.presign(presign)
     expect(h.quota.consume).toHaveBeenCalledWith(ORG, "STORAGE_BYTES", PNG.length)
-    expect(h.storage.presignPut).toHaveBeenCalledWith(expect.stringMatching(/^org\/0190b2f0-.*\/tickets\/t-1\/.*-shot\.png$/), "image/png", PNG.length, 300, NOW)
+    expect(h.storage.presignPut).toHaveBeenCalledWith(expect.stringMatching(/^staging\/org\/0190b2f0-.*\/tickets\/t-1\/.*-shot\.png$/), "image/png", PNG.length, 300, NOW)
     expect(out.upload).toMatchObject({ method: "PUT", url: "http://localhost:9000/b/k?sig" })
   })
 
@@ -106,16 +107,21 @@ describe("AttachmentsService.complete", () => {
     const done = await h.service.complete("a-1")
     expect(h.attachments.markReady).toHaveBeenCalledWith(ORG, "a-1", "image/png", NOW)
     expect(done).toMatchObject({ status: "READY", mimeType: "image/png" })
+    // Sniffed in staging, then copied where no upload URL reaches (ADR-0038).
+    expect(h.storage.readStart).toHaveBeenCalledWith("staging/org/o/tickets/t-1/x-shot.png", expect.any(Number))
+    expect(h.storage.copy).toHaveBeenCalledWith("staging/org/o/tickets/t-1/x-shot.png", "org/o/tickets/t-1/x-shot.png")
     expect(h.audit.record).toHaveBeenCalledWith(ORG, [expect.objectContaining({ action: "ATTACHMENT_ADDED" })])
   })
 
-  it("throws away a file that is not what it claims, or not the size it signed: row, quota and object", async () => {
+  it("throws away bytes that are not what they claim, or not the size signed — but keeps the row and quota for the sweep", async () => {
     for (const options of [{ bytes: new TextEncoder().encode("<svg onload=alert(1)>") }, { stored: 999 }]) {
       const h = harness("AGENT", row(), options)
       await expect(h.service.complete("a-1")).rejects.toBeInstanceOf(ValidationProblem)
-      expect(h.attachments.remove).toHaveBeenCalledWith(ORG, "a-1")
-      expect(h.quota.release).toHaveBeenCalledWith(ORG, "STORAGE_BYTES", PNG.length)
-      expect(h.storage.remove).toHaveBeenCalledWith("org/o/tickets/t-1/x-shot.png")
+      expect(h.storage.remove).toHaveBeenCalledWith("staging/org/o/tickets/t-1/x-shot.png")
+      // Released now, the still-valid upload URL could store bytes for free.
+      expect(h.attachments.remove).not.toHaveBeenCalled()
+      expect(h.quota.release).not.toHaveBeenCalled()
+      expect(h.storage.copy).not.toHaveBeenCalled()
       expect(h.attachments.markReady).not.toHaveBeenCalled()
     }
   })
@@ -152,6 +158,12 @@ describe("AttachmentsService.download and remove", () => {
     expect(requester.storage.remove).toHaveBeenCalled()
     await expect(harness("AGENT", row({ ...ready, uploaderMembershipId: "m-other" })).service.remove("a-1")).rejects.toBeInstanceOf(NotPermittedProblem)
     await harness("ADMIN", row({ ...ready, uploaderMembershipId: "m-other" })).service.remove("a-1")
+  })
+
+  it("leaves an unfinished upload to the sweep: deleting it is a 409", async () => {
+    const h = harness("REQUESTER", row())
+    await expect(h.service.remove("a-1")).rejects.toBeInstanceOf(ConflictProblem)
+    expect(h.quota.release).not.toHaveBeenCalled()
   })
 })
 

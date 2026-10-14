@@ -13,4 +13,11 @@ mc mb --ignore-existing "local/${S3_BUCKET}"
 # Never public. Downloads are presigned GETs issued only after the RBAC check.
 mc anonymous set none "local/${S3_BUCKET}"
 
+# Uploads land in staging/ and are copied out once their bytes are checked
+# (ADR-0038). A presigned PUT can still write there for its few minutes after
+# that, so whatever is left expires on its own. Production sets the same rule.
+if ! mc ilm rule ls "local/${S3_BUCKET}" 2>/dev/null | grep -q "staging/"; then
+  mc ilm rule add --prefix "staging/" --expire-days 1 "local/${S3_BUCKET}"
+fi
+
 echo "[patchgrid] bucket ${S3_BUCKET} ready"

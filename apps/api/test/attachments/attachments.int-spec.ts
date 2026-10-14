@@ -18,6 +18,7 @@ import { CLOCK, FixedClock } from "../../src/common/clock/clock"
 import { AttachmentSweepProcessor } from "../../src/jobs/maintenance/attachment-sweep"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
+import { stagingKey } from "../../src/attachments/attachments.service"
 import { StorageService } from "../../src/storage/storage.service"
 import { browser, seedWorkspace, type Workspace } from "../support/workspace"
 
@@ -111,13 +112,28 @@ describe("attachments", () => {
     expect(served.headers.get("content-disposition")).toMatch(/^attachment; /)
   })
 
-  it("refuses an SVG dressed as text, and leaves nothing behind — not the row, the bytes or the quota", async () => {
+  it("serves the bytes it checked, whatever is PUT to the upload URL afterwards", async () => {
+    const { id, url } = await upload("requester", { name: "checked.png", type: "image/png", bytes: PNG })
+    const swapped = new TextEncoder().encode("<html>swapped</html>").slice(0, PNG.length)
+    const padded = new Uint8Array(PNG.length)
+    padded.set(swapped)
+    // The URL still works for its five minutes — but only ever writes to staging (ADR-0038).
+    expect((await fetch(url, { method: "PUT", headers: { "Content-Type": "image/png" }, body: padded })).status).toBe(200)
+    const link = await as("agent").get(`/attachments/${id}/download`)
+    expect(new Uint8Array(await (await fetch(link.body.url as string)).arrayBuffer())).toEqual(PNG)
+  })
+
+  it("refuses an SVG dressed as text: the bytes go, the row and its quota wait for the sweep", async () => {
     const before = await storageUsed()
     const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>')
     const { id, completed } = await upload("requester", { name: "harmless.txt", type: "text/plain", bytes: svg })
     expect(completed.status).toBe(400)
-    expect(await db.attachment.findUnique({ where: { id } })).toBeNull()
-    expect(await storageUsed()).toBe(before)
+    expect(await db.attachment.findUnique({ where: { id }, select: { status: true } })).toEqual({ status: "PENDING" })
+    expect(await app.get(StorageService).size(stagingKey((await db.attachment.findUniqueOrThrow({ where: { id } })).storageKey))).toBeNull()
+    // Released now, the still-valid URL could store bytes for free; so not until the sweep.
+    expect(await storageUsed()).toBe(before + svg.length)
+    expect((await as("requester").delete(`/attachments/${id}`)).status).toBe(409)
+    expect((await as("requester").get(`/tickets/${ticketId}/attachments`)).body.map((a: { id: string }) => a.id)).not.toContain(id)
   })
 
   it("keeps a file on an internal note from the requester, as a 404", async () => {
@@ -138,10 +154,13 @@ describe("attachments", () => {
 
     const abandoned = await as("requester").post("/attachments", { ticketId, filename: "never.pdf", mimeType: "application/pdf", sizeBytes: 1234 })
     expect(await storageUsed()).toBe(before - (notes?.sizeBytes ?? 0) + 1234)
+    const pending = await db.attachment.findMany({ where: { orgId: ws.orgId, status: "PENDING" }, select: { sizeBytes: true } })
     clock.advance(61 * 60_000)
     const swept = await app.get(AttachmentSweepProcessor).process({ id: "spec/sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
-    expect(swept).toBe(1)
+    // This one, and the refused SVG kept above.
+    expect(swept).toBe(pending.length)
+    expect(swept).toBe(2)
     expect(await db.attachment.findUnique({ where: { id: abandoned.body.attachment.id as string } })).toBeNull()
-    expect(await storageUsed()).toBe(before - (notes?.sizeBytes ?? 0))
+    expect(await storageUsed()).toBe(before - (notes?.sizeBytes ?? 0) + 1234 - pending.reduce((n, p) => n + p.sizeBytes, 0))
   })
 })

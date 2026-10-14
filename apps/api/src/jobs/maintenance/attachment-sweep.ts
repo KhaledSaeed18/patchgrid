@@ -7,6 +7,7 @@ import { type Clock, InjectClock } from "../../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../../config/app-config"
 import { PrismaService } from "../../prisma/prisma.service"
 import { QuotaService } from "../../quota/quota.service"
+import { stagingKey } from "../../attachments/attachments.service"
 import { StorageService } from "../../storage/storage.service"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { runJob } from "../dispatcher/run-job"
@@ -51,7 +52,8 @@ export class AttachmentSweepService {
         return rows
       })
       for (const row of gone) {
-        await this.storage.remove(row.storageKey).catch((error: unknown) =>
+        // A pending upload's bytes, if any, are still in staging (ADR-0038).
+        await this.storage.remove(stagingKey(row.storageKey)).catch((error: unknown) =>
           this.logger.warn({ msg: "abandoned upload's object not removed", orgId, key: row.storageKey, error: String(error) }),
         )
       }
