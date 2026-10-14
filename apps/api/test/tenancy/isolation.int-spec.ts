@@ -38,6 +38,9 @@ import { MailProcessor } from "../../src/mail/mail.processor"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
 import { PrismaService } from "../../src/prisma/prisma.service"
 import { SlaScanProcessor } from "../../src/tickets/sweeps/sla-scan"
+import { NOTIFY_QUEUE } from "../../src/notifications/notify"
+import { settler } from "../support/queues"
+import { openStream } from "../support/sse"
 import { browser, HEADERS } from "../support/workspace"
 
 const PASSWORD = "isolation suite password"
@@ -348,5 +351,39 @@ describe("13 · one account, two workspaces, both sessions alive", () => {
     ])
     expect(inAcme.body).toMatchObject({ org: { id: seed.acme.id }, membership: { role: "ADMIN" } })
     expect(inGlobex.body).toMatchObject({ org: { id: seed.globex.id }, membership: { role: "AGENT" } })
+  })
+})
+
+describe("the live stream keeps to the credential's org (TENANCY.md §9, ADR-0008)", () => {
+  it("Dana's Acme stream hears nothing of Globex — not a ticket she watches there, nor a notification for her Globex membership", async () => {
+    const dana = await signIn("dana", slugs.acme)
+    await signIn("dana", slugs.globex)
+    const jar = `${dana.access[slugs.acme] ?? ""}; ${dana.access[slugs.globex] ?? ""}`
+    const stream = await openStream(app, origin(slugs.acme), jar)
+    expect(stream.status).toBe(200)
+    const jobs = settler(app, [NOTIFY_QUEUE])
+    try {
+      // Globex first: Dana watches this ticket there, so in Globex she would hear of it.
+      const theirs = await (await as("gus", slugs.globex)).post(`/tickets/${seed.globex.ticketId}/comments`, { body: "Any news?", visibility: "PUBLIC" })
+      expect(theirs.status).toBe(201)
+      await jobs.settle()
+      expect(await owner.notification.count({ where: { orgId: seed.globex.id, membershipId: seed.globex.members.dana ?? "" } })).toBe(1)
+      // Then the sentinel in Acme, which her Acme stream must hear.
+      const ours = await (await as("alice", slugs.acme)).post(`/tickets/${seed.acme.ticketId}/comments`, { body: "Any news?", visibility: "PUBLIC" })
+      expect(ours.status).toBe(201)
+      await stream.next((f) => f.event === "notification")
+      const tickets = stream.frames.map((f) => (f.data as { ticketId: string | null }).ticketId)
+      expect(tickets.length).toBeGreaterThan(0)
+      expect(new Set(tickets)).toEqual(new Set([seed.acme.ticketId]))
+    } finally {
+      stream.close()
+      await jobs.close()
+    }
+  })
+
+  it("refuses a token minted for one org on another's origin", async () => {
+    const acmeToken = ((await signIn("sam", slugs.acme)).access[slugs.acme] ?? "").split("=")[1] ?? ""
+    const tossed = await openStream(app, origin(slugs.globex), `pg_at_${slugs.globex}=${acmeToken}`)
+    expect(tossed.status).toBe(403)
   })
 })
