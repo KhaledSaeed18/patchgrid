@@ -33,6 +33,7 @@ import {
   ValidationProblem,
 } from "../common/problems/problem.exception"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
+import { TicketPulse } from "../notifications/live/ticket-pulse"
 import { type Notice, Notifier } from "../notifications/notify"
 import { PrismaService } from "../prisma/prisma.service"
 import { QuotaService } from "../quota/quota.service"
@@ -82,6 +83,7 @@ export class TicketsService {
     private readonly audit: AuditService,
     private readonly quota: QuotaService,
     private readonly notifier: Notifier,
+    private readonly pulse: TicketPulse,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -528,10 +530,11 @@ export class TicketsService {
   /**
    * After commit, and before anything that could fail for the caller — the
    * read-back is a 404 for an agent who just moved a ticket out of their own
-   * scope: tell the people concerned.
+   * scope: tell the people concerned, and the streams showing the ticket.
    */
-  private async announce(orgId: string, _ticketId: string, notices: Notice[]): Promise<void> {
+  private async announce(orgId: string, ticketId: string, notices: Notice[]): Promise<void> {
     await this.notifier.notifyAll(orgId, notices)
+    await this.pulse.changed(orgId, ticketId)
   }
 
   private visibility(): AgentVisibility {

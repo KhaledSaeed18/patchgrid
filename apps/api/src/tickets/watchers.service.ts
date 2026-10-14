@@ -7,6 +7,7 @@ import { PermissionService } from "../authz/permission.service"
 import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
 import { type Clock, InjectClock } from "../common/clock/clock"
+import { TicketPulse } from "../notifications/live/ticket-pulse"
 import { Notifier } from "../notifications/notify"
 import { PrismaService } from "../prisma/prisma.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
@@ -31,6 +32,7 @@ export class WatchersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifier: Notifier,
+    private readonly pulse: TicketPulse,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -76,6 +78,7 @@ export class WatchersService {
         ticketId,
         `watch-${membershipId}-${String(this.clock.now().getTime())}`,
       )
+      await this.pulse.changed(orgId, ticketId)
     }
     return this.list(ticketId)
   }
@@ -93,6 +96,7 @@ export class WatchersService {
       if (!(await this.watchers.remove(orgId, ticketId, membershipId))) throw new NotFoundProblem()
       await this.audit.record(orgId, [{ action: "WATCHER_REMOVED", entityType: "Ticket", entityId: ticketId, diff: { membershipId } }])
     })
+    await this.pulse.changed(orgId, ticketId)
     return this.list(ticketId)
   }
 

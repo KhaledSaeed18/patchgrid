@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common"
-import { COMMENT_EDIT_WINDOW_MINUTES, type Comment, type CommentInput } from "@patchgrid/contracts"
+import { COMMENT_EDIT_WINDOW_MINUTES, type Comment, type CommentInput, type CommentVisibility } from "@patchgrid/contracts"
 
 import { ActorService, type TenantActor } from "../auth/actor"
 import { AuditService, type AuditEntry } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { ConflictProblem, NotFoundProblem } from "../common/problems/problem.exception"
+import { TicketPulse } from "../notifications/live/ticket-pulse"
 import { Notifier } from "../notifications/notify"
 import { PrismaService } from "../prisma/prisma.service"
 import { SlaPoliciesService } from "../sla/sla-policies.service"
@@ -36,6 +37,7 @@ export class CommentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifier: Notifier,
+    private readonly pulse: TicketPulse,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -90,6 +92,7 @@ export class CommentsService {
       row.created.id,
       "added",
     )
+    await this.pulse.changed(orgId, ticketId, contentOf(input.visibility))
     return this.toComment(actor, row.loaded, row.created)
   }
 
@@ -109,20 +112,23 @@ export class CommentsService {
       ])
       return { loaded, comment: { ...comment, body, editedAt: now } }
     })
+    await this.pulse.changed(orgId, ticketId, contentOf(result.comment.visibility))
     return this.toComment(actor, result.loaded, result.comment)
   }
 
   /** Soft, by an admin; the thread says a comment was removed, the audit trail keeps what it said. */
   async remove(ticketId: string, commentId: string): Promise<void> {
     const { actor, orgId } = this.who()
-    await this.prisma.transaction(async () => {
+    const visibility = await this.prisma.transaction(async () => {
       const { comment } = await this.visibleComment(orgId, ticketId, commentId, actor)
       this.permissions.assert(actor, "comment:delete")
       await this.comments.softDelete(orgId, commentId, actor.membershipId, this.clock.now())
       await this.audit.record(orgId, [
         { action: "COMMENT_DELETED", entityType: "Ticket", entityId: ticketId, diff: { commentId, previousBody: comment.body } },
       ])
+      return comment.visibility
     })
+    await this.pulse.changed(orgId, ticketId, contentOf(visibility))
   }
 
   /** A comment the actor can see, on a ticket the actor can see — else 404; deleted ones are gone. */
@@ -170,4 +176,9 @@ export class CommentsService {
     if (org === undefined) throw new NotFoundProblem()
     return org.agentVisibility
   }
+}
+
+/** What a comment change reveals to the live stream: an internal note's, only to those who may read notes. */
+function contentOf(visibility: CommentVisibility): "ticket" | "internal" {
+  return visibility === "INTERNAL" ? "internal" : "ticket"
 }

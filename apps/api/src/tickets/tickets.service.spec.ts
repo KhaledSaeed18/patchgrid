@@ -15,6 +15,7 @@ import {
   ValidationProblem,
 } from "../common/problems/problem.exception"
 import type { MembershipRepository } from "../memberships/repositories/membership.repository"
+import type { TicketPulse } from "../notifications/live/ticket-pulse"
 import type { Notifier } from "../notifications/notify"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { QuotaService } from "../quota/quota.service"
@@ -89,6 +90,7 @@ function harness(
   })
   const branchResults = [...(options.branches ?? [])]
   const notifier = { notifyAll: vi.fn(async () => undefined) }
+  const pulse = { changed: vi.fn(async () => undefined) }
   const tickets = {
     nextNumber: vi.fn(async () => {
       calls.push("number")
@@ -127,11 +129,12 @@ function harness(
       },
     } as unknown as QuotaService,
     notifier as unknown as Notifier,
+    pulse as unknown as TicketPulse,
     new FixedClock(NOW),
   )
   // `get` re-reads through the access layer; the spec only cares that it is reached.
   vi.spyOn(service, "get").mockResolvedValue({} as never)
-  return { service, tickets, calls, notifier }
+  return { service, tickets, calls, notifier, pulse }
 }
 
 const create = { type: "INCIDENT" as const, title: "Laptop", description: "Broken", impact: "MEDIUM" as const, urgency: "HIGH" as const }
@@ -199,6 +202,7 @@ describe("TicketsService notifications", () => {
     expect(assign.notifier.notifyAll).toHaveBeenCalledWith(ORG, [
       notice({ kind: "ticket-assigned", ticketId: "t-1", actorMembershipId: "m-agent", assigneeMembershipId: "m-agent" }, "v4"),
     ])
+    expect(assign.pulse.changed).toHaveBeenCalledWith(ORG, "t-1")
 
     const resolve = harness("AGENT")
     await resolve.service.transition("t-1", { action: "resolve", version: 3, comment: { body: "Done", visibility: "PUBLIC" } })
@@ -212,6 +216,7 @@ describe("TicketsService notifications", () => {
     vi.spyOn(h.service, "get").mockRejectedValue(new NotFoundProblem())
     await expect(h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })).rejects.toBeInstanceOf(NotFoundProblem)
     expect(h.notifier.notifyAll).toHaveBeenCalledTimes(1)
+    expect(h.pulse.changed).toHaveBeenCalledTimes(1)
   })
 })
 
