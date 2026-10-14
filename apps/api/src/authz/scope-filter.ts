@@ -26,3 +26,37 @@ export type ScopeFilter =
 
 /** The resources whose lists are scoped per actor. Everything else is all-or-nothing by permission. */
 export type ScopedResource = "ticket" | "asset"
+
+/** The facts about one ticket a scope branch reads. */
+export type ScopedTicket = {
+  teamId: string | null
+  assigneeMembershipId: string | null
+  requesterMembershipId: string
+}
+
+/**
+ * One ticket against a scope filter — the same branches a list query runs,
+ * evaluated in memory. `watch` is whether the actor holds a `TicketWatcher`
+ * row, which the caller loads. Opening a ticket, notifying about one and
+ * streaming an event for one all decide visibility here, so they cannot drift.
+ */
+export function ticketInScope(filter: ScopeFilter, ticket: ScopedTicket, watch: boolean): boolean {
+  if (filter.kind === "all") return true
+  if (filter.kind === "none") return false
+  return filter.branches.some((branch) => {
+    switch (branch.kind) {
+      case "teams":
+        return ticket.teamId !== null && branch.teamIds.includes(ticket.teamId)
+      case "no-team":
+        return ticket.teamId === null
+      case "assignee":
+        return ticket.assigneeMembershipId === branch.membershipId
+      case "requester":
+        return ticket.requesterMembershipId === branch.membershipId
+      case "watcher":
+        return watch
+      case "owner":
+        return false
+    }
+  })
+}
