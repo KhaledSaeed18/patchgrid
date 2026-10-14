@@ -12,6 +12,7 @@ import { cn } from "@patchgrid/ui/lib/utils"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+import { NotificationBell } from "@/components/notifications/bell"
 import { clientApi } from "@/lib/api/client"
 import { appOrigin, ROOT_DOMAIN } from "@/lib/config"
 import { ROLE_LABEL } from "@/lib/labels"
@@ -34,11 +35,17 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-svh md:grid md:grid-cols-[15rem_minmax(0,1fr)]">
       <aside className="flex flex-col border-b border-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:h-svh md:border-r md:border-b-0">
-        <div className="px-4 pt-5 pb-3">
-          <p className="truncate text-sm font-semibold">{me.org.name}</p>
-          <p className="truncate font-mono text-xs text-muted-foreground">
-            {me.org.slug}.{ROOT_DOMAIN}
-          </p>
+        <div className="flex items-start justify-between gap-2 px-4 pt-5 pb-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{me.org.name}</p>
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              {me.org.slug}.{ROOT_DOMAIN}
+            </p>
+          </div>
+          {/* The foot is desktop-only, so on a narrow screen the bell lives up here. */}
+          <div className="md:hidden">
+            <NotificationBell side="bottom" align="end" />
+          </div>
         </div>
         <nav
           aria-label="Workspace"
@@ -71,8 +78,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <div className="hidden border-t border-sidebar-border p-2 md:block">
-          <MemberMenu />
+        <div className="hidden items-center gap-1 border-t border-sidebar-border p-2 md:flex">
+          <div className="min-w-0 flex-1">
+            <MemberMenu />
+          </div>
+          <NotificationBell side="top" align="end" />
         </div>
       </aside>
       <div className="min-w-0">{children}</div>
