@@ -41,8 +41,10 @@ export class SupportReadLog {
   ) {}
 
   watch(actor: SupportActor, request: Request & SupportReadMarks, response: Response): void {
-    response.once("finish", () => {
-      const write = this.write(actor, request, response.statusCode).finally(() => this.inFlight.delete(write))
+    // `close` fires whether the body was sent or the operator hung up half-way;
+    // `finish` would not for the second, and a read cut short is still a read.
+    response.once("close", () => {
+      const write = this.write(actor, request, response.statusCode, !response.writableFinished).finally(() => this.inFlight.delete(write))
       this.inFlight.add(write)
     })
   }
@@ -52,7 +54,7 @@ export class SupportReadLog {
     while (this.inFlight.size > 0) await Promise.allSettled([...this.inFlight])
   }
 
-  private async write(actor: SupportActor, request: Request & SupportReadMarks, status: number): Promise<void> {
+  private async write(actor: SupportActor, request: Request & SupportReadMarks, status: number, aborted: boolean): Promise<void> {
     const ids = request.supportIds ?? []
     const route = typeof request.route?.path === "string" ? request.route.path : request.path
     try {
@@ -63,7 +65,7 @@ export class SupportReadLog {
               action: "SUPPORT_READ",
               entityType: "SupportSession",
               entityId: actor.sessionId,
-              diff: { endpoint: `${request.method} ${route}`, status, entityIds: ids.slice(0, MAX_IDS), resultCount: ids.length, filters: request.query },
+              diff: { endpoint: `${request.method} ${route}`, status, ...(aborted ? { aborted: true } : {}), entityIds: ids.slice(0, MAX_IDS), resultCount: ids.length, filters: request.query },
               actorKind: "PLATFORM",
               actorMembershipId: null,
               actorPlatformAdminId: actor.platformAdminId,
