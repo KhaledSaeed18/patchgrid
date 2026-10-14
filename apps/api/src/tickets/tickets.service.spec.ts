@@ -99,6 +99,8 @@ function harness(
     visibleAssets?: string[]
     /** Act as an API token with every scope rather than a person. */
     service?: boolean
+    /** Act as a read-only support session (ADR-0041). */
+    support?: boolean
   } = {},
 ) {
   const calls: string[] = []
@@ -114,7 +116,9 @@ function harness(
   const actor: TenantActor =
     options.service === true
       ? { kind: "service", orgId: ORG, membershipId: member.membershipId, role, scopes: ["tickets:read", "tickets:write", "comments:internal"] }
-      : member
+      : options.support === true
+        ? { kind: "support", orgId: ORG, sessionId: "s-1", platformAdminId: "pa-1", userId: "u-op", role: "ADMIN", membershipId: "s-1" }
+        : member
   const permissions = new PermissionService()
   const loaded = (): LoadedTicket => ({
     row: ticket,
@@ -219,6 +223,17 @@ describe("TicketsService.create", () => {
 
   it("refuses a category the picker would not offer", async () => {
     await expect(harness("REQUESTER").service.create({ ...create, categoryId: "cat-gone" })).rejects.toBeInstanceOf(ValidationProblem)
+  })
+})
+
+describe("TicketsService.get", () => {
+  it("offers an admin the table's actions, and a read-only support session none of them", async () => {
+    const admin = harness("ADMIN")
+    vi.mocked(admin.service.get).mockRestore()
+    expect((await admin.service.get("t-1")).availableActions).toContain("cancel")
+    const support = harness("ADMIN", row(), { support: true })
+    vi.mocked(support.service.get).mockRestore()
+    expect((await support.service.get("t-1")).availableActions).toEqual([])
   })
 })
 

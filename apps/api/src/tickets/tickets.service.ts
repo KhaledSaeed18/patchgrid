@@ -711,12 +711,13 @@ export class TicketsService {
   private async view(actor: TenantActor, loaded: LoadedTicket): Promise<Ticket> {
     const now = this.clock.now()
     const relation = { ...loaded.relation, approval: await this.approvalStanding(this.tenant.requireOrgId(), actor, loaded.row) }
-    return toTicket(
-      loaded.row,
-      now,
-      availableActions({ type: loaded.row.type, ticket: transitionFacts(loaded.row), actor: relation, now }),
-      this.permissions.capabilitiesFor(actor, loaded.subject),
-    )
+    // The table decides by role; the permission the transition itself asserts
+    // comes first, or a read-only support session (ADR-0041) would be offered
+    // an admin's buttons.
+    const actions = this.permissions.can(actor, "ticket:transition", loaded.subject)
+      ? availableActions({ type: loaded.row.type, ticket: transitionFacts(loaded.row), actor: relation, now })
+      : []
+    return toTicket(loaded.row, now, actions, this.permissions.capabilitiesFor(actor, loaded.subject))
   }
 
   /**
