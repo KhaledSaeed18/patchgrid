@@ -4,3 +4,13 @@
 # The integration specs' JWT_SECRET default — a fixed, public test value that
 # signs nothing outside a test process (apps/api/test/support/env.ts).
 d28dce4bbd091aadd03c65db0ed5ab942b90968a:apps/api/test/support/env.ts:generic-api-key:18
+
+# The inbound webhook's development secret and the specs' copies of it — a fixed,
+# public value that signs nothing outside a local or test process; production sets
+# its own INBOUND_WEBHOOK_SECRET (ADR-0039). The "other secret" in two specs is the
+# wrong key a forged delivery is signed with, by design.
+b1e86886401e1056917c51fe8e165c41dd34285e:.env.example:generic-api-key:60
+b1e86886401e1056917c51fe8e165c41dd34285e:apps/api/src/config/env.schema.spec.ts:generic-api-key:14
+b1e86886401e1056917c51fe8e165c41dd34285e:apps/api/test/support/env.ts:generic-api-key:27
+b1e86886401e1056917c51fe8e165c41dd34285e:apps/api/test/inbound/inbound.int-spec.ts:generic-api-key:92
+7fb74a20344538e46038c85f19190c10f01589f0:apps/api/src/inbound/domain/domain.spec.ts:generic-api-key:10
