@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@patchgrid/ui/components/table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
@@ -162,7 +163,9 @@ export function MembersAdmin({
         <TableBody>
           {(members.data?.items ?? []).map((member) => {
             const self = member.id === membership.id
-            const editable = !self && member.status !== "REMOVED"
+            // A service account is its API token's to change (ADR-0042).
+            const service = member.kind === "SERVICE_ACCOUNT"
+            const editable = !self && !service && member.status !== "REMOVED"
             return (
               <TableRow
                 key={member.id}
@@ -178,7 +181,20 @@ export function MembersAdmin({
                         (you)
                       </span>
                     )}
+                    {service && (
+                      <Badge variant="outline" className="ml-1.5">
+                        API token
+                      </Badge>
+                    )}
                   </p>
+                  {service && holds("token:read") && (
+                    <Link
+                      href="/settings/api-tokens"
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      Managed in API tokens
+                    </Link>
+                  )}
                   {member.contact?.email !== undefined &&
                     member.contact.email !== null && (
                       <p className="text-xs text-muted-foreground">

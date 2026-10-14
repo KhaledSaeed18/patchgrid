@@ -48,7 +48,10 @@ export default async function TicketPage({
         serverApi("/teams", { schema: z.array(teamSchema) }),
       ]).then(([members, teams]) => ({
         agents: members.items.filter(
-          (m) => m.status === "ACTIVE" && m.role !== "REQUESTER"
+          (m) =>
+            m.status === "ACTIVE" &&
+            m.role !== "REQUESTER" &&
+            m.kind === "HUMAN"
         ),
         teams,
       }))
@@ -56,7 +59,10 @@ export default async function TicketPage({
   // Who could be added as a watcher, only for someone who may add them.
   const watchCandidates = ticket.capabilities.canAddWatcher
     ? await serverApi("/members?limit=100", { schema: memberPageSchema }).then(
-        (members) => members.items.filter((m) => m.status === "ACTIVE")
+        (members) =>
+          members.items.filter(
+            (m) => m.status === "ACTIVE" && m.kind === "HUMAN"
+          )
       )
     : null
   const categories = ticket.capabilities.editableFields.includes("categoryId")

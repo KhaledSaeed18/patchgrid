@@ -26,7 +26,11 @@ export default async function TeamPage({
   // Who could be added: active agents and above not already in the team.
   const inTeam = new Set(team.members.map((m) => m.membershipId))
   const candidates = members.items.filter(
-    (m) => m.status === "ACTIVE" && m.role !== "REQUESTER" && !inTeam.has(m.id)
+    (m) =>
+      m.status === "ACTIVE" &&
+      m.role !== "REQUESTER" &&
+      m.kind === "HUMAN" &&
+      !inTeam.has(m.id)
   )
   return <TeamDetailView initial={team} candidates={candidates} />
 }
