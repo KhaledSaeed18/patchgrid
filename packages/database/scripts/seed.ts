@@ -16,6 +16,7 @@ import { type Algorithm, hash } from "@node-rs/argon2"
 import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
 
 import { createPrismaClient, lookalikeEmails, removeLookalikes, seedLookalikes } from "../src/index.ts"
+import { seedDemoAssets } from "./demo-assets.ts"
 import { seedDemoProblemsAndChanges, seedDemoTickets } from "./demo-tickets.ts"
 
 try {
@@ -56,10 +57,13 @@ async function main(): Promise<void> {
       await seedDemoProblemsAndChanges(db, seeded.acme, { lead: seeded.acme.members.sam ?? "", agents: pick(seeded.acme.members, ["sam", "dana"]), admin: seeded.acme.members.alice ?? "", watchers: pick(seeded.acme.members, ["dana", "rita"]) }, 1),
       await seedDemoProblemsAndChanges(db, seeded.globex, { lead: seeded.globex.members.tina ?? "", agents: pick(seeded.globex.members, ["tina", "dana"]), admin: seeded.globex.members.gus ?? "", watchers: pick(seeded.globex.members, ["dana", "rosa"]) }, 2),
     ]
+    const assets =
+      (await seedDemoAssets(db, seeded.acme, { requester: seeded.acme.members.rita ?? "", agent: seeded.acme.members.sam ?? "", admin: seeded.acme.members.alice ?? "" }, "ACME")) +
+      (await seedDemoAssets(db, seeded.globex, { requester: seeded.globex.members.rosa ?? "", agent: seeded.globex.members.tina ?? "", admin: seeded.globex.members.gus ?? "" }, "GLBX"))
     const problems = records.reduce((n, r) => n + r.problems, 0)
     const changes = records.reduce((n, r) => n + r.changes, 0)
     console.log(
-      `seed: acme and globex are ready, with ${tickets} demo incidents, ${problems} problems and ${changes} changes — every account's password is`,
+      `seed: acme and globex are ready, with ${tickets} demo incidents, ${problems} problems, ${changes} changes and ${assets} assets — every account's password is`,
       JSON.stringify(DEMO_PASSWORD),
     )
     for (const [key, person] of Object.entries(seeded.people)) console.log(`  ${key.padEnd(6)} ${person.email}`)
