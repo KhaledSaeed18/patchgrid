@@ -323,6 +323,35 @@ What matters for the rules in *this* file:
   `PLATFORM`), so a change made by an API token, an automation rule or a platform admin during a support
   session is never misread as a colleague's action.
 
+### 7.1 Tickets and replies by email
+
+Mail to `<slug>@inbound.<root domain>` is the third way in, after the portal and the console
+(ADR-0027, ADR-0039). These rules apply after the sender is authenticated and mapped to an active member:
+
+- **A message that names no ticket the sender takes part in opens an Incident.**
+  - It is the sender's own, with `source: EMAIL`.
+  - The title is the subject, with any `Re:`/`Fwd:` chain and `[INC-…]` tag removed.
+  - The description is the text, Low impact and Medium urgency. An agent re-triages it like any portal
+    ticket.
+- **A reply threads onto the ticket only when the sender may read it and reply on it.** The ticket is
+  found from our Message-ID in `In-Reply-To`/`References`, or from `[INC-000042]` in the subject.
+  - The reply is a **public** comment: email never writes an internal note.
+  - Quoted text is cut at our "Reply above this line" marker, at `On … wrote:`, at Outlook's separator
+    and at a signature delimiter.
+  - A sender who may not reply, or a cancelled ticket, gets a new ticket instead, linked `RELATES_TO`
+    the one they named.
+- **Files go through the attachment rules** (§7): the same allow-list, size cap, sniffing and quota as
+  an upload, at most ten per message. What is left out is listed on the message in the inbound log,
+  never silently dropped.
+- **Ticket notification email can be replied to.** It carries:
+  - `Reply-To` set to the workspace's inbound address;
+  - a Message-ID naming the ticket;
+  - one `References` thread root per ticket;
+  - the number bracketed in the subject.
+
+  Every message Patchgrid sends is `Auto-Submitted: auto-generated`, and automatic mail is never taken
+  in, so a desk cannot email itself into a loop.
+
 ## 8. Notifications
 
 Events that notify (in-app always; email per `Membership.emailPrefs`, default on, with an org-level

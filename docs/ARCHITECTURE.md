@@ -299,9 +299,11 @@ T  PhishingReport   { ticketId (PK), orgId, submittedUrl, riskScore,
                       verdict: SAFE|SUSPICIOUS|MALICIOUS|UNKNOWN, modelVersion, analyzedAt? }
 T  AutomationRule   { id, orgId, name, trigger, conditions: Json, actions: Json,
                       isActive, sortOrder }
-T  InboundEmail     { id, orgId, messageId, fromAddress, senderMembershipId?,
-                      authVerdict: PASS|FAIL|NONE, subject, rawStorageKey,
-                      ticketId?, processedAt?, error? }
+T  InboundEmail     { id, orgId, messageKey, fromAddress, senderMembershipId?,
+                      authVerdict: PASS|FAIL|NONE, outcome, subject, rawStorageKey,
+                      ticketId?, skippedAttachments, receivedAt, processedAt?, error? }
+                                  -- unique (orgId, messageKey): one row per message per org;
+                                  -- a ticket exactly when CREATED or THREADED (ADR-0039)
 ```
 
 `TicketStatus`: `NEW, ASSIGNED, IN_PROGRESS, PENDING, RESOLVED, CLOSED, CANCELLED, KNOWN_ERROR, DRAFT,

@@ -136,6 +136,17 @@ require a DMARC-aligned `PASS`; map the sender to an active `Membership` (unknow
 default); thread only when the verified sender is a participant — knowing `INC-000042` is not
 authorization to post on it; never auto-reply to a failed sender (no backscatter). Residual: **R-7**.
 
+Built in M6 (ADR-0039), each step proven by `apps/api/test/inbound/inbound.int-spec.ts`:
+
+- The signature is Standard Webhooks HMAC over the raw bytes, with five minutes of tolerance.
+- The tenant is the envelope recipient, and the answer is `202` whatever it resolves to.
+- The verdict comes only from the `Authentication-Results` header carrying our receiver's authserv-id.
+  Comments inside it are stripped, so a `dmarc=pass` can't hide there.
+- The sender acts through the ordinary permission checks, as the member they are.
+- Messages are deduplicated per org by `Message-ID`, and a worker claims a message before acting on it.
+- Each sender is limited to 20 messages an hour per workspace.
+- Our own mail is marked `Auto-Submitted`, so it never comes back in as a ticket.
+
 ### TB8 · Model output → agent (M7)
 
 Ticket text is attacker-controlled, so model output is **data an agent accepts**, never an instruction and
