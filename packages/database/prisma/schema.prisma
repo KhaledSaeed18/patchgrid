@@ -148,6 +148,7 @@ model Organization {
   articles        KnowledgeArticle[]
   inboundEmails   InboundEmail[]
   supportSessions SupportSession[]
+  apiTokens       ApiToken[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -348,6 +349,9 @@ model Membership {
   ticketLinksCreated       TicketLink[]
   notifications            Notification[]     @relation("NotificationMembership")
   notificationsAsRecipient Notification[]     @relation("NotificationRecipient")
+  apiToken                 ApiToken?          @relation("ApiTokenActor")
+  apiTokensCreated         ApiToken[]         @relation("ApiTokenCreatedBy")
+  apiTokensRevoked         ApiToken[]         @relation("ApiTokenRevokedBy")
   attachments              Attachment[]
   assetsOwned              Asset[]
   articlesWritten          KnowledgeArticle[]
@@ -1137,6 +1141,39 @@ model PlatformAuditLog {
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([platformAdminId, createdAt])
+}
+
+/// An API token (ADR-0021, ADR-0042): one per service-account membership,
+/// which is the actor it authenticates. The secret is never stored, only its
+/// Argon2id hash; `prefix` is public and mirrored in `ApiTokenIndex`.
+model ApiToken {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  orgId                 String    @db.Uuid
+  name                  String
+  prefix                String
+  tokenHash             String
+  /// `TokenScope` values, parsed by contracts on every read.
+  scopes                String[]
+  membershipId          String    @db.Uuid
+  createdByMembershipId String    @db.Uuid
+  lastUsedAt            DateTime? @db.Timestamptz(3)
+  expiresAt             DateTime? @db.Timestamptz(3)
+  expiryWarnedAt        DateTime? @db.Timestamptz(3)
+  revokedAt             DateTime? @db.Timestamptz(3)
+  revokedByMembershipId String?   @db.Uuid
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  membership   Membership   @relation("ApiTokenActor", fields: [orgId, membershipId], references: [orgId, id])
+  createdBy    Membership   @relation("ApiTokenCreatedBy", fields: [orgId, createdByMembershipId], references: [orgId, id])
+  revokedBy    Membership?  @relation("ApiTokenRevokedBy", fields: [orgId, revokedByMembershipId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, membershipId])
+  @@unique([orgId, prefix])
+  @@index([orgId, createdAt(sort: Desc), id(sort: Desc)])
+  /// Live tokens nearing expiry, for the warning sweep.
+  @@index([orgId, revokedAt, expiresAt])
 }
 
 /// An operator's read-only access to one workspace, asked for by the operator

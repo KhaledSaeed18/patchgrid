@@ -358,6 +358,27 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       data: { orgId: org.id, platformAdminId: operatorAdmin.id, reason: "Diagnose a VPN ticket", decidedByMembershipId: owner, declinedAt: now },
     })
 
+    // A revoked API token and its service account, so isolation has a row on each side (ADR-0042).
+    const robot = await db.membership.create({
+      data: { orgId: org.id, kind: "SERVICE_ACCOUNT", role: "AGENT", status: "DISABLED", displayName: "Lookalike monitor" },
+      select: { id: true },
+    })
+    const tokenPrefix = randomBytes(6).toString("hex")
+    await db.apiToken.create({
+      data: {
+        orgId: org.id,
+        name: "Lookalike monitor",
+        prefix: tokenPrefix,
+        tokenHash: "revoked-seed-token-has-no-secret",
+        scopes: ["tickets:read"],
+        membershipId: robot.id,
+        createdByMembershipId: owner,
+        revokedAt: now,
+        revokedByMembershipId: owner,
+      },
+    })
+    await db.apiTokenIndex.create({ data: { prefix: tokenPrefix, orgId: org.id, revokedAt: now } })
+
     // What the rows above use of the plan, so a delete releases what a create consumed (TENANCY.md §8).
     await db.usageCounter.createMany({
       data: [
@@ -394,6 +415,8 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.attachment.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.inboundEmail.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.supportSession.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.apiToken.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.apiTokenIndex.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketAsset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.asset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.knowledgeArticle.deleteMany({ where: { orgId: { in: orgIds } } })

@@ -246,6 +246,7 @@ describe("4 · RLS holds when the repository does not", () => {
         "KnowledgeArticle",
         "InboundEmail",
         "SupportSession",
+        "ApiToken",
       ])
     )
 
