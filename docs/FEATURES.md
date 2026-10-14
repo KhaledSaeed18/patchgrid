@@ -267,14 +267,14 @@ _Exit: Service Requests, Problems and Changes each work end to end with their ow
 Problem links incidents; a Change goes submit → approve/reject by a team lead → implement → close, and a
 single-admin workspace can still ship one._
 
-- [ ] `ProblemDetails`, `ChangeDetails`, `ChangeApproval`, `TicketLink`
-- [ ] Transition tables for SR / Problem / Change; approval rules including the documented last-approver
+- [x] `ProblemDetails`, `ChangeDetails`, `ChangeApproval`, `TicketLink`
+- [x] Transition tables for SR / Problem / Change; approval rules including the documented last-approver
       self-approval case; `(type, status)` `CHECK` constraint
-- [ ] Type-specific forms and detail panels (planned window, risk, plans, root cause, workaround)
-- [ ] Linking: `POST /tickets/:id/links` with canonical directions and uniqueness, linked-tickets panel,
+- [x] Type-specific forms and detail panels (planned window, risk, plans, root cause, workaround)
+- [x] Linking: `POST /tickets/:id/links` with canonical directions and uniqueness, linked-tickets panel,
       "create Problem from these incidents", "create Change from this Problem"
-- [ ] Console: per-type queues, approval inbox for leads and admins
-- [ ] Seed: problems with linked incidents, changes in every state, a few watched tickets
+- [x] Console: per-type queues, approval inbox for leads and admins
+- [x] Seed: problems with linked incidents, changes in every state, a few watched tickets
 
 ## M5 — Context: assets, knowledge, attachments
 
