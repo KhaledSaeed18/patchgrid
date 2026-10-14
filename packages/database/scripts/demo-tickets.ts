@@ -216,3 +216,147 @@ async function demoCategories(db: PrismaClient, org: SeededOrg) {
   await create("Other", org.categories.hardware, 2, null)
   return ids
 }
+
+/**
+ * M4's record types on top of the incidents (FEATURES.md M4): Problems at
+ * every stage, each caused by some of the incidents above; Changes in every
+ * state, with their plans, outcomes and decisions — one rejected then
+ * approved — one of them resolving a Problem; and some watched tickets.
+ * `lead` leads the changes' team, so their approval inbox has something in
+ * it.
+ */
+export async function seedDemoProblemsAndChanges(
+  db: PrismaClient,
+  org: SeededOrg,
+  people: { lead: string; agents: string[]; admin: string; watchers: string[] },
+  seed: number,
+  now = new Date(),
+): Promise<{ problems: number; changes: number }> {
+  const rng = random(seed + 100)
+  const team = org.teams.Network
+  // The lookalikes already make them the team's lead; say so rather than assume it.
+  const led = await db.teamMembership.count({ where: { orgId: org.id, teamId: team, membershipId: people.lead, isLead: true } })
+  if (led !== 1) throw new Error(`demo seed: the approver must lead ${org.slug}'s Network team`)
+  const incidents = await db.ticket.findMany({
+    where: { orgId: org.id, type: "INCIDENT", id: { not: org.ticketId } },
+    orderBy: { number: "asc" },
+    select: { id: true },
+  })
+  const counters = await db.ticketCounter.findMany({ where: { orgId: org.id, type: { in: ["PROBLEM", "CHANGE"] } } })
+  let problemNumber = counters.find((c) => c.type === "PROBLEM")?.nextValue ?? 1
+  let changeNumber = counters.find((c) => c.type === "CHANGE")?.nextValue ?? 1
+  const day = (n: number) => at(now, -n * 1440)
+  const base = { orgId: org.id, impact: "MEDIUM" as const, urgency: "MEDIUM" as const, priority: "MEDIUM" as const, source: "CONSOLE" as const, teamId: team }
+
+  const PROBLEMS = [
+    { title: "Outlook password prompts after the update", status: "NEW", workaround: null, rootCause: null, age: 1 },
+    { title: "Laptops failing to wake from sleep", status: "IN_PROGRESS", workaround: null, rootCause: null, age: 4 },
+    { title: "Wi-Fi drops in the warehouse", status: "KNOWN_ERROR", workaround: "Pin scanners to the 5 GHz access point by the bay door.", rootCause: null, age: 9 },
+    { title: "Calendar invites arriving late", status: "RESOLVED", workaround: "Send from the web client.", rootCause: "The mail relay kept the old daylight-saving offset.", age: 20 },
+  ] as const
+  const problemIds: string[] = []
+  for (const [index, p] of PROBLEMS.entries()) {
+    const createdAt = day(p.age)
+    const problem = await db.ticket.create({
+      data: {
+        ...base,
+        number: problemNumber,
+        type: "PROBLEM",
+        title: p.title,
+        description: "Several incidents point the same way; finding the cause.",
+        status: p.status,
+        requesterMembershipId: rng.pick(people.agents),
+        assigneeMembershipId: p.status === "NEW" ? null : rng.pick(people.agents),
+        responseClockStartedAt: createdAt,
+        resolutionClockStartedAt: createdAt,
+        resolvedAt: p.status === "RESOLVED" ? day(p.age - 3) : null,
+        createdAt,
+        updatedAt: createdAt,
+        problem: { create: { workaround: p.workaround, rootCause: p.rootCause, knownErrorAt: p.workaround === null ? null : day(p.age - 1) } },
+      },
+      select: { id: true },
+    })
+    problemNumber += 1
+    problemIds.push(problem.id)
+    const caused = incidents.slice(index * 3, index * 3 + 2 + (index % 2))
+    await db.ticketLink.createMany({
+      data: caused.map((i) => ({ orgId: org.id, fromTicketId: i.id, toTicketId: problem.id, relation: "CAUSED_BY" as const, createdByMembershipId: people.lead })),
+    })
+  }
+
+  const plan = (offsetDays: number) => ({
+    plannedStart: at(now, offsetDays * 1440),
+    plannedEnd: at(now, offsetDays * 1440 + 120),
+    risk: rng.pick(["LOW", "MEDIUM", "HIGH"] as const),
+    implementationPlan: "Announce the window, apply in the maintenance slot, verify, close the announcement.",
+    rollbackPlan: "Restore the previous configuration from the nightly backup.",
+  })
+  const CHANGES = [
+    { title: "Replace the warehouse access points", status: "DRAFT", plan: { risk: "MEDIUM" as const }, decisions: [], outcome: null, offset: 7 },
+    { title: "Move the mail relay to the new cluster", status: "AWAITING_APPROVAL", decisions: ["REJECTED"], outcome: null, offset: 3 },
+    { title: "Raise the VPN lease table size", status: "AWAITING_APPROVAL", decisions: [], outcome: null, offset: 2 },
+    { title: "Upgrade the core switch firmware", status: "APPROVED", decisions: ["APPROVED"], outcome: null, offset: 1 },
+    { title: "Roll out the new laptop sleep policy", status: "IN_PROGRESS", decisions: ["APPROVED"], outcome: null, offset: 0 },
+    { title: "Rotate the guest Wi-Fi password weekly", status: "IMPLEMENTED", decisions: ["APPROVED"], outcome: "Rotation scheduled; the reception screen shows the new code.", offset: -2 },
+    { title: "Enable the new spam filter rules", status: "ROLLED_BACK", decisions: ["APPROVED"], outcome: "Blocked two clients' invoices; rolled back within the hour.", offset: -4 },
+    { title: "Fix the daylight-saving offset on the relay", status: "CLOSED", decisions: ["REJECTED", "APPROVED"], outcome: "Offset corrected; invites arrive on time.", offset: -15 },
+    { title: "Retire the old print server", status: "CANCELLED", decisions: [], outcome: null, offset: 10 },
+  ] as const
+  for (const c of CHANGES) {
+    const createdAt = at(now, Math.min(-1, c.offset - 3) * 1440)
+    const details = "plan" in c ? c.plan : plan(c.offset)
+    const doneAt = c.outcome === null ? null : at(now, c.offset * 1440 + 150)
+    const change = await db.ticket.create({
+      data: {
+        ...base,
+        number: changeNumber,
+        type: "CHANGE",
+        title: c.title,
+        description: "Planned work, approved before it is carried out.",
+        status: c.status,
+        requesterMembershipId: people.admin,
+        assigneeMembershipId: ["IN_PROGRESS", "IMPLEMENTED", "ROLLED_BACK", "CLOSED"].includes(c.status) ? rng.pick(people.agents) : null,
+        responseClockStartedAt: createdAt,
+        resolutionClockStartedAt: createdAt,
+        resolvedAt: doneAt,
+        closedAt: c.status === "CLOSED" && doneAt !== null ? at(doneAt, 1440) : null,
+        cancelledAt: c.status === "CANCELLED" ? at(createdAt, 60) : null,
+        createdAt,
+        updatedAt: doneAt ?? createdAt,
+        change: { create: { ...details, outcomeNotes: c.outcome } },
+      },
+      select: { id: true },
+    })
+    changeNumber += 1
+    for (const [i, decision] of c.decisions.entries()) {
+      await db.changeApproval.create({
+        data: {
+          orgId: org.id,
+          ticketId: change.id,
+          approverMembershipId: people.lead,
+          decision,
+          reason: decision === "REJECTED" ? "Pick a window outside the month-end close." : null,
+          decidedAt: at(createdAt, 120 + i * 600),
+        },
+      })
+    }
+    if (c.title.startsWith("Fix the daylight-saving")) {
+      await db.ticketLink.create({
+        data: { orgId: org.id, fromTicketId: problemIds[3] ?? "", toTicketId: change.id, relation: "RESOLVED_BY", createdByMembershipId: people.lead },
+      })
+    }
+  }
+  await db.ticketCounter.update({ where: { orgId_type: { orgId: org.id, type: "PROBLEM" } }, data: { nextValue: problemNumber } })
+  await db.ticketCounter.update({ where: { orgId_type: { orgId: org.id, type: "CHANGE" } }, data: { nextValue: changeNumber } })
+
+  // A few watched incidents, so the watcher panel and "tickets I watch" have rows.
+  for (const [i, incident] of incidents.slice(12, 16).entries()) {
+    const watcher = people.watchers[i % people.watchers.length]
+    if (watcher === undefined) continue
+    await db.ticketWatcher.createMany({
+      data: [{ orgId: org.id, ticketId: incident.id, membershipId: watcher, addedByMembershipId: people.lead }],
+      skipDuplicates: true,
+    })
+  }
+  return { problems: PROBLEMS.length, changes: CHANGES.length }
+}

@@ -16,7 +16,7 @@ import { type Algorithm, hash } from "@node-rs/argon2"
 import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
 
 import { createPrismaClient, lookalikeEmails, removeLookalikes, seedLookalikes } from "../src/index.ts"
-import { seedDemoTickets } from "./demo-tickets.ts"
+import { seedDemoProblemsAndChanges, seedDemoTickets } from "./demo-tickets.ts"
 
 try {
   process.loadEnvFile(path.join(import.meta.dirname, "../../../.env"))
@@ -52,9 +52,19 @@ async function main(): Promise<void> {
       (await seedDemoTickets(db, seeded.acme, { requesters: pick(seeded.acme.members, ["rita"]), agents: pick(seeded.acme.members, ["sam", "dana", "alice"]) }, 1)) +
       (await seedDemoTickets(db, seeded.globex, { requesters: pick(seeded.globex.members, ["rosa"]), agents: pick(seeded.globex.members, ["tina", "dana", "gus"]) }, 2))
 
-    console.log(`seed: acme and globex are ready, with ${tickets} demo incidents — every account's password is`, JSON.stringify(DEMO_PASSWORD))
+    const records = [
+      await seedDemoProblemsAndChanges(db, seeded.acme, { lead: seeded.acme.members.sam ?? "", agents: pick(seeded.acme.members, ["sam", "dana"]), admin: seeded.acme.members.alice ?? "", watchers: pick(seeded.acme.members, ["dana", "rita"]) }, 1),
+      await seedDemoProblemsAndChanges(db, seeded.globex, { lead: seeded.globex.members.tina ?? "", agents: pick(seeded.globex.members, ["tina", "dana"]), admin: seeded.globex.members.gus ?? "", watchers: pick(seeded.globex.members, ["dana", "rosa"]) }, 2),
+    ]
+    const problems = records.reduce((n, r) => n + r.problems, 0)
+    const changes = records.reduce((n, r) => n + r.changes, 0)
+    console.log(
+      `seed: acme and globex are ready, with ${tickets} demo incidents, ${problems} problems and ${changes} changes — every account's password is`,
+      JSON.stringify(DEMO_PASSWORD),
+    )
     for (const [key, person] of Object.entries(seeded.people)) console.log(`  ${key.padEnd(6)} ${person.email}`)
     console.log("  dana is an admin at http://acme.lvh.me:3001 and an agent at http://globex.lvh.me:3001")
+    console.log("  sam leads Network at Acme: changes awaiting approval are in his queues")
   } finally {
     await db.$disconnect()
   }
