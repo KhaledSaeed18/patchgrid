@@ -56,6 +56,7 @@ describe("the dispatcher over time", () => {
       {} as Queue,
       {} as Queue,
       {} as Queue,
+      {} as Queue,
     )
     vi.setSystemTime(new Date(Math.ceil(T0.getTime() / MINUTE) * MINUTE))
     await dispatch.fanOut("sla-scan")

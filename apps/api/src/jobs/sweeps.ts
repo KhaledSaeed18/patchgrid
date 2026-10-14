@@ -17,6 +17,8 @@ export const SWEEPS = {
   "inbound-sweep": { everyMs: 60 * 60_000 },
   /** End support sessions past their expiry, on the record, and tell the owners (ADR-0041). */
   "support-sweep": { everyMs: 5 * 60_000 },
+  /** Warn, a week ahead, about API tokens about to lapse (ADR-0042). */
+  "api-token-sweep": { everyMs: 60 * 60_000 },
   /** Recompute the org picker's projection from source; drift is a bug (ADR-0022). */
   "projection-reconcile": { everyMs: 24 * 60 * 60_000 },
 } as const

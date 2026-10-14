@@ -36,6 +36,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue("attachment-sweep") attachmentSweep: Queue,
     @InjectQueue("inbound-sweep") inboundSweep: Queue,
     @InjectQueue("support-sweep") supportSweep: Queue,
+    @InjectQueue("api-token-sweep") apiTokenSweep: Queue,
     @InjectQueue("projection-reconcile") projectionReconcile: Queue,
   ) {
     this.queues = {
@@ -44,6 +45,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
       "attachment-sweep": attachmentSweep,
       "inbound-sweep": inboundSweep,
       "support-sweep": supportSweep,
+      "api-token-sweep": apiTokenSweep,
       "projection-reconcile": projectionReconcile,
     }
   }

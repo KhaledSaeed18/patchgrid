@@ -6,6 +6,7 @@ import { z } from "zod"
 import { AccountExists } from "./account-exists"
 import { Invite } from "./invite"
 import { ResetPassword } from "./reset-password"
+import { ApiTokenExpiring, apiTokenExpiringSubject } from "./api-token-expiring"
 import { SupportAccess, supportSubject } from "./support-access"
 import { TicketNotification } from "./ticket-notification"
 import { VerifyEmail } from "./verify-email"
@@ -78,6 +79,17 @@ export const MAIL_KINDS = {
     subject: supportSubject,
     component: SupportAccess,
   },
+  "api-token-expiring": {
+    params: z.object({
+      orgName: z.string(),
+      tokenName: z.string().max(80),
+      prefix: z.string().regex(/^[a-z0-9]{12}$/),
+      expiresOn: z.string().max(100),
+      settingsUrl: url,
+    }),
+    subject: apiTokenExpiringSubject,
+    component: ApiTokenExpiring,
+  },
 } as const
 
 export type MailKind = keyof typeof MAIL_KINDS
@@ -97,6 +109,7 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("reset-password"), ...envelope, params: MAIL_KINDS["reset-password"].params }),
   z.object({ kind: z.literal("ticket-notification"), ...envelope, params: MAIL_KINDS["ticket-notification"].params }),
   z.object({ kind: z.literal("support-access"), ...envelope, params: MAIL_KINDS["support-access"].params }),
+  z.object({ kind: z.literal("api-token-expiring"), ...envelope, params: MAIL_KINDS["api-token-expiring"].params }),
 ])
 export type MailJob = z.infer<typeof mailJobSchema>
 
@@ -131,6 +144,8 @@ function elementFor(job: MailJob): ReactElement {
       return <TicketNotification {...job.params} />
     case "support-access":
       return <SupportAccess {...job.params} />
+    case "api-token-expiring":
+      return <ApiTokenExpiring {...job.params} />
   }
 }
 
@@ -142,6 +157,8 @@ function subjectFor(job: MailJob): string {
       return MAIL_KINDS["ticket-notification"].subject(job.params)
     case "support-access":
       return MAIL_KINDS["support-access"].subject(job.params)
+    case "api-token-expiring":
+      return MAIL_KINDS["api-token-expiring"].subject(job.params)
     default:
       return MAIL_KINDS[job.kind].subject()
   }

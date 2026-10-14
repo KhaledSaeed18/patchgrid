@@ -18,4 +18,14 @@ export class ApiTokenIndexRepository {
       select: { orgId: true, revokedAt: true },
     })
   }
+
+  /** Written in the same transaction as the `ApiToken` row it mirrors (ADR-0042). */
+  async create(prefix: string, orgId: string): Promise<void> {
+    await this.prisma.db.apiTokenIndex.create({ data: { prefix, orgId } })
+  }
+
+  /** Mirrors a revocation; the prefix stops resolving once the lookup cache drops it. */
+  async revoke(prefix: string, orgId: string, at: Date): Promise<void> {
+    await this.prisma.db.apiTokenIndex.updateMany({ where: { prefix, orgId, revokedAt: null }, data: { revokedAt: at } })
+  }
 }
