@@ -46,7 +46,7 @@ export function Verify({ token }: { token: string }) {
           This link has expired or was already used. Sign in, and we’ll send a
           fresh one if you need it.
         </FormAlert>
-        <Button render={<Link href="/login" />} size="lg">
+        <Button nativeButton={false} render={<Link href="/login" />} size="lg">
           Go to sign in
         </Button>
       </div>

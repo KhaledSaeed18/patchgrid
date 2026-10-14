@@ -84,7 +84,7 @@ export function ConfirmResetForm({ token }: { token: string }) {
         <FormAlert tone="info">
           Your password is changed, and every other session is signed out.
         </FormAlert>
-        <Button render={<Link href="/login" />} size="lg">
+        <Button nativeButton={false} render={<Link href="/login" />} size="lg">
           Sign in
         </Button>
       </FieldGroup>

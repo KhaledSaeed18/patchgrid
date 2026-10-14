@@ -68,6 +68,7 @@ export function Links({
       {canLink && <AddLink ticket={ticket} />}
       {(raiseProblem || raiseChange) && (
         <Button
+          nativeButton={false}
           size="sm"
           variant="outline"
           className="mt-3"
@@ -186,7 +187,7 @@ function AddLink({ ticket }: { ticket: Ticket }) {
         if (number.trim() !== "") add.mutate()
       }}
     >
-      <div className="flex gap-2">
+      <div className="grid gap-2">
         <label htmlFor="link-kind" className="sr-only">
           How they are linked
         </label>
@@ -209,7 +210,7 @@ function AddLink({ ticket }: { ticket: Ticket }) {
           value={number}
           onChange={(e) => setNumber(e.target.value)}
           placeholder="INC-000042"
-          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 font-mono text-sm"
+          className="h-9 w-full rounded-md border border-input bg-transparent px-3 font-mono text-sm"
         />
       </div>
       {problem !== null && (

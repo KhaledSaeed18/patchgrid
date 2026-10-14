@@ -16,6 +16,7 @@ export default function NotificationsPage() {
         description="What happened on the tickets you raised, work on or watch. A burst on one ticket is folded into a single line."
         action={
           <Button
+            nativeButton={false}
             variant="outline"
             size="sm"
             render={<Link href="/notifications/preferences" />}
