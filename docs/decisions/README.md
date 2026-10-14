@@ -47,6 +47,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0038](0038-uploads-land-in-staging.md) | Uploads land in staging, and only checked bytes are served | Accepted |
 | [0039](0039-inbound-mail-feed-and-verdict.md) | Inbound mail arrives as signed raw MIME; the verdict is the receiver's Authentication-Results | Accepted |
 | [0040](0040-platform-credential-and-the-admin-host.md) | The platform credential, and MFA for platform admins ahead of M9 | Accepted |
+| [0041](0041-support-sessions-read-through-the-tenants-own-routes.md) | A support session reads through the tenant's own routes, as a read-only support actor | Accepted |
 
 ## Reading order for someone new
 
