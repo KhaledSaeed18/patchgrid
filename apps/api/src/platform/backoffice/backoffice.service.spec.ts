@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { ActorService, PlatformActor } from "../../auth/actor"
 import type { RevocationEpochService } from "../../auth/revocation/revocation-epoch.service"
 import type { AuditService } from "../../audit/audit.service"
+import { FixedClock } from "../../common/clock/clock"
 import { ConflictProblem, NotAuthenticatedProblem, NotFoundProblem } from "../../common/problems/problem.exception"
 import type { PrismaService } from "../../prisma/prisma.service"
 import type { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
@@ -11,12 +12,14 @@ import { BackofficeService } from "./backoffice.service"
 import type { BackofficeRepository, OrgRow } from "./repositories/backoffice.repository"
 
 const ORG = "0190b2f0-0000-7000-8000-00000000000a"
-const org: OrgRow = { id: ORG, name: "Acme", slug: "acme", status: "ACTIVE", plan: "FREE", domain: null, createdAt: new Date(0) }
+const NOW = new Date("2026-10-15T12:00:00Z")
+const org: OrgRow = { id: ORG, name: "Acme", slug: "acme", status: "ACTIVE", plan: "FREE", domain: null, createdAt: new Date(0), deletionRequestedAt: null }
 
 function harness(actor: PlatformActor | undefined, row: OrgRow | null = org, moved = true) {
   const repo = {
     find: vi.fn(async () => row),
     moveStatus: vi.fn(async () => moved),
+    restoreDeletion: vi.fn(async () => moved),
     setPlan: vi.fn(async () => undefined),
     activeMembers: vi.fn(async () => new Map([[ORG, 3]])),
     countsIn: vi.fn(async () => ({ seats: 2, requesters: 1, tickets: 0, openTickets: 0, assets: 0, articles: 0, storageBytes: 0 })),
@@ -38,6 +41,7 @@ function harness(actor: PlatformActor | undefined, row: OrgRow | null = org, mov
         return actor
       },
     } as unknown as ActorService,
+    new FixedClock(NOW),
   )
   return { service, repo, epochs, audit, platformAudit }
 }
@@ -71,5 +75,19 @@ describe("BackofficeService", () => {
     const pro = harness(operator)
     await pro.service.setPlan(ORG, "PRO")
     expect(pro.audit.record).toHaveBeenCalledWith(ORG, [expect.objectContaining({ action: "ORG_PLAN_CHANGED", diff: { plan: { from: "FREE", to: "PRO" } } })])
+  })
+
+  it("restores a workspace pending deletion, in both logs, until its purge date and not after (ADR-0043)", async () => {
+    const day = 24 * 60 * 60_000
+    const pending = (requestedDaysAgo: number): OrgRow => ({ ...org, status: "PENDING_DELETION", deletionRequestedAt: new Date(NOW.getTime() - requestedDaysAgo * day) })
+    const h = harness(operator, pending(29))
+    await h.service.restore(ORG)
+    expect(h.repo.restoreDeletion).toHaveBeenCalledWith(ORG)
+    expect(h.audit.record).toHaveBeenCalledWith(ORG, [expect.objectContaining({ action: "ORG_DELETION_CANCELLED" })])
+    expect(h.platformAudit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "PLATFORM_ORG_DELETION_RESTORED", targetOrgId: ORG }))
+    const late = harness(operator, pending(30))
+    await expect(late.service.restore(ORG)).rejects.toBeInstanceOf(ConflictProblem)
+    expect(late.repo.restoreDeletion).not.toHaveBeenCalled()
+    await expect(harness(operator, org, false).service.restore(ORG)).rejects.toBeInstanceOf(ConflictProblem)
   })
 })

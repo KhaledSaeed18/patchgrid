@@ -60,6 +60,12 @@ export class BackofficeController {
     return this.backoffice.unsuspend(params.id)
   }
 
+  @Post(":id/restore")
+  @HttpCode(200)
+  restore(@Param() params: OrgParamsDto): Promise<PlatformOrgDetail> {
+    return this.backoffice.restore(params.id)
+  }
+
   @Get(":id/support")
   supportSessions(@Param() params: OrgParamsDto): Promise<SupportSession[]> {
     return this.support.list(params.id)

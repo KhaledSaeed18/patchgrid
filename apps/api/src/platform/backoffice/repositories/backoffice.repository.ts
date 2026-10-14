@@ -12,9 +12,10 @@ export type OrgRow = {
   plan: Plan
   domain: string | null
   createdAt: Date
+  deletionRequestedAt: Date | null
 }
 
-const ORG = { id: true, name: true, slug: true, status: true, plan: true, domain: true, createdAt: true } satisfies Prisma.OrganizationSelect
+const ORG = { id: true, name: true, slug: true, status: true, plan: true, domain: true, createdAt: true, deletionRequestedAt: true } satisfies Prisma.OrganizationSelect
 
 /**
  * What the back-office reads and changes (RBAC.md §8). The organization
@@ -65,6 +66,16 @@ export class BackofficeRepository {
   async moveStatus(id: string, from: OrganizationStatus, to: OrganizationStatus): Promise<boolean> {
     const { count } = await this.prisma.db.organization.updateMany({ where: { id, status: from }, data: { status: to } })
     if (count === 1) await this.prisma.db.userOrgIndex.updateMany({ where: { orgId: id }, data: { orgStatus: to } })
+    return count === 1
+  }
+
+  /** `PENDING_DELETION` → `ACTIVE`, the request forgotten, before the purge gets there (ADR-0043). */
+  async restoreDeletion(id: string): Promise<boolean> {
+    const { count } = await this.prisma.db.organization.updateMany({
+      where: { id, status: "PENDING_DELETION" },
+      data: { status: "ACTIVE", deletionRequestedAt: null },
+    })
+    if (count === 1) await this.prisma.db.userOrgIndex.updateMany({ where: { orgId: id }, data: { orgStatus: "ACTIVE", orgDeletionRequestedAt: null } })
     return count === 1
   }
 

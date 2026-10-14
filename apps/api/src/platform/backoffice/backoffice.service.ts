@@ -7,9 +7,11 @@ import {
   type PlatformOrgDetail,
   type PlatformOrgListQuery,
   type PlatformOrgPage,
+  purgeDateFor,
 } from "@patchgrid/contracts"
 
 import { ActorService, type PlatformActor } from "../../auth/actor"
+import { type Clock, InjectClock } from "../../common/clock/clock"
 import { RevocationEpochService } from "../../auth/revocation/revocation-epoch.service"
 import { AuditService } from "../../audit/audit.service"
 import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../../common/problems/problem.exception"
@@ -36,6 +38,7 @@ export class BackofficeService {
     private readonly platformAudit: PlatformAuditRepository,
     private readonly prisma: PrismaService,
     private readonly actors: ActorService,
+    @InjectClock() private readonly clock: Clock,
   ) {}
 
   async list(query: PlatformOrgListQuery): Promise<PlatformOrgPage> {
@@ -102,6 +105,28 @@ export class BackofficeService {
     return this.get(id)
   }
 
+  /**
+   * Undoes an owner's deletion request before the purge runs (RBAC.md §8,
+   * ADR-0043): the workspace comes back as it was, and its admins read who
+   * restored it in their own log.
+   */
+  async restore(id: string): Promise<PlatformOrgDetail> {
+    const actor = this.actors.requirePlatform()
+    const row = await this.orgs.find(id)
+    if (row === null) throw new NotFoundProblem()
+    // From the purge date on, the purge owns it; never restore a workspace it may be emptying (ADR-0043).
+    if (row.deletionRequestedAt !== null && this.clock.now().getTime() >= purgeDateFor(row.deletionRequestedAt).getTime()) {
+      throw new ConflictProblem("This workspace's deletion window has closed")
+    }
+    if (!(await this.orgs.restoreDeletion(id))) throw new ConflictProblem("The workspace is not pending deletion")
+    await this.lookup.invalidate({ id: row.id, slug: row.slug })
+    await runAsTenant(row.id, crossing(actor, "restore"), () =>
+      this.prisma.transaction(() => this.audit.record(row.id, [{ action: "ORG_DELETION_CANCELLED", entityType: "Organization", entityId: row.id }])),
+    )
+    await this.platformAudit.record({ platformAdminId: actor.platformAdminId, action: "PLATFORM_ORG_DELETION_RESTORED", targetOrgId: row.id })
+    return this.get(id)
+  }
+
   /** Plans are set by an operator (there is no self-serve billing). Limits follow at once; nothing is deleted. */
   async setPlan(id: string, plan: Plan): Promise<PlatformOrgDetail> {
     const actor = this.actors.requirePlatform()
@@ -125,5 +150,14 @@ function crossing(actor: PlatformActor, reason: string) {
 }
 
 function toOrg(row: OrgRow, activeMembers: number): PlatformOrg {
-  return { id: row.id, name: row.name, slug: row.slug, status: row.status, plan: row.plan, activeMembers, createdAt: row.createdAt.toISOString() }
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    status: row.status,
+    plan: row.plan,
+    activeMembers,
+    createdAt: row.createdAt.toISOString(),
+    purgeAt: row.status === "PENDING_DELETION" && row.deletionRequestedAt !== null ? purgeDateFor(row.deletionRequestedAt).toISOString() : null,
+  }
 }
