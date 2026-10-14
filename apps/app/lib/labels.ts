@@ -1,6 +1,7 @@
 import type {
   Impact,
   MembershipStatus,
+  NotificationType,
   Priority,
   Role,
   TicketAction,
@@ -85,4 +86,18 @@ export const URGENCY_LABEL: Record<Urgency, string> = {
   LOW: "It can wait",
   MEDIUM: "It's slowing me down",
   HIGH: "I can't work",
+}
+
+/** Each kind of notification, as the email preferences name it. */
+export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
+  TICKET_CREATED: "A ticket I raised is received, or one arrives for my team",
+  TICKET_RAISED_FOR_YOU: "Someone raises a ticket for me",
+  TICKET_ASSIGNED: "A ticket is assigned to me",
+  COMMENT_PUBLIC: "A reply on a ticket I'm part of",
+  COMMENT_INTERNAL: "An internal note on a ticket assigned to me",
+  STATUS_CHANGED: "A ticket I'm part of waits on me, is resolved or closed",
+  TICKET_REOPENED: "A ticket I work on is reopened",
+  WATCHER_ADDED: "Someone adds me as a watcher",
+  SLA_WARNING: "A ticket nears its SLA target",
+  SLA_BREACHED: "A ticket misses its SLA target",
 }
