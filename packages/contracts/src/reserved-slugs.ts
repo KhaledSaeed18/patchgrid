@@ -24,6 +24,10 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // Mail and DNS labels: claiming one of these would shadow real infrastructure
   "mail", "smtp", "imap", "ns1", "ns2", "email",
   "autodiscover", "autoconfig", "dmarc", "dkim", "spf",
+  // Role mailboxes (RFC 2142, CA/Browser validation addresses): a slug is also
+  // a mailbox at the inbound host, and mail to these must reach nobody's workspace.
+  "postmaster", "abuse", "hostmaster", "webmaster", "administrator", "mailer-daemon",
+  "noreply", "no-reply",
 
   // Content and asset hosts
   "cdn", "static", "assets", "media", "img", "attachments",
