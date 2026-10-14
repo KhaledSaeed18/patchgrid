@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { SUPPORT_READ_PERMISSIONS } from "@patchgrid/contracts"
 import { describe, expect, it } from "vitest"
 
 import { currentHref, homeFor, navigationFor } from "./navigation"
@@ -64,5 +65,26 @@ describe("navigation", () => {
     expect(currentHref("/tickets/new", agent)).toBe("/tickets")
     expect(currentHref("/settings/teams/x", agent)).toBe("/settings/teams")
     expect(currentHref("/settings", agent)).toBe("/settings")
+  })
+
+  it("shows a read-only support session the pages it may read, and lands it on the queues", () => {
+    const support = navigationFor(SUPPORT_READ_PERMISSIONS, true)
+    const hrefs = support.flatMap((s) => s.items.map((i) => i.href))
+    expect(hrefs).toEqual(
+      expect.arrayContaining([
+        "/queues",
+        "/settings/members",
+        "/settings/categories",
+        "/settings/sla",
+        "/settings/audit",
+      ])
+    )
+    expect(hrefs).not.toContain("/tickets")
+    expect(hrefs).not.toContain("/notifications")
+    expect(homeFor(SUPPORT_READ_PERMISSIONS, true)).toBe("/queues")
+    // A member who holds only the reads still gets a member's navigation.
+    expect(
+      navigationFor(["ticket:read_audit", "sla:read"]).flatMap((s) => s.items)
+    ).toEqual([])
   })
 })

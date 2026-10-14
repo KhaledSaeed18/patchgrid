@@ -4,8 +4,16 @@ import type { Permission } from "@patchgrid/contracts"
  * The workspace's navigation, drawn from the role-level permissions `GET /me`
  * returned (RBAC.md §7). Hiding a link is a convenience; the API refuses the
  * page's calls regardless.
+ *
+ * A page a member reaches by what they may change is, for a read-only support
+ * session (ADR-0041), reached by what it may read: `reads` names that.
  */
-export type NavItem = { label: string; href: string; requires: Permission }
+export type NavItem = {
+  label: string
+  href: string
+  requires: Permission
+  reads?: Permission
+}
 export type NavSection = { label: string | null; items: NavItem[] }
 
 const SECTIONS: NavSection[] = [
@@ -13,7 +21,12 @@ const SECTIONS: NavSection[] = [
     label: null,
     items: [
       { label: "My tickets", href: "/tickets", requires: "ticket:create" },
-      { label: "Queues", href: "/queues", requires: "ticket:assign" },
+      {
+        label: "Queues",
+        href: "/queues",
+        requires: "ticket:assign",
+        reads: "ticket:read_audit",
+      },
       // A requester holds `asset:read` for the assets they own; the page lists exactly those.
       { label: "Assets", href: "/assets", requires: "asset:read" },
       { label: "Knowledge", href: "/knowledge", requires: "kb:read_published" },
@@ -32,14 +45,21 @@ const SECTIONS: NavSection[] = [
         label: "Members",
         href: "/settings/members",
         requires: "member:invite",
+        reads: "member:read_contact",
       },
       { label: "Teams", href: "/settings/teams", requires: "team:read" },
       {
         label: "Categories",
         href: "/settings/categories",
         requires: "category:write",
+        reads: "category:read",
       },
-      { label: "SLA targets", href: "/settings/sla", requires: "sla:write" },
+      {
+        label: "SLA targets",
+        href: "/settings/sla",
+        requires: "sla:write",
+        reads: "sla:read",
+      },
       {
         label: "Audit log",
         href: "/settings/audit",
@@ -50,23 +70,39 @@ const SECTIONS: NavSection[] = [
         href: "/settings/inbound",
         requires: "org:read_audit",
       },
+      {
+        label: "Support access",
+        href: "/settings/support",
+        requires: "support:read_sessions",
+      },
     ],
   },
 ]
 
 export function navigationFor(
-  permissions: readonly Permission[]
+  permissions: readonly Permission[],
+  readOnly = false
 ): NavSection[] {
   const held = new Set(permissions)
   return SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((i) => held.has(i.requires)),
+    items: section.items.filter((i) =>
+      held.has(readOnly ? (i.reads ?? i.requires) : i.requires)
+    ),
   })).filter((section) => section.items.length > 0)
 }
 
-/** Where `/` sends a member: agents to the queues they work, everyone else to their own tickets. */
-export function homeFor(permissions: readonly Permission[]): string {
-  return permissions.includes("ticket:assign") ? "/queues" : "/tickets"
+/**
+ * Where `/` sends a member: agents to the queues they work, everyone else to
+ * their own tickets. A support session has raised nothing; it reads queues.
+ */
+export function homeFor(
+  permissions: readonly Permission[],
+  readOnly = false
+): string {
+  return readOnly || permissions.includes("ticket:assign")
+    ? "/queues"
+    : "/tickets"
 }
 
 const TICKET_PAGE = /^\/tickets\/[0-9a-f-]{36}$/

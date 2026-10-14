@@ -13,6 +13,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { NotificationBell } from "@/components/notifications/bell"
+import { SupportBanner } from "@/components/support-banner"
 import { clientApi } from "@/lib/api/client"
 import { appOrigin, ROOT_DOMAIN } from "@/lib/config"
 import { ROLE_LABEL } from "@/lib/labels"
@@ -28,7 +29,9 @@ import { useTenant } from "./tenant-provider"
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const me = useTenant()
   const pathname = usePathname()
-  const sections = navigationFor(me.permissions)
+  // An operator in a support session reads, and has no inbox (ADR-0041).
+  const operator = me.support?.kind === "operator"
+  const sections = navigationFor(me.permissions, operator)
   const current = currentHref(pathname, sections)
   const active = (href: string) => href === current
 
@@ -44,7 +47,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </div>
           {/* The foot is desktop-only, so on a narrow screen the bell lives up here. */}
           <div className="md:hidden">
-            <NotificationBell side="bottom" align="end" />
+            {!operator && <NotificationBell side="bottom" align="end" />}
           </div>
         </div>
         <nav
@@ -82,10 +85,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <div className="min-w-0 flex-1">
             <MemberMenu />
           </div>
-          <NotificationBell side="top" align="end" />
+          {!operator && <NotificationBell side="top" align="end" />}
         </div>
       </aside>
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0">
+        <SupportBanner />
+        {children}
+      </div>
     </div>
   )
 }

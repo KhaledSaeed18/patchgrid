@@ -47,6 +47,7 @@ import {
 import { LiveRefresh } from "@/components/live-refresh"
 import { DueBadge } from "@/components/tickets/due-badge"
 import { RelativeTime } from "@/components/tickets/relative-time"
+import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { failureMessage } from "@/lib/failure"
@@ -116,14 +117,17 @@ export function TicketDetail({
   assignable: { agents: Member[]; teams: Team[] } | null
 }) {
   const actions = ticket.availableActions.filter((a) => a !== "assign")
+  // A support session reads from the queues, though it may assign nothing.
+  const operator = useTenant().support?.kind === "operator"
+  const fromQueues = ticket.capabilities.canAssign || operator
   return (
     <div className="px-6 py-8 md:px-10">
       <LiveRefresh ticketId={ticket.id} delay={300} holdWhileEditing />
       <Link
-        href={ticket.capabilities.canAssign ? "/queues" : "/tickets"}
+        href={fromQueues ? "/queues" : "/tickets"}
         className="text-sm text-muted-foreground hover:text-foreground"
       >
-        {ticket.capabilities.canAssign ? "Queues" : "My tickets"}
+        {fromQueues ? "Queues" : "My tickets"}
       </Link>
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span className="font-mono text-xs tabular-nums">{ticket.number}</span>

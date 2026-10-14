@@ -43,11 +43,24 @@ export default async function QueuesPage({
   const params = await searchParams
   const one = (key: string) =>
     typeof params[key] === "string" ? params[key] : undefined
+  const me = await serverApi("/me", { schema: meSchema })
+  // A support session (ADR-0041) is no one's assignee, in no team, and
+  // decides nothing: it reads the workspace's open work.
+  const operator = me.support?.kind === "operator"
+  // The approvals queue only for those who could ever decide on a change.
+  const queues = QUEUES.filter((queue) =>
+    operator
+      ? queue.view === "unassigned" || queue.view === "open"
+      : queue.view !== "approvals" ||
+        me.permissions.includes("ticket:approve_change")
+  )
   const parsedView = ticketViewSchema.safeParse(one("view"))
   const view =
-    parsedView.success && parsedView.data !== "mine"
+    parsedView.success && queues.some((queue) => queue.view === parsedView.data)
       ? parsedView.data
-      : "assigned"
+      : operator
+        ? "open"
+        : "assigned"
   const parsedType = ticketTypeSchema.safeParse(one("type"))
   const type =
     parsedType.success && view !== "approvals" ? parsedType.data : undefined
@@ -60,13 +73,6 @@ export default async function QueuesPage({
   const query = new URLSearchParams({ view, limit: "25" })
   if (type !== undefined) query.set("type", type)
   if (status !== undefined) query.set("status", status)
-  // The approvals queue only for those who could ever decide on a change.
-  const me = await serverApi("/me", { schema: meSchema })
-  const queues = QUEUES.filter(
-    (queue) =>
-      queue.view !== "approvals" ||
-      me.permissions.includes("ticket:approve_change")
-  )
   if (sort !== "newest") query.set("sort", sort)
 
   return (
