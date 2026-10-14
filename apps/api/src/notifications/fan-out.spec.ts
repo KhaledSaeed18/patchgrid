@@ -157,4 +157,9 @@ describe("who is also emailed (DOMAIN.md §8)", () => {
     expect(reasonFor(circle(), TEAMMATE.membershipId)).toBe("this ticket is in your team's queue")
     expect(reasonFor(circle(), ADMIN.membershipId)).toBe("you're an administrator of this workspace")
   })
+
+  it("still tells everyone else when no person stands behind the requester", () => {
+    const out = deliveriesFor({ kind: "sla", ticketId: TICKET, actorMembershipId: null, clock: "response", signal: "breach" }, circle({ requester: null }))
+    expect(who(out)).toEqual([AGENT, LEAD, ADMIN].map((p) => p.membershipId).toSorted())
+  })
 })

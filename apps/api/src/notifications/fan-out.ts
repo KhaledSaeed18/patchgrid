@@ -31,7 +31,8 @@ export type TicketCircle = {
   }
   /** The workspace: its visibility decides who may read the ticket; the rest addresses the email. */
   org: { name: string; slug: string; visibility: AgentVisibility; emailEnabled: boolean }
-  requester: Person
+  /** `null` when no person stands behind it — erased, or a service account: everyone else is still told. */
+  requester: Person | null
   assignee: Person | null
   /** Every member of the ticket's team, for "a ticket arrived" (in-app only). */
   teamMembers: Person[]
@@ -101,7 +102,7 @@ export function deliveriesFor(event: NotifyEvent, circle: TicketCircle): Deliver
 
   switch (event.kind) {
     case "ticket-created":
-      if (event.actorMembershipId !== null && event.actorMembershipId !== circle.requester.membershipId) {
+      if (event.actorMembershipId !== null && event.actorMembershipId !== circle.ticket.requesterMembershipId) {
         send([circle.requester], "TICKET_RAISED_FOR_YOU", `${circle.actorName ?? "Support"} raised ${ref} for you`)
       } else {
         // The requester's confirmation: they are looking at the ticket, so no inbox row — the receipt is the email.
@@ -152,7 +153,7 @@ export function deliveriesFor(event: NotifyEvent, circle: TicketCircle): Deliver
 /** Why this person heard, in the words an email's footer uses — their closest tie to the ticket. */
 export function reasonFor(circle: TicketCircle, membershipId: string): string {
   const is = (people: (Person | null)[]) => people.some((p) => p?.membershipId === membershipId)
-  if (circle.requester.membershipId === membershipId) return "you raised this ticket"
+  if (circle.ticket.requesterMembershipId === membershipId) return "you raised this ticket"
   if (circle.assignee?.membershipId === membershipId) return "this ticket is assigned to you"
   if (is(circle.watchers)) return "you're watching this ticket"
   if (is(circle.teamLeads)) return "you lead this ticket's team"

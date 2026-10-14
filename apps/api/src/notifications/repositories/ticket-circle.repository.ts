@@ -70,8 +70,6 @@ export class TicketCircleRepository {
       },
     })
     if (ticket === null) return null
-    const requester = toPerson(ticket.requester)
-    if (requester === null) return null
 
     // One after another: these run on the caller's transaction, and one
     // connection takes one statement at a time.
@@ -111,7 +109,7 @@ export class TicketCircleRepository {
         assigneeMembershipId: ticket.assigneeMembershipId,
       },
       org: { name: org.name, slug: org.slug, visibility: org.agentVisibility, emailEnabled: org.emailNotificationsEnabled },
-      requester,
+      requester: toPerson(ticket.requester),
       assignee: toPerson(ticket.assignee),
       teamMembers: people(team.map((t) => t.membership)),
       teamLeads: people(team.filter((t) => t.isLead).map((t) => t.membership)),
