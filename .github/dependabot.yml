@@ -19,9 +19,15 @@ updates:
       testing:
         patterns: ["vitest", "@vitest/*", "unplugin-swc", "supertest", "@types/supertest"]
       linting:
-        patterns: ["eslint", "eslint-*", "@typescript-eslint/*", "prettier", "prettier-*"]
+        patterns:
+          ["eslint", "eslint-*", "@eslint/*", "@next/eslint-plugin-next", "typescript-eslint", "@typescript-eslint/*", "prettier", "prettier-*"]
       types:
         patterns: ["@types/*"]
+      # Everything the groups above don't claim, in one weekly PR. A package
+      # joins the first group it matches, so this has to stay last.
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     ignore:
       # Pinned deliberately, not neglected: nestjs-zod peers @nestjs/common
       # ^10 || ^11 and does not support Nest 12 (docs/ARCHITECTURE.md §Stack).
