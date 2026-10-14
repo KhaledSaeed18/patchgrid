@@ -240,6 +240,7 @@ describe("4 · RLS holds when the repository does not", () => {
         "ChangeDetails",
         "ChangeApproval",
         "TicketLink",
+        "Attachment",
       ])
     )
 

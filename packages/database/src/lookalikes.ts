@@ -257,6 +257,22 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     await db.changeApproval.create({
       data: { orgId: org.id, ticketId: change.id, approverMembershipId: members[approver] ?? "", decision: "REJECTED", reason: "Needs a rollback plan.", decidedAt: now },
     })
+    // A file on the incident's public reply — a row only; the isolation suite never fetches bytes.
+    await db.attachment.create({
+      data: {
+        orgId: org.id,
+        ticketId: ticket.id,
+        commentId: reply.id,
+        uploaderMembershipId: members[agentKey] ?? "",
+        filename: "vpn-log.txt",
+        declaredMimeType: "text/plain",
+        mimeType: "text/plain",
+        sizeBytes: 2048,
+        storageKey: `org/${org.id}/tickets/${ticket.id}/seed-vpn-log.txt`,
+        status: "READY",
+        completedAt: now,
+      },
+    })
     await db.ticketLink.createMany({
       data: [
         { orgId: org.id, fromTicketId: ticket.id, toTicketId: problem.id, relation: "CAUSED_BY", createdByMembershipId: members[agentKey] ?? "" },
@@ -287,6 +303,7 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.auditLog.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.notification.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketWatcher.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.attachment.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketLink.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.changeApproval.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.problemDetails.deleteMany({ where: { orgId: { in: orgIds } } })
