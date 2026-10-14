@@ -40,6 +40,7 @@ export type SeededOrg = {
   problemId: string
   changeId: string
   assetId: string
+  articleId: string
 }
 
 export type SeededPerson = { userId: string; email: string }
@@ -293,6 +294,28 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       },
     })
     await db.ticketAsset.create({ data: { orgId: org.id, ticketId: ticket.id, assetId: asset.id } })
+    // The same slug in both orgs — unique per org — and a draft, so visibility has something to hide.
+    const article = await db.knowledgeArticle.create({
+      data: {
+        orgId: org.id,
+        categoryId: laptop.id,
+        authorMembershipId: members[agentKey] ?? "",
+        title: "Connecting to the VPN",
+        slug: "connecting-to-the-vpn",
+        body: "Open the VPN client and sign in with your work account.",
+        visibility: "PUBLISHED",
+        publishedAt: now,
+      },
+    })
+    await db.knowledgeArticle.create({
+      data: {
+        orgId: org.id,
+        authorMembershipId: members[agentKey] ?? "",
+        title: "Concentrator lease runbook",
+        slug: "concentrator-lease-runbook",
+        body: "Renew the lease before it lapses.",
+      },
+    })
 
     return {
       id: org.id,
@@ -306,6 +329,7 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       problemId: problem.id,
       changeId: change.id,
       assetId: asset.id,
+      articleId: article.id,
     }
   }
 
@@ -321,6 +345,7 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.attachment.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketAsset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.asset.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.knowledgeArticle.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketLink.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.changeApproval.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.problemDetails.deleteMany({ where: { orgId: { in: orgIds } } })

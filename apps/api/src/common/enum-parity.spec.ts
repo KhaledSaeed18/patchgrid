@@ -30,6 +30,7 @@ import {
   linkRelationSchema,
   assetTypeSchema,
   assetStatusSchema,
+  articleVisibilitySchema,
 } from "@patchgrid/contracts"
 import {
   AgentVisibility,
@@ -54,6 +55,7 @@ import {
   LinkRelation,
   AssetType,
   AssetStatus,
+  ArticleVisibility,
 } from "@patchgrid/database"
 import type { z } from "zod"
 import { describe, expect, expectTypeOf, it } from "vitest"
@@ -82,6 +84,7 @@ expectTypeOf<z.infer<typeof approvalDecisionSchema>>().toEqualTypeOf<Values<type
 expectTypeOf<z.infer<typeof linkRelationSchema>>().toEqualTypeOf<Values<typeof LinkRelation>>()
 expectTypeOf<z.infer<typeof assetTypeSchema>>().toEqualTypeOf<Values<typeof AssetType>>()
 expectTypeOf<z.infer<typeof assetStatusSchema>>().toEqualTypeOf<Values<typeof AssetStatus>>()
+expectTypeOf<z.infer<typeof articleVisibilitySchema>>().toEqualTypeOf<Values<typeof ArticleVisibility>>()
 
 describe("wire and storage enums", () => {
   it.each([
@@ -107,6 +110,7 @@ describe("wire and storage enums", () => {
     ["LinkRelation", linkRelationSchema.options, LinkRelation],
     ["AssetType", assetTypeSchema.options, AssetType],
     ["AssetStatus", assetStatusSchema.options, AssetStatus],
+    ["ArticleVisibility", articleVisibilitySchema.options, ArticleVisibility],
   ] as const)("%s has the same values on both sides", (_name, wire, storage) => {
     expect([...wire]).toEqual(Object.values(storage))
   })

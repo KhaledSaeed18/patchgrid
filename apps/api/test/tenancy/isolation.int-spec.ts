@@ -243,6 +243,7 @@ describe("4 · RLS holds when the repository does not", () => {
         "Attachment",
         "Asset",
         "TicketAsset",
+        "KnowledgeArticle",
       ])
     )
 

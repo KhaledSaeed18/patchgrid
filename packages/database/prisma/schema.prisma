@@ -145,6 +145,7 @@ model Organization {
   attachments     Attachment[]
   assets          Asset[]
   ticketAssets    TicketAsset[]
+  articles        KnowledgeArticle[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -329,18 +330,19 @@ model Membership {
   invitationsCreated Invitation[]
   auditEntries       AuditLog[]
 
-  ticketsRequested         Ticket[]         @relation("TicketRequester")
-  ticketsAssigned          Ticket[]         @relation("TicketAssignee")
-  commentsWritten          Comment[]        @relation("CommentAuthor")
-  commentsDeleted          Comment[]        @relation("CommentDeletedBy")
-  watching                 TicketWatcher[]  @relation("Watcher")
-  watchersAdded            TicketWatcher[]  @relation("WatcherAddedBy")
+  ticketsRequested         Ticket[]           @relation("TicketRequester")
+  ticketsAssigned          Ticket[]           @relation("TicketAssignee")
+  commentsWritten          Comment[]          @relation("CommentAuthor")
+  commentsDeleted          Comment[]          @relation("CommentDeletedBy")
+  watching                 TicketWatcher[]    @relation("Watcher")
+  watchersAdded            TicketWatcher[]    @relation("WatcherAddedBy")
   changeApprovals          ChangeApproval[]
   ticketLinksCreated       TicketLink[]
-  notifications            Notification[]   @relation("NotificationMembership")
-  notificationsAsRecipient Notification[]   @relation("NotificationRecipient")
+  notifications            Notification[]     @relation("NotificationMembership")
+  notificationsAsRecipient Notification[]     @relation("NotificationRecipient")
   attachments              Attachment[]
   assetsOwned              Asset[]
+  articlesWritten          KnowledgeArticle[]
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -556,6 +558,13 @@ enum AssetType {
   OTHER
 }
 
+/// Who reads an article (DOMAIN.md §9.2): its author and admins, agents, or everyone in the org.
+enum ArticleVisibility {
+  DRAFT
+  INTERNAL
+  PUBLISHED
+}
+
 enum AssetStatus {
   IN_STOCK
   IN_USE
@@ -622,11 +631,12 @@ model Category {
   createdAt     DateTime @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [orgId], references: [id])
-  parent       Category?    @relation("CategoryTree", fields: [orgId, parentId], references: [orgId, id], onDelete: Restrict)
-  children     Category[]   @relation("CategoryTree")
-  defaultTeam  Team?        @relation(fields: [orgId, defaultTeamId], references: [orgId, id], onDelete: Restrict)
+  organization Organization       @relation(fields: [orgId], references: [id])
+  parent       Category?          @relation("CategoryTree", fields: [orgId, parentId], references: [orgId, id], onDelete: Restrict)
+  children     Category[]         @relation("CategoryTree")
+  defaultTeam  Team?              @relation(fields: [orgId, defaultTeamId], references: [orgId, id], onDelete: Restrict)
   tickets      Ticket[]
+  articles     KnowledgeArticle[]
 
   @@unique([orgId, id])
   @@unique([orgId, parentId, name])
@@ -959,4 +969,37 @@ model TicketAsset {
   @@id([orgId, ticketId, assetId])
   /// "Tickets for this asset", newest first.
   @@index([orgId, assetId, createdAt(sort: Desc)])
+}
+
+/// An article in the organization's knowledge base (DOMAIN.md §9.2). Read by
+/// visibility, edited against `version`; the slug is fixed at creation.
+model KnowledgeArticle {
+  id                 String                   @id @default(uuid(7)) @db.Uuid
+  orgId              String                   @db.Uuid
+  categoryId         String?                  @db.Uuid
+  authorMembershipId String                   @db.Uuid
+  title              String
+  slug               String
+  /// Markdown, rendered without raw HTML.
+  body               String
+  version            Int                      @default(1)
+  visibility         ArticleVisibility        @default(DRAFT)
+  /// When it last became PUBLISHED; null while it is not.
+  publishedAt        DateTime?                @db.Timestamptz(3)
+  viewCount          Int                      @default(0)
+  /// Generated: title outweighs body, English stemming (DOMAIN.md §9.1).
+  searchVector       Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, COALESCE(title, ''::text)), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, COALESCE(body, ''::text)), 'B'::\"char\"))"))
+  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                 @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  category     Category?    @relation(fields: [orgId, categoryId], references: [orgId, id])
+  author       Membership   @relation(fields: [orgId, authorMembershipId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, slug])
+  @@index([orgId, updatedAt(sort: Desc), id(sort: Desc)])
+  @@index([orgId, authorMembershipId])
+  @@index([orgId, categoryId])
+  @@index([searchVector], type: Gin)
 }
