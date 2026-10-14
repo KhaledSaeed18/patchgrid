@@ -10,6 +10,15 @@ describe("navigation", () => {
     expect(homeFor(["ticket:create"])).toBe("/tickets")
   })
 
+  it("offers the inbox to whoever holds notification:read", () => {
+    const nav = navigationFor(["ticket:create", "notification:read"])
+    expect(nav.flatMap((s) => s.items.map((i) => i.href))).toEqual([
+      "/tickets",
+      "/notifications",
+    ])
+    expect(currentHref("/notifications", nav)).toBe("/notifications")
+  })
+
   it("gives an admin the queues and the settings they hold", () => {
     const nav = navigationFor([
       "ticket:create",

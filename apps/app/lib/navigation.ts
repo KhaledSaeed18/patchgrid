@@ -14,6 +14,11 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: "My tickets", href: "/tickets", requires: "ticket:create" },
       { label: "Queues", href: "/queues", requires: "ticket:assign" },
+      {
+        label: "Notifications",
+        href: "/notifications",
+        requires: "notification:read",
+      },
     ],
   },
   {
