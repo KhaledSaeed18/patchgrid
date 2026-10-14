@@ -1,5 +1,6 @@
 import { meSchema } from "@patchgrid/contracts"
 
+import { LiveProvider } from "@/components/live-provider"
 import { TenantProvider } from "@/components/tenant-provider"
 import { WorkspaceShell } from "@/components/workspace-shell"
 import { serverApi } from "@/lib/api/server"
@@ -25,7 +26,9 @@ export default async function TenantLayout({
   const me = await serverApi("/me", { schema: meSchema })
   return (
     <TenantProvider me={me}>
-      <WorkspaceShell>{children}</WorkspaceShell>
+      <LiveProvider>
+        <WorkspaceShell>{children}</WorkspaceShell>
+      </LiveProvider>
     </TenantProvider>
   )
 }
