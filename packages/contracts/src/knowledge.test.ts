@@ -7,6 +7,7 @@ describe("an article's address", () => {
     expect(articleSlug("How do I connect to the VPN?")).toBe("how-do-i-connect-to-the-vpn")
     expect(articleSlug("Café Wi‑Fi — guest access")).toBe("cafe-wi-fi-guest-access")
     expect(articleSlug("???")).toBe("article")
+    expect(articleSlug("New")).toBe("new-article")
     const long = articleSlug("word ".repeat(40))
     expect(long.length).toBeLessThanOrEqual(76)
     expect(articleSlugSchema.safeParse(`${long}-12`).success).toBe(true)

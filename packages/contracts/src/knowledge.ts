@@ -17,6 +17,9 @@ export type ArticleVisibility = z.infer<typeof articleVisibilitySchema>
 
 export const ARTICLE_SLUG_MAX_LENGTH = 80
 
+/** The knowledge pages' own addresses (`/knowledge/new`, `/knowledge/edit/…`), never an article's. */
+export const RESERVED_ARTICLE_SLUGS: readonly string[] = ["new", "edit"]
+
 /** "How do I connect to the VPN?" → "how-do-i-connect-to-the-vpn". Unique per org; the server adds `-2`, `-3`… */
 export function articleSlug(title: string): string {
   const slug = title
@@ -27,7 +30,8 @@ export function articleSlug(title: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, ARTICLE_SLUG_MAX_LENGTH - 4)
     .replace(/-+$/, "")
-  return slug === "" ? "article" : slug
+  if (slug === "") return "article"
+  return RESERVED_ARTICLE_SLUGS.includes(slug) ? `${slug}-article` : slug
 }
 
 export const articleSlugSchema = z
