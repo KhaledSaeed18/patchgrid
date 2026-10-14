@@ -236,6 +236,10 @@ describe("4 · RLS holds when the repository does not", () => {
         "SLAPolicy",
         "TicketCounter",
         "Notification",
+        "ProblemDetails",
+        "ChangeDetails",
+        "ChangeApproval",
+        "TicketLink",
       ])
     )
 

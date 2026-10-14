@@ -36,6 +36,9 @@ export type SeededOrg = {
   categories: { hardware: string; laptop: string }
   ticketId: string
   commentIds: { public: string; internal: string }
+  /** A Problem the incident is CAUSED_BY, and a Change that RESOLVES it, once rejected and resubmitted. */
+  problemId: string
+  changeId: string
 }
 
 export type SeededPerson = { userId: string; email: string }
@@ -198,6 +201,69 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       },
     })
 
+    // M4's record types: a known error behind the incident, and a change to fix it
+    // that was rejected once and now waits on approval again.
+    const clockless = { responseClockStartedAt: now, resolutionClockStartedAt: now, source: "CONSOLE" as const }
+    const problem = await db.ticket.create({
+      data: {
+        orgId: org.id,
+        number: 1,
+        type: "PROBLEM",
+        title: "VPN concentrator drops leases",
+        description: "Several hourly VPN drops trace back to one concentrator.",
+        status: "KNOWN_ERROR",
+        impact: "MEDIUM",
+        urgency: "MEDIUM",
+        priority: "MEDIUM",
+        requesterMembershipId: members[agentKey] ?? "",
+        assigneeMembershipId: members[agentKey] ?? null,
+        teamId: teams.Network,
+        ...clockless,
+        problem: { create: { rootCause: null, workaround: "Reconnect; leases renew within a minute.", knownErrorAt: now } },
+      },
+    })
+    const change = await db.ticket.create({
+      data: {
+        orgId: org.id,
+        number: 1,
+        type: "CHANGE",
+        title: "Replace the VPN concentrator",
+        description: "Swap the failing unit for the spare.",
+        status: "AWAITING_APPROVAL",
+        impact: "MEDIUM",
+        urgency: "MEDIUM",
+        priority: "MEDIUM",
+        requesterMembershipId: members[agentKey] ?? "",
+        teamId: teams.Network,
+        ...clockless,
+        change: {
+          create: {
+            plannedStart: new Date(now.getTime() + 2 * 86_400_000),
+            plannedEnd: new Date(now.getTime() + 2 * 86_400_000 + 3_600_000),
+            risk: "MEDIUM",
+            implementationPlan: "Fail over to the spare, swap, fail back.",
+            rollbackPlan: "Stay on the spare.",
+          },
+        },
+      },
+    })
+    await db.ticketCounter.createMany({
+      data: [
+        { orgId: org.id, type: "PROBLEM", nextValue: 2 },
+        { orgId: org.id, type: "CHANGE", nextValue: 2 },
+      ],
+    })
+    const approver = which === "acme" ? "alice" : "gus"
+    await db.changeApproval.create({
+      data: { orgId: org.id, ticketId: change.id, approverMembershipId: members[approver] ?? "", decision: "REJECTED", reason: "Needs a rollback plan.", decidedAt: now },
+    })
+    await db.ticketLink.createMany({
+      data: [
+        { orgId: org.id, fromTicketId: ticket.id, toTicketId: problem.id, relation: "CAUSED_BY", createdByMembershipId: members[agentKey] ?? "" },
+        { orgId: org.id, fromTicketId: problem.id, toTicketId: change.id, relation: "RESOLVED_BY", createdByMembershipId: members[agentKey] ?? "" },
+      ],
+    })
+
     return {
       id: org.id,
       slug,
@@ -207,6 +273,8 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       categories: { hardware: hardware.id, laptop: laptop.id },
       ticketId: ticket.id,
       commentIds: { public: reply.id, internal: note.id },
+      problemId: problem.id,
+      changeId: change.id,
     }
   }
 
@@ -219,6 +287,10 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.auditLog.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.notification.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketWatcher.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ticketLink.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.changeApproval.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.problemDetails.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.changeDetails.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.comment.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticket.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketCounter.deleteMany({ where: { orgId: { in: orgIds } } })
