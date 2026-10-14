@@ -146,6 +146,7 @@ model Organization {
   assets          Asset[]
   ticketAssets    TicketAsset[]
   articles        KnowledgeArticle[]
+  inboundEmails   InboundEmail[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -343,6 +344,7 @@ model Membership {
   attachments              Attachment[]
   assetsOwned              Asset[]
   articlesWritten          KnowledgeArticle[]
+  inboundEmailsSent        InboundEmail[]
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -558,6 +560,25 @@ enum AssetType {
   OTHER
 }
 
+/// What the receiving MTA's trusted Authentication-Results said (ADR-0039).
+enum AuthVerdict {
+  PASS
+  FAIL
+  NONE
+}
+
+/// What became of an inbound message (ADR-0027).
+enum InboundOutcome {
+  RECEIVED
+  CREATED
+  THREADED
+  UNAUTHENTICATED
+  UNKNOWN_SENDER
+  AUTO_REPLY
+  RATE_LIMITED
+  FAILED
+}
+
 /// Who reads an article (DOMAIN.md §9.2): its author and admins, agents, or everyone in the org.
 enum ArticleVisibility {
   DRAFT
@@ -725,6 +746,7 @@ model Ticket {
   linksTo       TicketLink[]     @relation("LinkTo")
   attachments   Attachment[]
   assets        TicketAsset[]
+  inboundEmails InboundEmail[]
 
   @@unique([orgId, id])
   @@unique([orgId, type, number])
@@ -1002,4 +1024,38 @@ model KnowledgeArticle {
   @@index([orgId, authorMembershipId])
   @@index([orgId, categoryId])
   @@index([searchVector], type: Gin)
+}
+
+/// One message that reached a tenant's inbound address (ADR-0027, ADR-0039):
+/// why it was or was not trusted, and what it became. Written for every
+/// message whose tenant resolved, rejected ones included — that is how an
+/// admin sees what was dropped.
+model InboundEmail {
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  orgId              String         @db.Uuid
+  /// The message's own Message-ID header, or a digest of its bytes when it has none. One row per message per org.
+  messageKey         String
+  fromAddress        String
+  subject            String
+  authVerdict        AuthVerdict    @default(NONE)
+  outcome            InboundOutcome @default(RECEIVED)
+  senderMembershipId String?        @db.Uuid
+  ticketId           String?        @db.Uuid
+  /// `org/<orgId>/inbound/<id>.eml` — the message exactly as received.
+  rawStorageKey      String
+  /// `[{ filename, reason }]` for files left out.
+  skippedAttachments Json           @default("[]")
+  error              String?
+  receivedAt         DateTime       @default(now()) @db.Timestamptz(3)
+  processedAt        DateTime?      @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  sender       Membership?  @relation(fields: [orgId, senderMembershipId], references: [orgId, id])
+  ticket       Ticket?      @relation(fields: [orgId, ticketId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, messageKey])
+  @@index([orgId, receivedAt(sort: Desc), id(sort: Desc)])
+  /// The per-sender rate limit: this sender's mail in the last hour.
+  @@index([orgId, fromAddress, receivedAt])
 }

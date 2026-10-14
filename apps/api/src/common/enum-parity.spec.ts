@@ -31,6 +31,8 @@ import {
   assetTypeSchema,
   assetStatusSchema,
   articleVisibilitySchema,
+  authVerdictSchema,
+  inboundOutcomeSchema,
 } from "@patchgrid/contracts"
 import {
   AgentVisibility,
@@ -56,6 +58,8 @@ import {
   AssetType,
   AssetStatus,
   ArticleVisibility,
+  AuthVerdict,
+  InboundOutcome,
 } from "@patchgrid/database"
 import type { z } from "zod"
 import { describe, expect, expectTypeOf, it } from "vitest"
@@ -85,6 +89,8 @@ expectTypeOf<z.infer<typeof linkRelationSchema>>().toEqualTypeOf<Values<typeof L
 expectTypeOf<z.infer<typeof assetTypeSchema>>().toEqualTypeOf<Values<typeof AssetType>>()
 expectTypeOf<z.infer<typeof assetStatusSchema>>().toEqualTypeOf<Values<typeof AssetStatus>>()
 expectTypeOf<z.infer<typeof articleVisibilitySchema>>().toEqualTypeOf<Values<typeof ArticleVisibility>>()
+expectTypeOf<z.infer<typeof authVerdictSchema>>().toEqualTypeOf<Values<typeof AuthVerdict>>()
+expectTypeOf<z.infer<typeof inboundOutcomeSchema>>().toEqualTypeOf<Values<typeof InboundOutcome>>()
 
 describe("wire and storage enums", () => {
   it.each([
@@ -111,6 +117,8 @@ describe("wire and storage enums", () => {
     ["AssetType", assetTypeSchema.options, AssetType],
     ["AssetStatus", assetStatusSchema.options, AssetStatus],
     ["ArticleVisibility", articleVisibilitySchema.options, ArticleVisibility],
+    ["AuthVerdict", authVerdictSchema.options, AuthVerdict],
+    ["InboundOutcome", inboundOutcomeSchema.options, InboundOutcome],
   ] as const)("%s has the same values on both sides", (_name, wire, storage) => {
     expect([...wire]).toEqual(Object.values(storage))
   })

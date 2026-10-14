@@ -317,6 +317,34 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       },
     })
 
+    // The same Message-ID in both orgs — one per org, never globally — and one message dropped as forged.
+    await db.inboundEmail.createMany({
+      data: [
+        {
+          orgId: org.id,
+          messageKey: "<lookalike-1@patchgrid.test>",
+          fromAddress: `${requesterKey}@patchgrid.test`,
+          subject: "VPN drops every hour",
+          authVerdict: "PASS",
+          outcome: "CREATED",
+          senderMembershipId: members[requesterKey] ?? null,
+          ticketId: ticket.id,
+          rawStorageKey: `org/${org.id}/inbound/lookalike-1.eml`,
+          processedAt: now,
+        },
+        {
+          orgId: org.id,
+          messageKey: "<lookalike-2@patchgrid.test>",
+          fromAddress: "ceo@patchgrid.test",
+          subject: "Urgent: wire transfer",
+          authVerdict: "FAIL",
+          outcome: "UNAUTHENTICATED",
+          rawStorageKey: `org/${org.id}/inbound/lookalike-2.eml`,
+          processedAt: now,
+        },
+      ],
+    })
+
     // What the rows above use of the plan, so a delete releases what a create consumed (TENANCY.md §8).
     await db.usageCounter.createMany({
       data: [
@@ -351,6 +379,7 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.notification.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketWatcher.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.attachment.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.inboundEmail.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketAsset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.asset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.knowledgeArticle.deleteMany({ where: { orgId: { in: orgIds } } })
