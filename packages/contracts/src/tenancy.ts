@@ -24,7 +24,8 @@ export const membershipKindSchema = z.enum(["HUMAN", "SERVICE_ACCOUNT"])
 export type MembershipKind = z.infer<typeof membershipKindSchema>
 
 /** `SUSPENDED` is `403`, never `402` — `402` means a plan limit and nothing else. */
-export const organizationStatusSchema = z.enum(["ACTIVE", "SUSPENDED", "PENDING_DELETION"])
+/** `DELETED` is the purge's tombstone: terminal, and it keeps its slug forever (ADR-0043). */
+export const organizationStatusSchema = z.enum(["ACTIVE", "SUSPENDED", "PENDING_DELETION", "DELETED"])
 export type OrganizationStatus = z.infer<typeof organizationStatusSchema>
 
 export const planSchema = z.enum(["FREE", "PRO"])

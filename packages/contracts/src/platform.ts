@@ -69,6 +69,7 @@ export const platformAuditActionSchema = z.enum([
   "PLATFORM_ORG_UNSUSPENDED",
   "PLATFORM_ORG_PLAN_SET",
   "PLATFORM_ORG_DELETION_RESTORED",
+  "PLATFORM_ORG_PURGED",
   "PLATFORM_SUPPORT_REQUESTED",
   "PLATFORM_SUPPORT_ENTERED",
 ])
@@ -87,6 +88,8 @@ export const platformOrgSchema = z.object({
   plan: planSchema,
   activeMembers: z.int().nonnegative(),
   createdAt: z.iso.datetime(),
+  /** When a workspace pending deletion is purged, unless restored first (ADR-0043). */
+  purgeAt: z.iso.datetime().nullable(),
 })
 export type PlatformOrg = z.infer<typeof platformOrgSchema>
 

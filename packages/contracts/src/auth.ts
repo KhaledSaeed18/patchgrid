@@ -48,6 +48,8 @@ export const workspaceSummarySchema = z.object({
   role: roleSchema,
   status: membershipStatusSchema,
   orgStatus: organizationStatusSchema,
+  /** When a workspace pending deletion is purged; its owners can cancel until then (ADR-0043). */
+  purgeAt: z.iso.datetime().nullable(),
 })
 export type WorkspaceSummary = z.infer<typeof workspaceSummarySchema>
 

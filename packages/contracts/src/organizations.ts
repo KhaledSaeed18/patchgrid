@@ -106,3 +106,15 @@ export const changeSlugResponseSchema = z.object({
   session: z.object({ slug: slugSchema }),
 })
 export type ChangeSlugResponse = z.infer<typeof changeSlugResponseSchema>
+
+/** How long a deleted workspace waits, restorable, before it is purged (TENANCY.md §3, ADR-0043). */
+export const ORG_DELETION_WINDOW_DAYS = 30
+
+/** An owner deleting the workspace types its slug — a deliberate act, not a misclick. */
+export const requestOrgDeletionSchema = z.strictObject({ confirmSlug: slugSchema })
+export type RequestOrgDeletion = z.infer<typeof requestOrgDeletionSchema>
+
+/** When a workspace whose deletion was requested at `requestedAt` is purged. */
+export function purgeDateFor(requestedAt: Date): Date {
+  return new Date(requestedAt.getTime() + ORG_DELETION_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+}
