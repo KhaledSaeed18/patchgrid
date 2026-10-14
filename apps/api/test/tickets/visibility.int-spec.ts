@@ -105,6 +105,18 @@ describe("OWN_TEAM_ONLY", () => {
     expect(all.body.items).toHaveLength(6)
   })
 
+  it("lets an agent stop watching a ticket that watching alone let them see — an empty list, not a 404", async () => {
+    const agent = browser(app, ws.origin, ws.people.agent.access)
+    const id = tickets["team-c-watched"] ?? ""
+    const stopped = await agent.delete(`/tickets/${id}/watchers/${ws.people.agent.membershipId}`)
+    expect(stopped.status).toBe(200)
+    expect(stopped.body).toEqual([])
+    expect((await agent.get(`/tickets/${id}`)).status).toBe(404)
+    await db.ticketWatcher.create({
+      data: { orgId: ws.orgId, ticketId: id, membershipId: ws.people.agent.membershipId, addedByMembershipId: ws.people.admin.membershipId },
+    })
+  })
+
   it("the teams view is both of the agent's teams at once", async () => {
     const teams = await browser(app, ws.origin, ws.people.agent.access).get("/tickets?view=teams&limit=100")
     expect(titles(teams.body)).toEqual(["team-a", "team-b"])

@@ -97,7 +97,9 @@ export class WatchersService {
       await this.audit.record(orgId, [{ action: "WATCHER_REMOVED", entityType: "Ticket", entityId: ticketId, diff: { membershipId } }])
     })
     await this.pulse.changed(orgId, ticketId)
-    return this.list(ticketId)
+    // Watching may have been what let the actor see the ticket: stopping is
+    // done, and an empty list is the honest answer rather than a 404.
+    return membershipId === actor.membershipId ? this.list(ticketId).catch(emptyIfGone) : this.list(ticketId)
   }
 
   private visibility() {
@@ -105,4 +107,9 @@ export class WatchersService {
     if (org === undefined) throw new NotFoundProblem()
     return org.agentVisibility
   }
+}
+
+function emptyIfGone(error: unknown): Watcher[] {
+  if (error instanceof NotFoundProblem) return []
+  throw error
 }
