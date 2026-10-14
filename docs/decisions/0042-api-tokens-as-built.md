@@ -57,7 +57,7 @@ shown once, effective permission role ∩ scopes. Building it leaves six questio
   - A token may expire after 30, 90 or 365 days, or never.
   - Seven days before it lapses, a per-tenant sweep emails whoever created it, if they are still an
     active admin or owner. Otherwise it emails the owners. It sends once (`expiryWarnedAt`).
-- **Audit.** `API_TOKEN_CREATED` and `API_TOKEN_REVOKED` record the name, prefix, role, scopes and
+- **Audit.** `TOKEN_CREATED` and `TOKEN_REVOKED` record the name, prefix, role, scopes and
   expiry, never the secret.
 
 ## Consequences

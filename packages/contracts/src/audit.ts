@@ -61,6 +61,8 @@ export const auditActionSchema = z.enum([
   "SUPPORT_ACCESS_REVOKED",
   "SUPPORT_ACCESS_EXPIRED",
   "SUPPORT_READ",
+  "TOKEN_CREATED",
+  "TOKEN_REVOKED",
 ])
 export type AuditAction = z.infer<typeof auditActionSchema>
 
