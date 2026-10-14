@@ -49,12 +49,12 @@ export function Links({
   if (links.length === 0 && !canLink) return null
 
   return (
-    <section>
+    <section className="min-w-0">
       <h2 className="text-sm font-semibold">Linked tickets</h2>
       {links.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">None yet.</p>
       ) : (
-        <ul className="mt-2 grid gap-2 text-sm">
+        <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 text-sm">
           {links.map((link) => (
             <LinkRow
               key={link.id}

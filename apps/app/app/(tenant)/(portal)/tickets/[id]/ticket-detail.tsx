@@ -10,6 +10,7 @@ import {
   type TicketAction,
   type TicketLink,
   ticketSchema,
+  type TicketType,
   type Watcher,
 } from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
@@ -50,15 +51,29 @@ import {
 } from "@/lib/labels"
 
 /**
- * Actions that take a note in the same request. `wait` and `resolve` always
- * need one; `cancel` does once work has started — the server says which, and
- * its 400 lands on the field. Assignment has its own control.
+ * Actions that take a note in the same request, by type: an incident's or
+ * request's `wait` and `resolve` always need one (a Problem resolves with its
+ * root cause instead); `cancel` does once work has started, and a Change's
+ * rejection says why — the server says which is required, and its 400 lands
+ * on the field. Assignment has its own control.
  */
-const WITH_NOTE: Partial<Record<TicketAction, string>> = {
-  wait: "What do you need from the requester?",
-  resolve: "What was done to fix it?",
-  cancel: "Why is it being cancelled?",
-  reject: "Why is it rejected? Say what to fix before it is resubmitted.",
+function notePrompt(
+  type: TicketType,
+  action: TicketAction
+): string | undefined {
+  const clocked = type === "INCIDENT" || type === "SERVICE_REQUEST"
+  switch (action) {
+    case "wait":
+      return clocked ? "What do you need from the requester?" : undefined
+    case "resolve":
+      return clocked ? "What was done to fix it?" : undefined
+    case "cancel":
+      return "Why is it being cancelled?"
+    case "reject":
+      return "Why is it rejected? Say what to fix before it is resubmitted."
+    default:
+      return undefined
+  }
 }
 const PRIMARY: readonly TicketAction[] = [
   "start",
@@ -153,7 +168,7 @@ export function TicketDetail({
             <Reply ticket={ticket} />
           )}
         </main>
-        <aside className="grid content-start gap-8">
+        <aside className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-8">
           {assignable !== null && (
             <Assignment
               key={ticket.version}
@@ -300,7 +315,7 @@ function TransitionButton({
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState("")
-  const prompt = WITH_NOTE[action]
+  const prompt = notePrompt(ticket.type, action)
   // A soft block's reason, while the person decides whether to go ahead anyway.
   const [early, setEarly] = useState<string | null>(null)
   const run = useMutation({
