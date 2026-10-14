@@ -20,7 +20,10 @@ try {
   // the environment supplies them
 }
 
+// `pnpm run inbound:send -- --from …` passes the `--` through; it is not an argument.
+const args = process.argv.slice(2)
 const { values } = parseArgs({
+  args: args[0] === "--" ? args.slice(1) : args,
   options: {
     from: { type: "string", default: "rita@patchgrid.test" },
     to: { type: "string", default: "acme" },

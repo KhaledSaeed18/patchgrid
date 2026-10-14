@@ -19,7 +19,8 @@ export async function seedDemoInbound(
   now = new Date(),
 ): Promise<number> {
   const incidents = await db.ticket.findMany({
-    where: { orgId: org.id, type: "INCIDENT", requesterMembershipId: requester.membershipId },
+    // Not the lookalike incident, which arrived by email already.
+    where: { orgId: org.id, type: "INCIDENT", requesterMembershipId: requester.membershipId, inboundEmails: { none: {} } },
     orderBy: { number: "asc" },
     take: 4,
     select: { id: true, title: true, createdAt: true },
