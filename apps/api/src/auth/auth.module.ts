@@ -10,6 +10,7 @@ import { AuthGuard } from "./auth.guard"
 import { CookieService } from "./cookies"
 import { IdentityController } from "./identity/identity.controller"
 import { IdentityService } from "./identity/identity.service"
+import { ApiTokenCoreModule } from "../api-tokens/api-token-core.module"
 import { PasswordService } from "./passwords/password.service"
 import { PlatformAuthController } from "./platform/platform-auth.controller"
 import { PlatformAuthService } from "./platform/platform-auth.service"
@@ -29,7 +30,7 @@ import { AccessTokenService } from "./tokens/access-token.service"
  * refuse cookie-borne mutations without the CSRF header, verify the credential.
  */
 @Module({
-  imports: [PlatformModule, MembershipRepositoryModule, MailModule, SupportCoreModule],
+  imports: [PlatformModule, MembershipRepositoryModule, MailModule, SupportCoreModule, ApiTokenCoreModule],
   controllers: [AuthController, IdentityController, PlatformAuthController],
   providers: [
     CookieService,

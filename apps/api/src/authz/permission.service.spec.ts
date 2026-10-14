@@ -44,7 +44,7 @@ function member(role: Role, overrides: Partial<MemberActor> = {}): MemberActor {
 }
 
 function token(role: Role, scopes: TokenScope[]): ServiceActor {
-  return { kind: "service", orgId: "o-1", membershipId: "m-svc", role, scopes }
+  return { kind: "service", orgId: "o-1", membershipId: "m-svc", role, scopes, tokenId: "tok-1" }
 }
 
 /** For each condition: subjects that satisfy it, and subjects that must not. */

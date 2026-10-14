@@ -8,9 +8,9 @@ import type { RequestContextStore } from "../tenancy/request-context"
 /**
  * Who is making the request, once pipeline step 7 has verified the credential
  * (RBAC.md §11). `member` and `service` — and the later `platform` kind — are
- * what `PermissionService` reasons about. `service` is an API token's actor; the
- * type exists so authorization is written for it now, and the M8 api-tokens item
- * is what first constructs one. `identity` is a `pg_id` holder on a
+ * what `PermissionService` reasons about. `service` is an API token's actor
+ * (ADR-0042): its own service-account membership, narrowed to the token's
+ * scopes. `identity` is a `pg_id` holder on a
  * tenant-less route — the org picker — and never reaches authorization: it
  * can list workspaces and mint a session, nothing else.
  */
@@ -24,7 +24,7 @@ export type Actor =
       teamIds: string[]
       leadOfTeamIds: string[]
     }
-  | { kind: "service"; orgId: string; membershipId: string; role: Role; scopes: TokenScope[] }
+  | { kind: "service"; orgId: string; membershipId: string; role: Role; scopes: TokenScope[]; tokenId: string }
   | { kind: "identity"; userId: string }
   /**
    * An operator inside a granted support session, on the tenant's own routes

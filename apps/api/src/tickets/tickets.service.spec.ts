@@ -115,7 +115,7 @@ function harness(
   }
   const actor: TenantActor =
     options.service === true
-      ? { kind: "service", orgId: ORG, membershipId: member.membershipId, role, scopes: ["tickets:read", "tickets:write", "comments:internal"] }
+      ? { kind: "service", orgId: ORG, membershipId: member.membershipId, role, scopes: ["tickets:read", "tickets:write", "comments:internal"], tokenId: "tok-1" }
       : options.support === true
         ? { kind: "support", orgId: ORG, sessionId: "s-1", platformAdminId: "pa-1", userId: "u-op", role: "ADMIN", membershipId: "s-1" }
         : member
@@ -162,7 +162,7 @@ function harness(
           .map((r) => ({ row: r, subject: { scope: true, own: false, watch: false, ticketType: r.type, ticketStatus: r.status }, relation: { role, isRequester: false, isAssignee: false, ticketHasAssignee: false } })),
       ),
     } as unknown as TicketAccess,
-    { findById: async (_o: string, id: string) => (id === "m-ghost" ? null : { id, status: "ACTIVE", role: id === "m-req" ? "REQUESTER" : "AGENT" }) } as unknown as MembershipRepository,
+    { findById: async (_o: string, id: string) => (id === "m-ghost" ? null : { id, status: "ACTIVE", kind: "HUMAN", role: id === "m-req" ? "REQUESTER" : "AGENT" }) } as unknown as MembershipRepository,
     { findById: async (_o: string, id: string) => ({ id, isActive: id !== "team-dead" }) } as unknown as TeamRepository,
     { routeTeam: async () => "team-a", list: async () => [{ id: "cat-1" }] } as unknown as CategoriesService,
     {

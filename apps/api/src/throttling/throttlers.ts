@@ -1,5 +1,6 @@
 import type { ExecutionContext } from "@nestjs/common"
 import { SkipThrottle, type ThrottlerOptions } from "@nestjs/throttler"
+import { API_TOKEN_PATTERN } from "@patchgrid/contracts"
 import type { Request } from "express"
 
 import { emailHash8 } from "../common/privacy"
@@ -12,6 +13,8 @@ export const IP_THROTTLER = "ip"
 export const EMAIL_THROTTLER = "email"
 /** Every request inside one organization, after resolution (pipeline step 6). */
 export const ORG_THROTTLER = "org"
+/** Every request one API token makes, before its secret is verified (ADR-0042). */
+export const TOKEN_THROTTLER = "token"
 
 /**
  * The limits (ARCHITECTURE.md §Security posture): generous by default, tight on
@@ -29,6 +32,14 @@ export const THROTTLERS: ThrottlerOptions[] = [
     getTracker: (_req, context) => emailHash8(emailIn(context) ?? ""),
   },
   { name: ORG_THROTTLER, limit: 600, ttl: MINUTE },
+  {
+    name: TOKEN_THROTTLER,
+    limit: 300,
+    ttl: MINUTE,
+    // Keyed by the public prefix, so a known prefix cannot buy unlimited Argon2id work.
+    skipIf: (context: ExecutionContext) => tokenPrefixIn(context) === undefined,
+    getTracker: (_req, context) => `token:${tokenPrefixIn(context) ?? ""}`,
+  },
 ]
 
 /**
@@ -36,15 +47,22 @@ export const THROTTLERS: ThrottlerOptions[] = [
  * which none of ours is. This skips every one of them.
  */
 export const SkipAllThrottling = (): MethodDecorator & ClassDecorator =>
-  SkipThrottle({ [IP_THROTTLER]: true, [EMAIL_THROTTLER]: true, [ORG_THROTTLER]: true })
+  SkipThrottle({ [IP_THROTTLER]: true, [EMAIL_THROTTLER]: true, [ORG_THROTTLER]: true, [TOKEN_THROTTLER]: true })
 
 /** Steps 3 and 6 are two guards in two places; each takes its share of the list. */
 export const BEFORE_RESOLUTION: ReadonlySet<string> = new Set([IP_THROTTLER, EMAIL_THROTTLER])
-export const AFTER_RESOLUTION: ReadonlySet<string> = new Set([ORG_THROTTLER])
+export const AFTER_RESOLUTION: ReadonlySet<string> = new Set([ORG_THROTTLER, TOKEN_THROTTLER])
 
 function emailIn(context: ExecutionContext): string | undefined {
   const body: unknown = context.switchToHttp().getRequest<Request>().body
   if (typeof body !== "object" || body === null) return undefined
   const email = (body as { email?: unknown }).email
   return typeof email === "string" && email !== "" ? email : undefined
+}
+
+function tokenPrefixIn(context: ExecutionContext): string | undefined {
+  const header = context.switchToHttp().getRequest<Request>().headers.authorization
+  const [scheme, token] = header?.trim().split(/\s+/) ?? []
+  if (scheme?.toLowerCase() !== "bearer" || token === undefined) return undefined
+  return API_TOKEN_PATTERN.exec(token)?.[1]
 }

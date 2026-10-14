@@ -1,9 +1,10 @@
 import { type CanActivate, type ExecutionContext, Injectable, Logger } from "@nestjs/common"
 import { Reflector } from "@nestjs/core"
-import { supportCookieName } from "@patchgrid/contracts"
+import { API_TOKEN_PATTERN, supportCookieName } from "@patchgrid/contracts"
 import type { Request, Response } from "express"
 import { ClsService } from "nestjs-cls"
 
+import { ApiTokenVerifier } from "../api-tokens/api-token-verifier"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { IS_PLATFORM, IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
 import { originPolicyFrom } from "../common/http/origin-policy"
@@ -41,6 +42,8 @@ const SAFE_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"])
  *
  * - `@Public`: no actor.
  * - `@TenantOptional`: `pg_id` → an `identity` actor. The org picker's routes.
+ * - Bearer: an API token whose prefix resolved this org → its row, its
+ *   service account and its secret, every request (ADR-0042). Cookies unread.
  * - Tenant-bound: the access cookie named by the resolved slug → signature,
  *   expiry, that its `org` is the resolved org (403 otherwise), the revocation
  *   epoch, and the membership row itself — read inside the tenant, so a
@@ -67,6 +70,7 @@ export class AuthGuard implements CanActivate {
     private readonly supportSessions: SupportSessionRepository,
     private readonly supportMail: SupportMail,
     private readonly supportReadLog: SupportReadLog,
+    private readonly apiTokens: ApiTokenVerifier,
     @InjectClock() private readonly clock: Clock,
     @InjectConfig() private readonly config: AppConfig,
   ) {}
@@ -92,11 +96,7 @@ export class AuthGuard implements CanActivate {
       throw new TenantContextMissingError("Authentication")
     }
 
-    if (organization.via === "bearer") {
-      // API tokens are an M8 item (ADR-0021); until then a prefix that resolves
-      // still authenticates nothing.
-      throw new NotAuthenticatedProblem("API tokens are not available yet")
-    }
+    if (organization.via === "bearer") return this.bearer(request, organization.id)
 
     // An operator's support session in this workspace (ADR-0041), preferred as resolution preferred it.
     const supportToken = readCookie(request, supportCookieName(organization.slug))
@@ -136,6 +136,21 @@ export class AuthGuard implements CanActivate {
       teamIds: membership.teamIds,
       leadOfTeamIds: membership.leadOfTeamIds,
     })
+    return true
+  }
+
+  /**
+   * An API token (ADR-0021, ADR-0042), inside the org its prefix resolved to:
+   * the row, its service account and its secret, on every request. A token is
+   * an actor, never a bypass — what it may do is its role ∩ its scopes.
+   */
+  private async bearer(request: Request, orgId: string): Promise<boolean> {
+    const [, token] = request.headers.authorization?.trim().split(/\s+/) ?? []
+    const match = token === undefined ? null : API_TOKEN_PATTERN.exec(token)
+    if (match?.[1] === undefined || match[2] === undefined) throw new NotAuthenticatedProblem("The bearer token is not a Patchgrid API token")
+    const actor = await this.apiTokens.verify(orgId, match[1], match[2])
+    if (actor === null) throw new NotAuthenticatedProblem("The API token is not valid")
+    this.setActor(actor)
     return true
   }
 

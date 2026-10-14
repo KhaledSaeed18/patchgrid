@@ -22,6 +22,7 @@ import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
 import { PlatformAdminRepository } from "../platform/repositories/platform-admin.repository"
 import { PlatformTokenService } from "./platform/platform-token.service"
+import { ApiTokenVerifier } from "../api-tokens/api-token-verifier"
 import { SupportReadLog } from "./support/support-read-log"
 import { SupportTokenService } from "./support/support-token.service"
 import { SupportSessionRepository } from "../support/repositories/support-session.repository"
@@ -41,11 +42,14 @@ const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", 
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const USER = "0190b2f0-0000-7000-8000-000000000001"
 const MEM = "0190b2f0-0000-7000-8000-0000000000aa"
+const TOKEN_PREFIX = "acmetok00000"
+const GOOD_SECRET = "s".repeat(43)
+const SERVICE = "0190b2f0-0000-7000-8000-0000000000ee"
 
 const lookup: OrganizationLookup = {
   byId: async (id) => [acme, globex].find((o) => o.id === id) ?? null,
   bySlug: async (slug) => [acme, globex].find((o) => o.slug === slug) ?? null,
-  orgIdForTokenPrefix: async (prefix) => (prefix === "acmetok" ? acme.id : null),
+  orgIdForTokenPrefix: async (prefix) => (prefix === TOKEN_PREFIX ? acme.id : null),
   retiredSlug: async () => null,
 }
 
@@ -79,6 +83,13 @@ const liveSession = () => ({
 const supportSessions = { find: vi.fn(async () => liveSession() as unknown), markFirstUse: vi.fn(async () => false) }
 const supportMail = { tell: vi.fn(async () => undefined) }
 const readLog = { watch: vi.fn() }
+const apiTokens = {
+  verify: vi.fn(async (orgId: string, prefix: string, secret: string) =>
+    prefix === TOKEN_PREFIX && secret === GOOD_SECRET
+      ? { kind: "service", orgId, membershipId: SERVICE, role: "AGENT", scopes: ["tickets:read"], tokenId: "tok-1" }
+      : null,
+  ),
+}
 const sessions = { identityFor: vi.fn(async (secret?: string) => (secret === "good-pg-id" ? USER : null)) }
 
 @Controller("probe")
@@ -140,6 +151,7 @@ beforeAll(async () => {
       { provide: SupportSessionRepository, useValue: supportSessions },
       { provide: SupportMail, useValue: supportMail },
       { provide: SupportReadLog, useValue: readLog },
+      { provide: ApiTokenVerifier, useValue: apiTokens },
       { provide: CLOCK, useValue: clock },
       // The production order: resolve, CSRF, authenticate.
       { provide: APP_GUARD, useClass: TenantResolutionGuard },
@@ -243,8 +255,24 @@ describe("AuthGuard over HTTP", () => {
     expect((await http().get("/probe/open")).body).toEqual({ actor: null })
     // Unknown workspace: resolution's 404, not auth's 401.
     expect((await http().get("/probe").set("Origin", "http://nobody.lvh.me:3001")).status).toBe(404)
-    // A resolving API token is not yet an actor (M8).
-    expect((await http().get("/probe").set("Authorization", "Bearer pg_acmetok_s")).status).toBe(401)
+  })
+})
+
+describe("AuthGuard with an API token (ADR-0042)", () => {
+  const bearer = (secret: string, prefix = TOKEN_PREFIX) => ({ Authorization: `Bearer pg_${prefix}_${secret}` })
+
+  it("turns a verified token into its service account, inside the org its prefix names", async () => {
+    const response = await http().get("/probe").set(bearer(GOOD_SECRET))
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ kind: "service", orgId: acme.id, membershipId: SERVICE, role: "AGENT", scopes: ["tickets:read"], tokenId: "tok-1" })
+    expect(apiTokens.verify).toHaveBeenLastCalledWith(acme.id, TOKEN_PREFIX, GOOD_SECRET)
+  })
+
+  it("refuses a wrong secret and a malformed token, and never falls back to a cookie", async () => {
+    const cookie = `pg_at_acme=${await signed()}`
+    expect((await http().get("/probe").set({ ...bearer("t".repeat(43)), Cookie: cookie })).status).toBe(401)
+    expect((await http().get("/probe").set(bearer("short")).set("Cookie", cookie)).status).toBe(401)
+    expect((await http().get("/probe").set(bearer(GOOD_SECRET, "nosuchprefix"))).status).toBe(401)
   })
 })
 

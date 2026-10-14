@@ -66,7 +66,7 @@ describe("MeService", () => {
   })
 
   it("has no user for a service account, and only its scoped permissions", async () => {
-    const me = await serviceFor({ kind: "service", orgId: "o-1", membershipId: "m-1", role: "AGENT", scopes: ["tickets:read"] }).me()
+    const me = await serviceFor({ kind: "service", orgId: "o-1", membershipId: "m-1", role: "AGENT", scopes: ["tickets:read"], tokenId: "tok-1" }).me()
     expect(me.user).toBeNull()
     expect(me.permissions.toSorted()).toEqual(["attachment:download", "category:read", "ticket:read", "ticket:read_audit"])
   })

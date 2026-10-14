@@ -49,6 +49,7 @@ describe("AuditService", () => {
       membershipId: "m-svc",
       role: "AGENT",
       scopes: [],
+      tokenId: "tok-1",
     })
     await service.record("o-1", [entry])
     expect(appended[0]?.rows[0]).toMatchObject({ actorKind: "SERVICE", actorMembershipId: "m-svc" })
