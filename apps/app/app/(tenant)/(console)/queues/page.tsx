@@ -10,6 +10,7 @@ import { cn } from "@patchgrid/ui/lib/utils"
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { LiveRefresh } from "@/components/live-refresh"
 import { PageHeader } from "@/components/page-header"
 import { TicketFeed } from "@/components/tickets/ticket-feed"
 import { TicketTable } from "@/components/tickets/ticket-table"
@@ -56,6 +57,7 @@ export default async function QueuesPage({
 
   return (
     <>
+      <LiveRefresh delay={1_000} />
       <PageHeader
         title="Queues"
         description="Open work you can see. Deadlines count down to the next target: first response, then resolution."

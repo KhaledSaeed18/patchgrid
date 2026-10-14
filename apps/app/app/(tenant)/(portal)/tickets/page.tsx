@@ -3,6 +3,7 @@ import { buttonVariants } from "@patchgrid/ui/components/button"
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { LiveRefresh } from "@/components/live-refresh"
 import { PageHeader } from "@/components/page-header"
 import { TicketFeed } from "@/components/tickets/ticket-feed"
 import { serverApi } from "@/lib/api/server"
@@ -17,6 +18,7 @@ export default async function MyTicketsPage() {
   })
   return (
     <>
+      <LiveRefresh delay={1_000} />
       <PageHeader
         title="My tickets"
         description="Everything you've raised, most recent first."
