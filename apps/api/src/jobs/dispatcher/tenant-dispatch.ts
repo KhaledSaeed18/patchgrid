@@ -33,8 +33,15 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue(TENANT_DISPATCH_QUEUE) private readonly dispatch: Queue,
     @InjectQueue("sla-scan") slaScan: Queue,
     @InjectQueue("auto-close") autoClose: Queue,
+    @InjectQueue("attachment-sweep") attachmentSweep: Queue,
+    @InjectQueue("projection-reconcile") projectionReconcile: Queue,
   ) {
-    this.queues = { "sla-scan": slaScan, "auto-close": autoClose }
+    this.queues = {
+      "sla-scan": slaScan,
+      "auto-close": autoClose,
+      "attachment-sweep": attachmentSweep,
+      "projection-reconcile": projectionReconcile,
+    }
   }
 
   async onApplicationBootstrap(): Promise<void> {

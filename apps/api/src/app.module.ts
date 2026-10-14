@@ -16,6 +16,7 @@ import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
 import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
+import { MaintenanceModule } from "./jobs/maintenance/maintenance.module"
 import { JobsModule } from "./jobs/jobs.module"
 import { NotificationsModule } from "./notifications/notifications.module"
 import { MailModule } from "./mail/mail.module"
@@ -109,6 +110,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     AuthzModule,
     JobsModule,
     DispatchModule,
+    MaintenanceModule,
     AuditModule,
     QuotaModule,
     MailModule,

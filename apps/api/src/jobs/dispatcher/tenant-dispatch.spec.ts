@@ -16,6 +16,8 @@ function harness(mode: AppConfig["WORKER_MODE"] = "all") {
   const dispatch = queue()
   const slaScan = queue()
   const autoClose = queue()
+  const attachmentSweep = queue()
+  const projectionReconcile = queue()
   const service = new TenantDispatchService(
     { listDispatchable: async () => [{ id: A, plan: "FREE" }, { id: B, plan: "PRO" }] } as unknown as DispatchRepository,
     new FixedClock(new Date(3_600_000)),
@@ -23,8 +25,10 @@ function harness(mode: AppConfig["WORKER_MODE"] = "all") {
     dispatch as unknown as Queue,
     slaScan as unknown as Queue,
     autoClose as unknown as Queue,
+    attachmentSweep as unknown as Queue,
+    projectionReconcile as unknown as Queue,
   )
-  return { service, dispatch, slaScan, autoClose }
+  return { service, dispatch, slaScan, autoClose, projectionReconcile }
 }
 
 describe("TenantDispatchService", () => {
@@ -32,6 +36,7 @@ describe("TenantDispatchService", () => {
     const h = harness()
     expect(await h.service.fanOut("sla-scan")).toEqual([A, B])
     expect(h.autoClose.addBulk).not.toHaveBeenCalled()
+    expect(h.projectionReconcile.addBulk).not.toHaveBeenCalled()
     expect(h.slaScan.addBulk).toHaveBeenCalledWith([
       { name: "sla-scan", data: { orgId: A, tick: 60 }, opts: { jobId: `sla-scan/${A}/60/tick`, priority: 2 } },
       { name: "sla-scan", data: { orgId: B, tick: 60 }, opts: { jobId: `sla-scan/${B}/60/tick`, priority: 1 } },
@@ -43,6 +48,8 @@ describe("TenantDispatchService", () => {
     await worker.service.onApplicationBootstrap()
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("sla-scan", { every: 60_000 }, { data: { orgId: null, sweep: "sla-scan" } })
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("auto-close", { every: 900_000 }, { data: { orgId: null, sweep: "auto-close" } })
+    expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("attachment-sweep", { every: 3_600_000 }, { data: { orgId: null, sweep: "attachment-sweep" } })
+    expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("projection-reconcile", { every: 86_400_000 }, { data: { orgId: null, sweep: "projection-reconcile" } })
     const api = harness("api")
     await api.service.onApplicationBootstrap()
     expect(api.dispatch.upsertJobScheduler).not.toHaveBeenCalled()
