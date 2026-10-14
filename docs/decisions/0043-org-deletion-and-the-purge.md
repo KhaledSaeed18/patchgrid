@@ -4,6 +4,17 @@
 - **Date:** 2026-10-15
 - **Refines:** [0017](0017-org-signup-and-provisioning.md) (lifecycle), `TENANCY.md` §3, [0028](0028-data-protection-export-erasure-retention.md) (tenant erasure)
 
+> **Erratum (2026-10-15).** "A restore that wins the race wins" is not enough on its own. A restore that
+> landed after the purge had begun emptying tables would bring back an empty workspace. Time decides
+> instead:
+>
+> - an owner's cancel and an operator's restore are refused (`409`) from the purge date on;
+> - the purge starts no earlier than an hour after that date (`PURGE_GRACE_HOURS`), so two clocks cannot
+>   disagree about which side owns the workspace.
+>
+> The purge also clears `staging/org/<orgId>/` beside `org/<orgId>/`: uploads land in staging first
+> (ADR-0038).
+
 ## Context
 
 `TENANCY.md` §3 says:
