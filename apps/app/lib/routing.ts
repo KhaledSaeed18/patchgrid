@@ -25,6 +25,7 @@ const APP_PATHS: Record<string, "public" | "identity"> = {
   "/invite": "public",
   "/workspaces": "identity",
   "/new": "identity",
+  "/account": "identity",
 }
 
 /** The back-office's pages, under the internal prefix only `admin.` is rewritten to. */

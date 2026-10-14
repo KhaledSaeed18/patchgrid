@@ -33,12 +33,20 @@ export default async function WorkspacesPage() {
       }
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link
-            href="/new"
-            className="text-foreground underline underline-offset-4"
-          >
-            Create a workspace
-          </Link>
+          <span className="flex gap-4">
+            <Link
+              href="/new"
+              className="text-foreground underline underline-offset-4"
+            >
+              Create a workspace
+            </Link>
+            <Link
+              href="/account"
+              className="text-foreground underline underline-offset-4"
+            >
+              Your account
+            </Link>
+          </span>
           <SignOutEverywhere />
         </div>
       }
