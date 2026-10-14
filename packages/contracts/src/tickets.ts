@@ -241,6 +241,8 @@ export const ticketCapabilitiesSchema = z.object({
   editableFields: z.array(editableFieldSchema),
   /** Links to and from this ticket may be added and removed. */
   canLink: z.boolean(),
+  /** Files may be attached to the ticket and its comments. */
+  canUploadAttachment: z.boolean(),
   canAssign: z.boolean(),
   canCommentPublic: z.boolean(),
   canCommentInternal: z.boolean(),

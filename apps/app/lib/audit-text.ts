@@ -40,6 +40,8 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   SLA_BREACHED: "flagged a missed deadline",
   TICKET_LINKED: "linked a ticket",
   TICKET_UNLINKED: "removed a link",
+  ATTACHMENT_ADDED: "attached a file",
+  ATTACHMENT_REMOVED: "removed a file",
   CHANGE_APPROVED: "approved the change",
   CHANGE_REJECTED: "rejected the change",
   CHANGE_SELF_APPROVED: "approved their own change — nobody else could",

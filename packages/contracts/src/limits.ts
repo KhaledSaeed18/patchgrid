@@ -16,7 +16,7 @@ export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
  * document, and this product's users upload files precisely because they are
  * suspicious of them (ADR-0005).
  */
-export const ALLOWED_ATTACHMENT_MIME_TYPES: readonly string[] = [
+export const ALLOWED_ATTACHMENT_MIME_TYPES = [
   "image/png",
   "image/jpeg",
   "image/gif",
@@ -30,13 +30,14 @@ export const ALLOWED_ATTACHMENT_MIME_TYPES: readonly string[] = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-]
+] as const
+export type AttachmentMimeType = (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]
 
 /**
  * The subset safe to render inline. Everything else is served with
- * `Content-Disposition: attachment`, from a separate origin.
+ * `Content-Disposition: attachment`, from its own registrable domain (ADR-0037).
  */
-export const INLINE_RENDERABLE_MIME_TYPES: readonly string[] = [
+export const INLINE_RENDERABLE_MIME_TYPES: readonly AttachmentMimeType[] = [
   "image/png",
   "image/jpeg",
   "image/gif",
