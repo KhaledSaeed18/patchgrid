@@ -309,13 +309,17 @@ describe("8 · background jobs carry their tenant", () => {
     }
   })
 
-  it("projection-reconcile repairs one tenant's picker rows and never touches the other's", async () => {
+  it("projection-reconcile repairs one tenant's picker and token rows and never touches the other's", async () => {
     const rita = seed.people.rita.userId
     const rosa = seed.people.rosa.userId
     await owner.userOrgIndex.update({ where: { userId_orgId: { userId: rita, orgId: seed.acme.id } }, data: { orgName: "Drifted" } })
     await owner.userOrgIndex.update({ where: { userId_orgId: { userId: rosa, orgId: seed.globex.id } }, data: { orgName: "Drifted" } })
+    // Each org's revoked lookalike token, un-revoked in the index only (ADR-0042).
+    await owner.apiTokenIndex.updateMany({ where: { orgId: { in: [seed.acme.id, seed.globex.id] } }, data: { revokedAt: null } })
     const job = { id: "isolation/reconcile", data: { orgId: seed.acme.id, tick: 1 } } as unknown as Job
-    expect(await app.get(ProjectionReconcileProcessor).process(job)).toBe(1)
+    expect(await app.get(ProjectionReconcileProcessor).process(job)).toBe(2)
+    expect(await owner.apiTokenIndex.count({ where: { orgId: seed.acme.id, revokedAt: null } })).toBe(0)
+    expect(await owner.apiTokenIndex.count({ where: { orgId: seed.globex.id, revokedAt: null } })).toBe(1)
     expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rita, orgId: seed.acme.id } } })).orgName).not.toBe("Drifted")
     expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rosa, orgId: seed.globex.id } } })).orgName).toBe("Drifted")
     await app.get(ProjectionReconcileProcessor).process({ id: "isolation/reconcile-globex", data: { orgId: seed.globex.id, tick: 1 } } as unknown as Job)

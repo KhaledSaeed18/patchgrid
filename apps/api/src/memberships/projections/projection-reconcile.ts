@@ -8,7 +8,7 @@ import { readTenantSweep } from "../../jobs/sweeps"
 import { PrismaService } from "../../prisma/prisma.service"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { ProjectionRepository } from "./projection.repository"
-import { driftOf, expectedRows, planReconcile, type ReconcilePlan } from "./reconcile"
+import { driftOf, expectedRows, planReconcile, planTokenReconcile, type ReconcilePlan, type TokenReconcilePlan } from "./reconcile"
 
 /**
  * The nightly `projection-reconcile` sweep (ADR-0022), for the tenant the job
@@ -16,7 +16,7 @@ import { driftOf, expectedRows, planReconcile, type ReconcilePlan } from "./reco
  * organization, write what differs in one transaction, and report it. Every
  * membership change already mirrors itself in its own transaction, so drift
  * is a bug — logged as a warning with its shape, never silently absorbed.
- * `ApiTokenIndex` joins when API tokens exist (M8).
+ * `ApiTokenIndex` is held to `ApiToken` the same way (ADR-0042).
  */
 @Injectable()
 export class ProjectionReconcileService {
@@ -28,28 +28,32 @@ export class ProjectionReconcileService {
     private readonly tenant: TenantContextService,
   ) {}
 
-  async reconcile(): Promise<ReconcilePlan> {
+  async reconcile(): Promise<{ people: ReconcilePlan; tokens: TokenReconcilePlan }> {
     const orgId = this.tenant.requireOrgId()
     const plan = await this.prisma.transaction(async () => {
       // The projection first, then its source: a membership change committing
       // between the two reads can only make the plan newer than the rows it
       // compares against — never write an older state over a newer one.
       const rows = await this.projections.rows(orgId)
+      const tokenRows = await this.projections.tokenRows(orgId)
       const source = await this.projections.source(orgId)
-      if (source === null) return { create: [], update: [], remove: [] }
-      const plan = planReconcile(expectedRows(source), rows)
-      await this.projections.create(orgId, plan.create)
-      await this.projections.replace(orgId, plan.update)
-      await this.projections.remove(orgId, plan.remove)
-      return plan
+      if (source === null) return { people: { create: [], update: [], remove: [] }, tokens: { create: [], update: [], remove: [] } }
+      const people = planReconcile(expectedRows(source), rows)
+      const tokens = planTokenReconcile(await this.projections.tokenSource(orgId), tokenRows)
+      await this.projections.create(orgId, people.create)
+      await this.projections.replace(orgId, people.update)
+      await this.projections.remove(orgId, people.remove)
+      await this.projections.writeTokens(orgId, tokens)
+      return { people, tokens }
     })
-    if (driftOf(plan) > 0) {
+    if (driftOf(plan.people) + driftOf(plan.tokens) > 0) {
       this.logger.warn({
         msg: "projection drift repaired",
         orgId,
-        created: plan.create.length,
-        updated: plan.update.length,
-        removed: plan.remove.length,
+        created: plan.people.create.length,
+        updated: plan.people.update.length,
+        removed: plan.people.remove.length,
+        tokens: { created: plan.tokens.create.length, updated: plan.tokens.update.length, removed: plan.tokens.remove.length },
       })
     }
     return plan
@@ -71,7 +75,9 @@ export class ProjectionReconcileProcessor extends WorkerHost implements OnApplic
 
   async process(job: Job): Promise<number> {
     const { orgId } = readTenantSweep(job)
-    const plan = await runJob({ orgId }, "job:projection-reconcile", "recompute the org picker's rows", () => this.service.reconcile())
-    return driftOf(plan)
+    const plan = await runJob({ orgId }, "job:projection-reconcile", "recompute the org picker's and the token prefixes' rows", () =>
+      this.service.reconcile(),
+    )
+    return driftOf(plan.people) + driftOf(plan.tokens)
   }
 }

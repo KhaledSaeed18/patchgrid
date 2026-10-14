@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common"
 
 import { PrismaService } from "../../prisma/prisma.service"
-import type { IndexRow, ProjectionSource } from "./reconcile"
+import type { IndexRow, ProjectionSource, TokenIndexRow } from "./reconcile"
 
 const ROW = {
   userId: true,
@@ -50,5 +50,22 @@ export class ProjectionRepository {
   async remove(orgId: string, userIds: readonly string[]): Promise<void> {
     if (userIds.length === 0) return
     await this.prisma.db.userOrgIndex.deleteMany({ where: { orgId, userId: { in: [...userIds] } } })
+  }
+
+  /** The org's tokens, as the index should mirror them. */
+  tokenSource(orgId: string): Promise<TokenIndexRow[]> {
+    return this.prisma.db.apiToken.findMany({ where: { orgId }, select: { prefix: true, revokedAt: true } })
+  }
+
+  tokenRows(orgId: string): Promise<TokenIndexRow[]> {
+    return this.prisma.db.apiTokenIndex.findMany({ where: { orgId }, select: { prefix: true, revokedAt: true } })
+  }
+
+  async writeTokens(orgId: string, plan: { create: readonly TokenIndexRow[]; update: readonly TokenIndexRow[]; remove: readonly string[] }): Promise<void> {
+    if (plan.create.length > 0) await this.prisma.db.apiTokenIndex.createMany({ data: plan.create.map((row) => ({ orgId, ...row })), skipDuplicates: true })
+    for (const row of plan.update) {
+      await this.prisma.db.apiTokenIndex.updateMany({ where: { orgId, prefix: row.prefix }, data: { revokedAt: row.revokedAt } })
+    }
+    if (plan.remove.length > 0) await this.prisma.db.apiTokenIndex.deleteMany({ where: { orgId, prefix: { in: [...plan.remove] } } })
   }
 }

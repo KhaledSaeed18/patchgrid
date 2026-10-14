@@ -51,7 +51,7 @@ export function planReconcile(expected: readonly IndexRow[], actual: readonly In
   return plan
 }
 
-export function driftOf(plan: ReconcilePlan): number {
+export function driftOf(plan: { create: readonly unknown[]; update: readonly unknown[]; remove: readonly unknown[] }): number {
   return plan.create.length + plan.update.length + plan.remove.length
 }
 
@@ -63,4 +63,27 @@ function same(a: IndexRow, b: IndexRow): boolean {
     a.orgName === b.orgName &&
     a.orgStatus === b.orgStatus
   )
+}
+
+/** One `ApiTokenIndex` row (ADR-0022, ADR-0042), as it should be or as it is. */
+export type TokenIndexRow = { prefix: string; revokedAt: Date | null }
+
+export type TokenReconcilePlan = { create: TokenIndexRow[]; update: TokenIndexRow[]; remove: string[] }
+
+/**
+ * The writes that make one org's `ApiTokenIndex` mirror its `ApiToken` rows:
+ * one row per token, revoked exactly when the token is. A stray prefix is
+ * removed — an index row nothing stands behind resolves a tenant for nobody.
+ */
+export function planTokenReconcile(tokens: readonly TokenIndexRow[], index: readonly TokenIndexRow[]): TokenReconcilePlan {
+  const have = new Map(index.map((row) => [row.prefix, row]))
+  const want = new Set(tokens.map((row) => row.prefix))
+  const plan: TokenReconcilePlan = { create: [], update: [], remove: [] }
+  for (const token of tokens) {
+    const current = have.get(token.prefix)
+    if (current === undefined) plan.create.push(token)
+    else if ((current.revokedAt === null) !== (token.revokedAt === null)) plan.update.push(token)
+  }
+  for (const row of index) if (!want.has(row.prefix)) plan.remove.push(row.prefix)
+  return plan
 }
