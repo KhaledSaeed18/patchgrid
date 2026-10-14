@@ -131,13 +131,17 @@ model Organization {
   auditLogs     AuditLog[]
   usageCounters UsageCounter[]
 
-  ticketCounters TicketCounter[]
-  categories     Category[]
-  slaPolicies    SLAPolicy[]
-  tickets        Ticket[]
-  comments       Comment[]
-  watchers       TicketWatcher[]
-  notifications  Notification[]
+  ticketCounters  TicketCounter[]
+  categories      Category[]
+  slaPolicies     SLAPolicy[]
+  tickets         Ticket[]
+  comments        Comment[]
+  watchers        TicketWatcher[]
+  notifications   Notification[]
+  problemDetails  ProblemDetails[]
+  changeDetails   ChangeDetails[]
+  changeApprovals ChangeApproval[]
+  ticketLinks     TicketLink[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -322,14 +326,16 @@ model Membership {
   invitationsCreated Invitation[]
   auditEntries       AuditLog[]
 
-  ticketsRequested         Ticket[]        @relation("TicketRequester")
-  ticketsAssigned          Ticket[]        @relation("TicketAssignee")
-  commentsWritten          Comment[]       @relation("CommentAuthor")
-  commentsDeleted          Comment[]       @relation("CommentDeletedBy")
-  watching                 TicketWatcher[] @relation("Watcher")
-  watchersAdded            TicketWatcher[] @relation("WatcherAddedBy")
-  notifications            Notification[]  @relation("NotificationMembership")
-  notificationsAsRecipient Notification[]  @relation("NotificationRecipient")
+  ticketsRequested         Ticket[]         @relation("TicketRequester")
+  ticketsAssigned          Ticket[]         @relation("TicketAssignee")
+  commentsWritten          Comment[]        @relation("CommentAuthor")
+  commentsDeleted          Comment[]        @relation("CommentDeletedBy")
+  watching                 TicketWatcher[]  @relation("Watcher")
+  watchersAdded            TicketWatcher[]  @relation("WatcherAddedBy")
+  changeApprovals          ChangeApproval[]
+  ticketLinksCreated       TicketLink[]
+  notifications            Notification[]   @relation("NotificationMembership")
+  notificationsAsRecipient Notification[]   @relation("NotificationRecipient")
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -519,6 +525,28 @@ enum NotificationType {
   WATCHER_ADDED
   SLA_WARNING
   SLA_BREACHED
+  CHANGE_AWAITING_APPROVAL
+  CHANGE_APPROVED
+  CHANGE_REJECTED
+}
+
+enum ChangeRisk {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+/// Stored in one canonical direction, read from both ends (DOMAIN.md §1).
+enum LinkRelation {
+  CAUSED_BY
+  RELATES_TO
+  RESOLVED_BY
+  DUPLICATE_OF
 }
 
 enum CommentVisibility {
@@ -638,15 +666,20 @@ model Ticket {
   createdAt                DateTime                 @default(now()) @db.Timestamptz(3)
   updatedAt                DateTime                 @updatedAt @db.Timestamptz(3)
 
-  organization  Organization    @relation(fields: [orgId], references: [id])
-  category      Category?       @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
-  requester     Membership      @relation("TicketRequester", fields: [orgId, requesterMembershipId], references: [orgId, id])
-  assignee      Membership?     @relation("TicketAssignee", fields: [orgId, assigneeMembershipId], references: [orgId, id], onDelete: Restrict)
-  team          Team?           @relation(fields: [orgId, teamId], references: [orgId, id], onDelete: Restrict)
-  slaPolicy     SLAPolicy?      @relation(fields: [orgId, slaPolicyId], references: [orgId, id], onDelete: Restrict)
+  organization  Organization     @relation(fields: [orgId], references: [id])
+  category      Category?        @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
+  requester     Membership       @relation("TicketRequester", fields: [orgId, requesterMembershipId], references: [orgId, id])
+  assignee      Membership?      @relation("TicketAssignee", fields: [orgId, assigneeMembershipId], references: [orgId, id], onDelete: Restrict)
+  team          Team?            @relation(fields: [orgId, teamId], references: [orgId, id], onDelete: Restrict)
+  slaPolicy     SLAPolicy?       @relation(fields: [orgId, slaPolicyId], references: [orgId, id], onDelete: Restrict)
   comments      Comment[]
   watchers      TicketWatcher[]
   notifications Notification[]
+  problem       ProblemDetails?
+  change        ChangeDetails?
+  approvals     ChangeApproval[]
+  linksFrom     TicketLink[]     @relation("LinkFrom")
+  linksTo       TicketLink[]     @relation("LinkTo")
 
   @@unique([orgId, id])
   @@unique([orgId, type, number])
@@ -740,4 +773,75 @@ model TicketWatcher {
 
   @@id([orgId, ticketId, membershipId])
   @@index([orgId, membershipId])
+}
+
+/// A Problem's own fields (ADR-0002): 1:1 with its ticket, written in the ticket's transaction.
+model ProblemDetails {
+  orgId        String    @db.Uuid
+  ticketId     String    @db.Uuid
+  rootCause    String?
+  workaround   String?
+  knownErrorAt DateTime? @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id])
+
+  @@id([orgId, ticketId])
+}
+
+/// A Change's own fields (ADR-0002). All optional while DRAFT; `submit` requires the plan (DOMAIN.md §2.3).
+model ChangeDetails {
+  orgId              String      @db.Uuid
+  ticketId           String      @db.Uuid
+  plannedStart       DateTime?   @db.Timestamptz(3)
+  plannedEnd         DateTime?   @db.Timestamptz(3)
+  risk               ChangeRisk?
+  implementationPlan String?
+  rollbackPlan       String?
+  outcomeNotes       String?
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id])
+
+  @@id([orgId, ticketId])
+}
+
+/// Append-only: a change rejected and resubmitted collects one row per decision (ADR-0002).
+model ChangeApproval {
+  id                   String           @id @default(uuid(7)) @db.Uuid
+  orgId                String           @db.Uuid
+  ticketId             String           @db.Uuid
+  approverMembershipId String           @db.Uuid
+  decision             ApprovalDecision
+  /// The documented last-approver case (DOMAIN.md §2.3, rule 3).
+  selfApproved         Boolean          @default(false)
+  reason               String?
+  decidedAt            DateTime         @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id])
+  approver     Membership   @relation(fields: [orgId, approverMembershipId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@index([orgId, ticketId, decidedAt])
+}
+
+/// One fact per row, in its canonical direction; RELATES_TO is normalised so `fromTicketId < toTicketId`.
+model TicketLink {
+  id                    String       @id @default(uuid(7)) @db.Uuid
+  orgId                 String       @db.Uuid
+  fromTicketId          String       @db.Uuid
+  toTicketId            String       @db.Uuid
+  relation              LinkRelation
+  createdByMembershipId String       @db.Uuid
+  createdAt             DateTime     @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  from         Ticket       @relation("LinkFrom", fields: [orgId, fromTicketId], references: [orgId, id])
+  to           Ticket       @relation("LinkTo", fields: [orgId, toTicketId], references: [orgId, id])
+  createdBy    Membership   @relation(fields: [orgId, createdByMembershipId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, fromTicketId, toTicketId, relation])
+  @@index([orgId, toTicketId])
 }
