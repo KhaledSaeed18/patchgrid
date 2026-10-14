@@ -28,9 +28,10 @@ export class NotificationPreferencesRepository {
    * Merges the given choices into the stored ones in one statement, so two
    * tabs saving different types at once both land. Raw SQL because Prisma
    * cannot express `jsonb || jsonb` — so inside `transaction()`, where the
-   * tenant setting is applied. Returns the stored choices after the merge.
+   * tenant setting is applied. Returns the stored choices after the merge,
+   * and the kill switch, as `read` does — in the same transaction.
    */
-  async merge(orgId: string, membershipId: string, patch: EmailPrefs): Promise<EmailPrefs | null> {
+  async merge(orgId: string, membershipId: string, patch: EmailPrefs): Promise<{ prefs: EmailPrefs; orgEnabled: boolean } | null> {
     return this.prisma.transaction(async () => {
       const [row] = await this.prisma.db.$queryRaw<{ emailPrefs: unknown }[]>`
         UPDATE "Membership"
@@ -38,7 +39,10 @@ export class NotificationPreferencesRepository {
         WHERE "orgId" = ${orgId}::uuid AND "id" = ${membershipId}::uuid
         RETURNING "emailPrefs"
       `
-      return row === undefined ? null : emailPrefsSchema.catch({}).parse(row.emailPrefs)
+      if (row === undefined) return null
+      const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { emailNotificationsEnabled: true } })
+      if (org === null) return null
+      return { prefs: emailPrefsSchema.catch({}).parse(row.emailPrefs), orgEnabled: org.emailNotificationsEnabled }
     })
   }
 }

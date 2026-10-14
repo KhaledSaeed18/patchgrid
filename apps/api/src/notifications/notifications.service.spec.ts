@@ -25,8 +25,7 @@ const row = (id: string, minute: number): NotificationRow => ({
 
 function harness(actor: TenantActor, rows: NotificationRow[] = []) {
   const repo = {
-    list: vi.fn(async () => rows),
-    unreadCount: vi.fn(async () => 7),
+    page: vi.fn(async () => ({ rows, unreadCount: 7 })),
     markRead: vi.fn(async (_o: string, _u: string, id: string) => id === "mine"),
     markAllRead: vi.fn(async () => 2),
   }
@@ -35,7 +34,7 @@ function harness(actor: TenantActor, rows: NotificationRow[] = []) {
     read: vi.fn(async () => prefs.stored),
     merge: vi.fn(async (_o: string, _m: string, patch: EmailPrefs) => {
       prefs.stored = { ...prefs.stored, prefs: { ...prefs.stored.prefs, ...patch } }
-      return prefs.stored.prefs
+      return prefs.stored
     }),
   }
   const service = new NotificationsService(
@@ -55,7 +54,7 @@ describe("NotificationsService", () => {
   it("reads the caller's own inbox by user, pages it, and counts the unread beside it", async () => {
     const h = harness(member("REQUESTER"), [row("a", 1), row("b", 2), row("c", 3)])
     const page = await h.service.list({ unread: true, limit: 2 })
-    expect(h.repo.list).toHaveBeenCalledWith("o-1", "u-1", { unread: true, after: null, limit: 3 })
+    expect(h.repo.page).toHaveBeenCalledWith("o-1", "u-1", { unread: true, after: null, limit: 3 })
     expect(page.items.map((n) => n.id)).toEqual(["a", "b"])
     expect(page.nextCursor).not.toBeNull()
     expect(page.unreadCount).toBe(7)
@@ -65,7 +64,7 @@ describe("NotificationsService", () => {
     const h = harness(member("AGENT"), [row("a", 1), row("b", 2)])
     const first = await h.service.list({ unread: false, limit: 1 })
     await h.service.list({ unread: false, limit: 1, cursor: first.nextCursor ?? "" })
-    expect(h.repo.list).toHaveBeenLastCalledWith("o-1", "u-1", { unread: false, after: { updatedAt: NOW, id: "a" }, limit: 2 })
+    expect(h.repo.page).toHaveBeenLastCalledWith("o-1", "u-1", { unread: false, after: { updatedAt: NOW, id: "a" }, limit: 2 })
     await expect(h.service.list({ unread: false, limit: 1, cursor: "nonsense" })).rejects.toBeInstanceOf(ValidationProblem)
   })
 

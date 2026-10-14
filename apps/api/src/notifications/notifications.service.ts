@@ -47,10 +47,7 @@ export class NotificationsService {
       }
       after = { updatedAt, id: parts.id }
     }
-    const [rows, unreadCount] = await Promise.all([
-      this.notifications.list(orgId, actor.userId, { unread: query.unread, after, limit: query.limit + 1 }),
-      this.notifications.unreadCount(orgId, actor.userId),
-    ])
+    const { rows, unreadCount } = await this.notifications.page(orgId, actor.userId, { unread: query.unread, after, limit: query.limit + 1 })
     const page = rows.slice(0, query.limit)
     const last = page.at(-1)
     return {
@@ -86,8 +83,9 @@ export class NotificationsService {
   async updatePreferences(request: UpdateNotificationPreferences): Promise<NotificationPreferences> {
     const actor = this.self("notification:update")
     const orgId = this.tenant.requireOrgId()
-    if ((await this.preferences.merge(orgId, actor.membershipId, request.email)) === null) throw new NotFoundProblem()
-    return this.readPreferences()
+    const stored = await this.preferences.merge(orgId, actor.membershipId, request.email)
+    if (stored === null) throw new NotFoundProblem()
+    return { emailEnabledForOrg: stored.orgEnabled, email: spelledOut(stored.prefs) }
   }
 
   private self(permission: "notification:read" | "notification:update"): MemberActor {

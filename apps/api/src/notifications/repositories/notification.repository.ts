@@ -100,6 +100,18 @@ export class NotificationRepository {
     })
   }
 
+  /** A page and the badge's number, read in one transaction so they describe the same moment. */
+  async page(
+    orgId: string,
+    userId: string,
+    filter: { unread: boolean; after: { updatedAt: Date; id: string } | null; limit: number },
+  ): Promise<{ rows: NotificationRow[]; unreadCount: number }> {
+    return this.prisma.transaction(async () => {
+      const rows = await this.list(orgId, userId, filter)
+      return { rows, unreadCount: await this.unreadCount(orgId, userId) }
+    })
+  }
+
   async unreadCount(orgId: string, userId: string): Promise<number> {
     return this.prisma.db.notification.count({ where: { orgId, userId, readAt: null } })
   }
