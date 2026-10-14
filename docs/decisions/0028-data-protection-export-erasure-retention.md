@@ -3,6 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-09-22
 
+> **Erratum (2026-10-15).** The tombstone address `deleted+<sha256(email)[:16]>@invalid` undoes the
+> erasure it records. Anyone who knew the address can hash it and find which "Former member" it was. A
+> person who erases a second account under the same address collides with the first tombstone, and the
+> erasure can never finish. The tombstone is `deleted+<userId>@invalid` (ids are not secret). See ADR-0044.
+
 ## Context
 
 Patchgrid holds other companies' operational data — including, by design, their security incidents. The

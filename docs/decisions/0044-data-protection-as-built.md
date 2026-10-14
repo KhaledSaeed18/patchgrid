@@ -10,6 +10,23 @@
 > The row now stays, marked `REMOVED`. The picker leaves it out, which keeps ADR-0033's promise, and
 > erasure reads every row, removed ones included.
 
+> **Erratum (2026-10-15, after review).** What building it got wrong:
+>
+> - **The export writer.** It streams through `yazl`, not `fflate`. `fflate` writes no ZIP64, so an
+>   archive past 4 GiB or 65,535 entries came out corrupt. Its synchronous callback also left the writer
+>   waiting forever on a drain when an upload part failed. `yazl` uses ZIP64 where needed and is piped
+>   into the upload, so a failed upload ends the job.
+> - **The tombstone** is `deleted+<userId>@invalid` (ADR-0028 erratum).
+> - **Erasure in each workspace** also does the following:
+>   - renames invitations to the person's address to the tombstone;
+>   - marks the picker row `REMOVED` as it goes;
+>   - skips a membership an interrupted attempt already erased;
+>   - reads the workspace's status under the organization lock.
+> - **The export** writes an erased member's email as `null`. Its "ready" mail goes only to a requester
+>   who is still an active owner.
+> - **The reconcile** never recreates an erased membership's picker row.
+> - **A restore** is refused for a workspace whose last owner erased their account while it waited.
+
 ## Context
 
 ADR-0028 decides the policy:
