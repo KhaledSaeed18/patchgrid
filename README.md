@@ -31,18 +31,69 @@ The thing this project is actually about:
 3. **Prisma client extension** — transaction-local `set_config`, throws without context
 4. **Postgres RLS** — `FORCE ROW LEVEL SECURITY`, and an app role that holds no `BYPASSRLS`
 
+The same discipline reaches everything that runs without a request. Background jobs
+carry their `orgId` and run inside that tenant. Sweeps go dispatcher → one job per
+tenant, never one global scan. The live notification stream listens on
+`org:<orgId>` for the credential's org only, and sends a ticket event only to
+members who could open that ticket — a CI test holds that decision equal to the one
+`GET /tickets/:id` makes. A tenancy suite of numbered assertions gates every merge.
+
+## What works today
+
+- **Workspaces and people** — signup and provisioning, invitations, roles on the
+  membership (`REQUESTER ⊂ AGENT ⊂ ADMIN ⊂ OWNER`), multi-team agents, team leads,
+  per-tenant sessions, an org picker for people in several workspaces, audit log.
+- **Incidents end to end** — a portal for requesters and a console for agents:
+  - computed priority and per-org numbers (`INC-000042`), routing by category;
+  - a transition table with required notes, and stale-write `409`s;
+  - public replies and internal notes, watchers, and full-text search.
+- **SLA clocks** — response and resolution targets with pause on pending. A
+  per-tenant scan flags warnings and breaches once each and audits them. Resolved
+  tickets auto-close after seven days.
+- **Notifications** —
+  - a bell and inbox, with a burst on one ticket folded into one row;
+  - live updates over Server-Sent Events, including an "assigned to you" toast and
+    queues and ticket pages that refresh themselves;
+  - email for assignments, replies, status changes and SLA events, with
+    preferences per membership and a workspace-wide off switch.
+- **Housekeeping jobs** — audit-log partitions kept a month ahead and archived past
+  seven years, a nightly repair of the org picker's projection, and the
+  attachment-sweep scaffold for M5.
+
 ## Running it
 
 ```bash
 cp .env.example .env
 pnpm install
-docker compose up -d
-pnpm db:bootstrap && pnpm db:generate && pnpm db:doctor
+docker compose up -d && docker compose up minio-init
+pnpm db:bootstrap && pnpm db:migrate && pnpm db:generate
+pnpm db:doctor        # asserts the isolation invariants actually hold — expect 6/6
+pnpm db:seed          # two lookalike workspaces, acme and globex
 pnpm dev
 ```
 
 `www` on `lvh.me:3000`, `app` on `<slug>.lvh.me:3001`, `api` on `api.lvh.me:4000`.
-`db:doctor` asserts the isolation invariants actually hold — expect 6/6.
+Outgoing mail lands in Mailpit at `localhost:8025`.
+
+Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
+
+| Account | Who they are |
+| --- | --- |
+| `dana@patchgrid.test` | Admin at Acme and agent at Globex — sees the workspace picker |
+| `sam@patchgrid.test` | Agent at Acme |
+| `rita@patchgrid.test` | Requester at Acme |
+
+### Tests
+
+```bash
+pnpm turbo lint typecheck test build
+pnpm test:tenancy                                      # schema catalog + isolation suite
+pnpm test:authz                                        # permission matrix + route coverage
+pnpm --filter @patchgrid/api run test:integration      # real Postgres, Redis and queues
+pnpm --filter @patchgrid/database run test:integration
+```
+
+Time is injected, so SLA and worker tests run on fake timers and nothing sleeps.
 
 ## Documentation
 
@@ -57,13 +108,14 @@ The docs are the specification, not a description written afterwards.
 | [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
 | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
 | [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
-| [`docs/decisions/`](docs/decisions/)                                                | 31 ADRs — _why_ any of it is this way                         |
+| [`docs/decisions/`](docs/decisions/)                                                | 36 ADRs — _why_ any of it is this way                         |
 
 ## Status
 
-**M0 (foundation) complete. M1 (tenancy and identity) in progress**: the threat model, the identity
-and tenancy schema with its CI-gated catalog assertions, and the tenant-isolating Prisma client are in;
-tenant context, auth and provisioning are next. `docs/HANDOFF.md` has the detail. Screenshots, an
-architecture diagram and a public demo arrive with the final milestone.
+**M0 (foundation), M1 (tenancy and identity), M2 (incident lifecycle) and M3 (SLA
+sweeps, notifications, live updates, email) are complete.** M4 — service requests,
+problems and changes, each with its own state machine, plus linking and change
+approvals — is next. `docs/HANDOFF.md` has the detail. Screenshots, an architecture
+diagram and a public demo arrive with the final milestone.
 
 MIT licensed — the value of this repository is that people read it.
