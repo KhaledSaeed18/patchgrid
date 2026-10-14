@@ -8,8 +8,10 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
+import { Upload } from "@aws-sdk/lib-storage"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { Injectable } from "@nestjs/common"
+import { PassThrough, Readable } from "node:stream"
 
 import { type AppConfig, InjectConfig } from "../config/app-config"
 
@@ -109,6 +111,29 @@ export class StorageService {
   /** Idempotent: deleting what is not there is not an error. */
   async remove(key: string): Promise<void> {
     await this.internal.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+  }
+
+  /** An object's bytes as a stream, or `null` when it is not there. */
+  async openRead(key: string): Promise<Readable | null> {
+    try {
+      const object = await this.internal.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }))
+      return object.Body instanceof Readable ? object.Body : null
+    } catch (error) {
+      if (isNotFound(error)) return null
+      throw error
+    }
+  }
+
+  /**
+   * A multipart upload fed by a stream (ADR-0044): write into `stream`, end
+   * it, and `done` settles with the bytes stored. Parts go up as they fill,
+   * so nothing larger than a part is ever held.
+   */
+  uploadStream(key: string, contentType: string): { stream: PassThrough; done: Promise<number> } {
+    const stream = new PassThrough({ highWaterMark: 1024 * 1024 })
+    const upload = new Upload({ client: this.internal, params: { Bucket: this.bucket, Key: key, Body: stream, ContentType: contentType } })
+    // The stored size, from storage itself: the uploader is the stream's only reader.
+    return { stream, done: upload.done().then(async () => (await this.size(key)) ?? 0) }
   }
 
   /**

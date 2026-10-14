@@ -7,6 +7,8 @@ import { AccountExists } from "./account-exists"
 import { Invite } from "./invite"
 import { ResetPassword } from "./reset-password"
 import { ApiTokenExpiring, apiTokenExpiringSubject } from "./api-token-expiring"
+import { AccountErased, accountErasedSubject } from "./account-erased"
+import { ExportReady, exportReadySubject } from "./export-ready"
 import { OrgDeletion, orgDeletionSubject } from "./org-deletion"
 import { SupportAccess, supportSubject } from "./support-access"
 import { TicketNotification } from "./ticket-notification"
@@ -102,6 +104,21 @@ export const MAIL_KINDS = {
     subject: orgDeletionSubject,
     component: OrgDeletion,
   },
+  "export-ready": {
+    params: z.object({
+      orgName: z.string(),
+      downloadUrl: url,
+      expiresOn: z.string().max(100),
+      sizeLabel: z.string().max(40),
+    }),
+    subject: exportReadySubject,
+    component: ExportReady,
+  },
+  "account-erased": {
+    params: z.object({ workspaceCount: z.int().nonnegative() }),
+    subject: accountErasedSubject,
+    component: AccountErased,
+  },
 } as const
 
 export type MailKind = keyof typeof MAIL_KINDS
@@ -123,6 +140,8 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("support-access"), ...envelope, params: MAIL_KINDS["support-access"].params }),
   z.object({ kind: z.literal("api-token-expiring"), ...envelope, params: MAIL_KINDS["api-token-expiring"].params }),
   z.object({ kind: z.literal("org-deletion"), ...envelope, params: MAIL_KINDS["org-deletion"].params }),
+  z.object({ kind: z.literal("export-ready"), ...envelope, params: MAIL_KINDS["export-ready"].params }),
+  z.object({ kind: z.literal("account-erased"), ...envelope, params: MAIL_KINDS["account-erased"].params }),
 ])
 export type MailJob = z.infer<typeof mailJobSchema>
 
@@ -161,6 +180,10 @@ function elementFor(job: MailJob): ReactElement {
       return <ApiTokenExpiring {...job.params} />
     case "org-deletion":
       return <OrgDeletion {...job.params} />
+    case "export-ready":
+      return <ExportReady {...job.params} />
+    case "account-erased":
+      return <AccountErased {...job.params} />
   }
 }
 
@@ -176,6 +199,8 @@ function subjectFor(job: MailJob): string {
       return MAIL_KINDS["api-token-expiring"].subject(job.params)
     case "org-deletion":
       return MAIL_KINDS["org-deletion"].subject(job.params)
+    case "export-ready":
+      return MAIL_KINDS["export-ready"].subject(job.params)
     default:
       return MAIL_KINDS[job.kind].subject()
   }
