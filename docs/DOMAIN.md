@@ -320,7 +320,7 @@ different behaviour in each.
 
 | Event | Recipients |
 | --- | --- |
-| Ticket created | Requester (confirmation), team (in-app only) |
+| Ticket created | Requester (confirmation — email only, since they are looking at it), team (in-app only) |
 | Ticket raised on your behalf by an agent | Requester (email + in-app), named agent shown |
 | Invited to the organization | Invitee (email only) |
 | Plan limit reached (tickets, seats, storage) | Org admins and owners |
@@ -336,7 +336,15 @@ different behaviour in each.
 
 In-app notifications are delivered live via SSE (ADR-0008) and persisted in `Notification` for the
 bell/inbox — SSE is a hint, the table is the source of truth. A `dedupeKey` collapses bursts (ten
-comments in a minute on one ticket produce one unread badge, not ten). The SSE fan-out applies the same
+comments in a minute on one ticket produce one unread badge, not ten): an event folds into the member's
+**unread** row with the same key, counting up and moving it to the top of the inbox, until they read
+it. Email follows the row: it is sent when a row is created, not when one is folded into, so a burst is
+one email per unread thread. A comment written with a transition rides with it — whoever the move does
+not already tell hears about the comment, once. Nothing is sent about a ticket to a member who could not
+open it, nor about an internal note to one who could not read it.
+
+`Membership.emailPrefs` stores only the types a member turned off (`{ "COMMENT_PUBLIC": false }`); every
+other type is on. `GET`/`PATCH /notifications/preferences` reads and merges them. The SSE fan-out applies the same
 `scopeFor()` filter as a list query, so an `OWN_TEAM_ONLY` agent never receives an event — not even a
 ticket id — for a ticket they may not read.
 
