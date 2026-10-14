@@ -342,9 +342,10 @@ incidents through a scoped token._
 - [~] Platform back-office (`admin.patchgrid.xyz`): org list, suspend/unsuspend, set plan (done);
       request/restore deletion (with the deletion flow below); metadata only, no tenant content (`RBAC.md` §8). Platform admins created
       by CLI only
-- [ ] **Consent-based support access** (ADR-0020): owner grants a time-boxed read-only session,
+- [x] **Consent-based support access** (ADR-0020, ADR-0041): owner grants a time-boxed read-only session,
       `SupportSession`, **per-request** `SUPPORT_READ` audit into the tenant's log, in-app banner, owner
-      emails on grant/first use/expiry, instant revoke via the epoch
+      emails on grant/first use/expiry, instant revoke via the epoch. The operator reads through the
+      tenant's own routes as a `support` actor; every write is refused at the guard
 - [ ] **Scoped API tokens** (ADR-0021): `ApiToken` + `ApiTokenIndex`, bearer strategy, the documented
       scope→permission mapping, once-only secret display, per-token rate limits, admin UI with
       `lastUsedAt`, `source: API` and `actorKind: SERVICE` attribution
