@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { driftOf, expectedRows, type IndexRow, planReconcile, planTokenReconcile, type ProjectionSource } from "./reconcile"
 
 const source: ProjectionSource = {
-  org: { slug: "acme", name: "Acme", status: "ACTIVE" },
+  org: { slug: "acme", name: "Acme", status: "ACTIVE", deletionRequestedAt: null },
   members: [
     { userId: "u-owner", role: "OWNER", status: "ACTIVE" },
     { userId: "u-agent", role: "AGENT", status: "DISABLED" },
@@ -18,6 +18,7 @@ const row = (userId: string, over: Partial<IndexRow> = {}): IndexRow => ({
   orgSlug: "acme",
   orgName: "Acme",
   orgStatus: "ACTIVE",
+  orgDeletionRequestedAt: null,
   ...over,
 })
 

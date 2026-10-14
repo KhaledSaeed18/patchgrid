@@ -119,7 +119,7 @@ export class InvitationAcceptanceService {
     const parsed = parseInvitationToken(token)
     if (parsed === null) throw new NotFoundProblem(INVALID)
     const org = await this.organizations.findProfileById(parsed.orgId)
-    if (org === null || org.status === "PENDING_DELETION") throw new NotFoundProblem(INVALID)
+    if (org === null || org.status === "PENDING_DELETION" || org.status === "DELETED") throw new NotFoundProblem(INVALID)
 
     const now = this.clock.now()
     const invitation = await runAsTenant(org.id, { actor: "invitation", reason: "resolve invitation" }, () =>

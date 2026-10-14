@@ -8,11 +8,12 @@ export type IndexRow = {
   orgSlug: string
   orgName: string
   orgStatus: OrganizationStatus
+  orgDeletionRequestedAt: Date | null
 }
 
 /** The source the projection derives from: one org, and its human members. */
 export type ProjectionSource = {
-  org: { slug: string; name: string; status: OrganizationStatus }
+  org: { slug: string; name: string; status: OrganizationStatus; deletionRequestedAt: Date | null }
   members: { userId: string; role: Role; status: MembershipStatus }[]
 }
 
@@ -34,6 +35,7 @@ export function expectedRows(source: ProjectionSource): IndexRow[] {
       orgSlug: source.org.slug,
       orgName: source.org.name,
       orgStatus: source.org.status,
+      orgDeletionRequestedAt: source.org.deletionRequestedAt,
     }))
 }
 
@@ -61,7 +63,8 @@ function same(a: IndexRow, b: IndexRow): boolean {
     a.statusForDisplay === b.statusForDisplay &&
     a.orgSlug === b.orgSlug &&
     a.orgName === b.orgName &&
-    a.orgStatus === b.orgStatus
+    a.orgStatus === b.orgStatus &&
+    a.orgDeletionRequestedAt?.getTime() === b.orgDeletionRequestedAt?.getTime()
   )
 }
 

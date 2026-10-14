@@ -1,8 +1,9 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from "@nestjs/common"
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Res } from "@nestjs/common"
 import { Throttle } from "@nestjs/throttler"
 import {
   type CreateOrganizationResponse,
   createOrganizationRequestSchema,
+  idSchema,
   type SlugAvailability,
 } from "@patchgrid/contracts"
 import type { Request, Response } from "express"
@@ -13,12 +14,14 @@ import { ActorService } from "../auth/actor"
 import { clientOf } from "../auth/auth.controller"
 import { CookieService } from "../auth/cookies"
 import { Public, TenantOptional } from "../common/decorators/route-markers"
+import { OrgDeletionService } from "./provisioning/org-deletion.service"
 import { ProvisioningService } from "./provisioning/provisioning.service"
 import { Idempotent } from "../common/idempotency/idempotency"
 
 class CreateOrganizationDto extends createZodDto(createOrganizationRequestSchema) {}
 /** Any string: the answer to "not a slug" is `available: false` with the reason, never a 400. */
 class SlugQueryDto extends createZodDto(z.object({ slug: z.string().max(128) })) {}
+class OrgParamsDto extends createZodDto(z.object({ id: idSchema })) {}
 
 /**
  * Workspace creation and the live slug check. Both tenant-less (ARCHITECTURE.md
@@ -29,6 +32,7 @@ class SlugQueryDto extends createZodDto(z.object({ slug: z.string().max(128) }))
 export class OrgsController {
   constructor(
     private readonly provisioning: ProvisioningService,
+    private readonly deletion: OrgDeletionService,
     private readonly cookies: CookieService,
     private readonly actors: ActorService,
   ) {}
@@ -55,5 +59,16 @@ export class OrgsController {
     const result = await this.provisioning.create(identity.userId, body, clientOf(request))
     this.cookies.set(response, result.cookies)
     return result.response
+  }
+
+  /**
+   * An owner changing their mind, from the picker (ADR-0043): the workspace's
+   * own subdomain 404s while it waits, so this is the one door left open.
+   */
+  @Post(":id/cancel-deletion")
+  @TenantOptional()
+  @HttpCode(204)
+  async cancelDeletion(@Param() params: OrgParamsDto): Promise<void> {
+    await this.deletion.cancelAsOwner(this.actors.requireIdentity().userId, params.id)
   }
 }

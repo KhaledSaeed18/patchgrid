@@ -3,6 +3,7 @@ import {
   type ChangeSlugResponse,
   changeSlugRequestSchema,
   type OrganizationSettings,
+  requestOrgDeletionSchema,
   updateOrganizationSettingsRequestSchema,
   type Usage,
 } from "@patchgrid/contracts"
@@ -12,16 +13,19 @@ import { createZodDto } from "nestjs-zod"
 import { clientOf } from "../../auth/auth.controller"
 import { CookieService } from "../../auth/cookies"
 import { RequirePermission } from "../../authz/require-permission"
+import { OrgDeletionService } from "../provisioning/org-deletion.service"
 import { OrgSettingsService } from "./org-settings.service"
 
 class UpdateSettingsDto extends createZodDto(updateOrganizationSettingsRequestSchema) {}
 class ChangeSlugDto extends createZodDto(changeSlugRequestSchema) {}
+class RequestDeletionDto extends createZodDto(requestOrgDeletionSchema) {}
 
 /** The current workspace's settings. `/org`, singular: there is only ever the one the session names. */
 @Controller("org")
 export class OrgSettingsController {
   constructor(
     private readonly settings: OrgSettingsService,
+    private readonly deletion: OrgDeletionService,
     private readonly cookies: CookieService,
   ) {}
 
@@ -56,5 +60,13 @@ export class OrgSettingsController {
     this.cookies.clear(response, result.clear)
     this.cookies.set(response, result.set)
     return result.response
+  }
+
+  /** An owner deletes the workspace (ADR-0043): `202`, because the purge is thirty days away. */
+  @Post("deletion")
+  @HttpCode(202)
+  @RequirePermission("org:delete")
+  async requestDeletion(@Body() body: RequestDeletionDto): Promise<void> {
+    await this.deletion.request(body.confirmSlug)
   }
 }

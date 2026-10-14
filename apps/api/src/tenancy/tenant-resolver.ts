@@ -123,7 +123,8 @@ function stateRefusal(org: OrganizationSummary): Resolution | null {
     case "SUSPENDED":
       return refuse("organization-suspended", "This workspace is suspended")
     case "PENDING_DELETION":
-      // Indistinguishable from "never existed", on purpose: the subdomain 404s.
+    case "DELETED":
+      // Indistinguishable from "never existed", on purpose: the subdomain 404s (ADR-0043).
       return refuse("not-found", "Unknown workspace")
   }
 }

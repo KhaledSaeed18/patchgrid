@@ -308,5 +308,5 @@ const isLive = (row: { revokedAt: Date | null; expiresAt: Date }, now: Date): bo
 
 function assertServing(org: OrganizationSummary): void {
   if (org.status === "SUSPENDED") throw new OrganizationSuspendedProblem("This workspace is suspended")
-  if (org.status === "PENDING_DELETION") throw new NotFoundProblem("Unknown workspace")
+  if (org.status === "PENDING_DELETION" || org.status === "DELETED") throw new NotFoundProblem("Unknown workspace")
 }

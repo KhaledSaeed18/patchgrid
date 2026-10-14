@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common"
-import type { MembershipStatus, OrganizationStatus, Role, WorkspaceSummary } from "@patchgrid/contracts"
+import { type MembershipStatus, type OrganizationStatus, purgeDateFor, type Role, type WorkspaceSummary } from "@patchgrid/contracts"
 
 import { PrismaService } from "../../prisma/prisma.service"
 
@@ -26,6 +26,7 @@ export class UserOrgIndexRepository {
         roleForDisplay: true,
         statusForDisplay: true,
         orgStatus: true,
+        orgDeletionRequestedAt: true,
       },
     })
     return rows.map((row) => ({
@@ -35,6 +36,7 @@ export class UserOrgIndexRepository {
       role: row.roleForDisplay,
       status: row.statusForDisplay,
       orgStatus: row.orgStatus,
+      purgeAt: row.orgDeletionRequestedAt === null ? null : purgeDateFor(row.orgDeletionRequestedAt).toISOString(),
     }))
   }
 

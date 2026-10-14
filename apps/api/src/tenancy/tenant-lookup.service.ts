@@ -35,13 +35,14 @@ export class TenantLookupService {
         case "SUSPENDED":
           return { status: "suspended", slug: slug.data }
         case "PENDING_DELETION":
+        case "DELETED":
           throw new NotFoundProblem("Unknown workspace")
       }
     }
 
     const retired = await this.organizations.retiredSlug(slug.data, this.clock.now())
     const moved = retired === null ? null : await this.organizations.byId(retired.orgId)
-    if (moved === null || moved.status === "PENDING_DELETION") {
+    if (moved === null || moved.status === "PENDING_DELETION" || moved.status === "DELETED") {
       throw new NotFoundProblem("Unknown workspace")
     }
     // 302 to the new name — a suspended destination shows its own 403 there.

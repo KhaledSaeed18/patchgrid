@@ -10,6 +10,7 @@ const ROW = {
   orgSlug: true,
   orgName: true,
   orgStatus: true,
+  orgDeletionRequestedAt: true,
 } as const
 
 /**
@@ -23,7 +24,7 @@ export class ProjectionRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async source(orgId: string): Promise<ProjectionSource | null> {
-    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { slug: true, name: true, status: true } })
+    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { slug: true, name: true, status: true, deletionRequestedAt: true } })
     if (org === null) return null
     const members = await this.prisma.db.membership.findMany({
       where: { orgId, kind: "HUMAN", userId: { not: null } },
