@@ -389,7 +389,8 @@ export type CreateLinkRequest = z.infer<typeof createLinkRequestSchema>
  * `open` everything open they may see, `unassigned` the queue with no team,
  * `approvals` the Changes awaiting a decision this actor may make.
  */
-export const ticketViewSchema = z.enum(["mine", "assigned", "teams", "open", "unassigned", "approvals"])
+/** `all` is every ticket the actor can read, in any status — an asset's history, not a queue. */
+export const ticketViewSchema = z.enum(["mine", "assigned", "teams", "open", "unassigned", "approvals", "all"])
 export type TicketView = z.infer<typeof ticketViewSchema>
 
 /**
@@ -405,6 +406,8 @@ export const ticketListQuerySchema = paginationQuerySchema.extend({
   /** The per-type queues. */
   type: ticketTypeSchema.optional(),
   status: ticketStatusSchema.optional(),
+  /** Only the tickets raised about this asset (DOMAIN.md §9.3). */
+  assetId: idSchema.optional(),
   sort: ticketSortSchema.default("newest"),
 })
 export type TicketListQuery = z.infer<typeof ticketListQuerySchema>

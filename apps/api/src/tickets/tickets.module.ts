@@ -1,6 +1,7 @@
 import { BullModule } from "@nestjs/bullmq"
 import { Module } from "@nestjs/common"
 
+import { AssetsModule } from "../assets/assets.module"
 import { AuthModule } from "../auth/auth.module"
 import { CategoriesModule } from "../categories/categories.module"
 import { MembershipRepositoryModule } from "../memberships/membership-repository.module"
@@ -16,14 +17,16 @@ import { WatcherRepository } from "./repositories/watcher.repository"
 import { AutoCloseProcessor, AutoCloseService } from "./sweeps/auto-close"
 import { SlaScanProcessor, SlaScanService } from "./sweeps/sla-scan"
 import { TicketAccess } from "./ticket-access"
+import { TicketAssetsService } from "./ticket-assets.service"
 import { TicketAuditService } from "./ticket-audit.service"
 import { TicketsController } from "./tickets.controller"
 import { TicketsService } from "./tickets.service"
 import { WatchersService } from "./watchers.service"
 
-/** Tickets of every type: their thread, watchers, links and trail (M2, M4) — and their sweeps (M3). */
+/** Tickets of every type: their thread, watchers, links, assets and trail (M2, M4, M5) — and their sweeps (M3). */
 @Module({
   imports: [
+    AssetsModule,
     AuthModule,
     BullModule.registerQueue({ name: "auto-close" }, { name: "sla-scan" }),
     CategoriesModule,
@@ -43,6 +46,7 @@ import { WatchersService } from "./watchers.service"
     CommentsService,
     WatchersService,
     LinksService,
+    TicketAssetsService,
     TicketAuditService,
     AutoCloseService,
     AutoCloseProcessor,

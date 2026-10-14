@@ -24,6 +24,8 @@ import type { SlaPoliciesService } from "../sla/sla-policies.service"
 import type { TeamRepository } from "../teams/repositories/team.repository"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
 import type { CommentRepository } from "./repositories/comment.repository"
+import type { AssetsService } from "../assets/assets.service"
+import type { AssetRepository } from "../assets/repositories/asset.repository"
 import type { LinkRepository } from "./repositories/link.repository"
 import type { TicketRepository, TicketRow, TicketSummaryRow } from "./repositories/ticket.repository"
 import type { LoadedTicket, TicketAccess } from "./ticket-access"
@@ -75,6 +77,7 @@ function row(over: Partial<TicketRow> = {}): TicketRow {
     reopenCount: 0,
     problem: null,
     change: null,
+    assets: [],
     ...over,
   }
 }
@@ -92,6 +95,8 @@ function harness(
     membershipId?: string
     otherApprover?: boolean
     visible?: TicketRow[]
+    /** The asset ids this actor can open. */
+    visibleAssets?: string[]
     /** Act as an API token with every scope rather than a person. */
     service?: boolean
   } = {},
@@ -134,11 +139,17 @@ function harness(
     hasOtherApprover: vi.fn(async () => options.otherApprover ?? true),
   }
   const links = { createMany: vi.fn(async () => undefined) }
+  const assetLinks = { linkMany: vi.fn(async () => undefined) }
   const audit = { record: vi.fn(async () => undefined) }
   const service = new TicketsService(
     tickets as unknown as TicketRepository,
     { create: vi.fn(async () => ({ id: "c-1", visibility: "PUBLIC" })) } as unknown as CommentRepository,
     links as unknown as LinkRepository,
+    assetLinks as unknown as AssetRepository,
+    {
+      visible: async (_o: string, _a: unknown, ids: string[]) =>
+        ids.filter((id) => (options.visibleAssets ?? []).includes(id)).map((id) => ({ id, name: id, type: "LAPTOP", status: "IN_USE" })),
+    } as unknown as AssetsService,
     {
       load: vi.fn(async () => loaded()),
       loadVisible: vi.fn(async (_o: string, ids: string[]) =>
@@ -175,7 +186,7 @@ function harness(
   )
   // `get` re-reads through the access layer; the spec only cares that it is reached.
   vi.spyOn(service, "get").mockResolvedValue({} as never)
-  return { service, tickets, calls, notifier, pulse, links, audit }
+  return { service, tickets, calls, notifier, pulse, links, assetLinks, audit }
 }
 
 const create = { type: "INCIDENT" as const, title: "Laptop", description: "Broken", impact: "MEDIUM" as const, urgency: "HIGH" as const }
@@ -190,6 +201,14 @@ describe("TicketsService.create", () => {
       expect.objectContaining({ number: 42, priority: "HIGH", teamId: "team-a", slaPolicyId: "p-high", source: "PORTAL", status: "NEW" }),
       {},
     )
+  })
+
+  it("names only assets the actor can open, and links and audits each once", async () => {
+    await expect(harness("REQUESTER").service.create({ ...create, assetIds: ["a-theirs"] })).rejects.toBeInstanceOf(ValidationProblem)
+    const h = harness("REQUESTER", row(), { visibleAssets: ["a-mine"] })
+    await h.service.create({ ...create, assetIds: ["a-mine", "a-mine"] })
+    expect(h.assetLinks.linkMany).toHaveBeenCalledWith(ORG, "t-new", ["a-mine"])
+    expect(h.audit.record).toHaveBeenCalledWith(ORG, expect.arrayContaining([expect.objectContaining({ action: "TICKET_ASSET_LINKED", diff: { assetId: "a-mine" } })]))
   })
 
   it("lets only agents raise a ticket for someone else, and only for an active member", async () => {

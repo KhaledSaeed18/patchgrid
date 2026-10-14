@@ -20,6 +20,8 @@ import {
   parseTicketNumber,
 } from "@patchgrid/contracts"
 
+import { AssetsService } from "../assets/assets.service"
+import { AssetRepository } from "../assets/repositories/asset.repository"
 import { ActorService, type TenantActor } from "../auth/actor"
 import { AuditService, type AuditEntry } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
@@ -85,6 +87,8 @@ export class TicketsService {
     private readonly tickets: TicketRepository,
     private readonly comments: CommentRepository,
     private readonly links: LinkRepository,
+    private readonly assetLinks: AssetRepository,
+    private readonly assets: AssetsService,
     private readonly access: TicketAccess,
     private readonly memberships: MembershipRepository,
     private readonly teams: TeamRepository,
@@ -160,6 +164,7 @@ export class TicketsService {
       const policy = clocked ? await this.sla.policyFor(orgId, request.type, priority) : null
       // The tickets a create links to are checked first, as the actor sees them (a 400 names the field).
       const linked = await this.linkTargets(orgId, actor, request)
+      const assetIds = await this.assetTargets(orgId, actor, request.assetIds ?? [])
       const number = await this.tickets.nextNumber(orgId, request.type)
       const created = await this.tickets.create(
         orgId,
@@ -198,6 +203,7 @@ export class TicketsService {
           : { fromTicketId: target.id, toTicketId: created, relation: "RESOLVED_BY" as const },
       )
       await this.links.createMany(orgId, links, actor.membershipId)
+      await this.assetLinks.linkMany(orgId, created, assetIds)
       await this.audit.record(orgId, [
         {
           action: "TICKET_CREATED",
@@ -206,6 +212,7 @@ export class TicketsService {
           diff: { type: request.type, priority, teamId, onBehalfOf: requesterId === actor.membershipId ? null : requesterId },
         },
         ...links.map((link): AuditEntry => ({ action: "TICKET_LINKED", entityType: "Ticket", entityId: created, diff: { ...link } })),
+        ...assetIds.map((assetId): AuditEntry => ({ action: "TICKET_ASSET_LINKED", entityType: "Ticket", entityId: created, diff: { assetId } })),
       ])
       return created
     })
@@ -551,9 +558,16 @@ export class TicketsService {
 
   /** The view's own narrowing, before scope; `null` for a view this actor has nothing in. */
   private viewWhere(actor: TenantActor, query: TicketListQuery): ListFilter["where"] | null {
+    const where = this.queueWhere(actor, query)
+    return where === null || query.assetId === undefined ? where : { ...where, assets: { some: { assetId: query.assetId } } }
+  }
+
+  private queueWhere(actor: TenantActor, query: TicketListQuery): ListFilter["where"] | null {
     const status = query.status ?? { in: OPEN_STATUSES }
     const type = query.type === undefined ? {} : { type: query.type }
     switch (query.view) {
+      case "all":
+        return { ...type, ...(query.status === undefined ? {} : { status: query.status }) }
       case "mine":
         return { ...type, requesterMembershipId: actor.membershipId, ...(query.status === undefined ? {} : { status: query.status }) }
       case "assigned":
@@ -639,6 +653,18 @@ export class TicketsService {
       if (!this.permissions.can(actor, "ticket:link", target.subject)) throw new NotPermittedProblem("You can't link that ticket")
     }
     return visible.map((t) => t.row)
+  }
+
+  /**
+   * The assets a new ticket is about (DOMAIN.md §9.3): each one the actor can
+   * open — a requester's own — or the create is a 400 naming the field.
+   */
+  private async assetTargets(orgId: string, actor: TenantActor, requested: readonly string[]): Promise<string[]> {
+    const ids = [...new Set(requested)]
+    if (ids.length === 0) return []
+    const visible = await this.assets.visible(orgId, actor, ids)
+    if (visible.length !== ids.length) throw fieldError("assetIds", "names an asset that does not exist")
+    return ids
   }
 
   /**

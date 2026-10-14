@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common"
 import type {
+  AssetStatus,
+  AssetType,
   Impact,
   Priority,
   TicketSource,
@@ -65,13 +67,15 @@ export type TicketRow = SlaState & {
   team: { id: string; name: string } | null
   problem: ProblemRow | null
   change: ChangeRow | null
+  /** The assets it is about, in the order they were named. */
+  assets: { id: string; name: string; type: AssetType; status: AssetStatus }[]
 }
 
 /** The fields a write may change; everything else is the row's identity. */
 export type TicketChanges = Partial<
   Omit<
     TicketRow,
-    "id" | "orgId" | "number" | "type" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "source" | "problem" | "change"
+    "id" | "orgId" | "number" | "type" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "source" | "problem" | "change" | "assets"
   >
 >
 
@@ -136,6 +140,8 @@ export type ListFilter = {
      * `NOT (assignee = me)` is NULL for an unassigned row and drops it.
      */
     OR?: [{ assigneeMembershipId: null }, { assigneeMembershipId: { not: string } }]
+    /** Raised about this asset (DOMAIN.md §9.3). */
+    assets?: { some: { assetId: string } }
   }
   after: { createdAt: Date; id: string } | null
   /** `desc` is newest first. The cursor continues in the same direction. */
@@ -168,13 +174,17 @@ const FULL = {
       approver: { select: { id: true, displayName: true } },
     },
   },
+  assets: {
+    orderBy: { createdAt: "asc" },
+    select: { asset: { select: { id: true, name: true, type: true, status: true } } },
+  },
 } satisfies Prisma.TicketInclude
 
 type FullRow = Prisma.TicketGetPayload<{ include: typeof FULL }>
 
 /** The decisions belong to the ticket in the schema and to its Change on the wire. */
-function toRow({ approvals, change, ...row }: FullRow): TicketRow {
-  return { ...row, change: change === null ? null : { ...change, approvals } }
+function toRow({ approvals, change, assets, ...row }: FullRow): TicketRow {
+  return { ...row, change: change === null ? null : { ...change, approvals }, assets: assets.map((a) => a.asset) }
 }
 
 const SUMMARY = {
@@ -224,7 +234,7 @@ export class TicketRepository {
    */
   async create(
     orgId: string,
-    data: Omit<TicketRow, "id" | "orgId" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "problem" | "change">,
+    data: Omit<TicketRow, "id" | "orgId" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "problem" | "change" | "assets">,
     details: { problem?: ProblemChanges; change?: ChangeChanges } = {},
   ): Promise<string> {
     const row = await this.prisma.db.ticket.create({

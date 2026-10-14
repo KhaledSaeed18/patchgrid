@@ -24,6 +24,7 @@ import { z } from "zod"
 import { RequirePermission } from "../authz/require-permission"
 import { CommentsService } from "./comments.service"
 import { LinksService } from "./links.service"
+import { TicketAssetsService } from "./ticket-assets.service"
 import { TicketAuditService } from "./ticket-audit.service"
 import { TicketsService } from "./tickets.service"
 import { WatchersService } from "./watchers.service"
@@ -33,6 +34,7 @@ class TicketParams extends createZodDto(z.object({ id: idSchema })) {}
 class CommentParams extends createZodDto(z.object({ id: idSchema, commentId: idSchema })) {}
 class WatcherParams extends createZodDto(z.object({ id: idSchema, membershipId: idSchema })) {}
 class LinkParams extends createZodDto(z.object({ id: idSchema, linkId: idSchema })) {}
+class AssetParams extends createZodDto(z.object({ id: idSchema, assetId: idSchema })) {}
 class LinkDto extends createZodDto(createLinkRequestSchema) {}
 class ListDto extends createZodDto(ticketListQuerySchema) {}
 class SearchDto extends createZodDto(ticketSearchQuerySchema) {}
@@ -56,6 +58,7 @@ export class TicketsController {
     private readonly comments: CommentsService,
     private readonly watchers: WatchersService,
     private readonly links: LinksService,
+    private readonly assets: TicketAssetsService,
     private readonly audit: TicketAuditService,
   ) {}
 
@@ -167,6 +170,21 @@ export class TicketsController {
   @RequirePermission("ticket:link")
   removeLink(@Param() params: LinkParams): Promise<TicketLink[]> {
     return this.links.remove(params.id, params.linkId)
+  }
+
+  /** The ticket's assets come back on the ticket itself; these answer 204. */
+  @Put(":id/assets/:assetId")
+  @HttpCode(204)
+  @RequirePermission("ticket:link")
+  async linkAsset(@Param() params: AssetParams): Promise<void> {
+    await this.assets.link(params.id, params.assetId)
+  }
+
+  @Delete(":id/assets/:assetId")
+  @HttpCode(204)
+  @RequirePermission("ticket:link")
+  async unlinkAsset(@Param() params: AssetParams): Promise<void> {
+    await this.assets.unlink(params.id, params.assetId)
   }
 
   @Get(":id/audit")

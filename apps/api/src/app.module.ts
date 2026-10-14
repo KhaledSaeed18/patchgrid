@@ -15,6 +15,7 @@ import { CategoriesModule } from "./categories/categories.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
+import { AssetsModule } from "./assets/assets.module"
 import { AttachmentsModule } from "./attachments/attachments.module"
 import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
 import { StorageModule } from "./storage/storage.module"
@@ -114,6 +115,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     DispatchModule,
     MaintenanceModule,
     StorageModule,
+    AssetsModule,
     AttachmentsModule,
     AuditModule,
     QuotaModule,

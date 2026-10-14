@@ -91,5 +91,6 @@ export function toTicket(
               decidedAt: a.decidedAt.toISOString(),
             })),
           },
+    assets: row.assets,
   }
 }
