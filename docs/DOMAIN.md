@@ -311,7 +311,9 @@ What matters for the rules in *this* file:
   `WATCHER_ADDED`, `WATCHER_REMOVED`, `SLA_WARNING`, `SLA_BREACHED`, `TICKET_LINKED`, `TICKET_UNLINKED`
   (`{ relation, fromTicketId, toTicketId }`), `ATTACHMENT_ADDED`, `ATTACHMENT_REMOVED` (`{ attachmentId,
   filename, sizeBytes }`), `CHANGE_APPROVED`, `CHANGE_REJECTED` (with the reason), and
-  `CHANGE_SELF_APPROVED` for the last-approver case (§2.3). The catalogue in
+  `CHANGE_SELF_APPROVED` for the last-approver case (§2.3), `TICKET_ASSET_LINKED`,
+  `TICKET_ASSET_UNLINKED` (`{ assetId }`). An asset's own: `ASSET_CREATED`, `ASSET_UPDATED` (field
+  diffs), `ASSET_DELETED` (§9.3). The catalogue in
   `@patchgrid/contracts` is held to this list and to `RBAC.md` §12 by a test.
 - Authorization-relevant changes across the whole org (role changes, invitations, team leadership, org
   settings, tokens, support sessions) are audited into the same log — the catalogue of actions is in
@@ -397,9 +399,24 @@ Articles carry a `version` for optimistic concurrency — two agents editing the
 
 ### 9.3 CMDB
 
-`Asset`: `type`, `status`, optional `ownerMembershipId`, `serialNumber` (unique per org when set),
-`purchaseDate`, `warrantyExpiresAt`. Tickets ↔ assets are many-to-many via `TicketAsset`. "Tickets for
-this asset" is a plain query on that join. A requester sees only assets they own.
+`Asset`: `name`, `type`, `status`, optional `ownerMembershipId`, `serialNumber` (unique per org when
+set), `purchaseDate`, `warrantyExpiresAt`, `notes`. Tickets ↔ assets are many-to-many via `TicketAsset`.
+"Tickets for this asset" is a plain query on that join. A requester sees only assets they own.
+
+- **`type`** is one of `LAPTOP`, `DESKTOP`, `MONITOR`, `PHONE`, `TABLET`, `PRINTER`, `NETWORK`, `SERVER`,
+  `SOFTWARE`, `OTHER`; **`status`** is `IN_STOCK`, `IN_USE`, `IN_REPAIR` or `RETIRED`. A closed list each,
+  so a queue can filter on them; anything finer is the name.
+- **`purchaseDate` and `warrantyExpiresAt` are calendar days** (`date`, not `timestamptz`): a warranty
+  ends on a date, wherever the reader is. They are the one exception to "every datetime is
+  `timestamptz`", because they are not datetimes. When both are set the warranty cannot end first.
+- **Linking an asset to a ticket is `ticket:link`**, the same grant as linking tickets: agents in scope,
+  admins and owners. The asset must be one the actor can see. A requester names assets only while
+  raising a ticket, and only their own (`assetIds` on create); after that, an agent links and unlinks.
+- **A ticket shows its assets to everyone who can read the ticket** — name, type, status — even an
+  asset the reader could not open. Who may *open* an asset is `asset:read`; a link is part of the ticket.
+  "Tickets for this asset" lists only the tickets the reader could open anyway.
+- **An asset with tickets is never deleted** (`409`); it is `RETIRED`, which keeps its history. Deleting
+  is for an asset entered by mistake.
 
 ## 10. Later-milestone domain additions (do not build yet)
 

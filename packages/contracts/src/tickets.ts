@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { linkedAssetSchema, MAX_TICKET_ASSETS } from "./assets.ts"
 import { idSchema } from "./id.ts"
 import { pageSchema, paginationQuerySchema } from "./pagination.ts"
 import { impactSchema, prioritySchema, urgencySchema } from "./priority.ts"
@@ -157,6 +158,8 @@ export const createTicketRequestSchema = z.strictObject({
   causedIncidentIds: z.array(idSchema).min(1).max(MAX_CREATE_LINKS).optional(),
   /** "Create a Change from this Problem": the Problem is linked `RESOLVED_BY` the new Change. */
   resolvesProblemId: idSchema.optional(),
+  /** The assets it is about. Each must be one the actor can see — a requester's own. */
+  assetIds: z.array(idSchema).min(1).max(MAX_TICKET_ASSETS).optional(),
 })
 export type CreateTicketRequest = z.infer<typeof createTicketRequestSchema>
 
@@ -323,6 +326,8 @@ export const ticketSchema = ticketSummarySchema.extend({
   problem: problemFieldsSchema.nullable(),
   /** Present on a Change, `null` otherwise. */
   change: changeFieldsSchema.nullable(),
+  /** The assets it is about (DOMAIN.md §9.3), by name. */
+  assets: z.array(linkedAssetSchema),
 })
 export type Ticket = z.infer<typeof ticketSchema>
 
