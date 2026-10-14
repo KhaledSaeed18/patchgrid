@@ -247,6 +247,7 @@ describe("4 · RLS holds when the repository does not", () => {
         "InboundEmail",
         "SupportSession",
         "ApiToken",
+        "OrgExport",
       ])
     )
 

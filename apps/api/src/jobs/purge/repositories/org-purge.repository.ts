@@ -35,6 +35,7 @@ export class OrgPurgeRepository {
     this.step("InboundEmail", (orgId) => this.prisma.db.inboundEmail.deleteMany({ where: { orgId } })),
     this.step("SupportSession", (orgId) => this.prisma.db.supportSession.deleteMany({ where: { orgId } })),
     this.step("ApiToken", (orgId) => this.prisma.db.apiToken.deleteMany({ where: { orgId } })),
+    this.step("OrgExport", (orgId) => this.prisma.db.orgExport.deleteMany({ where: { orgId } })),
     this.step("TicketAsset", (orgId) => this.prisma.db.ticketAsset.deleteMany({ where: { orgId } })),
     this.step("Asset", (orgId) => this.prisma.db.asset.deleteMany({ where: { orgId } })),
     this.step("KnowledgeArticle", (orgId) => this.prisma.db.knowledgeArticle.deleteMany({ where: { orgId } })),
