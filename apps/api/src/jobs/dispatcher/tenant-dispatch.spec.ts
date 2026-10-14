@@ -21,6 +21,7 @@ function harness(mode: AppConfig["WORKER_MODE"] = "all") {
   const supportSweep = queue()
   const apiTokenSweep = queue()
   const orgPurge = queue()
+  const retentionSweep = queue()
   const projectionReconcile = queue()
   const service = new TenantDispatchService(
     {
@@ -37,6 +38,7 @@ function harness(mode: AppConfig["WORKER_MODE"] = "all") {
     supportSweep as unknown as Queue,
     apiTokenSweep as unknown as Queue,
     orgPurge as unknown as Queue,
+    retentionSweep as unknown as Queue,
     projectionReconcile as unknown as Queue,
   )
   return { service, dispatch, slaScan, autoClose, projectionReconcile, orgPurge }
@@ -71,6 +73,7 @@ describe("TenantDispatchService", () => {
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("support-sweep", { every: 300_000 }, { data: { orgId: null, sweep: "support-sweep" } })
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("api-token-sweep", { every: 3_600_000 }, { data: { orgId: null, sweep: "api-token-sweep" } })
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("org-purge", { every: 86_400_000 }, { data: { orgId: null, sweep: "org-purge" } })
+    expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("retention-sweep", { every: 86_400_000 }, { data: { orgId: null, sweep: "retention-sweep" } })
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("projection-reconcile", { every: 86_400_000 }, { data: { orgId: null, sweep: "projection-reconcile" } })
     const api = harness("api")
     await api.service.onApplicationBootstrap()

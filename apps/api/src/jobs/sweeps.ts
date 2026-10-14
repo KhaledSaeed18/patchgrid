@@ -19,6 +19,8 @@ export const SWEEPS = {
   "support-sweep": { everyMs: 5 * 60_000 },
   /** Warn, a week ahead, about API tokens about to lapse (ADR-0042). */
   "api-token-sweep": { everyMs: 60 * 60_000 },
+  /** Delete what the retention table says is past keeping: old notifications, lapsed exports (ADR-0044). */
+  "retention-sweep": { everyMs: 24 * 60 * 60_000 },
   /** Erase workspaces whose deletion window has passed — the one sweep for pending ones (ADR-0043). */
   "org-purge": { everyMs: 24 * 60 * 60_000 },
   /** Recompute the org picker's projection from source; drift is a bug (ADR-0022). */
