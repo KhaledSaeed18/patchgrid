@@ -313,7 +313,8 @@ What matters for the rules in *this* file:
   filename, sizeBytes }`), `CHANGE_APPROVED`, `CHANGE_REJECTED` (with the reason), and
   `CHANGE_SELF_APPROVED` for the last-approver case (§2.3), `TICKET_ASSET_LINKED`,
   `TICKET_ASSET_UNLINKED` (`{ assetId }`). An asset's own: `ASSET_CREATED`, `ASSET_UPDATED` (field
-  diffs), `ASSET_DELETED` (§9.3). The catalogue in
+  diffs), `ASSET_DELETED` (§9.3). An article's: `ARTICLE_CREATED`, `ARTICLE_UPDATED` (which fields, never
+  the bodies), `ARTICLE_VISIBILITY_CHANGED` (`{ from, to }`), `ARTICLE_DELETED` (§9.2). The catalogue in
   `@patchgrid/contracts` is held to this list and to `RBAC.md` §12 by a test.
 - Authorization-relevant changes across the whole org (role changes, invitations, team leadership, org
   settings, tokens, support sessions) are audited into the same log — the catalogue of actions is in
@@ -396,6 +397,17 @@ schema, the scope filter and the pagination contract.
 "Published" means published *to the organization*; there is no anonymous or public-internet access to
 any article. The portal suggests matching published articles while the requester types a ticket title.
 Articles carry a `version` for optimistic concurrency — two agents editing the same runbook is normal.
+
+- **Editing is `kb:write` on an article the editor can read**: an agent edits any internal or published
+  article and their own drafts; an admin edits any. Moving an article between the three tiers is
+  `kb:publish`, including creating one straight into `INTERNAL` or `PUBLISHED`.
+- **`publishedAt` is when it last became `PUBLISHED`**, and is cleared when it leaves — "published
+  since", not "first published".
+- **The `slug` is made from the title once, at creation**, unique per org (`-2`, `-3` on a clash), and
+  never changes, so a link to an article keeps working through every retitle.
+- **`viewCount` counts reads of the article's page** (`GET /articles/by-slug/:slug`), not the editor's
+  loads or list rows.
+- **The body is markdown rendered without raw HTML.** It formats; it never scripts.
 
 ### 9.3 CMDB
 
