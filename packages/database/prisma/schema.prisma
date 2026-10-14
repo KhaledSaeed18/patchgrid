@@ -720,7 +720,8 @@ model Notification {
 
   @@unique([orgId, id])
   @@unique([orgId, membershipId, dedupeKey], where: raw("(\"readAt\" IS NULL)"), map: "Notification_unread_dedupe_key")
-  @@index([orgId, userId, readAt, createdAt(sort: Desc)])
+  /// The inbox orders by `updatedAt`: a burst folded into an old unread row brings it back to the top.
+  @@index([orgId, userId, updatedAt(sort: Desc)])
 }
 
 /// Access and notifications that are not role-derived (RBAC.md §5). The
