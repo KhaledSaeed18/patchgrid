@@ -54,6 +54,9 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   ARTICLE_UPDATED: "edited an article",
   ARTICLE_VISIBILITY_CHANGED: "changed who can read an article",
   ARTICLE_DELETED: "deleted an article",
+  ORG_SUSPENDED: "suspended the workspace",
+  ORG_UNSUSPENDED: "restored the workspace",
+  ORG_PLAN_CHANGED: "changed the workspace's plan",
 }
 
 export function actorName(entry: AuditEntry): string {

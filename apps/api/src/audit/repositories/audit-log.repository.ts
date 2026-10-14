@@ -34,6 +34,8 @@ export type AuditRow = {
   diff: Record<string, unknown>
   actorKind: AuditActorKind
   actorMembershipId: string | null
+  /** An operator's action on this tenant (RBAC.md §8); never alongside a membership. */
+  actorPlatformAdminId?: string | null
   createdAt: Date
 }
 

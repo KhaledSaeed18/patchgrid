@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import { emailSchema } from "./auth.ts"
 import { idSchema } from "./id.ts"
+import { pageSchema, paginationQuerySchema } from "./pagination.ts"
+import { organizationStatusSchema, planSchema } from "./tenancy.ts"
 
 /**
  * The platform credential (ADR-0040): an operator's own login, a second
@@ -69,3 +71,51 @@ export const platformAuditActionSchema = z.enum([
   "PLATFORM_ORG_DELETION_RESTORED",
 ])
 export type PlatformAuditAction = z.infer<typeof platformAuditActionSchema>
+
+/**
+ * The back-office's view of a workspace (RBAC.md §8): metadata and counts,
+ * never content. Who its members are, what its tickets say — none of it is
+ * here, and none of it is reachable from here.
+ */
+export const platformOrgSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  slug: z.string(),
+  status: organizationStatusSchema,
+  plan: planSchema,
+  activeMembers: z.int().nonnegative(),
+  createdAt: z.iso.datetime(),
+})
+export type PlatformOrg = z.infer<typeof platformOrgSchema>
+
+export const platformOrgPageSchema = pageSchema(platformOrgSchema)
+export type PlatformOrgPage = z.infer<typeof platformOrgPageSchema>
+
+/** Newest first. `q` matches a name or slug, contains, case-insensitive. */
+export const platformOrgListQuerySchema = paginationQuerySchema.extend({
+  q: z.string().trim().min(1).max(100).optional(),
+  status: organizationStatusSchema.optional(),
+})
+export type PlatformOrgListQuery = z.infer<typeof platformOrgListQuerySchema>
+
+export const platformOrgDetailSchema = platformOrgSchema.extend({
+  domain: z.string().nullable(),
+  /** Counts only — read inside the tenant, so RLS still decides what is counted (ADR-0022). */
+  counts: z.object({
+    seats: z.int().nonnegative(),
+    requesters: z.int().nonnegative(),
+    tickets: z.int().nonnegative(),
+    openTickets: z.int().nonnegative(),
+    assets: z.int().nonnegative(),
+    articles: z.int().nonnegative(),
+    storageBytes: z.number().nonnegative(),
+  }),
+})
+export type PlatformOrgDetail = z.infer<typeof platformOrgDetailSchema>
+
+/** Suspending says why; the reason goes to the tenant's own log and the platform's. */
+export const suspendOrgRequestSchema = z.strictObject({ reason: z.string().trim().min(3).max(500) })
+export type SuspendOrgRequest = z.infer<typeof suspendOrgRequestSchema>
+
+export const setPlanRequestSchema = z.strictObject({ plan: planSchema })
+export type SetPlanRequest = z.infer<typeof setPlanRequestSchema>

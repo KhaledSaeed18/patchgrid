@@ -44,12 +44,14 @@ export class AuditService {
     await this.repository.append(orgId, rows)
   }
 
-  private resolveActor(actor?: AuditActorOverride): Pick<AuditRow, "actorKind" | "actorMembershipId"> {
+  private resolveActor(actor?: AuditActorOverride): Pick<AuditRow, "actorKind" | "actorMembershipId" | "actorPlatformAdminId"> {
     if (actor?.kind === "member") return { actorKind: "MEMBER", actorMembershipId: actor.membershipId }
     if (actor?.kind === "system") return { actorKind: "SYSTEM", actorMembershipId: null }
     const current = this.actors.current()
     if (current?.kind === "member") return { actorKind: "MEMBER", actorMembershipId: current.membershipId }
     if (current?.kind === "service") return { actorKind: "SERVICE", actorMembershipId: current.membershipId }
+    // An operator in the back-office: named in the tenant's own log, as RBAC.md §8 requires.
+    if (current?.kind === "platform") return { actorKind: "PLATFORM", actorMembershipId: null, actorPlatformAdminId: current.platformAdminId }
     return { actorKind: "SYSTEM", actorMembershipId: null }
   }
 }
