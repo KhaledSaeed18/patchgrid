@@ -36,6 +36,14 @@ export class MfaRepository {
 
   /** Confirms the factor with its first accepted step, and replaces the recovery codes, together. */
   async confirm(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[]): Promise<boolean> {
+    // Two enrolments confirmed at once: the one-confirmed-factor index lets one win; the other is a refusal, not a 500.
+    return this.confirmOnce(userId, factorId, step, now, recoveryHashes).catch((error: unknown) => {
+      if (isUniqueViolation(error)) return false
+      throw error
+    })
+  }
+
+  private confirmOnce(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[]): Promise<boolean> {
     return this.prisma.db.$transaction(async (tx) => {
       const { count } = await tx.userMfaFactor.updateMany({
         where: { id: factorId, userId, confirmedAt: null },
@@ -65,4 +73,9 @@ export class MfaRepository {
     const { count } = await this.prisma.db.userMfaRecovery.updateMany({ where: { id, usedAt: null }, data: { usedAt: now } })
     return count === 1
   }
+}
+
+/** Prisma's P2002, recognised by its code so this file need not import the runtime error class. */
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002"
 }
