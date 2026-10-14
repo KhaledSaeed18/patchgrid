@@ -26,6 +26,20 @@ export class TicketAuditService {
     if (org === undefined) throw new NotFoundProblem()
     const loaded = await this.access.load(orgId, ticketId, actor, org.agentVisibility)
     this.permissions.assertVisible(actor, "ticket:read_audit", loaded.subject)
-    return this.audit.forEntity(orgId, "Ticket", ticketId)
+    const entries = await this.audit.forEntity(orgId, "Ticket", ticketId)
+    // Whoever reads the trail but not internal notes — a token without `comments:internal` (RBAC.md §10) —
+    // gets what the entries say happened, never what an internal note or its file said.
+    return this.permissions.can(actor, "comment:read_internal", loaded.subject) ? entries : entries.map(withoutInternalText)
   }
+}
+
+/** Fields that can carry an internal note's words; kept only on an entry that says it was public. */
+const INTERNAL_TEXT = ["previousBody", "filename"] as const
+
+/** An entry from before `internal` was recorded counts as internal: nothing was ever said to be public. */
+export function withoutInternalText(entry: AuditEntry): AuditEntry {
+  const diff = entry.diff as Record<string, unknown>
+  if (diff.internal === false || !INTERNAL_TEXT.some((field) => field in diff)) return entry
+  const kept = Object.fromEntries(Object.entries(diff).filter(([field]) => !(INTERNAL_TEXT as readonly string[]).includes(field)))
+  return { ...entry, diff: { ...kept, redacted: true } }
 }

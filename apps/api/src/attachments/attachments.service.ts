@@ -138,7 +138,7 @@ export class AttachmentsService {
     await this.prisma.transaction(async () => {
       if (!(await this.attachments.markReady(orgId, id, sniffed, now))) throw new NotFoundProblem()
       await this.audit.record(orgId, [
-        { action: "ATTACHMENT_ADDED", entityType: "Ticket", entityId: row.ticketId, diff: { attachmentId: id, filename: row.filename, sizeBytes: row.sizeBytes } },
+        { action: "ATTACHMENT_ADDED", entityType: "Ticket", entityId: row.ticketId, diff: { attachmentId: id, filename: row.filename, sizeBytes: row.sizeBytes, internal: row.comment?.visibility === "INTERNAL" } },
       ])
     })
     await this.pulse.changed(orgId, row.ticketId, row.comment?.visibility === "INTERNAL" ? "internal" : "ticket")
@@ -189,7 +189,8 @@ export class AttachmentsService {
             action: "ATTACHMENT_ADDED",
             entityType: "Ticket",
             entityId: file.ticketId,
-            diff: { attachmentId: row.id, filename, sizeBytes: file.bytes.length, via: "email" },
+            // Email never writes an internal note (DOMAIN.md §7.1).
+            diff: { attachmentId: row.id, filename, sizeBytes: file.bytes.length, via: "email", internal: false },
           },
         ])
       })

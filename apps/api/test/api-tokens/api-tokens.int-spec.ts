@@ -37,7 +37,9 @@ beforeAll(async () => {
   other = await seedWorkspace(app, db, { prefix: "tokens-other", people: { owner: "OWNER" } })
   const ticket = { type: "INCIDENT", title: "VPN drops", description: "x", impact: "LOW", urgency: "LOW" }
   ticketId = (await as("requester").post("/tickets", ticket)).body.id as string
-  await as("agent").post(`/tickets/${ticketId}/comments`, { body: "Concentrator lease, between us.", visibility: "INTERNAL" })
+  const note = await as("agent").post(`/tickets/${ticketId}/comments`, { body: "Concentrator lease, between us.", visibility: "INTERNAL" })
+  // Edited, so the audit trail holds the old words too.
+  await as("agent").patch(`/tickets/${ticketId}/comments/${note.body.id as string}`, { body: "Concentrator lease." })
 })
 
 afterAll(async () => {
@@ -129,6 +131,13 @@ describe("using a token", () => {
     const comments = await machine(reader.secret).get(`/tickets/${ticketId}/comments`)
     expect(comments.status).toBe(200)
     expect(JSON.stringify(comments.body)).not.toContain("between us")
+    // Nor through the ticket's audit trail, which tickets:read does reach.
+    const trail = await machine(reader.secret).get(`/tickets/${ticketId}/audit`)
+    expect(trail.status).toBe(200)
+    expect(trail.body).toEqual(expect.arrayContaining([expect.objectContaining({ action: "COMMENT_EDITED", diff: expect.objectContaining({ redacted: true }) })]))
+    expect(JSON.stringify(trail.body)).not.toContain("between us")
+    // A person who may read internal notes still sees what the note said.
+    expect(JSON.stringify((await as("agent").get(`/tickets/${ticketId}/audit`)).body)).toContain("between us")
     expect((await machine(writer.secret).get("/members")).status).toBe(403)
     expect((await machine(writer.secret).get("/org/api-tokens")).status).toBe(403)
     expect((await machine(writer.secret).post("/org/api-tokens", { name: "x", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })).status).toBe(403)

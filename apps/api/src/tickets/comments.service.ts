@@ -127,7 +127,7 @@ export class CommentsService {
       })
       await this.comments.edit(orgId, commentId, body, now)
       await this.audit.record(orgId, [
-        { action: "COMMENT_EDITED", entityType: "Ticket", entityId: ticketId, diff: { commentId, previousBody: comment.body } },
+        { action: "COMMENT_EDITED", entityType: "Ticket", entityId: ticketId, diff: { commentId, previousBody: comment.body, internal: comment.visibility === "INTERNAL" } },
       ])
       return { loaded, comment: { ...comment, body, editedAt: now } }
     })
@@ -143,7 +143,7 @@ export class CommentsService {
       this.permissions.assert(actor, "comment:delete")
       await this.comments.softDelete(orgId, commentId, actor.membershipId, this.clock.now())
       await this.audit.record(orgId, [
-        { action: "COMMENT_DELETED", entityType: "Ticket", entityId: ticketId, diff: { commentId, previousBody: comment.body } },
+        { action: "COMMENT_DELETED", entityType: "Ticket", entityId: ticketId, diff: { commentId, previousBody: comment.body, internal: comment.visibility === "INTERNAL" } },
       ])
       return comment.visibility
     })
