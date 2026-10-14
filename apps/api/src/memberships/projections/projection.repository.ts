@@ -27,7 +27,8 @@ export class ProjectionRepository {
     const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { slug: true, name: true, status: true, deletionRequestedAt: true } })
     if (org === null) return null
     const members = await this.prisma.db.membership.findMany({
-      where: { orgId, kind: "HUMAN", userId: { not: null } },
+      // An erased membership has no picker row to keep, ever (ADR-0044).
+      where: { orgId, kind: "HUMAN", userId: { not: null }, anonymisedAt: null },
       select: { userId: true, role: true, status: true },
     })
     return { org, members: members.flatMap((m) => (m.userId === null ? [] : [{ userId: m.userId, role: m.role, status: m.status }])) }

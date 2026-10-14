@@ -24,11 +24,17 @@ const ORG = "0190b2f0-0000-7000-8000-00000000000a"
 
 function harness(options: { password?: boolean; admin?: boolean; owners?: number; role?: "OWNER" | "AGENT"; orgStatus?: string } = {}) {
   const sessions = { revokeEverywhere: vi.fn(async () => [{ name: "pg_id", path: "/" }]) }
-  const erasure = { anonymiseMembership: vi.fn(async () => undefined), forgetPresence: vi.fn(async () => undefined), tombstoneAccount: vi.fn(async () => undefined) }
+  const erasure = {
+    isAnonymised: vi.fn(async () => false),
+    anonymiseMembership: vi.fn(async () => undefined),
+    forgetPresence: vi.fn(async () => undefined),
+    forgetInvitations: vi.fn(async () => undefined),
+    tombstoneAccount: vi.fn(async () => undefined),
+  }
   const service = new AccountErasureService(
     erasure as unknown as AccountErasureRepository,
     { findById: async () => ({ id: "u-1", email: "sam@acme.test", name: "Sam", passwordHash: "h", emailVerifiedAt: new Date(0), anonymisedAt: null }) } as unknown as UserRepository,
-    { allOrgIdsForUser: async () => [ORG] } as unknown as UserOrgIndexRepository,
+    { allOrgIdsForUser: async () => [ORG], markRemoved: vi.fn(async () => undefined) } as unknown as UserOrgIndexRepository,
     { findProfileById: async () => ({ id: ORG, name: "Acme", slug: "acme", status: options.orgStatus ?? "ACTIVE" }) } as unknown as OrganizationRepository,
     { activeForUser: async () => (options.admin === true ? { id: "pa" } : null) } as unknown as PlatformAdminRepository,
     {
@@ -67,7 +73,17 @@ describe("AccountErasureService", () => {
       const h = harness(options)
       await h.service.erase("u-1", "pw")
       expect(h.erasure.anonymiseMembership).toHaveBeenCalled()
-      expect(h.erasure.tombstoneAccount).toHaveBeenCalledWith("u-1", expect.stringMatching(/^deleted\+[0-9a-f]{16}@invalid$/), expect.any(Date))
+      // Invitations to the address name the person too.
+      expect(h.erasure.forgetInvitations).toHaveBeenCalledWith(ORG, "sam@acme.test", "deleted+u-1@invalid")
+      expect(h.erasure.tombstoneAccount).toHaveBeenCalledWith("u-1", "deleted+u-1@invalid", expect.any(Date))
     }
+  })
+
+  it("skips a workspace an earlier, interrupted attempt already erased: no second audit row, no second seat", async () => {
+    const h = harness()
+    h.erasure.isAnonymised.mockResolvedValue(true)
+    await h.service.erase("u-1", "pw")
+    expect(h.erasure.anonymiseMembership).not.toHaveBeenCalled()
+    expect(h.erasure.tombstoneAccount).toHaveBeenCalled()
   })
 })

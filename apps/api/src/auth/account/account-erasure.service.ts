@@ -1,5 +1,4 @@
 import { Injectable, Logger } from "@nestjs/common"
-import { createHash } from "node:crypto"
 
 import { AuditService } from "../../audit/audit.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
@@ -69,10 +68,12 @@ export class AccountErasureService {
     // Every session ends first: nothing half-erased stays signed in.
     const clear = await this.sessions.revokeEverywhere(userId)
     const now = this.clock.now()
+    // The account's id, not a hash of its address: a hash could be recomputed by anyone who knew the
+    // address, and a second account under the same address would collide with the first (ADR-0044 erratum).
+    const tombstone = `deleted+${userId}@invalid`
     let erased = 0
-    for (const orgId of orgIds) if (await this.eraseIn(orgId, userId, now)) erased += 1
+    for (const orgId of orgIds) if (await this.eraseIn(orgId, userId, account.email, tombstone, now)) erased += 1
 
-    const tombstone = `deleted+${createHash("sha256").update(account.email).digest("hex").slice(0, 16)}@invalid`
     await runAsPlatform({ actor: `user:${userId}`, reason: "erase account" }, () =>
       this.prisma.transaction(() => this.erasure.tombstoneAccount(userId, tombstone, now)),
     )
@@ -106,13 +107,16 @@ export class AccountErasureService {
    * themselves as the actor. Re-checks the last-owner rule under the lock; a
    * promotion racing it stops the erasure there, before the account is touched.
    */
-  private async eraseIn(orgId: string, userId: string, now: Date): Promise<boolean> {
-    const org = await this.organizations.findProfileById(orgId)
+  private async eraseIn(orgId: string, userId: string, email: string, tombstone: string, now: Date): Promise<boolean> {
     const membershipId = await runAsTenant(orgId, { actor: `user:${userId}`, reason: "erase account" }, () =>
       this.prisma.transaction(async () => {
         await this.memberships.lockOrganization(orgId)
+        // Read under the lock: a cancel or restore landing first changes who must stay an owner.
+        const org = await this.organizations.findProfileById(orgId)
         const membership = await this.memberships.findByUser(orgId, userId)
         if (membership === null) return null
+        // Done on an earlier attempt that stopped at another workspace: nothing to do twice.
+        if (await this.erasure.isAnonymised(orgId, membership.id)) return membership.id
         if (org !== null && OWNED.has(org.status) && membership.role === "OWNER" && membership.status === "ACTIVE") {
           if ((await this.memberships.countActiveOwners(orgId)) <= 1) throw new ConflictProblem(`Hand over or delete ${org.slug} first`)
         }
@@ -120,6 +124,9 @@ export class AccountErasureService {
         const leftTeams = await this.memberships.leaveAllTeams(orgId, membership.id)
         await this.erasure.anonymiseMembership(orgId, membership.id, now)
         await this.erasure.forgetPresence(orgId, membership.id, userId)
+        await this.erasure.forgetInvitations(orgId, email, tombstone)
+        // Off the picker now, not only when the account is tombstoned at the end.
+        await this.workspaces.markRemoved(userId, orgId)
         await this.audit.record(
           orgId,
           [{ action: "MEMBER_REMOVED", entityType: "Membership", entityId: membership.id, diff: { erased: true, ...(leftTeams.length > 0 ? { leftTeams } : {}) } }],

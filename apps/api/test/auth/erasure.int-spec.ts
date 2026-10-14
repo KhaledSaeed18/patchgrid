@@ -114,7 +114,7 @@ describe("erasing", () => {
 
   it("leaves a tombstone account nobody can sign in to, and frees the address", async () => {
     const account = await db.user.findUniqueOrThrow({ where: { id: ws.people.agent.userId } })
-    expect(account.email).toMatch(/^deleted\+[0-9a-f]{16}@invalid$/)
+    expect(account.email).toBe(`deleted+${ws.people.agent.userId}@invalid`)
     expect(account).toMatchObject({ name: "", passwordHash: null })
     expect(await db.userOrgIndex.count({ where: { userId: ws.people.agent.userId } })).toBe(0)
     const login = await request(app.getHttpServer()).post("/api/v1/auth/login").set(HEADERS).send({ email: ws.people.agent.email, password: PASSWORD })

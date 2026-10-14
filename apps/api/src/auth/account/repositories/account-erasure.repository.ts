@@ -23,6 +23,17 @@ export class AccountErasureRepository {
     })
   }
 
+  /** Inside the tenant: already erased — an erasure retried after a refusal elsewhere skips it. */
+  async isAnonymised(orgId: string, membershipId: string): Promise<boolean> {
+    const row = await this.prisma.db.membership.findUnique({ where: { orgId_id: { orgId, id: membershipId } }, select: { anonymisedAt: true } })
+    return row?.anonymisedAt != null
+  }
+
+  /** Inside the tenant: invitations to the person's address name them too (ADR-0044 erratum). */
+  async forgetInvitations(orgId: string, email: string, tombstone: string): Promise<void> {
+    await this.prisma.db.invitation.updateMany({ where: { orgId, email }, data: { email: tombstone } })
+  }
+
   /** Inside the tenant: nobody is watching for them, and nothing waits to be delivered to them. */
   async forgetPresence(orgId: string, membershipId: string, userId: string): Promise<void> {
     await this.prisma.db.ticketWatcher.deleteMany({ where: { orgId, membershipId } })
