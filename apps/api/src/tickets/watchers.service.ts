@@ -6,6 +6,8 @@ import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
+import { type Clock, InjectClock } from "../common/clock/clock"
+import { Notifier } from "../notifications/notify"
 import { PrismaService } from "../prisma/prisma.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
 import { WatcherRepository } from "./repositories/watcher.repository"
@@ -28,6 +30,8 @@ export class WatchersService {
     private readonly tenant: TenantContextService,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifier: Notifier,
+    @InjectClock() private readonly clock: Clock,
   ) {}
 
   async list(ticketId: string): Promise<Watcher[]> {
@@ -50,7 +54,7 @@ export class WatchersService {
   async add(ticketId: string, membershipId: string): Promise<Watcher[]> {
     const actor = this.actors.requireTenantActor()
     const orgId = this.tenant.requireOrgId()
-    await this.prisma.transaction(async () => {
+    const added = await this.prisma.transaction(async () => {
       const loaded = await this.access.load(orgId, ticketId, actor, this.visibility())
       const self = membershipId === actor.membershipId
       this.permissions.assert(actor, self ? "ticket:watch" : "ticket:watch_others", loaded.subject)
@@ -60,10 +64,19 @@ export class WatchersService {
           throw new ValidationProblem([{ path: "membershipId", message: "is not an active member", code: "invalid_watcher" }])
         }
       }
-      if (await this.watchers.add(orgId, ticketId, membershipId, actor.membershipId)) {
-        await this.audit.record(orgId, [{ action: "WATCHER_ADDED", entityType: "Ticket", entityId: ticketId, diff: { membershipId } }])
-      }
+      if (!(await this.watchers.add(orgId, ticketId, membershipId, actor.membershipId))) return false
+      await this.audit.record(orgId, [{ action: "WATCHER_ADDED", entityType: "Ticket", entityId: ticketId, diff: { membershipId } }])
+      return true
     })
+    if (added) {
+      // Watching yourself is not news; `deliveriesFor` drops the actor.
+      await this.notifier.notify(
+        orgId,
+        { kind: "watcher-added", ticketId, actorMembershipId: actor.membershipId, membershipId },
+        ticketId,
+        `watch-${membershipId}-${String(this.clock.now().getTime())}`,
+      )
+    }
     return this.list(ticketId)
   }
 

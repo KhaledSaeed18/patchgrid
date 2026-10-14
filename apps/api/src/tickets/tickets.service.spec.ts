@@ -9,11 +9,13 @@ import { FixedClock } from "../common/clock/clock"
 import {
   ConflictProblem,
   InvalidTransitionProblem,
+  NotFoundProblem,
   NotPermittedProblem,
   StaleWriteProblem,
   ValidationProblem,
 } from "../common/problems/problem.exception"
 import type { MembershipRepository } from "../memberships/repositories/membership.repository"
+import type { Notifier } from "../notifications/notify"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { QuotaService } from "../quota/quota.service"
 import type { SlaPoliciesService } from "../sla/sla-policies.service"
@@ -86,6 +88,7 @@ function harness(
     relation: { role, isRequester: ticket.requesterMembershipId === actor.membershipId, isAssignee: ticket.assigneeMembershipId === actor.membershipId, ticketHasAssignee: ticket.assigneeMembershipId !== null },
   })
   const branchResults = [...(options.branches ?? [])]
+  const notifier = { notifyAll: vi.fn(async () => undefined) }
   const tickets = {
     nextNumber: vi.fn(async () => {
       calls.push("number")
@@ -123,11 +126,12 @@ function harness(
         calls.push("quota")
       },
     } as unknown as QuotaService,
+    notifier as unknown as Notifier,
     new FixedClock(NOW),
   )
   // `get` re-reads through the access layer; the spec only cares that it is reached.
   vi.spyOn(service, "get").mockResolvedValue({} as never)
-  return { service, tickets, calls }
+  return { service, tickets, calls, notifier }
 }
 
 const create = { type: "INCIDENT" as const, title: "Laptop", description: "Broken", impact: "MEDIUM" as const, urgency: "HIGH" as const }
@@ -181,6 +185,33 @@ describe("TicketsService.assign", () => {
     expect(h.tickets.updateVersioned).toHaveBeenCalledWith(ORG, "t-1", 3, expect.objectContaining({ status: "ASSIGNED" }))
     await expect(harness("AGENT").service.assign("t-1", { version: 3, assigneeMembershipId: "m-req" })).rejects.toBeInstanceOf(ValidationProblem)
     await expect(harness("AGENT", row({ status: "CLOSED" })).service.assign("t-1", { version: 3, teamId: "team-a" })).rejects.toBeInstanceOf(ConflictProblem)
+  })
+})
+
+describe("TicketsService notifications", () => {
+  const notice = (event: object, discriminator: string) => ({ event, entityId: "t-1", discriminator })
+
+  it("queues one event per change, after the write, keyed to the version the write made", async () => {
+    const assign = harness("AGENT", row({ status: "NEW", assigneeMembershipId: null }))
+    // A concurrent write moved the ticket on before the re-read: the key is still the write's own.
+    vi.spyOn(assign.service, "get").mockResolvedValue({ version: 5 } as never)
+    await assign.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })
+    expect(assign.notifier.notifyAll).toHaveBeenCalledWith(ORG, [
+      notice({ kind: "ticket-assigned", ticketId: "t-1", actorMembershipId: "m-agent", assigneeMembershipId: "m-agent" }, "v4"),
+    ])
+
+    const resolve = harness("AGENT")
+    await resolve.service.transition("t-1", { action: "resolve", version: 3, comment: { body: "Done", visibility: "PUBLIC" } })
+    expect(resolve.notifier.notifyAll).toHaveBeenCalledWith(ORG, [
+      notice({ kind: "status-changed", ticketId: "t-1", actorMembershipId: "m-agent", to: "RESOLVED", comment: "PUBLIC" }, "v4"),
+    ])
+  })
+
+  it("announces before reading back, so a read-back the caller may not make loses nothing", async () => {
+    const h = harness("AGENT", row({ status: "NEW", assigneeMembershipId: null }))
+    vi.spyOn(h.service, "get").mockRejectedValue(new NotFoundProblem())
+    await expect(h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })).rejects.toBeInstanceOf(NotFoundProblem)
+    expect(h.notifier.notifyAll).toHaveBeenCalledTimes(1)
   })
 })
 

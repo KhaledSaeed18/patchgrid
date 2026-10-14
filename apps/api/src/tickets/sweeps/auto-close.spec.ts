@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { AuditService } from "../../audit/audit.service"
 import { FixedClock } from "../../common/clock/clock"
+import type { Notifier } from "../../notifications/notify"
 import type { PrismaService } from "../../prisma/prisma.service"
 import type { TenantContextService } from "../../tenancy/tenant-context.service"
 import type { TicketRepository } from "../repositories/ticket.repository"
@@ -18,14 +19,16 @@ function harness(due: { id: string; version: number }[][], stale: string[] = [])
     updateVersioned: vi.fn(async (_o: string, id: string) => !stale.includes(id)),
   }
   const audit = { record: vi.fn(async () => undefined) }
+  const notifier = { notifyAll: vi.fn(async () => undefined) }
   const service = new AutoCloseService(
     tickets as unknown as TicketRepository,
     { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
     audit as unknown as AuditService,
     { requireOrgId: () => "o-1" } as unknown as TenantContextService,
+    notifier as unknown as Notifier,
     new FixedClock(NOW),
   )
-  return { service, tickets, audit }
+  return { service, tickets, audit, notifier }
 }
 
 describe("AutoCloseService", () => {
@@ -45,6 +48,18 @@ describe("AutoCloseService", () => {
     const h = harness([[{ id: "t-1", version: 4 }, { id: "t-2", version: 1 }]], ["t-1"])
     expect(await h.service.closeExpired()).toBe(1)
     expect(h.audit.record).toHaveBeenCalledTimes(1)
+  })
+
+  it("tells the requester about each close it made, keyed to the version it wrote, and no other", async () => {
+    const h = harness([[{ id: "t-1", version: 4 }, { id: "t-2", version: 1 }]], ["t-1"])
+    await h.service.closeExpired()
+    expect(h.notifier.notifyAll).toHaveBeenCalledWith("o-1", [
+      {
+        event: { kind: "status-changed", ticketId: "t-2", actorMembershipId: null, to: "CLOSED", comment: null },
+        entityId: "t-2",
+        discriminator: "v2",
+      },
+    ])
   })
 
   it("keeps taking batches while they come back full", async () => {

@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common"
 import { AuthModule } from "../auth/auth.module"
 import { CategoriesModule } from "../categories/categories.module"
 import { MembershipRepositoryModule } from "../memberships/membership-repository.module"
+import { NotificationsModule } from "../notifications/notifications.module"
 import { SlaModule } from "../sla/sla.module"
 import { TeamsModule } from "../teams/teams.module"
 import { CommentsService } from "./comments.service"
@@ -25,6 +26,7 @@ import { WatchersService } from "./watchers.service"
     BullModule.registerQueue({ name: "auto-close" }, { name: "sla-scan" }),
     CategoriesModule,
     MembershipRepositoryModule,
+    NotificationsModule,
     SlaModule,
     TeamsModule,
   ],

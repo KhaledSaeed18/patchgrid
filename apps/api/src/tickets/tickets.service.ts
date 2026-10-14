@@ -33,6 +33,7 @@ import {
   ValidationProblem,
 } from "../common/problems/problem.exception"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
+import { type Notice, Notifier } from "../notifications/notify"
 import { PrismaService } from "../prisma/prisma.service"
 import { QuotaService } from "../quota/quota.service"
 import { SlaPoliciesService } from "../sla/sla-policies.service"
@@ -80,6 +81,7 @@ export class TicketsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly quota: QuotaService,
+    private readonly notifier: Notifier,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -157,6 +159,9 @@ export class TicketsService {
       ])
       return created
     })
+    await this.announce(orgId, id, [
+      { event: { kind: "ticket-created", ticketId: id, actorMembershipId: actor.membershipId }, entityId: id, discriminator: "created" },
+    ])
     return this.get(id)
   }
 
@@ -164,7 +169,7 @@ export class TicketsService {
   async update(id: string, request: UpdateTicketRequest): Promise<Ticket> {
     const actor = this.actors.requireTenantActor()
     const orgId = this.tenant.requireOrgId()
-    await this.prisma.transaction(async () => {
+    const saved = await this.prisma.transaction(async () => {
       const loaded = await this.access.load(orgId, id, actor, this.visibility())
       const { row } = loaded
       const editable = new Set(this.permissions.capabilitiesFor(actor, loaded.subject).editableFields)
@@ -174,7 +179,7 @@ export class TicketsService {
       )
       const refused = changed.filter((field) => !editable.has(field))
       if (refused.length > 0) throw new NotPermittedProblem(`You can't change ${refused.join(", ")} on this ticket`)
-      if (changed.length === 0) return
+      if (changed.length === 0) return false
 
       const changes: TicketChanges = {}
       for (const field of changed) Object.assign(changes, { [field]: fields[field] })
@@ -192,7 +197,10 @@ export class TicketsService {
 
       if (!(await this.tickets.updateVersioned(orgId, id, version, changes))) throw new StaleWriteProblem()
       await this.audit.record(orgId, [{ action: "TICKET_UPDATED", entityType: "Ticket", entityId: id, diff: diffOf(row, changes) }])
+      return true
     })
+    // An edit tells nobody (DOMAIN.md §8), but the pages showing the ticket refetch.
+    if (saved === true) await this.announce(orgId, id, [])
     return this.get(id)
   }
 
@@ -204,7 +212,7 @@ export class TicketsService {
   async assign(id: string, request: AssignTicketRequest): Promise<Ticket> {
     const actor = this.actors.requireTenantActor()
     const orgId = this.tenant.requireOrgId()
-    await this.prisma.transaction(async () => {
+    const assignee = await this.prisma.transaction(async () => {
       const loaded = await this.access.load(orgId, id, actor, this.visibility())
       this.permissions.assert(actor, "ticket:assign", loaded.subject)
       if (TERMINAL.has(loaded.row.status)) throw new ConflictProblem("A closed or cancelled ticket can't be reassigned")
@@ -213,7 +221,27 @@ export class TicketsService {
       if (loaded.row.status === "NEW" && touched !== null) changes.status = "ASSIGNED"
       if (!(await this.tickets.updateVersioned(orgId, id, request.version, changes))) throw new StaleWriteProblem()
       await this.audit.record(orgId, [{ action: "TICKET_ASSIGNED", entityType: "Ticket", entityId: id, diff: diffOf(loaded.row, changes) }])
+      return changes.assigneeMembershipId !== undefined && changes.assigneeMembershipId !== loaded.row.assigneeMembershipId
+        ? changes.assigneeMembershipId
+        : null
     })
+    await this.announce(
+      orgId,
+      id,
+      assignee === null
+        ? []
+        : [
+            {
+              event: { kind: "ticket-assigned", ticketId: id, actorMembershipId: actor.membershipId, assigneeMembershipId: assignee },
+              entityId: id,
+              // The version this write made: only one write can succeed from
+              // `request.version`, so the job id is unique to it — unlike a
+              // version read back after commit, which a concurrent write may
+              // have moved.
+              discriminator: `v${String(request.version + 1)}`,
+            },
+          ],
+    )
     return this.get(id)
   }
 
@@ -226,7 +254,7 @@ export class TicketsService {
   async transition(id: string, request: TransitionRequest): Promise<Ticket> {
     const actor = this.actors.requireTenantActor()
     const orgId = this.tenant.requireOrgId()
-    await this.prisma.transaction(async () => {
+    const moved = await this.prisma.transaction(async () => {
       const loaded = await this.access.load(orgId, id, actor, this.visibility())
       const { row, relation } = loaded
       this.permissions.assert(actor, "ticket:transition", loaded.subject)
@@ -317,7 +345,31 @@ export class TicketsService {
         })
       }
       await this.audit.record(orgId, entries)
+      return { to: check.row.to, assigned: changes.assigneeMembershipId ?? null, previousAssignee: row.assigneeMembershipId }
     })
+    // One notification per person per move: a comment written with it rides
+    // along, reaching whoever the move itself does not tell.
+    const by = actor.membershipId
+    const at = `v${String(request.version + 1)}`
+    const comment = request.comment?.visibility ?? null
+    const notices: Notice[] = [
+      {
+        event:
+          request.action === "reopen"
+            ? { kind: "ticket-reopened", ticketId: id, actorMembershipId: by, comment }
+            : { kind: "status-changed", ticketId: id, actorMembershipId: by, to: moved.to, comment },
+        entityId: id,
+        discriminator: at,
+      },
+    ]
+    if (moved.assigned !== null && moved.assigned !== moved.previousAssignee) {
+      notices.push({
+        event: { kind: "ticket-assigned", ticketId: id, actorMembershipId: by, assigneeMembershipId: moved.assigned },
+        entityId: id,
+        discriminator: `${at}-assigned`,
+      })
+    }
+    await this.announce(orgId, id, notices)
     return this.get(id)
   }
 
@@ -471,6 +523,15 @@ export class TicketsService {
       availableActions({ type: loaded.row.type, ticket: loaded.row, actor: loaded.relation, now }),
       this.permissions.capabilitiesFor(actor, loaded.subject),
     )
+  }
+
+  /**
+   * After commit, and before anything that could fail for the caller — the
+   * read-back is a 404 for an agent who just moved a ticket out of their own
+   * scope: tell the people concerned.
+   */
+  private async announce(orgId: string, _ticketId: string, notices: Notice[]): Promise<void> {
+    await this.notifier.notifyAll(orgId, notices)
   }
 
   private visibility(): AgentVisibility {

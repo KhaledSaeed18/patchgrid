@@ -8,6 +8,7 @@ import { type Clock, InjectClock } from "../../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../../config/app-config"
 import { runJob } from "../../jobs/dispatcher/run-job"
 import { readTenantSweep } from "../../jobs/sweeps"
+import { type Notice, Notifier } from "../../notifications/notify"
 import { PrismaService } from "../../prisma/prisma.service"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { TicketRepository } from "../repositories/ticket.repository"
@@ -23,6 +24,8 @@ const MAX_BATCHES = 20
  * (DOMAIN.md §2.1), for the tenant the job names. Each close is its own
  * versioned write with its audit entry, attributed to the system: a requester
  * who reopens in the same instant wins, and the sweep skips that ticket.
+ * The requester and watchers hear about each close once they have all
+ * committed.
  */
 @Injectable()
 export class AutoCloseService {
@@ -33,6 +36,7 @@ export class AutoCloseService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly tenant: TenantContextService,
+    private readonly notifier: Notifier,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -41,7 +45,7 @@ export class AutoCloseService {
     const orgId = this.tenant.requireOrgId()
     const now = this.clock.now()
     const cutoff = new Date(now.getTime() - AUTO_CLOSE_DAYS * DAY)
-    let closed = 0
+    const closed: Notice[] = []
     for (let batch = 0; batch < MAX_BATCHES; batch += 1) {
       const due = await this.tickets.findResolvedBefore(orgId, cutoff, BATCH)
       for (const ticket of due) {
@@ -63,12 +67,20 @@ export class AutoCloseService {
           )
           return true
         })
-        if (done) closed += 1
+        if (done) {
+          closed.push({
+            event: { kind: "status-changed", ticketId: ticket.id, actorMembershipId: null, to: "CLOSED", comment: null },
+            entityId: ticket.id,
+            discriminator: `v${String(ticket.version + 1)}`,
+          })
+        }
       }
       if (due.length < BATCH) break
     }
-    if (closed > 0) this.logger.log({ msg: "auto-closed resolved tickets", orgId, closed })
-    return closed
+    if (closed.length > 0) this.logger.log({ msg: "auto-closed resolved tickets", orgId, closed: closed.length })
+    // After every close has committed; one round trip for the lot.
+    await this.notifier.notifyAll(orgId, closed)
+    return closed.length
   }
 }
 

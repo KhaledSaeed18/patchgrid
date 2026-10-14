@@ -6,6 +6,7 @@ import { AuditService, type AuditEntry } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { ConflictProblem, NotFoundProblem } from "../common/problems/problem.exception"
+import { Notifier } from "../notifications/notify"
 import { PrismaService } from "../prisma/prisma.service"
 import { SlaPoliciesService } from "../sla/sla-policies.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
@@ -34,6 +35,7 @@ export class CommentsService {
     private readonly tenant: TenantContextService,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifier: Notifier,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -82,6 +84,12 @@ export class CommentsService {
       await this.audit.record(orgId, entries)
       return { created, loaded }
     })
+    await this.notifier.notify(
+      orgId,
+      { kind: "comment-added", ticketId, actorMembershipId: actor.membershipId, visibility: input.visibility },
+      row.created.id,
+      "added",
+    )
     return this.toComment(actor, row.loaded, row.created)
   }
 

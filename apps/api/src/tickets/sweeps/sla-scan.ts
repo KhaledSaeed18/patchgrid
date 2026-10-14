@@ -7,6 +7,7 @@ import { type Clock, InjectClock } from "../../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../../config/app-config"
 import { runJob } from "../../jobs/dispatcher/run-job"
 import { readTenantSweep } from "../../jobs/sweeps"
+import { Notifier } from "../../notifications/notify"
 import { PrismaService } from "../../prisma/prisma.service"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { scanSignals, type SlaSignal } from "../domain/sla"
@@ -17,7 +18,7 @@ const PAGE = 200
 const MAX_PAGES = 25
 
 /** One flag the scan set, for whoever is told about it after commit. */
-export type SlaFlagged = SlaSignal & { ticketId: string }
+export type SlaFlagged = SlaSignal & { ticketId: string; due: Date | null }
 
 /**
  * The per-tenant SLA scan (DOMAIN.md §4.3): every running clock in the
@@ -35,6 +36,7 @@ export class SlaScanService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly tenant: TenantContextService,
+    private readonly notifier: Notifier,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -65,13 +67,23 @@ export class SlaScanService {
             )
             return true
           })
-          if (done) flagged.push({ ...signal, ticketId: row.id })
+          if (done) flagged.push({ ...signal, ticketId: row.id, due })
         }
       }
       if (rows.length < PAGE) break
       after = rows.at(-1)?.id ?? null
     }
     if (flagged.length > 0) this.logger.log({ msg: "sla flags set", orgId, flagged: flagged.length })
+    // After every flag has committed; one round trip for the lot.
+    await this.notifier.notifyAll(
+      orgId,
+      flagged.map((flag) => ({
+        event: { kind: "sla", ticketId: flag.ticketId, actorMembershipId: null, clock: flag.clock, signal: flag.kind },
+        entityId: flag.ticketId,
+        // A reopened ticket can miss its new deadline too: the deadline is part of the key.
+        discriminator: `${flag.clock}-${flag.kind}-${String(flag.due?.getTime() ?? 0)}`,
+      })),
+    )
     return flagged
   }
 }
