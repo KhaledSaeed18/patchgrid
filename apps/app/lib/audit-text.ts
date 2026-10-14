@@ -63,6 +63,8 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   SUPPORT_ACCESS_REVOKED: "revoked support access",
   SUPPORT_ACCESS_EXPIRED: "saw support access expire",
   SUPPORT_READ: "read as support",
+  TOKEN_CREATED: "created an API token",
+  TOKEN_REVOKED: "revoked an API token",
 }
 
 export function actorName(entry: AuditEntry): string {

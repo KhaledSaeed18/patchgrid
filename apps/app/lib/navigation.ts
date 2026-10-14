@@ -71,6 +71,11 @@ const SECTIONS: NavSection[] = [
         requires: "org:read_audit",
       },
       {
+        label: "API tokens",
+        href: "/settings/api-tokens",
+        requires: "token:read",
+      },
+      {
         label: "Support access",
         href: "/settings/support",
         requires: "support:read_sessions",
