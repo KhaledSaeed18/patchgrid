@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common"
-import type { Me } from "@patchgrid/contracts"
+import { type Me, ticketTypeSchema } from "@patchgrid/contracts"
 
 import { ActorService } from "../auth/actor"
 import { PermissionService } from "../authz/permission.service"
@@ -50,6 +50,7 @@ export class MeService {
       },
       teams: member.teams,
       permissions: this.permissions.permissionsFor(actor),
+      creatableTypes: ticketTypeSchema.options.filter((type) => this.permissions.can(actor, "ticket:create", { ticketType: type })),
     }
   }
 }

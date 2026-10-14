@@ -47,6 +47,12 @@ describe("MeService", () => {
     expect(me.permissions).toContain("ticket:assign")
     expect(me.permissions).toContain("team:manage_own_members")
     expect(me.permissions).not.toContain("member:invite")
+    expect(me.creatableTypes).toEqual(["INCIDENT", "SERVICE_REQUEST", "PROBLEM", "CHANGE"])
+  })
+
+  it("offers a requester only the types they may raise", async () => {
+    const requester: Actor = { ...agent, role: "REQUESTER" } as Actor
+    expect((await serviceFor(requester, { ...row, role: "REQUESTER" }).me()).creatableTypes).toEqual(["INCIDENT", "SERVICE_REQUEST"])
   })
 
   it("has no user for a service account, and only its scoped permissions", async () => {

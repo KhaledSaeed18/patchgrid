@@ -4,6 +4,7 @@ import { emailSchema } from "./auth.ts"
 import { idSchema } from "./id.ts"
 import { permissionSchema } from "./permissions.ts"
 import { slugSchema } from "./slug.ts"
+import { ticketTypeSchema } from "./ticket-number.ts"
 import { agentVisibilitySchema, planSchema, roleSchema } from "./tenancy.ts"
 
 /**
@@ -29,5 +30,10 @@ export const meSchema = z.object({
   }),
   teams: z.array(z.object({ id: idSchema, name: z.string(), isLead: z.boolean() })),
   permissions: z.array(permissionSchema),
+  /**
+   * The types this member may raise — `ticket:create` decided per type, so
+   * the form offers exactly what will be accepted.
+   */
+  creatableTypes: z.array(ticketTypeSchema),
 })
 export type Me = z.infer<typeof meSchema>
