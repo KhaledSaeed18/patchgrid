@@ -282,11 +282,11 @@ _Exit: assets link to tickets with a "tickets for this asset" view; KB articles 
 suggested while a requester types; files attach to tickets and comments through presigned MinIO uploads,
 stored under the tenant's key prefix and served so an uploaded file can never execute in the app's origin._
 
-- [ ] `Asset`, `TicketAsset`; asset CRUD, picker on tickets, asset detail with ticket history, requesters
+- [x] `Asset`, `TicketAsset`; asset CRUD, picker on tickets, asset detail with ticket history, requesters
       see their own
 - [ ] `KnowledgeArticle` with per-org tsvector search, markdown editor, `version`, three-tier visibility
       (`DRAFT` / `INTERNAL` / `PUBLISHED`), portal search + suggestions on the new-ticket form
-- [ ] `Attachment` presigned upload (exact signed `Content-Length` + `Content-Type`) → confirm with
+- [x] `Attachment` presigned upload (exact signed `Content-Length` + `Content-Type`) → confirm with
       **byte sniffing** → `READY`; MIME allow-list excluding SVG/HTML; `org/<orgId>/…` keys; separate
       serving origin with `Content-Disposition: attachment`; storage quota increment **and decrement**
       (ADR-0005)
