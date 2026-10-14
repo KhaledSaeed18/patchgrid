@@ -346,9 +346,10 @@ incidents through a scoped token._
       `SupportSession`, **per-request** `SUPPORT_READ` audit into the tenant's log, in-app banner, owner
       emails on grant/first use/expiry, instant revoke via the epoch. The operator reads through the
       tenant's own routes as a `support` actor; every write is refused at the guard
-- [ ] **Scoped API tokens** (ADR-0021): `ApiToken` + `ApiTokenIndex`, bearer strategy, the documented
+- [x] **Scoped API tokens** (ADR-0021, ADR-0042): `ApiToken` + `ApiTokenIndex`, bearer strategy, the documented
       scope→permission mapping, once-only secret display, per-token rate limits, admin UI with
-      `lastUsedAt`, `source: API` and `actorKind: SERVICE` attribution
+      `lastUsedAt`, `source: API` and `actorKind: SERVICE` attribution. One service account per token,
+      kept out of member admin, teams, assignment and watching; expiry warned a week ahead
 - [ ] Org deletion flow: owner request, 30-day soft window, hard purge under `runAsTenant` including
       object storage; permanent slug reservation
 - [ ] **Data protection** (ADR-0028): `GET /org/export` as an async owner-only job; pseudonymised user
