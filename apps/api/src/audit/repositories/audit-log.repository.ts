@@ -101,4 +101,11 @@ export class AuditLogRepository {
     if (row === undefined) throw new Error("ensure_audit_log_partition returned nothing")
     return row.name
   }
+
+  /** ADR-0034 retention: the month partitions now wholly past seven years, archived; the window is the database's. */
+  async archiveExpiredPartitions(): Promise<string[]> {
+    const rows = await this.prisma.db.$queryRaw<{ name: string }[]>`
+      SELECT archive_expired_audit_log_partitions() AS name`
+    return rows.map((row) => row.name)
+  }
 }

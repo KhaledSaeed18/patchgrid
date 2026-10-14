@@ -18,7 +18,12 @@ export function nextMonth(now: Date): Date {
  * Keeps a month of audit partitions ahead (ADR-0034). At boot, in every mode,
  * because a process that cannot write audit rows cannot change anything; then
  * daily from the `audit-partition` scheduler in worker modes, so a long-lived
- * process crosses a month boundary with next month already there.
+ * process crosses a month boundary with next month already there. The daily
+ * run also archives months wholly past the seven-year retention window into
+ * the `audit_archive` schema, out of the app role's reach.
+ *
+ * A platform job, not a per-tenant one: partitions belong to the table, not
+ * to any tenant (ARCHITECTURE.md §Background jobs).
  */
 @Injectable()
 export class AuditPartitionService implements OnApplicationBootstrap {
@@ -36,6 +41,14 @@ export class AuditPartitionService implements OnApplicationBootstrap {
     if (this.config.WORKER_MODE !== "api") {
       await this.queue.upsertJobScheduler("daily", { pattern: "17 3 * * *", tz: "UTC" }, { data: { orgId: null } })
     }
+  }
+
+  /** The daily run: next month ensured, expired months archived. */
+  async maintain(): Promise<{ ensured: string[]; archived: string[] }> {
+    const ensured = await this.ensureAhead()
+    const archived = await this.repository.archiveExpiredPartitions()
+    if (archived.length > 0) this.logger.log({ msg: "audit partitions past retention archived", partitions: archived })
+    return { ensured, archived }
   }
 
   async ensureAhead(): Promise<string[]> {
@@ -60,8 +73,8 @@ export class AuditPartitionProcessor extends WorkerHost implements OnApplication
   }
 
   async process(): Promise<void> {
-    await runJob({ orgId: null }, "job:audit-partition", "keep a month of audit partitions ahead", () =>
-      this.partitions.ensureAhead(),
+    await runJob({ orgId: null }, "job:audit-partition", "keep a month of audit partitions ahead, archive expired ones", () =>
+      this.partitions.maintain(),
     )
   }
 }
