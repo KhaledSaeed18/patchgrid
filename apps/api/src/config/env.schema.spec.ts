@@ -54,3 +54,15 @@ describe("envSchema", () => {
     expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "" })).toEqual([])
   })
 })
+
+describe("the attachments origin (ADR-0037)", () => {
+  it("defaults to MinIO on localhost, its own site", () => {
+    expect(envSchema.parse(valid).FILES_PUBLIC_ORIGIN).toBe("http://localhost:9000")
+  })
+
+  it("refuses an origin under the root domain — every session would reach it", () => {
+    expect(issues({ FILES_PUBLIC_ORIGIN: "http://files.lvh.me:9000" })).toContain("FILES_PUBLIC_ORIGIN")
+    expect(issues({ FILES_PUBLIC_ORIGIN: "http://lvh.me:9000" })).toContain("FILES_PUBLIC_ORIGIN")
+    expect(issues({ FILES_PUBLIC_ORIGIN: "https://patchgrid-files.net" })).not.toContain("FILES_PUBLIC_ORIGIN")
+  })
+})

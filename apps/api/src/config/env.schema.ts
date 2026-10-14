@@ -80,6 +80,13 @@ export const envSchema = z
     S3_BUCKET: z.string().min(1),
     S3_ACCESS_KEY_ID: z.string().min(1),
     S3_SECRET_ACCESS_KEY: z.string().min(1),
+    /**
+     * Where browsers reach attachments: presigned URLs are minted against
+     * this origin, which must be its own registrable domain — never under
+     * ROOT_DOMAIN — so an uploaded file is never same-site with a session
+     * (ADR-0037). MinIO at localhost:9000 in development.
+     */
+    FILES_PUBLIC_ORIGIN: url("FILES_PUBLIC_ORIGIN").default("http://localhost:9000"),
 
     SMTP_HOST: z.string().min(1).default("localhost"),
     SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
@@ -122,6 +129,17 @@ export const envSchema = z
         message:
           "DATABASE_URL must not equal DATABASE_MIGRATION_URL — the migration role holds BYPASSRLS " +
           "and would ignore every row-level security policy",
+      })
+    }
+
+    // ADR-0037: a files origin under the root domain receives every session
+    // cookie, and anything active it served could toss one. Refuse to start.
+    const filesHost = new URL(env.FILES_PUBLIC_ORIGIN).hostname
+    if (filesHost === env.ROOT_DOMAIN || filesHost.endsWith(`.${env.ROOT_DOMAIN}`)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["FILES_PUBLIC_ORIGIN"],
+        message: `FILES_PUBLIC_ORIGIN must be its own registrable domain, not under ${env.ROOT_DOMAIN} — attachments would be same-site with every session`,
       })
     }
 
