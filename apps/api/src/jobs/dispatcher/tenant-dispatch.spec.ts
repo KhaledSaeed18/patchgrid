@@ -20,9 +20,13 @@ function harness(mode: AppConfig["WORKER_MODE"] = "all") {
   const inboundSweep = queue()
   const supportSweep = queue()
   const apiTokenSweep = queue()
+  const orgPurge = queue()
   const projectionReconcile = queue()
   const service = new TenantDispatchService(
-    { listDispatchable: async () => [{ id: A, plan: "FREE" }, { id: B, plan: "PRO" }] } as unknown as DispatchRepository,
+    {
+      listDispatchable: async () => [{ id: A, plan: "FREE" }, { id: B, plan: "PRO" }],
+      listDueForPurge: vi.fn(async () => [{ id: B, plan: "PRO" }]),
+    } as unknown as DispatchRepository,
     new FixedClock(new Date(3_600_000)),
     { WORKER_MODE: mode } as AppConfig,
     dispatch as unknown as Queue,
@@ -32,12 +36,20 @@ function harness(mode: AppConfig["WORKER_MODE"] = "all") {
     inboundSweep as unknown as Queue,
     supportSweep as unknown as Queue,
     apiTokenSweep as unknown as Queue,
+    orgPurge as unknown as Queue,
     projectionReconcile as unknown as Queue,
   )
-  return { service, dispatch, slaScan, autoClose, projectionReconcile }
+  return { service, dispatch, slaScan, autoClose, projectionReconcile, orgPurge }
 }
 
 describe("TenantDispatchService", () => {
+  it("purges only the workspaces past their window and its grace, never an active one (ADR-0043)", async () => {
+    const h = harness()
+    expect(await h.service.fanOut("org-purge")).toEqual([B])
+    expect(h.slaScan.addBulk).not.toHaveBeenCalled()
+    expect(h.orgPurge.addBulk).toHaveBeenCalledWith([expect.objectContaining({ data: { orgId: B, tick: 0 } })])
+  })
+
   it("fans a sweep out as one job per tenant, on the sweep's queue, idempotent per tick", async () => {
     const h = harness()
     expect(await h.service.fanOut("sla-scan")).toEqual([A, B])
@@ -58,6 +70,7 @@ describe("TenantDispatchService", () => {
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("inbound-sweep", { every: 3_600_000 }, { data: { orgId: null, sweep: "inbound-sweep" } })
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("support-sweep", { every: 300_000 }, { data: { orgId: null, sweep: "support-sweep" } })
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("api-token-sweep", { every: 3_600_000 }, { data: { orgId: null, sweep: "api-token-sweep" } })
+    expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("org-purge", { every: 86_400_000 }, { data: { orgId: null, sweep: "org-purge" } })
     expect(worker.dispatch.upsertJobScheduler).toHaveBeenCalledWith("projection-reconcile", { every: 86_400_000 }, { data: { orgId: null, sweep: "projection-reconcile" } })
     const api = harness("api")
     await api.service.onApplicationBootstrap()

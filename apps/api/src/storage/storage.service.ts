@@ -1,4 +1,13 @@
-import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
+import {
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { Injectable } from "@nestjs/common"
 
@@ -100,6 +109,23 @@ export class StorageService {
   /** Idempotent: deleting what is not there is not an error. */
   async remove(key: string): Promise<void> {
     await this.internal.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+  }
+
+  /**
+   * Every object under `prefix`, a page of up to 1,000 at a time; returns how
+   * many went. For the purge (ADR-0043), whose prefixes name one org — the
+   * caller builds them from the org id and nothing else.
+   */
+  async removePrefix(prefix: string): Promise<number> {
+    if (!prefix.endsWith("/")) throw new Error(`refusing to delete a prefix that is not a folder: ${prefix}`)
+    let removed = 0
+    for (;;) {
+      const page = await this.internal.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, MaxKeys: 1_000 }))
+      const keys = (page.Contents ?? []).flatMap((o) => (o.Key === undefined ? [] : [{ Key: o.Key }]))
+      if (keys.length === 0) return removed
+      await this.internal.send(new DeleteObjectsCommand({ Bucket: this.bucket, Delete: { Objects: keys, Quiet: true } }))
+      removed += keys.length
+    }
   }
 }
 

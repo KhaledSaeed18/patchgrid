@@ -14,6 +14,18 @@ export type DispatchableOrg = { id: string; plan: "FREE" | "PRO" }
 export class DispatchRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * The purge's list (ADR-0043): pending deletion, requested before `before`.
+   * The only sweep that runs for a workspace nothing else may touch.
+   */
+  async listDueForPurge(before: Date): Promise<DispatchableOrg[]> {
+    return this.prisma.db.organization.findMany({
+      where: { status: "PENDING_DELETION", deletionRequestedAt: { lte: before } },
+      select: { id: true, plan: true },
+      orderBy: { id: "asc" },
+    })
+  }
+
   async listDispatchable(): Promise<DispatchableOrg[]> {
     return this.prisma.db.organization.findMany({
       where: { status: "ACTIVE" },

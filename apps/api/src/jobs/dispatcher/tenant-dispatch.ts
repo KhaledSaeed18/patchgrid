@@ -1,16 +1,23 @@
 import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq"
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common"
+import { ORG_DELETION_WINDOW_DAYS } from "@patchgrid/contracts"
 import { type Job, type Queue, UnrecoverableError } from "bullmq"
 import { z } from "zod"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../../config/app-config"
 import { jobId } from "../job-id"
+import { PURGE_GRACE_HOURS } from "../purge/org-purge"
 import { SWEEP_NAMES, SWEEPS, type SweepName, sweepPriority, sweepTick } from "../sweeps"
 import { DispatchRepository } from "./repositories/dispatch.repository"
 import { runJob } from "./run-job"
 
 export const TENANT_DISPATCH_QUEUE = "tenant-dispatch"
+
+/** A deletion requested at or before this instant is due for the purge (ADR-0043). */
+function purgeDateBefore(now: Date): number {
+  return now.getTime() - (ORG_DELETION_WINDOW_DAYS * 24 + PURGE_GRACE_HOURS) * 60 * 60_000
+}
 
 const dispatchJobSchema = z.object({ orgId: z.null(), sweep: z.enum(SWEEP_NAMES as [SweepName, ...SweepName[]]) })
 
@@ -37,6 +44,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue("inbound-sweep") inboundSweep: Queue,
     @InjectQueue("support-sweep") supportSweep: Queue,
     @InjectQueue("api-token-sweep") apiTokenSweep: Queue,
+    @InjectQueue("org-purge") orgPurge: Queue,
     @InjectQueue("projection-reconcile") projectionReconcile: Queue,
   ) {
     this.queues = {
@@ -46,6 +54,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
       "inbound-sweep": inboundSweep,
       "support-sweep": supportSweep,
       "api-token-sweep": apiTokenSweep,
+      "org-purge": orgPurge,
       "projection-reconcile": projectionReconcile,
     }
   }
@@ -64,8 +73,10 @@ export class TenantDispatchService implements OnApplicationBootstrap {
   /** Fans one sweep out to every active organization; returns the orgs it enqueued for. */
   async fanOut(sweep: SweepName): Promise<string[]> {
     const tick = sweepTick(this.clock.now(), SWEEPS[sweep].everyMs)
+    const now = this.clock.now()
     const orgs = await runJob({ orgId: null }, "job:tenant-dispatch", `list tenants for ${sweep}`, () =>
-      this.orgs.listDispatchable(),
+      // Every sweep serves active workspaces, except the one that ends the others (ADR-0043).
+      sweep === "org-purge" ? this.orgs.listDueForPurge(new Date(purgeDateBefore(now))) : this.orgs.listDispatchable(),
     )
     await this.queues[sweep].addBulk(
       orgs.map((org) => ({

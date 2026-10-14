@@ -20,6 +20,7 @@ import { AttachmentsModule } from "./attachments/attachments.module"
 import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
 import { StorageModule } from "./storage/storage.module"
 import { MaintenanceModule } from "./jobs/maintenance/maintenance.module"
+import { PurgeModule } from "./jobs/purge/purge.module"
 import { InboundModule } from "./inbound/inbound.module"
 import { BackofficeModule } from "./platform/backoffice/backoffice.module"
 import { SupportModule } from "./support/support.module"
@@ -119,6 +120,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     JobsModule,
     DispatchModule,
     MaintenanceModule,
+    PurgeModule,
     StorageModule,
     AssetsModule,
     AttachmentsModule,
