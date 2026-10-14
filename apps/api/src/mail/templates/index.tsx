@@ -55,9 +55,15 @@ export const MAIL_KINDS = {
       reason: z.string(),
       ticketUrl: url,
       preferencesUrl: url,
+      /** The ticket, for the Message-ID a reply will quote back (ADR-0039). */
+      ticketId: idSchema,
+      /** `INC-000042`, tagged into the subject for a reply that keeps no headers. */
+      ticketNumber: z.string().regex(/^[A-Z]{2,4}-\d{1,9}$/),
+      /** The workspace's inbound address: replying adds to the ticket. */
+      replyTo: emailSchema,
     }),
     // A ticket title is typed by a tenant; a subject is a header, and stays one line.
-    subject: (p: { headline: string }) => p.headline.replace(/[\r\n]+/g, " "),
+    subject: (p: { headline: string; ticketNumber: string }) => taggedSubject(p.headline.replace(/[\r\n]+/g, " "), p.ticketNumber),
     component: TicketNotification,
   },
 } as const
@@ -82,6 +88,15 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
 export type MailJob = z.infer<typeof mailJobSchema>
 
 export type RenderedMail = { subject: string; html: string; text: string }
+
+/**
+ * The ticket number bracketed where the headline already says it —
+ * `Assigned to you — [INC-000042]: Printer` — or first when it does not, so a
+ * reply that keeps no headers still names its ticket (ADR-0027 §5).
+ */
+export function taggedSubject(headline: string, number: string): string {
+  return headline.includes(number) ? headline.replace(number, `[${number}]`) : `[${number}] ${headline}`
+}
 
 export async function renderMail(job: MailJob): Promise<RenderedMail> {
   const element = elementFor(job)

@@ -11,7 +11,7 @@ describe("mail templates", () => {
     [{ ...base, kind: "account-exists", params: { name: "Sam", loginUrl: "https://app.patchgrid.xyz/login", resetUrl: "https://app.patchgrid.xyz/reset" } }, "https://app.patchgrid.xyz/login"],
     [{ ...base, kind: "invite", orgId: ORG, fromName: "Acme", params: { orgName: "Acme", inviterName: "Ada", role: "AGENT", acceptUrl: "https://app.patchgrid.xyz/invite?token=abc", expiresInDays: 7 } }, "https://app.patchgrid.xyz/invite?token=abc"],
     [{ ...base, kind: "reset-password", params: { name: "Sam", resetUrl: "https://app.patchgrid.xyz/reset?token=abc", expiresInMinutes: 30 } }, "https://app.patchgrid.xyz/reset?token=abc"],
-    [{ ...base, kind: "ticket-notification", orgId: ORG, fromName: "Acme", params: { orgName: "Acme", headline: "Assigned to you — INC-000042: Printer", reason: "this ticket is assigned to you", ticketUrl: "https://acme.patchgrid.xyz/tickets/t-1", preferencesUrl: "https://acme.patchgrid.xyz/notifications/preferences" } }, "https://acme.patchgrid.xyz/tickets/t-1"],
+    [{ ...base, kind: "ticket-notification", orgId: ORG, fromName: "Acme", params: { orgName: "Acme", headline: "Assigned to you — INC-000042: Printer", reason: "this ticket is assigned to you", ticketUrl: "https://acme.patchgrid.xyz/tickets/t-1", preferencesUrl: "https://acme.patchgrid.xyz/notifications/preferences", ticketId: "01a13900-0000-7000-8000-000000000042", ticketNumber: "INC-000042", replyTo: "acme@inbound.patchgrid.xyz" } }, "https://acme.patchgrid.xyz/tickets/t-1"],
   ])("renders %o with its link in both html and text", async (job, link) => {
     const mail = await renderMail(job)
     expect(mail.subject.length).toBeGreaterThan(10)
@@ -64,10 +64,14 @@ describe("mailJobSchema", () => {
         reason: "you raised this ticket",
         ticketUrl: "https://acme.patchgrid.xyz/tickets/t-1",
         preferencesUrl: "https://acme.patchgrid.xyz/notifications/preferences",
+        ticketId: "01a13900-0000-7000-8000-000000000001",
+        ticketNumber: "INC-000001",
+        replyTo: "acme@inbound.patchgrid.xyz",
       },
     })
     expect(mail.html).not.toContain("<img src=x>")
-    expect(mail.subject).toBe("New reply on INC-000001: <img src=x> Bcc: victim@evil.test")
+    // One line, the number bracketed where it already stood.
+    expect(mail.subject).toBe("New reply on [INC-000001]: <img src=x> Bcc: victim@evil.test")
     expect(mail.text).toContain("notification preferences")
   })
 })

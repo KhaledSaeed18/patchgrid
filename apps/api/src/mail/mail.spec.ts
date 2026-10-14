@@ -3,6 +3,7 @@ import { ClsServiceManager } from "nestjs-cls"
 import { type Job, UnrecoverableError } from "bullmq"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { PublicUrls } from "../common/urls"
 import type { AppConfig } from "../config/app-config"
 import type { RequestContextStore } from "../tenancy/request-context"
 import { TenantContextService } from "../tenancy/tenant-context.service"
@@ -12,7 +13,8 @@ import { RecordingMailProvider } from "./providers/recording-mail.provider"
 import type { MailJob } from "./templates"
 
 const ORG = "0190b2f0-0000-7000-8000-00000000000a"
-const config = { MAIL_FROM: "Patchgrid <notifications@patchgrid.test>", WORKER_MODE: "all" } as AppConfig
+const config = { MAIL_FROM: "Patchgrid <notifications@patchgrid.test>", WORKER_MODE: "all", ROOT_DOMAIN: "lvh.me" } as AppConfig
+const urls = new PublicUrls(config)
 const invite: MailJob = {
   kind: "invite",
   to: "agent@acme.test",
@@ -52,7 +54,7 @@ describe("MailProcessor.process", () => {
       provider.sent.push(mail)
       return { providerMessageId: "m-1" }
     })
-    await new MailProcessor(provider, config).process({ id: "j1", data: invite } as Job)
+    await new MailProcessor(provider, config, urls).process({ id: "j1", data: invite } as Job)
     expect(seen).toEqual([ORG])
     expect(provider.sent[0]).toMatchObject({
       to: "agent@acme.test",
@@ -71,14 +73,44 @@ describe("MailProcessor.process", () => {
       return { providerMessageId: "m-2" }
     })
     const verify: MailJob = { kind: "verify-email", to: "new@acme.test", orgId: null, fromName: "Patchgrid", params: { name: "Sam", verifyUrl: "https://app.lvh.me:3001/verify?token=x", expiresInHours: 24 } }
-    await new MailProcessor(provider, config).process({ id: "j2", data: verify } as Job)
+    await new MailProcessor(provider, config, urls).process({ id: "j2", data: verify } as Job)
     expect(orgInContext).toBeUndefined()
+  })
+
+  it("says every message is automatic, and threads ticket mail on its ticket", async () => {
+    const provider = new RecordingMailProvider()
+    const ticketId = "01a13900-0000-7000-8000-000000000042"
+    const notice: MailJob = {
+      kind: "ticket-notification",
+      to: "rita@acme.test",
+      orgId: ORG,
+      fromName: "Acme",
+      params: {
+        orgName: "Acme",
+        headline: "INC-000042 resolved — Printer",
+        reason: "you raised this ticket",
+        ticketUrl: "https://acme.lvh.me:3001/tickets/x",
+        preferencesUrl: "https://acme.lvh.me:3001/notifications/preferences",
+        ticketId,
+        ticketNumber: "INC-000042",
+        replyTo: "acme@inbound.lvh.me",
+      },
+    }
+    await new MailProcessor(provider, config, urls).process({ id: "j5", data: notice } as Job)
+    await new MailProcessor(provider, config, urls).process({ id: "j6", data: invite } as Job)
+    const [ticketMail, inviteMail] = provider.sent
+    expect(ticketMail).toMatchObject({ subject: "[INC-000042] resolved — Printer", replyTo: "acme@inbound.lvh.me" })
+    expect(ticketMail?.messageId).toMatch(new RegExp(`^<t\\.${ticketId}\\.[0-9a-f-]+@inbound\\.lvh\\.me>$`))
+    expect(ticketMail?.headers).toEqual({ "Auto-Submitted": "auto-generated", References: `<t.${ticketId}.thread@inbound.lvh.me>` })
+    expect(ticketMail?.text).toContain("Reply above this line")
+    expect(inviteMail?.headers).toEqual({ "Auto-Submitted": "auto-generated" })
+    expect(inviteMail?.replyTo).toBeUndefined()
   })
 
   it("marks an unreadable payload unrecoverable instead of retrying it", async () => {
     const provider = new RecordingMailProvider()
     await expect(
-      new MailProcessor(provider, config).process({ id: "j3", data: { kind: "newsletter" } } as Job),
+      new MailProcessor(provider, config, urls).process({ id: "j3", data: { kind: "newsletter" } } as Job),
     ).rejects.toBeInstanceOf(UnrecoverableError)
     expect(provider.sent).toHaveLength(0)
   })
@@ -86,6 +118,6 @@ describe("MailProcessor.process", () => {
   it("lets the provider's failure propagate so BullMQ retries with backoff", async () => {
     const provider = new RecordingMailProvider()
     vi.spyOn(provider, "send").mockRejectedValue(new Error("ECONNREFUSED"))
-    await expect(new MailProcessor(provider, config).process({ id: "j4", data: invite } as Job)).rejects.toThrow("ECONNREFUSED")
+    await expect(new MailProcessor(provider, config, urls).process({ id: "j4", data: invite } as Job)).rejects.toThrow("ECONNREFUSED")
   })
 })

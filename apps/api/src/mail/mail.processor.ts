@@ -2,12 +2,16 @@ import { Processor, WorkerHost } from "@nestjs/bullmq"
 import { Inject, Logger, type OnApplicationBootstrap } from "@nestjs/common"
 import { type Job, UnrecoverableError } from "bullmq"
 
+import { randomUUID } from "node:crypto"
+
 import { emailHash8 } from "../common/privacy"
+import { PublicUrls } from "../common/urls"
+import { ticketMessageId } from "../inbound/domain/threading"
 import { InjectConfig, type AppConfig } from "../config/app-config"
 import { runJob } from "../jobs/dispatcher/run-job"
-import { MAIL_PROVIDER, type MailProvider } from "./mail-provider"
+import { MAIL_PROVIDER, type MailProvider, type OutboundMail } from "./mail-provider"
 import { MAIL_QUEUE } from "./mail.service"
-import { mailJobSchema, renderMail } from "./templates"
+import { type MailJob, mailJobSchema, renderMail } from "./templates"
 
 /**
  * Renders and sends. Runs inside the tenant the job names (ADR-0018), so a
@@ -25,6 +29,7 @@ export class MailProcessor extends WorkerHost implements OnApplicationBootstrap 
   constructor(
     @Inject(MAIL_PROVIDER) private readonly provider: MailProvider,
     @InjectConfig() private readonly config: AppConfig,
+    private readonly urls: PublicUrls,
   ) {
     super()
     // Validated to this shape by the env schema.
@@ -53,6 +58,7 @@ export class MailProcessor extends WorkerHost implements OnApplicationBootstrap 
         to: data.to,
         from: { name: data.fromName, address: this.fromAddress },
         ...rendered,
+        ...threadingFor(data, this.urls.inboundDomain()),
       })
       this.logger.log({
         msg: "mail sent",
@@ -62,5 +68,23 @@ export class MailProcessor extends WorkerHost implements OnApplicationBootstrap 
         providerMessageId,
       })
     })
+  }
+}
+
+/**
+ * Every message we send says it is automatic (RFC 3834), so an autoresponder
+ * does not answer it and our own intake drops whatever bounces back. Ticket
+ * mail also carries the ticket: a Message-ID naming it, one thread root per
+ * ticket in `References`, and the workspace's inbound address to reply to
+ * (ADR-0039).
+ */
+function threadingFor(job: MailJob, inboundDomain: string): Pick<OutboundMail, "replyTo" | "messageId" | "headers"> {
+  const automatic = { "Auto-Submitted": "auto-generated" }
+  if (job.kind !== "ticket-notification") return { headers: automatic }
+  const { ticketId, replyTo } = job.params
+  return {
+    replyTo,
+    messageId: ticketMessageId(ticketId, randomUUID(), inboundDomain),
+    headers: { ...automatic, References: ticketMessageId(ticketId, "thread", inboundDomain) },
   }
 }

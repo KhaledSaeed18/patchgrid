@@ -66,7 +66,7 @@ describe("notification email", () => {
     const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Monitor flickers", description: "x", impact: "LOW", urgency: "LOW" })
     ticket = { id: created.body.id as string, version: created.body.version as number }
     const sent = await mailSince(mark)
-    expect(sent).toEqual([{ to: address("requester"), subject: expect.stringMatching(/^We've received INC-\d{6}: Monitor flickers$/) }])
+    expect(sent).toEqual([{ to: address("requester"), subject: expect.stringMatching(/^We've received \[INC-\d{6}\]: Monitor flickers$/) }])
     const mail = recorder.sent[mark]
     expect(mail?.from.name).toBe((await db.organization.findUniqueOrThrow({ where: { id: ws.orgId } })).name)
     expect(mail?.html).toContain(`${ws.origin}/tickets/${ticket.id}`)

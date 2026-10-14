@@ -30,6 +30,8 @@ export class SmtpMailProvider implements MailProvider {
       from: mail.from,
       to: mail.to,
       ...(mail.replyTo === undefined ? {} : { replyTo: mail.replyTo }),
+      ...(mail.messageId === undefined ? {} : { messageId: mail.messageId }),
+      ...(mail.headers === undefined ? {} : { headers: mail.headers }),
       subject: mail.subject,
       html: mail.html,
       text: mail.text,

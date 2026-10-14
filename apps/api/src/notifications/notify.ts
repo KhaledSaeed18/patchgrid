@@ -2,6 +2,8 @@ import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq"
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common"
 import { type Job, type Queue, UnrecoverableError } from "bullmq"
 
+import { formatTicketNumber } from "@patchgrid/contracts"
+
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../config/app-config"
 import { runJob } from "../jobs/dispatcher/run-job"
@@ -150,6 +152,9 @@ export class NotifyService {
               reason: m.reason,
               ticketUrl: this.urls.workspace(org.slug, `/tickets/${ticket.id}`),
               preferencesUrl: this.urls.workspace(org.slug, "/notifications/preferences"),
+              ticketId: ticket.id,
+              ticketNumber: formatTicketNumber(ticket.type, ticket.number),
+              replyTo: this.urls.inboundAddress(org.slug),
             },
           },
         })),

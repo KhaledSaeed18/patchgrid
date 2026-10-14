@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common"
+import { INBOUND_SUBDOMAIN, inboundAddress } from "@patchgrid/contracts"
 
 import { InjectConfig, type AppConfig } from "../config/app-config"
 
@@ -24,6 +25,16 @@ export class PublicUrls {
   /** `https://<slug>.patchgrid.xyz` — a workspace. */
   workspace(slug: string, path = "/"): string {
     return this.origin(slug) + path
+  }
+
+  /** `acme@inbound.patchgrid.xyz` — where a workspace's mail becomes tickets (ADR-0027). */
+  inboundAddress(slug: string): string {
+    return inboundAddress(slug, this.config.ROOT_DOMAIN)
+  }
+
+  /** `inbound.patchgrid.xyz` — the host our ticket mail's Message-IDs carry, so a reply can be traced back. */
+  inboundDomain(): string {
+    return `${INBOUND_SUBDOMAIN}.${this.config.ROOT_DOMAIN}`
   }
 
   private origin(label: string | null): string {

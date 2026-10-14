@@ -8,6 +8,10 @@ export type OutboundMail = {
   /** Display name per tenant, envelope address always ours (ADR-0018). */
   from: { name: string; address: string }
   replyTo?: string
+  /** Ours to choose, so a reply's `In-Reply-To` names the ticket (ADR-0039). */
+  messageId?: string
+  /** Extra headers: `References`, `Auto-Submitted`. */
+  headers?: Record<string, string>
   subject: string
   html: string
   text: string
