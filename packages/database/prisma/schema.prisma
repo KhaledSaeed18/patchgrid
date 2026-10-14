@@ -147,6 +147,7 @@ model Organization {
   ticketAssets    TicketAsset[]
   articles        KnowledgeArticle[]
   inboundEmails   InboundEmail[]
+  supportSessions SupportSession[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -205,6 +206,7 @@ model PlatformAdmin {
   user                 User               @relation(fields: [userId], references: [id])
   auditEntries         AuditLog[]
   platformAuditEntries PlatformAuditLog[]
+  supportSessions      SupportSession[]
 }
 
 /// Rotating refresh tokens, chained through `replacedById`; presenting a rotated
@@ -350,6 +352,8 @@ model Membership {
   assetsOwned              Asset[]
   articlesWritten          KnowledgeArticle[]
   inboundEmailsSent        InboundEmail[]
+  supportDecisions         SupportSession[]   @relation("SupportDecidedBy")
+  supportRevocations       SupportSession[]   @relation("SupportRevokedBy")
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -442,7 +446,8 @@ model AuditLog {
   actorKind            AuditActorKind
   actorMembershipId    String?        @db.Uuid
   actorPlatformAdminId String?        @db.Uuid
-  /// Set when a platform admin acted inside a support session (ADR-0020); its table arrives in M8.
+  /// Set when a platform admin read inside a support session (ADR-0020, ADR-0041). No foreign key: the
+  /// log is partitioned and append-only, and a row must outlive nothing it names.
   supportSessionId     String?        @db.Uuid
   createdAt            DateTime       @default(now()) @db.Timestamptz(3)
 
@@ -563,6 +568,13 @@ enum AssetType {
   SERVER
   SOFTWARE
   OTHER
+}
+
+/// How a support session ended (ADR-0041).
+enum SupportEndReason {
+  EXPIRED
+  REVOKED
+  AUDIT_FAILED
 }
 
 /// What the receiving MTA's trusted Authentication-Results said (ADR-0039).
@@ -1125,4 +1137,34 @@ model PlatformAuditLog {
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([platformAdminId, createdAt])
+}
+
+/// An operator's read-only access to one workspace, asked for by the operator
+/// and granted by an owner (ADR-0020, ADR-0041). Its status is its timestamps:
+/// requested, then declined or granted, then ended — by expiry, revocation, or
+/// an audit write that failed.
+model SupportSession {
+  id                    String            @id @default(uuid(7)) @db.Uuid
+  orgId                 String            @db.Uuid
+  platformAdminId       String            @db.Uuid
+  reason                String
+  requestedAt           DateTime          @default(now()) @db.Timestamptz(3)
+  decidedByMembershipId String?           @db.Uuid
+  grantedAt             DateTime?         @db.Timestamptz(3)
+  declinedAt            DateTime?         @db.Timestamptz(3)
+  expiresAt             DateTime?         @db.Timestamptz(3)
+  firstUsedAt           DateTime?         @db.Timestamptz(3)
+  revokedByMembershipId String?           @db.Uuid
+  endedAt               DateTime?         @db.Timestamptz(3)
+  endReason             SupportEndReason?
+
+  organization  Organization  @relation(fields: [orgId], references: [id])
+  platformAdmin PlatformAdmin @relation(fields: [platformAdminId], references: [id])
+  decidedBy     Membership?   @relation("SupportDecidedBy", fields: [orgId, decidedByMembershipId], references: [orgId, id])
+  revokedBy     Membership?   @relation("SupportRevokedBy", fields: [orgId, revokedByMembershipId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@index([orgId, requestedAt(sort: Desc), id(sort: Desc)])
+  /// Sessions still running, for the expiry sweep and the banner.
+  @@index([orgId, endedAt, expiresAt])
 }

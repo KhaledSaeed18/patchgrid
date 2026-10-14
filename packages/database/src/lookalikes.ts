@@ -69,7 +69,8 @@ const PEOPLE: Record<PersonKey, { name: string; memberships: Partial<Record<"acm
 
 /** The addresses `seedLookalikes` creates for a suffix — how a reseed finds the accounts to remove. */
 export function lookalikeEmails(emailSuffix: string): string[] {
-  return Object.keys(PEOPLE).map((key) => `${key}${emailSuffix}@patchgrid.test`)
+  // The support session's operator is an account too (ADR-0041).
+  return [...Object.keys(PEOPLE), "lookalike-operator"].map((key) => `${key}${emailSuffix}@patchgrid.test`)
 }
 
 export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions): Promise<Lookalikes> {
@@ -345,6 +346,18 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       ],
     })
 
+    // A support session requested and declined, so isolation has a row on each side (ADR-0041).
+    const operator = await db.user.upsert({
+      where: { email: `lookalike-operator${options.emailSuffix}@patchgrid.test` },
+      create: { email: `lookalike-operator${options.emailSuffix}@patchgrid.test`, name: "Lookalike Operator", passwordHash: options.passwordHash, emailVerifiedAt: now },
+      update: {},
+      select: { id: true },
+    })
+    const operatorAdmin = await db.platformAdmin.upsert({ where: { userId: operator.id }, create: { userId: operator.id }, update: {}, select: { id: true } })
+    await db.supportSession.create({
+      data: { orgId: org.id, platformAdminId: operatorAdmin.id, reason: "Diagnose a VPN ticket", decidedByMembershipId: owner, declinedAt: now },
+    })
+
     // What the rows above use of the plan, so a delete releases what a create consumed (TENANCY.md §8).
     await db.usageCounter.createMany({
       data: [
@@ -380,6 +393,7 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.ticketWatcher.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.attachment.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.inboundEmail.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.supportSession.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketAsset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.asset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.knowledgeArticle.deleteMany({ where: { orgId: { in: orgIds } } })
