@@ -22,13 +22,16 @@ customer's tenant would then be shadowed by (or shadow) real infrastructure.
 | `app` | `A` / `AAAA` | tenant-less entry: login, org picker, create workspace |
 | `api` | `A` / `AAAA` | NestJS |
 | `admin` | `A` / `AAAA` | platform back-office |
-| `files` | `A` / `AAAA` | object-storage gateway for attachments — a **separate origin**, so an uploaded document is never same-site with a session cookie |
 | `inbound` | `MX` | inbound mail for ticket intake |
 | `*` | `A` / `AAAA` | every tenant, `<slug>.patchgrid.xyz` |
 | `renewal-canary` | `CNAME` | → apex; a reserved label the certificate monitor fetches |
 | `_acme-challenge` | `CNAME` | → the delegated ops zone (§3) |
 | `@`, `_dmarc`, `<sel>._domainkey` | `TXT` | mail authentication (§4) |
 | `@` | `CAA` | issuance restriction (§3) |
+
+Attachments are **not** under this zone: they are served from their own registrable domain,
+`patchgrid-files.net`, so an uploaded document is never same-site with a session cookie (ADR-0037).
+`files` stays a reserved slug so no tenant can claim the label it used to have.
 
 Explicit records come **before** the wildcard in specificity, so `api.patchgrid.xyz` resolves to the API
 regardless of the wildcard. The wildcard is what makes provisioning a tenant a database insert rather

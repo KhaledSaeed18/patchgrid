@@ -11,7 +11,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0002](0002-per-type-state-machines-and-extension-tables.md) | Per-type state machines with one status enum and extension tables | Accepted |
 | [0003](0003-sla-24x7-with-pending-pause.md) | SLA clocks run 24×7 and pause in `PENDING` | Accepted |
 | [0004](0004-auth-invite-only-jwt-cookies.md) | JWT access + rotating refresh in httpOnly cookies, Argon2id | Accepted — invite-only superseded by 0017; cookie scoping by 0024 |
-| [0005](0005-attachments-s3-presigned.md) | Attachments in S3-compatible storage via presigned URLs | Accepted — erratum: upload constraints and serving |
+| [0005](0005-attachments-s3-presigned.md) | Attachments in S3-compatible storage via presigned URLs | Accepted — erratum: upload constraints and serving; domain set by 0037 |
 | [0006](0006-explicit-transition-endpoint.md) | State changes through an explicit transitions endpoint | Accepted |
 | [0007](0007-web-calls-api-directly-no-bff.md) | Next.js calls the NestJS API directly; no BFF layer | Accepted |
 | [0008](0008-sse-for-in-app-notifications.md) | Server-Sent Events for live notifications | Accepted — refined by 0036 |
@@ -43,6 +43,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0034](0034-audit-log-partitions-under-rls.md) | Audit-log partitions under RLS | Accepted |
 | [0035](0035-browser-owned-refresh.md) | The browser owns the refresh; the Next server never sees a refresh token | Accepted |
 | [0036](0036-live-stream-fan-out-and-lifetime.md) | Live stream: who hears a ticket change, and how long a stream lives | Accepted |
+| [0037](0037-attachments-on-their-own-registrable-domain.md) | Attachments are served from their own registrable domain | Accepted |
 
 ## Reading order for someone new
 

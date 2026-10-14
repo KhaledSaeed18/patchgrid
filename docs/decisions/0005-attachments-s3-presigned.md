@@ -1,7 +1,11 @@
 # 0005 — Attachments in S3-compatible storage via presigned URLs
 
-- **Status:** Accepted — upload constraints and serving corrected below
+- **Status:** Accepted — upload constraints and serving corrected below; serving domain set by [0037](0037-attachments-on-their-own-registrable-domain.md)
 - **Date:** 2026-09-22
+
+> **Erratum (2026-10-14).** "A separate origin" is not enough: `files.patchgrid.xyz` is same-site with
+> every tenant and receives their cookies (THREAT-MODEL TM-1). Attachments are served from their own
+> registrable domain, and the API refuses to boot otherwise — see ADR-0037.
 
 > **Erratum (2026-09-22).** Step 1 promises a presigned PUT with "content-type and content-length
 > conditions". A presigned **PUT** signs headers and cannot express a length *range*; `content-length-range`

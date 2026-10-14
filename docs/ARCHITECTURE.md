@@ -454,7 +454,9 @@ edits (ADR-0014). Production-style Dockerfiles are a final-milestone task.
   express a length *range* — only a presigned POST policy can); server-side magic-number sniffing at
   `complete`; `image/svg+xml`, `text/html` and `application/xhtml+xml` excluded from the allow-list;
   `Content-Disposition: attachment` on every presigned GET except a small inline image allow-list; served
-  from a separate origin so an uploaded document is never same-site with a session cookie (ADR-0005).
+  from its own **registrable domain** (`patchgrid-files.net`, `localhost:9000` locally) so an uploaded
+  document is never same-site with a session cookie, and the API refuses to boot otherwise (ADR-0005,
+  ADR-0037).
 - Env validated by Zod at boot; the process refuses to start on a missing or invalid variable.
 - **No PII in logs**: `reqId`, `orgId`, `membershipId`, `userId` only — never emails, ticket bodies or
   tokens. Failed logins log a truncated SHA-256 of the email so abuse is still correlatable.
