@@ -9,6 +9,7 @@ import {
   type Ticket,
   type TicketAction,
   ticketSchema,
+  type Watcher,
 } from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import {
@@ -21,7 +22,6 @@ import {
 } from "@patchgrid/ui/components/dialog"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { Textarea } from "@patchgrid/ui/components/textarea"
-import { cn } from "@patchgrid/ui/lib/utils"
 import { useMutation } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -29,8 +29,11 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import { Assignment } from "./assignment"
+import { CommentItem } from "./comment-item"
 import { EditTicket } from "./edit-ticket"
+import { Watchers } from "./watchers"
 import { PriorityBadge, StatusBadge } from "@/components/tickets/badges"
+import { LiveRefresh } from "@/components/live-refresh"
 import { DueBadge } from "@/components/tickets/due-badge"
 import { RelativeTime } from "@/components/tickets/relative-time"
 import { clientApi } from "@/lib/api/client"
@@ -60,9 +63,14 @@ export function TicketDetail({
   comments,
   assignable,
   categories,
+  watchers,
+  watchCandidates,
 }: {
   ticket: Ticket
   comments: Comment[]
+  watchers: Watcher[]
+  /** Active members who could be added as watchers; present when the actor may add them. */
+  watchCandidates: Member[] | null
   /** The picker for an editable category; empty when it is not editable. */
   categories: Category[]
   /** Present when the actor may assign: the active agents and teams to choose from. */
@@ -71,6 +79,7 @@ export function TicketDetail({
   const actions = ticket.availableActions.filter((a) => a !== "assign")
   return (
     <div className="px-6 py-8 md:px-10">
+      <LiveRefresh ticketId={ticket.id} delay={300} holdWhileEditing />
       <Link
         href={ticket.capabilities.canAssign ? "/queues" : "/tickets"}
         className="text-sm text-muted-foreground hover:text-foreground"
@@ -123,7 +132,7 @@ export function TicketDetail({
               {ticket.description}
             </p>
           </article>
-          <Thread comments={comments} />
+          <Thread ticketId={ticket.id} comments={comments} />
           {(ticket.capabilities.canCommentPublic ||
             ticket.capabilities.canCommentInternal) && (
             <Reply ticket={ticket} />
@@ -158,6 +167,11 @@ export function TicketDetail({
               </Fact>
             )}
           </dl>
+          <Watchers
+            ticket={ticket}
+            watchers={watchers}
+            candidates={watchCandidates}
+          />
         </aside>
       </div>
     </div>
@@ -179,36 +193,18 @@ function Fact({
   )
 }
 
-function Thread({ comments }: { comments: Comment[] }) {
+function Thread({
+  ticketId,
+  comments,
+}: {
+  ticketId: string
+  comments: Comment[]
+}) {
   if (comments.length === 0) return null
   return (
     <ol className="mt-6 grid gap-4">
       {comments.map((comment) => (
-        <li
-          key={comment.id}
-          className={cn(
-            "rounded-lg border p-4",
-            comment.visibility === "INTERNAL"
-              ? "border-dashed border-foreground/30 bg-foreground/[0.03]"
-              : "border-border"
-          )}
-        >
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">
-              {comment.author?.displayName ?? "Patchgrid"}
-            </span>{" "}
-            <RelativeTime at={comment.createdAt} />
-            {comment.visibility === "INTERNAL" && " · internal note"}
-            {comment.editedAt !== null && " · edited"}
-          </p>
-          {comment.body === null ? (
-            <p className="mt-2 text-sm text-muted-foreground italic">
-              This comment was removed.
-            </p>
-          ) : (
-            <p className="mt-2 text-sm whitespace-pre-wrap">{comment.body}</p>
-          )}
-        </li>
+        <CommentItem key={comment.id} ticketId={ticketId} comment={comment} />
       ))}
     </ol>
   )

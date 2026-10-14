@@ -4,6 +4,7 @@ import {
   memberPageSchema,
   teamSchema,
   ticketSchema,
+  watcherSchema,
 } from "@patchgrid/contracts"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
@@ -29,9 +30,10 @@ export default async function TicketPage({
 }) {
   const { id } = await params
   if (!ID.safeParse(id).success) notFound()
-  const [ticket, comments] = await Promise.all([
+  const [ticket, comments, watchers] = await Promise.all([
     serverApi(`/tickets/${id}`, { schema: ticketSchema }),
     serverApi(`/tickets/${id}/comments`, { schema: z.array(commentSchema) }),
+    serverApi(`/tickets/${id}/watchers`, { schema: z.array(watcherSchema) }),
   ])
   // The assignment control's candidates, only for someone who may assign.
   const assignable = ticket.capabilities.canAssign
@@ -45,6 +47,12 @@ export default async function TicketPage({
         teams,
       }))
     : null
+  // Who could be added as a watcher, only for someone who may add them.
+  const watchCandidates = ticket.capabilities.canAddWatcher
+    ? await serverApi("/members?limit=100", { schema: memberPageSchema }).then(
+        (members) => members.items.filter((m) => m.status === "ACTIVE")
+      )
+    : null
   const categories = ticket.capabilities.editableFields.includes("categoryId")
     ? await serverApi("/categories", { schema: z.array(categorySchema) })
     : []
@@ -54,6 +62,8 @@ export default async function TicketPage({
       comments={comments}
       assignable={assignable}
       categories={categories}
+      watchers={watchers}
+      watchCandidates={watchCandidates}
     />
   )
 }
