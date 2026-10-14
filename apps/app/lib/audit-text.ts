@@ -50,6 +50,10 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   ASSET_DELETED: "deleted an asset",
   TICKET_ASSET_LINKED: "named an asset on the ticket",
   TICKET_ASSET_UNLINKED: "took an asset off the ticket",
+  ARTICLE_CREATED: "wrote an article",
+  ARTICLE_UPDATED: "edited an article",
+  ARTICLE_VISIBILITY_CHANGED: "changed who can read an article",
+  ARTICLE_DELETED: "deleted an article",
 }
 
 export function actorName(entry: AuditEntry): string {
