@@ -384,9 +384,9 @@ and owns none. "Tenant-owned" means *not on the closed platform list* in
 | `mail` | enqueued by services | render + send, backoff retries |
 | `usage-reconcile` | nightly, per tenant | recompute `UsageCounter` from source data |
 | `org-purge` | daily | hard-delete orgs past the 30-day window, under `runAsTenant` |
-| `attachment-sweep` | hourly, per tenant | delete `PENDING` attachments older than 1 h — row **and** object — and decrement `storage_bytes` |
+| `attachment-sweep` | hourly, per tenant | delete `PENDING` attachments older than 1 h — row **and** object — and decrement `storage_bytes` (dispatched and tenant-scoped since M3; the work lands with attachments in M5) |
 | `projection-reconcile` | nightly, per tenant | recompute `UserOrgIndex` / `ApiTokenIndex` from source; drift is a bug, not a state (ADR-0022) |
-| `audit-partition` | monthly, platform | create next month's `AuditLog` partition, detach partitions past retention |
+| `audit-partition` | daily, platform — partitions belong to the table, not a tenant | ensure this and next month's `AuditLog` partitions; detach months wholly past the 7-year window into the `audit_archive` schema (ADR-0034) |
 | `triage`, `automation` (later) | per ticket / per event | tenant-scoped |
 
 Workers run in the same Nest process in development; `WORKER_MODE=all|api|worker` allows splitting later without code changes.
