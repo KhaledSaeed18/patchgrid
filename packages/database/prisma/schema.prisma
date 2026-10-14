@@ -1041,8 +1041,10 @@ model InboundEmail {
   outcome            InboundOutcome @default(RECEIVED)
   senderMembershipId String?        @db.Uuid
   ticketId           String?        @db.Uuid
-  /// `org/<orgId>/inbound/<id>.eml` — the message exactly as received.
+  /// `org/<orgId>/inbound/<id>.eml` — the message exactly as received, until `rawDeletedAt`.
   rawStorageKey      String
+  /// When the retention sweep deleted the raw message; the row stays for the log.
+  rawDeletedAt       DateTime?      @db.Timestamptz(3)
   /// `[{ filename, reason }]` for files left out.
   skippedAttachments Json           @default("[]")
   error              String?
