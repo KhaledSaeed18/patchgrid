@@ -391,7 +391,8 @@ export class TicketsService {
           Object.assign(changes, await this.assignment(orgId, request.assigneeMembershipId, request.teamId, true))
           break
         case "start":
-          if (row.assigneeMembershipId === null) changes.assigneeMembershipId = actor.membershipId
+          // A person who starts unowned work owns it; a token does not (ADR-0042).
+          if (row.assigneeMembershipId === null && actor.kind === "member") changes.assigneeMembershipId = actor.membershipId
           break
         case "wait":
           apply(onPause(state, now))
@@ -634,7 +635,7 @@ export class TicketsService {
     if (assigneeId !== undefined) {
       if (assigneeId !== null) {
         const assignee = await this.memberships.findById(orgId, assigneeId)
-        if (assignee === null || assignee.status !== "ACTIVE" || assignee.role === "REQUESTER") {
+        if (assignee === null || assignee.status !== "ACTIVE" || assignee.role === "REQUESTER" || assignee.kind !== "HUMAN") {
           throw fieldError("assigneeMembershipId", "is not an active agent in this workspace")
         }
       }

@@ -21,7 +21,7 @@ import type { MembershipRecord, MembershipRepository, MemberRow } from "./reposi
 
 const ORG = "o-1"
 
-type Seed = { id: string; role: Role; status?: MembershipStatus; teams?: string[] }
+type Seed = { id: string; role: Role; status?: MembershipStatus; teams?: string[]; service?: boolean }
 
 /**
  * An in-memory organization behind the repository interface, so each rule is
@@ -35,10 +35,10 @@ function harness(actorId: string, seeds: Seed[], seatsFree = true) {
       {
         id: s.id,
         orgId: ORG,
-        userId: `u-${s.id}`,
+        userId: s.service === true ? null : `u-${s.id}`,
         role: s.role,
         status: s.status ?? "ACTIVE",
-        kind: "HUMAN",
+        kind: s.service === true ? "SERVICE_ACCOUNT" : "HUMAN",
         displayName: s.id,
         teamIds: s.teams ?? [],
         leadOfTeamIds: [],
@@ -195,6 +195,20 @@ describe("MembersService.changeRole", () => {
     const h = harness("owner", [{ id: "owner", role: "OWNER" }, { id: "r", role: "AGENT", status: "REMOVED" }])
     await expect(h.service.changeRole("nope", "AGENT")).rejects.toBeInstanceOf(NotFoundProblem)
     await expect(h.service.changeRole("r", "REQUESTER")).rejects.toBeInstanceOf(NotFoundProblem)
+  })
+})
+
+describe("MembersService — service accounts (ADR-0042)", () => {
+  it("leaves a token's service account to its token: no role change, disable, enable or removal here", async () => {
+    const h = harness("owner", [{ id: "owner", role: "OWNER" }, { id: "bot", role: "AGENT", service: true }, { id: "off", role: "AGENT", service: true, status: "DISABLED" }])
+    await expect(h.service.changeRole("bot", "ADMIN")).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(h.service.disable("bot")).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(h.service.enable("off")).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(h.service.remove("bot")).rejects.toBeInstanceOf(ConflictProblem)
+    expect(h.audit).toEqual([])
+    // Still 403 before 409 for someone who may not touch it at all.
+    const agent = harness("agent", [{ id: "agent", role: "AGENT" }, { id: "bot", role: "AGENT", service: true }])
+    await expect(agent.service.disable("bot")).rejects.toBeInstanceOf(NotPermittedProblem)
   })
 })
 

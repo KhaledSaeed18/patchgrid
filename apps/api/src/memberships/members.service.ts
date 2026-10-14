@@ -97,6 +97,7 @@ export class MembersService {
   async changeRole(id: string, role: Role): Promise<Member> {
     await this.change(id, async (actor, orgId, target) => {
       this.permissions.assert(actor, "member:update_role", subjectOf(actor, target))
+      assertPerson(target)
       // Raising anyone to ADMIN or OWNER is an owner's call, whoever they are now.
       if (PRIVILEGED.has(role)) this.permissions.assert(actor, "member:promote_admin")
       if (target.role === role) return false
@@ -123,6 +124,7 @@ export class MembersService {
   async disable(id: string): Promise<Member> {
     await this.change(id, async (actor, orgId, target) => {
       this.permissions.assert(actor, "member:disable", subjectOf(actor, target))
+      assertPerson(target)
       if (target.status !== "ACTIVE") throw new ConflictProblem("Only an active member can be disabled")
       if (target.role === "OWNER") await this.assertNotLastOwner(orgId, target)
 
@@ -139,6 +141,7 @@ export class MembersService {
   async enable(id: string): Promise<Member> {
     await this.change(id, async (actor, orgId, target) => {
       this.permissions.assert(actor, "member:disable", subjectOf(actor, target))
+      assertPerson(target)
       if (target.status !== "DISABLED") throw new ConflictProblem("Only a disabled member can be enabled")
 
       // An enabled agent takes a seat back, and may find none free: 402.
@@ -156,6 +159,7 @@ export class MembersService {
   async remove(id: string): Promise<void> {
     await this.change(id, async (actor, orgId, target) => {
       this.permissions.assert(actor, "member:remove", subjectOf(actor, target))
+      assertPerson(target)
       if (target.role === "OWNER" && target.status === "ACTIVE") await this.assertNotLastOwner(orgId, target)
 
       await this.seatChange(orgId, target, { ...target, status: "REMOVED" })
@@ -231,5 +235,16 @@ function toMember(row: MemberRow): Member {
       row.contact === null
         ? null
         : { email: row.contact.email, lastLoginAt: row.contact.lastLoginAt?.toISOString() ?? null },
+  }
+}
+
+/**
+ * A service account's role and status are its API token's (ADR-0042): set at
+ * creation, ended by revocation. Changing them here would let a token outgrow
+ * what its creator chose.
+ */
+function assertPerson(target: MembershipRecord): void {
+  if (target.kind === "SERVICE_ACCOUNT") {
+    throw new ConflictProblem("This is an API token's service account; revoke the token in Settings → API tokens instead")
   }
 }
