@@ -9,8 +9,34 @@ import type {
 } from "@patchgrid/contracts"
 
 import type { ScopeBranch } from "../../authz/scope-filter"
+import type { Prisma } from "@patchgrid/database"
+
 import { PrismaService } from "../../prisma/prisma.service"
 import type { SlaClock, SlaState } from "../domain/sla"
+
+/** A Problem's own row, when the ticket is one. */
+export type ProblemRow = { rootCause: string | null; workaround: string | null; knownErrorAt: Date | null }
+
+/** A Change's own row and its decisions, newest first, when the ticket is one. */
+export type ChangeRow = {
+  plannedStart: Date | null
+  plannedEnd: Date | null
+  risk: "LOW" | "MEDIUM" | "HIGH" | null
+  implementationPlan: string | null
+  rollbackPlan: string | null
+  outcomeNotes: string | null
+  approvals: {
+    id: string
+    decision: "APPROVED" | "REJECTED"
+    selfApproved: boolean
+    reason: string | null
+    decidedAt: Date
+    approver: { id: string; displayName: string }
+  }[]
+}
+
+export type ProblemChanges = Partial<Omit<ProblemRow, "knownErrorAt">> & { knownErrorAt?: Date | null }
+export type ChangeChanges = Partial<Omit<ChangeRow, "approvals">>
 
 export type TicketRow = SlaState & {
   id: string
@@ -37,11 +63,16 @@ export type TicketRow = SlaState & {
   requester: { id: string; displayName: string }
   assignee: { id: string; displayName: string } | null
   team: { id: string; name: string } | null
+  problem: ProblemRow | null
+  change: ChangeRow | null
 }
 
 /** The fields a write may change; everything else is the row's identity. */
 export type TicketChanges = Partial<
-  Omit<TicketRow, "id" | "orgId" | "number" | "type" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "source">
+  Omit<
+    TicketRow,
+    "id" | "orgId" | "number" | "type" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "source" | "problem" | "change"
+  >
 >
 
 export type TicketSummaryRow = Pick<
@@ -94,7 +125,18 @@ export type RunningClockRow = Pick<
 
 export type ListFilter = {
   /** A narrowing of the view, ANDed onto each scope branch. */
-  where: { status?: TicketStatus | { in: TicketStatus[] }; assigneeMembershipId?: string | null; requesterMembershipId?: string; teamId?: string | null | { in: string[] } }
+  where: {
+    type?: TicketType
+    status?: TicketStatus | { in: TicketStatus[] }
+    assigneeMembershipId?: string | null
+    requesterMembershipId?: string | { not: string }
+    teamId?: string | null | { in: string[] }
+    /**
+     * Not assigned to this member — spelled out with the NULL case, because
+     * `NOT (assignee = me)` is NULL for an unassigned row and drops it.
+     */
+    OR?: [{ assigneeMembershipId: null }, { assigneeMembershipId: { not: string } }]
+  }
   after: { createdAt: Date; id: string } | null
   /** `desc` is newest first. The cursor continues in the same direction. */
   direction: "asc" | "desc"
@@ -107,6 +149,33 @@ const PEOPLE = {
   assignee: { select: { id: true, displayName: true } },
   team: { select: { id: true, name: true } },
 } as const
+
+/** A ticket read whole: its people, a Problem's or Change's own row, and the decisions on a Change. */
+const FULL = {
+  ...PEOPLE,
+  problem: { select: { rootCause: true, workaround: true, knownErrorAt: true } },
+  change: {
+    select: { plannedStart: true, plannedEnd: true, risk: true, implementationPlan: true, rollbackPlan: true, outcomeNotes: true },
+  },
+  approvals: {
+    orderBy: { decidedAt: "desc" },
+    select: {
+      id: true,
+      decision: true,
+      selfApproved: true,
+      reason: true,
+      decidedAt: true,
+      approver: { select: { id: true, displayName: true } },
+    },
+  },
+} satisfies Prisma.TicketInclude
+
+type FullRow = Prisma.TicketGetPayload<{ include: typeof FULL }>
+
+/** The decisions belong to the ticket in the schema and to its Change on the wire. */
+function toRow({ approvals, change, ...row }: FullRow): TicketRow {
+  return { ...row, change: change === null ? null : { ...change, approvals } }
+}
 
 const SUMMARY = {
   id: true,
@@ -149,16 +218,82 @@ export class TicketRepository {
     return counter.nextValue - 1
   }
 
+  /**
+   * The ticket and, for a Problem or a Change, its own row in the same
+   * statement (ADR-0002: created together, in the ticket's transaction).
+   */
   async create(
     orgId: string,
-    data: Omit<TicketRow, "id" | "orgId" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team">,
+    data: Omit<TicketRow, "id" | "orgId" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "problem" | "change">,
+    details: { problem?: ProblemChanges; change?: ChangeChanges } = {},
   ): Promise<string> {
-    const row = await this.prisma.db.ticket.create({ data: { orgId, ...data }, select: { id: true } })
+    const row = await this.prisma.db.ticket.create({
+      data: {
+        orgId,
+        ...data,
+        ...(data.type === "PROBLEM" ? { problem: { create: { ...details.problem } } } : {}),
+        ...(data.type === "CHANGE" ? { change: { create: { ...details.change } } } : {}),
+      },
+      select: { id: true },
+    })
     return row.id
   }
 
-  findById(orgId: string, id: string): Promise<TicketRow | null> {
-    return this.prisma.db.ticket.findUnique({ where: { orgId_id: { orgId, id } }, include: PEOPLE })
+  async findById(orgId: string, id: string): Promise<TicketRow | null> {
+    const row = await this.prisma.db.ticket.findUnique({ where: { orgId_id: { orgId, id } }, include: FULL })
+    return row === null ? null : toRow(row)
+  }
+
+  async findManyById(orgId: string, ids: readonly string[]): Promise<TicketRow[]> {
+    const rows = await this.prisma.db.ticket.findMany({ where: { orgId, id: { in: [...ids] } }, include: FULL })
+    return rows.map(toRow)
+  }
+
+  /** Which of these tickets this member explicitly watches — one statement. */
+  async watchedAmong(orgId: string, ticketIds: readonly string[], membershipId: string): Promise<Set<string>> {
+    if (ticketIds.length === 0) return new Set()
+    const rows = await this.prisma.db.ticketWatcher.findMany({
+      where: { orgId, membershipId, ticketId: { in: [...ticketIds] } },
+      select: { ticketId: true },
+    })
+    return new Set(rows.map((r) => r.ticketId))
+  }
+
+  /** A Problem's or Change's own fields — inside the transaction whose versioned write covers them. */
+  async updateDetails(orgId: string, ticketId: string, details: { problem?: ProblemChanges; change?: ChangeChanges }): Promise<void> {
+    if (details.problem !== undefined && Object.keys(details.problem).length > 0) {
+      await this.prisma.db.problemDetails.update({ where: { orgId_ticketId: { orgId, ticketId } }, data: details.problem })
+    }
+    if (details.change !== undefined && Object.keys(details.change).length > 0) {
+      await this.prisma.db.changeDetails.update({ where: { orgId_ticketId: { orgId, ticketId } }, data: details.change })
+    }
+  }
+
+  /** One decision on a Change (DOMAIN.md §2.3), append-only. */
+  async addApproval(
+    orgId: string,
+    approval: { ticketId: string; approverMembershipId: string; decision: "APPROVED" | "REJECTED"; selfApproved: boolean; reason: string | null; decidedAt: Date },
+  ): Promise<void> {
+    await this.prisma.db.changeApproval.create({ data: { orgId, ...approval } })
+  }
+
+  /**
+   * Whether anyone could approve this Change by rules 1 or 2 (DOMAIN.md §2.3)
+   * — an active admin or owner, or an active lead of its team, who is neither
+   * its requester nor its assignee. Rule 3 applies only when this is false.
+   */
+  async hasOtherApprover(orgId: string, change: { teamId: string | null; involved: readonly string[] }): Promise<boolean> {
+    const human = { orgId, status: "ACTIVE" as const, kind: "HUMAN" as const, id: { notIn: [...change.involved] } }
+    const admin = await this.prisma.db.membership.findFirst({
+      where: { ...human, role: { in: ["ADMIN", "OWNER"] } },
+      select: { id: true },
+    })
+    if (admin !== null || change.teamId === null) return admin !== null
+    const lead = await this.prisma.db.teamMembership.findFirst({
+      where: { orgId, teamId: change.teamId, isLead: true, membership: { ...human, role: { not: "REQUESTER" } } },
+      select: { membershipId: true },
+    })
+    return lead !== null
   }
 
   /**
@@ -193,7 +328,8 @@ export class TicketRepository {
    */
   async findResolvedBefore(orgId: string, cutoff: Date, limit: number): Promise<{ id: string; version: number }[]> {
     return this.prisma.db.ticket.findMany({
-      where: { orgId, status: "RESOLVED", resolvedAt: { lte: cutoff } },
+      // A Change's work ends IMPLEMENTED or ROLLED_BACK; `resolvedAt` marks either (DOMAIN.md §2.3).
+      where: { orgId, status: { in: ["RESOLVED", "IMPLEMENTED", "ROLLED_BACK"] }, resolvedAt: { lte: cutoff } },
       orderBy: [{ resolvedAt: "asc" }, { id: "asc" }],
       take: limit,
       select: { id: true, version: true },

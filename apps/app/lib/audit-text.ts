@@ -38,6 +38,11 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   WATCHER_REMOVED: "removed a watcher",
   SLA_WARNING: "flagged a ticket close to its deadline",
   SLA_BREACHED: "flagged a missed deadline",
+  TICKET_LINKED: "linked a ticket",
+  TICKET_UNLINKED: "removed a link",
+  CHANGE_APPROVED: "approved the change",
+  CHANGE_REJECTED: "rejected the change",
+  CHANGE_SELF_APPROVED: "approved their own change — nobody else could",
 }
 
 export function actorName(entry: AuditEntry): string {

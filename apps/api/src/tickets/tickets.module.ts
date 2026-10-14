@@ -8,7 +8,9 @@ import { NotificationsModule } from "../notifications/notifications.module"
 import { SlaModule } from "../sla/sla.module"
 import { TeamsModule } from "../teams/teams.module"
 import { CommentsService } from "./comments.service"
+import { LinksService } from "./links.service"
 import { CommentRepository } from "./repositories/comment.repository"
+import { LinkRepository } from "./repositories/link.repository"
 import { TicketRepository } from "./repositories/ticket.repository"
 import { WatcherRepository } from "./repositories/watcher.repository"
 import { AutoCloseProcessor, AutoCloseService } from "./sweeps/auto-close"
@@ -19,7 +21,7 @@ import { TicketsController } from "./tickets.controller"
 import { TicketsService } from "./tickets.service"
 import { WatchersService } from "./watchers.service"
 
-/** The incident lifecycle (M2): tickets, their thread, their watchers, their trail — and their sweeps (M3). */
+/** Tickets of every type: their thread, watchers, links and trail (M2, M4) — and their sweeps (M3). */
 @Module({
   imports: [
     AuthModule,
@@ -34,11 +36,13 @@ import { WatchersService } from "./watchers.service"
   providers: [
     TicketRepository,
     CommentRepository,
+    LinkRepository,
     WatcherRepository,
     TicketAccess,
     TicketsService,
     CommentsService,
     WatchersService,
+    LinksService,
     TicketAuditService,
     AutoCloseService,
     AutoCloseProcessor,

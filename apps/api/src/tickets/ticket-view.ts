@@ -68,5 +68,28 @@ export function toTicket(
     closedAt: iso(row.closedAt),
     availableActions,
     capabilities,
+    problem:
+      row.problem === null
+        ? null
+        : { rootCause: row.problem.rootCause, workaround: row.problem.workaround, knownErrorAt: iso(row.problem.knownErrorAt) },
+    change:
+      row.change === null
+        ? null
+        : {
+            plannedStart: iso(row.change.plannedStart),
+            plannedEnd: iso(row.change.plannedEnd),
+            risk: row.change.risk,
+            implementationPlan: row.change.implementationPlan,
+            rollbackPlan: row.change.rollbackPlan,
+            outcomeNotes: row.change.outcomeNotes,
+            approvals: row.change.approvals.map((a) => ({
+              id: a.id,
+              approver: { membershipId: a.approver.id, displayName: a.approver.displayName },
+              decision: a.decision,
+              selfApproved: a.selfApproved,
+              reason: a.reason,
+              decidedAt: a.decidedAt.toISOString(),
+            })),
+          },
   }
 }

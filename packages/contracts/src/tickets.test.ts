@@ -16,8 +16,15 @@ describe("ticket requests", () => {
     expect(updateTicketRequestSchema.safeParse({ version: 1, priority: "LOW" }).success).toBe(false)
   })
 
-  it("let a requester raise only incidents and service requests", () => {
-    expect(createTicketRequestSchema.safeParse({ ...base, type: "CHANGE" }).success).toBe(false)
+  it("take every type — which a requester may raise is a permission, not a shape", () => {
+    expect(createTicketRequestSchema.safeParse({ ...base, type: "CHANGE" }).success).toBe(true)
+    expect(createTicketRequestSchema.safeParse({ ...base, type: "OTHER" }).success).toBe(false)
+  })
+
+  it("carry a Change's plan as optional fields, and refuse a link list that is empty or too long", () => {
+    expect(createTicketRequestSchema.safeParse({ ...base, type: "CHANGE", change: { risk: "HIGH", plannedStart: "2026-10-20T08:00:00.000Z" } }).success).toBe(true)
+    expect(createTicketRequestSchema.safeParse({ ...base, type: "PROBLEM", causedIncidentIds: [] }).success).toBe(false)
+    expect(createTicketRequestSchema.safeParse({ ...base, type: "CHANGE", change: { risk: "EXTREME" } }).success).toBe(false)
   })
 
   it("want an update to carry its version and change something", () => {

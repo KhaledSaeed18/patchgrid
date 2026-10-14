@@ -26,6 +26,16 @@ export const notifyEventSchema = z.discriminatedUnion("kind", [
     comment: carried,
   }),
   z.object({ kind: z.literal("ticket-reopened"), ticketId: idSchema, actorMembershipId: actor, comment: carried }),
+  /** A Change submitted for approval: its eligible approvers hear (DOMAIN.md §8). */
+  z.object({ kind: z.literal("change-submitted"), ticketId: idSchema, actorMembershipId: actor }),
+  /** A decision on a Change: its requester and assignee hear, the rejection's reason riding along. */
+  z.object({
+    kind: z.literal("change-decided"),
+    ticketId: idSchema,
+    actorMembershipId: actor,
+    decision: z.enum(["APPROVED", "REJECTED"]),
+    comment: carried,
+  }),
   z.object({ kind: z.literal("watcher-added"), ticketId: idSchema, actorMembershipId: actor, membershipId: idSchema }),
   z.object({
     kind: z.literal("sla"),

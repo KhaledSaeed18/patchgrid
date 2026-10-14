@@ -9,7 +9,10 @@ import {
   SCOPE_GRANTS,
   type TicketCapabilities,
   type TicketStatus,
+  type TicketType,
   USER_FACING_TICKET_TYPES,
+  PROBLEM_FIELDS,
+  CHANGE_PLAN_FIELDS,
 } from "@patchgrid/contracts"
 
 import type { Actor, TenantActor } from "../auth/actor"
@@ -104,9 +107,11 @@ export class PermissionService {
       // an agent edits text while it is open, and classification any time.
       if (!agent || open) editable.push("title", "description")
       if (agent) editable.push("impact", "urgency", "categoryId")
+      if (agent) editable.push(...detailFieldsFor(subject.ticketType, subject.ticketStatus))
     }
     return {
       editableFields: editable,
+      canLink: this.can(actor, "ticket:link", subject),
       canAssign: open && this.can(actor, "ticket:assign", subject),
       canCommentPublic: this.can(actor, "comment:create_public", subject),
       canCommentInternal: this.can(actor, "comment:create_internal", subject),
@@ -167,4 +172,19 @@ function scopesAllow(actor: Extract<TenantActor, { kind: "service" }>, permissio
 function any(branches: ScopeBranch[]): ScopeFilter {
   const [first, ...rest] = branches
   return first === undefined ? { kind: "none" } : { kind: "any", branches: [first, ...rest] }
+}
+
+/**
+ * Which of a Problem's or Change's own fields are open, by where it is
+ * (DOMAIN.md §2.2, §2.3): a Problem's analysis while it is worked; a
+ * Change's plan only while `DRAFT` — what was approved is what is carried
+ * out — and its outcome once approved and until it is done.
+ */
+function detailFieldsFor(type: TicketType | undefined, status: TicketStatus): TicketCapabilities["editableFields"] {
+  if (type === "PROBLEM") return ["NEW", "ASSIGNED", "IN_PROGRESS", "KNOWN_ERROR"].includes(status) ? [...PROBLEM_FIELDS] : []
+  if (type === "CHANGE") {
+    if (status === "DRAFT") return [...CHANGE_PLAN_FIELDS]
+    if (status === "APPROVED" || status === "IN_PROGRESS") return ["outcomeNotes"]
+  }
+  return []
 }

@@ -88,6 +88,17 @@ export class InvalidTransitionProblem extends ProblemException {
   }
 }
 
+/**
+ * A soft block (DOMAIN.md §2.3): the move is allowed, but early — the client
+ * asks the person and retries with `confirm: true`. There is no warnings
+ * channel on a success, so this is how "are you sure?" travels.
+ */
+export class ChangeWindowEarlyProblem extends ProblemException {
+  constructor(detail: string) {
+    super("change-window-early", detail)
+  }
+}
+
 /** Optimistic concurrency: somebody else wrote first. */
 export class StaleWriteProblem extends ProblemException {
   constructor(detail = "The record changed since you loaded it") {

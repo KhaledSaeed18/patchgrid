@@ -100,4 +100,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   WATCHER_ADDED: "Someone adds me as a watcher",
   SLA_WARNING: "A ticket nears its SLA target",
   SLA_BREACHED: "A ticket misses its SLA target",
+  CHANGE_AWAITING_APPROVAL: "A change awaits my approval",
+  CHANGE_APPROVED: "A change I raised or carry out is approved",
+  CHANGE_REJECTED: "A change I raised or carry out is rejected",
 }

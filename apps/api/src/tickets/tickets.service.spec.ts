@@ -7,6 +7,7 @@ import { PermissionService } from "../authz/permission.service"
 import type { CategoriesService } from "../categories/categories.service"
 import { FixedClock } from "../common/clock/clock"
 import {
+  ChangeWindowEarlyProblem,
   ConflictProblem,
   InvalidTransitionProblem,
   NotFoundProblem,
@@ -23,6 +24,7 @@ import type { SlaPoliciesService } from "../sla/sla-policies.service"
 import type { TeamRepository } from "../teams/repositories/team.repository"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
 import type { CommentRepository } from "./repositories/comment.repository"
+import type { LinkRepository } from "./repositories/link.repository"
 import type { TicketRepository, TicketRow, TicketSummaryRow } from "./repositories/ticket.repository"
 import type { LoadedTicket, TicketAccess } from "./ticket-access"
 import { TicketsService } from "./tickets.service"
@@ -71,6 +73,8 @@ function row(over: Partial<TicketRow> = {}): TicketRow {
     responseWarningSentAt: null,
     resolutionWarningSentAt: null,
     reopenCount: 0,
+    problem: null,
+    change: null,
     ...over,
   }
 }
@@ -78,10 +82,28 @@ function row(over: Partial<TicketRow> = {}): TicketRow {
 function harness(
   role: Role,
   ticket: TicketRow = row(),
-  options: { versionMatches?: boolean; branches?: TicketSummaryRow[][]; ownTeamOnly?: boolean; teamIds?: string[]; byNumber?: TicketSummaryRow[] } = {},
+  options: {
+    versionMatches?: boolean
+    branches?: TicketSummaryRow[][]
+    ownTeamOnly?: boolean
+    teamIds?: string[]
+    leadOfTeamIds?: string[]
+    byNumber?: TicketSummaryRow[]
+    membershipId?: string
+    otherApprover?: boolean
+    visible?: TicketRow[]
+  } = {},
 ) {
   const calls: string[] = []
-  const actor: MemberActor = { kind: "member", userId: "u", orgId: ORG, membershipId: role === "REQUESTER" ? "m-req" : "m-agent", role, teamIds: options.teamIds ?? ["team-a"], leadOfTeamIds: [] }
+  const actor: MemberActor = {
+    kind: "member",
+    userId: "u",
+    orgId: ORG,
+    membershipId: options.membershipId ?? (role === "REQUESTER" ? "m-req" : "m-agent"),
+    role,
+    teamIds: options.teamIds ?? ["team-a"],
+    leadOfTeamIds: options.leadOfTeamIds ?? [],
+  }
   const permissions = new PermissionService()
   const loaded = (): LoadedTicket => ({
     row: ticket,
@@ -101,11 +123,24 @@ function harness(
     listBranch: vi.fn(async () => branchResults.shift() ?? []),
     findByNumber: vi.fn(async () => options.byNumber ?? []),
     search: vi.fn(async () => [row({ id: "t-text" })]),
+    updateDetails: vi.fn(async () => undefined),
+    addApproval: vi.fn(async () => undefined),
+    hasOtherApprover: vi.fn(async () => options.otherApprover ?? true),
   }
+  const links = { createMany: vi.fn(async () => undefined) }
+  const audit = { record: vi.fn(async () => undefined) }
   const service = new TicketsService(
     tickets as unknown as TicketRepository,
     { create: vi.fn(async () => ({ id: "c-1", visibility: "PUBLIC" })) } as unknown as CommentRepository,
-    { load: vi.fn(async () => loaded()) } as unknown as TicketAccess,
+    links as unknown as LinkRepository,
+    {
+      load: vi.fn(async () => loaded()),
+      loadVisible: vi.fn(async (_o: string, ids: string[]) =>
+        (options.visible ?? [])
+          .filter((r) => ids.includes(r.id))
+          .map((r) => ({ row: r, subject: { scope: true, own: false, watch: false, ticketType: r.type, ticketStatus: r.status }, relation: { role, isRequester: false, isAssignee: false, ticketHasAssignee: false } })),
+      ),
+    } as unknown as TicketAccess,
     { findById: async (_o: string, id: string) => (id === "m-ghost" ? null : { id, status: "ACTIVE", role: id === "m-req" ? "REQUESTER" : "AGENT" }) } as unknown as MembershipRepository,
     { findById: async (_o: string, id: string) => ({ id, isActive: id !== "team-dead" }) } as unknown as TeamRepository,
     { routeTeam: async () => "team-a", list: async () => [{ id: "cat-1" }] } as unknown as CategoriesService,
@@ -122,7 +157,7 @@ function harness(
       organization: () => ({ agentVisibility: options.ownTeamOnly === true ? "OWN_TEAM_ONLY" : "ALL_TICKETS" }),
     } as unknown as TenantContextService,
     { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
-    { record: async () => undefined } as unknown as AuditService,
+    audit as unknown as AuditService,
     {
       consume: async () => {
         calls.push("quota")
@@ -134,7 +169,7 @@ function harness(
   )
   // `get` re-reads through the access layer; the spec only cares that it is reached.
   vi.spyOn(service, "get").mockResolvedValue({} as never)
-  return { service, tickets, calls, notifier, pulse }
+  return { service, tickets, calls, notifier, pulse, links, audit }
 }
 
 const create = { type: "INCIDENT" as const, title: "Laptop", description: "Broken", impact: "MEDIUM" as const, urgency: "HIGH" as const }
@@ -147,6 +182,7 @@ describe("TicketsService.create", () => {
     expect(h.tickets.create).toHaveBeenCalledWith(
       ORG,
       expect.objectContaining({ number: 42, priority: "HIGH", teamId: "team-a", slaPolicyId: "p-high", source: "PORTAL", status: "NEW" }),
+      {},
     )
   })
 
@@ -217,6 +253,150 @@ describe("TicketsService notifications", () => {
     await expect(h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })).rejects.toBeInstanceOf(NotFoundProblem)
     expect(h.notifier.notifyAll).toHaveBeenCalledTimes(1)
     expect(h.pulse.changed).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("TicketsService notification choices", () => {
+  it("tells nobody when an assignment names the current assignee", async () => {
+    const h = harness("AGENT", row({ assigneeMembershipId: "m-agent" }))
+    await h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })
+    expect(h.notifier.notifyAll).toHaveBeenCalledWith(ORG, [])
+  })
+
+  it("reports a reopen as a reopen, not as a status change", async () => {
+    const h = harness("REQUESTER", row({ status: "RESOLVED", resolvedAt: NOW }))
+    await h.service.transition("t-1", { action: "reopen", version: 3, comment: { body: "Still broken", visibility: "PUBLIC" } })
+    expect(h.notifier.notifyAll).toHaveBeenCalledWith(ORG, [
+      { event: { kind: "ticket-reopened", ticketId: "t-1", actorMembershipId: "m-req", comment: "PUBLIC" }, entityId: "t-1", discriminator: "v4" },
+    ])
+  })
+})
+
+const change = (over: Partial<TicketRow> = {}, plan: Partial<NonNullable<TicketRow["change"]>> = {}): TicketRow =>
+  row({
+    type: "CHANGE",
+    status: "AWAITING_APPROVAL",
+    slaPolicyId: null,
+    requesterMembershipId: "m-requester",
+    assigneeMembershipId: null,
+    teamId: "team-net",
+    change: {
+      plannedStart: new Date(NOW.getTime() + 3 * 3_600_000),
+      plannedEnd: new Date(NOW.getTime() + 4 * 3_600_000),
+      risk: "LOW",
+      implementationPlan: "Swap",
+      rollbackPlan: "Swap back",
+      outcomeNotes: null,
+      approvals: [],
+      ...plan,
+    },
+    ...over,
+  })
+
+describe("TicketsService — problems and changes", () => {
+  const problemRequest = { type: "PROBLEM" as const, title: "Leases", description: "Root cause hunt", impact: "MEDIUM" as const, urgency: "MEDIUM" as const }
+
+  it("raises a Problem from incidents the agent can see, linking each CAUSED_BY it, with no SLA policy", async () => {
+    const incident = row({ id: "inc-1", type: "INCIDENT" })
+    const h = harness("AGENT", row(), { visible: [incident] })
+    await h.service.create({ ...problemRequest, causedIncidentIds: ["inc-1"], problem: { workaround: "Reconnect" } })
+    expect(h.calls).toEqual(["quota", "number"])
+    expect(h.tickets.create).toHaveBeenCalledWith(ORG, expect.objectContaining({ type: "PROBLEM", status: "NEW", slaPolicyId: null }), { problem: { workaround: "Reconnect" } })
+    expect(h.links.createMany).toHaveBeenCalledWith(ORG, [{ fromTicketId: "inc-1", toTicketId: "t-new", relation: "CAUSED_BY" }], "m-agent")
+  })
+
+  it("refuses a Problem from a ticket it cannot see or that is not an incident, and a requester's Problem outright", async () => {
+    await expect(harness("AGENT", row(), { visible: [] }).service.create({ ...problemRequest, causedIncidentIds: ["inc-x"] })).rejects.toBeInstanceOf(ValidationProblem)
+    const req = row({ id: "sr-1", type: "SERVICE_REQUEST" })
+    await expect(harness("AGENT", row(), { visible: [req] }).service.create({ ...problemRequest, causedIncidentIds: ["sr-1"] })).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(harness("REQUESTER").service.create(problemRequest)).rejects.toBeInstanceOf(NotPermittedProblem)
+    await expect(harness("AGENT").service.create({ ...create, problem: { rootCause: "x" } })).rejects.toBeInstanceOf(ValidationProblem)
+  })
+
+  it("starts a Change as a DRAFT and refuses a window that ends before it starts", async () => {
+    const h = harness("AGENT")
+    await h.service.create({ ...problemRequest, type: "CHANGE", change: { risk: "LOW" } })
+    expect(h.tickets.create).toHaveBeenCalledWith(ORG, expect.objectContaining({ type: "CHANGE", status: "DRAFT" }), { change: { risk: "LOW" } })
+    await expect(
+      harness("AGENT").service.create({ ...problemRequest, type: "CHANGE", change: { plannedStart: "2026-10-20T10:00:00.000Z", plannedEnd: "2026-10-20T09:00:00.000Z" } }),
+    ).rejects.toBeInstanceOf(ValidationProblem)
+  })
+
+  it("lets an admin approve someone else's change, recording the decision and auditing it", async () => {
+    const h = harness("ADMIN", change(), { membershipId: "m-admin" })
+    await h.service.transition("t-1", { action: "approve", version: 3 })
+    expect(h.tickets.addApproval).toHaveBeenCalledWith(ORG, expect.objectContaining({ decision: "APPROVED", selfApproved: false, approverMembershipId: "m-admin" }))
+    expect(h.audit.record).toHaveBeenCalledWith(ORG, expect.arrayContaining([expect.objectContaining({ action: "CHANGE_APPROVED" })]))
+    expect(h.notifier.notifyAll).toHaveBeenCalledWith(ORG, [expect.objectContaining({ event: expect.objectContaining({ kind: "change-decided", decision: "APPROVED" }) })])
+  })
+
+  it("lets a lead of the change's team decide, but never on a change they raised", async () => {
+    const lead = harness("AGENT", change(), { membershipId: "m-lead", leadOfTeamIds: ["team-net"] })
+    await lead.service.transition("t-1", { action: "reject", version: 3, comment: { body: "Needs a rollback test", visibility: "PUBLIC" } })
+    expect(lead.tickets.addApproval).toHaveBeenCalledWith(ORG, expect.objectContaining({ decision: "REJECTED", reason: "Needs a rollback test" }))
+    const own = harness("AGENT", change({ requesterMembershipId: "m-lead" }), { membershipId: "m-lead", leadOfTeamIds: ["team-net"] })
+    await expect(own.service.transition("t-1", { action: "approve", version: 3 })).rejects.toBeInstanceOf(NotPermittedProblem)
+    const other = harness("AGENT", change(), { membershipId: "m-agent", leadOfTeamIds: ["team-other"] })
+    await expect(other.service.transition("t-1", { action: "approve", version: 3 })).rejects.toBeInstanceOf(NotPermittedProblem)
+  })
+
+  it("lets an owner approve their own change only when nobody else could — and says so", async () => {
+    const alone = harness("OWNER", change({ requesterMembershipId: "m-owner" }), { membershipId: "m-owner", otherApprover: false })
+    await alone.service.transition("t-1", { action: "approve", version: 3 })
+    expect(alone.tickets.addApproval).toHaveBeenCalledWith(ORG, expect.objectContaining({ selfApproved: true }))
+    expect(alone.audit.record).toHaveBeenCalledWith(ORG, expect.arrayContaining([expect.objectContaining({ action: "CHANGE_SELF_APPROVED" })]))
+    const notAlone = harness("OWNER", change({ requesterMembershipId: "m-owner" }), { membershipId: "m-owner", otherApprover: true })
+    await expect(notAlone.service.transition("t-1", { action: "approve", version: 3 })).rejects.toBeInstanceOf(NotPermittedProblem)
+    // A rejection is never one's own.
+    await expect(alone.service.transition("t-1", { action: "reject", version: 3, comment: { body: "x", visibility: "PUBLIC" } })).rejects.toBeInstanceOf(NotPermittedProblem)
+  })
+
+  it("asks before starting a change more than an hour early, then starts it", async () => {
+    const approved = change({ status: "APPROVED", assigneeMembershipId: "m-agent" })
+    await expect(harness("AGENT", approved).service.transition("t-1", { action: "start", version: 3 })).rejects.toBeInstanceOf(ChangeWindowEarlyProblem)
+    const h = harness("AGENT", approved)
+    await h.service.transition("t-1", { action: "start", version: 3, confirm: true })
+    expect(h.tickets.updateVersioned).toHaveBeenCalledWith(ORG, "t-1", 3, expect.objectContaining({ status: "IN_PROGRESS" }))
+  })
+
+  it("marks the work done when it completes, for auto-close to count from", async () => {
+    const h = harness("AGENT", change({ status: "IN_PROGRESS", assigneeMembershipId: "m-agent" }, { outcomeNotes: "Swapped" }))
+    await h.service.transition("t-1", { action: "complete", version: 3 })
+    expect(h.tickets.updateVersioned).toHaveBeenCalledWith(ORG, "t-1", 3, expect.objectContaining({ status: "IMPLEMENTED", resolvedAt: NOW }))
+  })
+
+  it("edits a change's plan while DRAFT and its outcome once approved — never the other way round", async () => {
+    const draft = harness("AGENT", change({ status: "DRAFT", requesterMembershipId: "m-agent" }))
+    await draft.service.update("t-1", { version: 3, change: { rollbackPlan: "Restore from backup" } })
+    expect(draft.tickets.updateDetails).toHaveBeenCalledWith(ORG, "t-1", { problem: {}, change: { rollbackPlan: "Restore from backup" } })
+    await expect(harness("AGENT", change({ status: "DRAFT" })).service.update("t-1", { version: 3, change: { outcomeNotes: "Done" } })).rejects.toBeInstanceOf(NotPermittedProblem)
+    await expect(harness("AGENT", change({ status: "APPROVED" })).service.update("t-1", { version: 3, change: { risk: "HIGH" } })).rejects.toBeInstanceOf(NotPermittedProblem)
+  })
+
+  it("files a Problem as a known error with the time it became one", async () => {
+    const h = harness("AGENT", row({ type: "PROBLEM", status: "IN_PROGRESS", slaPolicyId: null, problem: { rootCause: null, workaround: "Reconnect", knownErrorAt: null } }))
+    await h.service.transition("t-1", { action: "workaround", version: 3 })
+    expect(h.tickets.updateDetails).toHaveBeenCalledWith(ORG, "t-1", { problem: { knownErrorAt: NOW } })
+  })
+
+  it("shows the approval inbox only to those who could decide, never their own changes", async () => {
+    const plain = harness("AGENT")
+    expect(await plain.service.list({ view: "approvals", sort: "newest", limit: 25 })).toEqual({ items: [], nextCursor: null })
+    const lead = harness("AGENT", row(), { leadOfTeamIds: ["team-net"] })
+    await lead.service.list({ view: "approvals", sort: "newest", limit: 25 })
+    expect(lead.tickets.listBranch).toHaveBeenCalledWith(
+      ORG,
+      null,
+      expect.objectContaining({
+        where: {
+          type: "CHANGE",
+          status: "AWAITING_APPROVAL",
+          teamId: { in: ["team-net"] },
+          requesterMembershipId: { not: "m-agent" },
+          OR: [{ assigneeMembershipId: null }, { assigneeMembershipId: { not: "m-agent" } }],
+        },
+      }),
+    )
   })
 })
 

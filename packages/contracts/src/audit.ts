@@ -36,6 +36,11 @@ export const auditActionSchema = z.enum([
   "WATCHER_REMOVED",
   "SLA_WARNING",
   "SLA_BREACHED",
+  "TICKET_LINKED",
+  "TICKET_UNLINKED",
+  "CHANGE_APPROVED",
+  "CHANGE_REJECTED",
+  "CHANGE_SELF_APPROVED",
 ])
 export type AuditAction = z.infer<typeof auditActionSchema>
 

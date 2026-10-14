@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common"
 import {
   type AgentVisibility,
   type AssignTicketRequest,
+  type ChangeFieldsInput,
   computePriority,
   type CreateTicketRequest,
   decodeCursor,
@@ -25,6 +26,7 @@ import type { ScopeBranch } from "../authz/scope-filter"
 import { CategoriesService } from "../categories/categories.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import {
+  ChangeWindowEarlyProblem,
   ConflictProblem,
   InvalidTransitionProblem,
   NotFoundProblem,
@@ -35,6 +37,7 @@ import {
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
 import { TicketPulse } from "../notifications/live/ticket-pulse"
 import { type Notice, Notifier } from "../notifications/notify"
+import type { NotifyEvent } from "../notifications/notify-events"
 import { PrismaService } from "../prisma/prisma.service"
 import { QuotaService } from "../quota/quota.service"
 import { SlaPoliciesService } from "../sla/sla-policies.service"
@@ -51,9 +54,18 @@ import {
   onResume,
   type SlaState,
 } from "./domain/sla"
-import { availableActions, checkTransition } from "./domain/transitions"
+import { type ApprovalStanding, availableActions, checkTransition, type TransitionTicket } from "./domain/transitions"
 import { CommentRepository } from "./repositories/comment.repository"
-import { type TicketChanges, TicketRepository, type TicketSummaryRow } from "./repositories/ticket.repository"
+import { LinkRepository } from "./repositories/link.repository"
+import {
+  type ChangeChanges,
+  type ChangeRow,
+  type ListFilter,
+  type TicketChanges,
+  TicketRepository,
+  type TicketRow,
+  type TicketSummaryRow,
+} from "./repositories/ticket.repository"
 import { type LoadedTicket, TicketAccess } from "./ticket-access"
 import { toSummary, toTicket } from "./ticket-view"
 
@@ -71,6 +83,7 @@ export class TicketsService {
   constructor(
     private readonly tickets: TicketRepository,
     private readonly comments: CommentRepository,
+    private readonly links: LinkRepository,
     private readonly access: TicketAccess,
     private readonly memberships: MembershipRepository,
     private readonly teams: TeamRepository,
@@ -112,6 +125,16 @@ export class TicketsService {
       }
     }
 
+    if (request.problem !== undefined && request.type !== "PROBLEM") throw fieldError("problem", "is only for a problem")
+    if (request.change !== undefined && request.type !== "CHANGE") throw fieldError("change", "is only for a change")
+    if (request.causedIncidentIds !== undefined && request.type !== "PROBLEM") {
+      throw fieldError("causedIncidentIds", "only a problem is created from incidents")
+    }
+    if (request.resolvesProblemId !== undefined && request.type !== "CHANGE") {
+      throw fieldError("resolvesProblemId", "only a change is created from a problem")
+    }
+    const change = request.change === undefined ? undefined : changeFields(request.change, null)
+
     const categoryId = request.categoryId ?? null
     if (categoryId !== null && !(await this.isPickable(categoryId))) {
       throw fieldError("categoryId", "is not an active category")
@@ -119,17 +142,23 @@ export class TicketsService {
     const teamId = categoryId === null ? null : await this.categories.routeTeam(orgId, categoryId)
     const priority = computePriority(request.impact, request.urgency)
     const now = this.clock.now()
+    const clocked = request.type === "INCIDENT" || request.type === "SERVICE_REQUEST"
 
     const id = await this.prisma.transaction(async () => {
       await this.quota.consume(orgId, "TICKETS_CREATED")
-      const policy = await this.sla.policyFor(orgId, request.type, priority)
+      // Only the clocked types have a policy (DOMAIN.md §4.1); Problems and Changes never run a clock.
+      const policy = clocked ? await this.sla.policyFor(orgId, request.type, priority) : null
+      // The tickets a create links to are checked first, as the actor sees them (a 400 names the field).
+      const linked = await this.linkTargets(orgId, actor, request)
       const number = await this.tickets.nextNumber(orgId, request.type)
-      const created = await this.tickets.create(orgId, {
+      const created = await this.tickets.create(
+        orgId,
+        {
         number,
         type: request.type,
         title: request.title,
         description: request.description,
-        status: "NEW",
+        status: request.type === "CHANGE" ? "DRAFT" : "NEW",
         impact: request.impact,
         urgency: request.urgency,
         priority,
@@ -150,7 +179,15 @@ export class TicketsService {
         responseWarningSentAt: null,
         resolutionWarningSentAt: null,
         reopenCount: 0,
-      })
+        },
+        { ...(request.problem === undefined ? {} : { problem: defined(request.problem) }), ...(change === undefined ? {} : { change }) },
+      )
+      const links = linked.map((target) =>
+        request.type === "PROBLEM"
+          ? { fromTicketId: target.id, toTicketId: created, relation: "CAUSED_BY" as const }
+          : { fromTicketId: target.id, toTicketId: created, relation: "RESOLVED_BY" as const },
+      )
+      await this.links.createMany(orgId, links, actor.membershipId)
       await this.audit.record(orgId, [
         {
           action: "TICKET_CREATED",
@@ -158,6 +195,7 @@ export class TicketsService {
           entityId: created,
           diff: { type: request.type, priority, teamId, onBehalfOf: requesterId === actor.membershipId ? null : requesterId },
         },
+        ...links.map((link): AuditEntry => ({ action: "TICKET_LINKED", entityType: "Ticket", entityId: created, diff: { ...link } })),
       ])
       return created
     })
@@ -174,14 +212,19 @@ export class TicketsService {
     const saved = await this.prisma.transaction(async () => {
       const loaded = await this.access.load(orgId, id, actor, this.visibility())
       const { row } = loaded
-      const editable = new Set(this.permissions.capabilitiesFor(actor, loaded.subject).editableFields)
-      const { version, ...fields } = request
+      const editable = new Set<string>(this.permissions.capabilitiesFor(actor, loaded.subject).editableFields)
+      const { version, problem, change, ...fields } = request
       const changed = (Object.keys(fields) as (keyof typeof fields)[]).filter(
         (field) => fields[field] !== undefined && fields[field] !== row[field],
       )
-      const refused = changed.filter((field) => !editable.has(field))
+      // A Problem's or Change's own fields, compared with what is stored; the same capability list decides.
+      const problemChanges = problem === undefined ? {} : changedOnly(defined(problem), row.problem)
+      const changeChanges = change === undefined ? {} : changedOnly(changeFields(change, row.change), row.change)
+      if (problem !== undefined && row.type !== "PROBLEM") throw fieldError("problem", "is only for a problem")
+      if (change !== undefined && row.type !== "CHANGE") throw fieldError("change", "is only for a change")
+      const refused = [...changed, ...Object.keys(problemChanges), ...Object.keys(changeChanges)].filter((field) => !editable.has(field))
       if (refused.length > 0) throw new NotPermittedProblem(`You can't change ${refused.join(", ")} on this ticket`)
-      if (changed.length === 0) return false
+      if (changed.length === 0 && Object.keys(problemChanges).length === 0 && Object.keys(changeChanges).length === 0) return false
 
       const changes: TicketChanges = {}
       for (const field of changed) Object.assign(changes, { [field]: fields[field] })
@@ -198,7 +241,13 @@ export class TicketsService {
       }
 
       if (!(await this.tickets.updateVersioned(orgId, id, version, changes))) throw new StaleWriteProblem()
-      await this.audit.record(orgId, [{ action: "TICKET_UPDATED", entityType: "Ticket", entityId: id, diff: diffOf(row, changes) }])
+      await this.tickets.updateDetails(orgId, id, { problem: problemChanges, change: changeChanges })
+      const diff = {
+        ...diffOf(row, changes),
+        ...diffOf(row.problem ?? {}, problemChanges),
+        ...diffOf(row.change ?? {}, changeChanges),
+      }
+      await this.audit.record(orgId, [{ action: "TICKET_UPDATED", entityType: "Ticket", entityId: id, diff }])
       return true
     })
     // An edit tells nobody (DOMAIN.md §8), but the pages showing the ticket refetch.
@@ -258,16 +307,18 @@ export class TicketsService {
     const orgId = this.tenant.requireOrgId()
     const moved = await this.prisma.transaction(async () => {
       const loaded = await this.access.load(orgId, id, actor, this.visibility())
-      const { row, relation } = loaded
+      const { row } = loaded
       this.permissions.assert(actor, "ticket:transition", loaded.subject)
+      const relation = { ...loaded.relation, approval: await this.approvalStanding(orgId, actor, row) }
       const now = this.clock.now()
       const check = checkTransition({
         type: row.type,
-        ticket: row,
+        ticket: transitionFacts(row),
         action: request.action,
         actor: relation,
         comment: request.comment ?? null,
         now,
+        confirm: request.confirm === true,
       })
       if (!check.ok) {
         switch (check.problem) {
@@ -279,6 +330,8 @@ export class TicketsService {
             throw new ConflictProblem(check.reason)
           case "comment-required":
             throw new ValidationProblem([{ path: "comment", message: check.reason, code: "comment_required" }])
+          case "confirm-required":
+            throw new ChangeWindowEarlyProblem(check.reason)
         }
       }
       if (request.comment?.visibility === "INTERNAL") {
@@ -318,6 +371,17 @@ export class TicketsService {
         case "cancel":
           changes.cancelledAt = now
           break
+        case "workaround":
+        case "submit":
+        case "approve":
+        case "reject":
+          // Their effects are on the Problem's or Change's own rows, below.
+          break
+        case "complete":
+        case "rollback":
+          // The work is over, either way: auto-close counts seven days from here.
+          changes.resolvedAt = now
+          break
         default:
           throw new InvalidTransitionProblem(row.status, request.action)
       }
@@ -331,6 +395,19 @@ export class TicketsService {
           diff: { action: request.action, from: row.status, to: check.row.to },
         },
       ]
+      if (request.action === "workaround") await this.tickets.updateDetails(orgId, id, { problem: { knownErrorAt: now } })
+      if (request.action === "approve" || request.action === "reject") {
+        const selfApproved = request.action === "approve" && relation.approval === "self"
+        const decision = request.action === "approve" ? "APPROVED" : "REJECTED"
+        const reason = request.action === "reject" ? (request.comment?.body ?? null) : null
+        await this.tickets.addApproval(orgId, { ticketId: id, approverMembershipId: actor.membershipId, decision, selfApproved, reason, decidedAt: now })
+        entries.push({
+          action: selfApproved ? "CHANGE_SELF_APPROVED" : decision === "APPROVED" ? "CHANGE_APPROVED" : "CHANGE_REJECTED",
+          entityType: "Ticket",
+          entityId: id,
+          diff: { decision, ...(reason === null ? {} : { reason }) },
+        })
+      }
       if (request.comment !== undefined) {
         const comment = await this.comments.create(orgId, {
           ticketId: id,
@@ -354,16 +431,15 @@ export class TicketsService {
     const by = actor.membershipId
     const at = `v${String(request.version + 1)}`
     const comment = request.comment?.visibility ?? null
-    const notices: Notice[] = [
-      {
-        event:
-          request.action === "reopen"
-            ? { kind: "ticket-reopened", ticketId: id, actorMembershipId: by, comment }
-            : { kind: "status-changed", ticketId: id, actorMembershipId: by, to: moved.to, comment },
-        entityId: id,
-        discriminator: at,
-      },
-    ]
+    const event: NotifyEvent =
+      request.action === "reopen"
+        ? { kind: "ticket-reopened", ticketId: id, actorMembershipId: by, comment }
+        : request.action === "submit"
+          ? { kind: "change-submitted", ticketId: id, actorMembershipId: by }
+          : request.action === "approve" || request.action === "reject"
+            ? { kind: "change-decided", ticketId: id, actorMembershipId: by, decision: request.action === "approve" ? "APPROVED" : "REJECTED", comment }
+            : { kind: "status-changed", ticketId: id, actorMembershipId: by, to: moved.to, comment }
+    const notices: Notice[] = [{ event, entityId: id, discriminator: at }]
     if (moved.assigned !== null && moved.assigned !== moved.previousAssignee) {
       notices.push({
         event: { kind: "ticket-assigned", ticketId: id, actorMembershipId: by, assigneeMembershipId: moved.assigned },
@@ -458,21 +534,35 @@ export class TicketsService {
   }
 
   /** The view's own narrowing, before scope; `null` for a view this actor has nothing in. */
-  private viewWhere(actor: TenantActor, query: TicketListQuery) {
+  private viewWhere(actor: TenantActor, query: TicketListQuery): ListFilter["where"] | null {
     const status = query.status ?? { in: OPEN_STATUSES }
+    const type = query.type === undefined ? {} : { type: query.type }
     switch (query.view) {
       case "mine":
-        return { requesterMembershipId: actor.membershipId, ...(query.status === undefined ? {} : { status: query.status }) }
+        return { ...type, requesterMembershipId: actor.membershipId, ...(query.status === undefined ? {} : { status: query.status }) }
       case "assigned":
-        return { assigneeMembershipId: actor.membershipId, status }
+        return { ...type, assigneeMembershipId: actor.membershipId, status }
       case "teams": {
         const teamIds = actor.kind === "member" ? actor.teamIds : []
-        return teamIds.length === 0 ? null : { teamId: { in: teamIds }, status }
+        return teamIds.length === 0 ? null : { ...type, teamId: { in: teamIds }, status }
       }
       case "open":
-        return { status }
+        return { ...type, status }
       case "unassigned":
-        return { teamId: null, assigneeMembershipId: null, status }
+        return { ...type, teamId: null, assigneeMembershipId: null, status }
+      case "approvals": {
+        // Changes awaiting a decision this actor may make (DOMAIN.md §2.3, rules 1 and 2):
+        // an admin's are all of them, a lead's their teams'; never one's own.
+        const awaiting: ListFilter["where"] = {
+          type: "CHANGE",
+          status: "AWAITING_APPROVAL",
+          requesterMembershipId: { not: actor.membershipId },
+          OR: [{ assigneeMembershipId: null }, { assigneeMembershipId: { not: actor.membershipId } }],
+        }
+        if (actor.role === "ADMIN" || actor.role === "OWNER") return awaiting
+        const leads = actor.kind === "member" ? actor.leadOfTeamIds : []
+        return leads.length === 0 ? null : { ...awaiting, teamId: { in: leads } }
+      }
     }
   }
 
@@ -513,16 +603,56 @@ export class TicketsService {
     return changes
   }
 
+  /**
+   * The tickets a create names to link: each must be one this actor can read
+   * and may link, and of the type the relation joins — incidents for a new
+   * Problem, a Problem for a new Change. Loaded in one go.
+   */
+  private async linkTargets(orgId: string, actor: TenantActor, request: CreateTicketRequest): Promise<TicketRow[]> {
+    const [path, ids, type] =
+      request.causedIncidentIds !== undefined
+        ? (["causedIncidentIds", [...new Set(request.causedIncidentIds)], "INCIDENT"] as const)
+        : request.resolvesProblemId !== undefined
+          ? (["resolvesProblemId", [request.resolvesProblemId], "PROBLEM"] as const)
+          : (["", [], "INCIDENT"] as const)
+    if (ids.length === 0) return []
+    const visible = await this.access.loadVisible(orgId, ids, actor, this.visibility())
+    if (visible.length !== ids.length) throw fieldError(path, "names a ticket that does not exist")
+    for (const target of visible) {
+      if (target.row.type !== type) throw fieldError(path, `must name ${type === "INCIDENT" ? "incidents" : "a problem"}`)
+      if (!this.permissions.can(actor, "ticket:link", target.subject)) throw new NotPermittedProblem("You can't link that ticket")
+    }
+    return visible.map((t) => t.row)
+  }
+
+  /**
+   * May this actor decide on this Change (DOMAIN.md §2.3)? Rules 1 and 2 are
+   * the `ticket:approve_change` grant — an admin, or a lead of the change's
+   * team, never the change's own requester or assignee. Rule 3 is for an
+   * owner who is one of those, and only when nobody else could decide: the
+   * one-admin workspace still ships its changes, and the row says so.
+   */
+  private async approvalStanding(orgId: string, actor: TenantActor, row: TicketRow): Promise<ApprovalStanding> {
+    if (row.type !== "CHANGE" || row.status !== "AWAITING_APPROVAL") return "none"
+    const own = row.requesterMembershipId === actor.membershipId || row.assigneeMembershipId === actor.membershipId
+    const lead = actor.kind === "member" && row.teamId !== null && actor.leadOfTeamIds.includes(row.teamId)
+    if (this.permissions.can(actor, "ticket:approve_change", { lead, own })) return "eligible"
+    if (!own || actor.role !== "OWNER") return "none"
+    const involved = [row.requesterMembershipId, ...(row.assigneeMembershipId === null ? [] : [row.assigneeMembershipId])]
+    return (await this.tickets.hasOtherApprover(orgId, { teamId: row.teamId, involved })) ? "none" : "self"
+  }
+
   private async isPickable(categoryId: string): Promise<boolean> {
     return (await this.categories.list(false)).some((c) => c.id === categoryId)
   }
 
-  private view(actor: TenantActor, loaded: LoadedTicket): Ticket {
+  private async view(actor: TenantActor, loaded: LoadedTicket): Promise<Ticket> {
     const now = this.clock.now()
+    const relation = { ...loaded.relation, approval: await this.approvalStanding(this.tenant.requireOrgId(), actor, loaded.row) }
     return toTicket(
       loaded.row,
       now,
-      availableActions({ type: loaded.row.type, ticket: loaded.row, actor: loaded.relation, now }),
+      availableActions({ type: loaded.row.type, ticket: transitionFacts(loaded.row), actor: relation, now }),
       this.permissions.capabilitiesFor(actor, loaded.subject),
     )
   }
@@ -544,17 +674,57 @@ export class TicketsService {
   }
 }
 
+/** What the transition table's guards read off a ticket. */
+function transitionFacts(row: TicketRow): TransitionTicket {
+  return { status: row.status, closedAt: row.closedAt, problem: row.problem, change: row.change }
+}
+
 function sourceOf(actor: TenantActor): TicketSource {
   if (actor.kind === "service") return "API"
   return actor.role === "REQUESTER" ? "PORTAL" : "CONSOLE"
+}
+
+/**
+ * A Change's fields from the wire: dates parsed, and the window checked
+ * against what is stored for whichever end the request leaves alone — a
+ * window ends after it starts (the database says so too).
+ */
+function changeFields(input: ChangeFieldsInput, stored: ChangeRow | null): ChangeChanges {
+  const date = (v: string | null | undefined) => (v === undefined ? undefined : v === null ? null : new Date(v))
+  const out: ChangeChanges = {}
+  const start = date(input.plannedStart)
+  const end = date(input.plannedEnd)
+  if (start !== undefined) out.plannedStart = start
+  if (end !== undefined) out.plannedEnd = end
+  if (input.risk !== undefined) out.risk = input.risk
+  if (input.implementationPlan !== undefined) out.implementationPlan = input.implementationPlan
+  if (input.rollbackPlan !== undefined) out.rollbackPlan = input.rollbackPlan
+  if (input.outcomeNotes !== undefined) out.outcomeNotes = input.outcomeNotes
+  const from = start === undefined ? (stored?.plannedStart ?? null) : start
+  const to = end === undefined ? (stored?.plannedEnd ?? null) : end
+  if (from !== null && to !== null && to.getTime() <= from.getTime()) throw fieldError("change.plannedEnd", "must be after the planned start")
+  return out
+}
+
+/** The entries of `next` that differ from `stored` — dates by instant. */
+function changedOnly<T extends Record<string, unknown>>(next: T, stored: Record<string, unknown> | null): Partial<T> {
+  const same = (a: unknown, b: unknown) => (a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : a === b)
+  return Object.fromEntries(
+    Object.entries(next).filter(([key, value]) => value !== undefined && !same(value, stored?.[key] ?? null)),
+  ) as Partial<T>
 }
 
 function fieldError(path: string, message: string): ValidationProblem {
   return new ValidationProblem([{ path, message, code: "invalid_ticket" }])
 }
 
+/** An input with its absent keys gone — what `exactOptionalPropertyTypes` asks of a write. */
+function defined<T extends Record<string, unknown>>(input: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as { [K in keyof T]?: Exclude<T[K], undefined> }
+}
+
 /** `{ field: { from, to } }` for the fields that moved (DOMAIN.md §7). */
-function diffOf(row: Record<string, unknown>, changes: TicketChanges): Record<string, { from: unknown; to: unknown }> {
+function diffOf(row: Record<string, unknown>, changes: Record<string, unknown>): Record<string, { from: unknown; to: unknown }> {
   const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v)
   return Object.fromEntries(
     Object.entries(changes).map(([field, to]) => [field, { from: iso(row[field] ?? null), to: iso(to ?? null) }]),

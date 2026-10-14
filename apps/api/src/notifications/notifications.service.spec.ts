@@ -85,7 +85,7 @@ describe("NotificationsService", () => {
     const read = await h.service.readPreferences()
     expect(read.emailEnabledForOrg).toBe(false)
     expect(read.email.SLA_WARNING).toBe(false)
-    expect(Object.values(read.email).filter((on) => on)).toHaveLength(9)
+    expect(Object.values(read.email).filter((on) => on)).toHaveLength(12)
     expect(h.prefs.read).toHaveBeenCalledWith("o-1", "m-1")
   })
 

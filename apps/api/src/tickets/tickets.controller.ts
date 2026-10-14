@@ -4,6 +4,7 @@ import {
   assignTicketRequestSchema,
   type Comment,
   commentInputSchema,
+  createLinkRequestSchema,
   createTicketRequestSchema,
   editCommentRequestSchema,
   idSchema,
@@ -11,6 +12,7 @@ import {
   ticketListQuerySchema,
   ticketSearchQuerySchema,
   type TicketSearchResult,
+  type TicketLink,
   type TicketPage,
   transitionRequestSchema,
   updateTicketRequestSchema,
@@ -21,6 +23,7 @@ import { z } from "zod"
 
 import { RequirePermission } from "../authz/require-permission"
 import { CommentsService } from "./comments.service"
+import { LinksService } from "./links.service"
 import { TicketAuditService } from "./ticket-audit.service"
 import { TicketsService } from "./tickets.service"
 import { WatchersService } from "./watchers.service"
@@ -29,6 +32,8 @@ import { Idempotent } from "../common/idempotency/idempotency"
 class TicketParams extends createZodDto(z.object({ id: idSchema })) {}
 class CommentParams extends createZodDto(z.object({ id: idSchema, commentId: idSchema })) {}
 class WatcherParams extends createZodDto(z.object({ id: idSchema, membershipId: idSchema })) {}
+class LinkParams extends createZodDto(z.object({ id: idSchema, linkId: idSchema })) {}
+class LinkDto extends createZodDto(createLinkRequestSchema) {}
 class ListDto extends createZodDto(ticketListQuerySchema) {}
 class SearchDto extends createZodDto(ticketSearchQuerySchema) {}
 class CreateDto extends createZodDto(createTicketRequestSchema) {}
@@ -50,6 +55,7 @@ export class TicketsController {
     private readonly tickets: TicketsService,
     private readonly comments: CommentsService,
     private readonly watchers: WatchersService,
+    private readonly links: LinksService,
     private readonly audit: TicketAuditService,
   ) {}
 
@@ -141,6 +147,26 @@ export class TicketsController {
   @RequirePermission("ticket:watch")
   removeWatcher(@Param() params: WatcherParams): Promise<Watcher[]> {
     return this.watchers.remove(params.id, params.membershipId)
+  }
+
+  @Get(":id/links")
+  @RequirePermission("ticket:read")
+  listLinks(@Param() params: TicketParams): Promise<TicketLink[]> {
+    return this.links.list(params.id)
+  }
+
+  @Post(":id/links")
+  @HttpCode(201)
+  @RequirePermission("ticket:link")
+  @Idempotent()
+  addLink(@Param() params: TicketParams, @Body() body: LinkDto): Promise<TicketLink[]> {
+    return this.links.add(params.id, body)
+  }
+
+  @Delete(":id/links/:linkId")
+  @RequirePermission("ticket:link")
+  removeLink(@Param() params: LinkParams): Promise<TicketLink[]> {
+    return this.links.remove(params.id, params.linkId)
   }
 
   @Get(":id/audit")

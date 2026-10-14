@@ -15,6 +15,9 @@ export const notificationTypeSchema = z.enum([
   "WATCHER_ADDED",
   "SLA_WARNING",
   "SLA_BREACHED",
+  "CHANGE_AWAITING_APPROVAL",
+  "CHANGE_APPROVED",
+  "CHANGE_REJECTED",
 ])
 export type NotificationType = z.infer<typeof notificationTypeSchema>
 

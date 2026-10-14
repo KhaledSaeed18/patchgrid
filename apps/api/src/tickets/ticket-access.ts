@@ -53,6 +53,36 @@ export class TicketAccess {
     }
   }
 
+  /**
+   * Several tickets at once, keeping those this actor may read — the same
+   * decision `load` makes for one, in two statements whatever the count. For
+   * a create or a link that names other tickets: one the actor cannot see is
+   * simply absent, and the caller says so.
+   */
+  async loadVisible(orgId: string, ids: readonly string[], actor: TenantActor, visibility: AgentVisibility): Promise<LoadedTicket[]> {
+    if (ids.length === 0) return []
+    const rows = await this.tickets.findManyById(orgId, ids)
+    const watched = await this.tickets.watchedAmong(orgId, rows.map((r) => r.id), actor.membershipId)
+    return rows.flatMap((row) => {
+      const own = row.requesterMembershipId === actor.membershipId
+      const watch = !own && watched.has(row.id)
+      const subject = { own, watch, scope: this.inScope(actor, row, watch, visibility), ticketType: row.type, ticketStatus: row.status }
+      if (!this.permissions.can(actor, "ticket:read", subject)) return []
+      return [
+        {
+          row,
+          subject,
+          relation: {
+            role: actor.role,
+            isRequester: own,
+            isAssignee: row.assigneeMembershipId === actor.membershipId,
+            ticketHasAssignee: row.assigneeMembershipId !== null,
+          },
+        },
+      ]
+    })
+  }
+
   /** The ticket against the actor's scope filter — the same branches the lists query. */
   private inScope(actor: TenantActor, row: TicketRow, watch: boolean, visibility: AgentVisibility): boolean {
     return ticketInScope(this.permissions.scopeFor(actor, "ticket", { agentVisibility: visibility }), row, watch)

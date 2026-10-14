@@ -84,9 +84,37 @@ export const commentInputSchema = z.object({
 })
 export type CommentInput = z.infer<typeof commentInputSchema>
 
+/** How risky a Change is judged to be (DOMAIN.md §2.3). Storage twin: Prisma's `ChangeRisk`. */
+export const changeRiskSchema = z.enum(["LOW", "MEDIUM", "HIGH"])
+export type ChangeRisk = z.infer<typeof changeRiskSchema>
+
+const longTextSchema = z.string().trim().min(1).max(20_000)
+
+/** A Problem's own fields (ADR-0002). Each may be set or cleared (`null`) while it is worked. */
+export const problemFieldsInputSchema = z.strictObject({
+  rootCause: longTextSchema.nullable().optional(),
+  workaround: longTextSchema.nullable().optional(),
+})
+export type ProblemFieldsInput = z.infer<typeof problemFieldsInputSchema>
+
+/** A Change's plan (DOMAIN.md §2.3): optional while `DRAFT`, all required to `submit`. */
+export const changeFieldsInputSchema = z.strictObject({
+  plannedStart: z.iso.datetime().nullable().optional(),
+  plannedEnd: z.iso.datetime().nullable().optional(),
+  risk: changeRiskSchema.nullable().optional(),
+  implementationPlan: longTextSchema.nullable().optional(),
+  rollbackPlan: longTextSchema.nullable().optional(),
+  /** Required by `complete` and `rollback`. */
+  outcomeNotes: longTextSchema.nullable().optional(),
+})
+export type ChangeFieldsInput = z.infer<typeof changeFieldsInputSchema>
+
+/** Linked tickets a create takes with it — at most this many at once. */
+export const MAX_CREATE_LINKS = 50
+
 export const createTicketRequestSchema = z.strictObject({
-  /** Problems and Changes are raised by agents, with their milestone. */
-  type: z.enum(["INCIDENT", "SERVICE_REQUEST"]),
+  /** Problems and Changes are raised by agents (RBAC.md §6). */
+  type: ticketTypeSchema,
   title: titleSchema,
   description: descriptionSchema,
   impact: impactSchema,
@@ -94,6 +122,14 @@ export const createTicketRequestSchema = z.strictObject({
   categoryId: idSchema.optional(),
   /** Raising it for someone else needs `ticket:create_on_behalf`. */
   requesterMembershipId: idSchema.optional(),
+  /** A Problem only. */
+  problem: problemFieldsInputSchema.optional(),
+  /** A Change only. */
+  change: changeFieldsInputSchema.optional(),
+  /** "Create a Problem from these incidents": each is linked `CAUSED_BY` the new Problem. */
+  causedIncidentIds: z.array(idSchema).min(1).max(MAX_CREATE_LINKS).optional(),
+  /** "Create a Change from this Problem": the Problem is linked `RESOLVED_BY` the new Change. */
+  resolvesProblemId: idSchema.optional(),
 })
 export type CreateTicketRequest = z.infer<typeof createTicketRequestSchema>
 
@@ -106,6 +142,10 @@ export const updateTicketRequestSchema = z
     impact: impactSchema.optional(),
     urgency: urgencySchema.optional(),
     categoryId: idSchema.nullable().optional(),
+    /** A Problem's details — the ticket's version covers them too. */
+    problem: problemFieldsInputSchema.optional(),
+    /** A Change's plan and outcome. */
+    change: changeFieldsInputSchema.optional(),
   })
   .refine((v) => Object.keys(v).length > 1, { error: "must change at least one field" })
 export type UpdateTicketRequest = z.infer<typeof updateTicketRequestSchema>
@@ -131,6 +171,12 @@ export const transitionRequestSchema = z.strictObject({
   /** For `assign`. */
   assigneeMembershipId: idSchema.optional(),
   teamId: idSchema.optional(),
+  /**
+   * A soft block, retried (CLAUDE.md: no warnings channel): starting a Change
+   * more than an hour before its window is a 409 `change-window-early` unless
+   * this is `true`.
+   */
+  confirm: z.literal(true).optional(),
 })
 export type TransitionRequest = z.infer<typeof transitionRequestSchema>
 
@@ -143,9 +189,31 @@ export const clockSchema = z.object({
   paused: z.boolean(),
 })
 
+export const PROBLEM_FIELDS = ["rootCause", "workaround"] as const
+export const CHANGE_PLAN_FIELDS = ["plannedStart", "plannedEnd", "risk", "implementationPlan", "rollbackPlan"] as const
+export const editableFieldSchema = z.enum([
+  "title",
+  "description",
+  "impact",
+  "urgency",
+  "categoryId",
+  ...PROBLEM_FIELDS,
+  ...CHANGE_PLAN_FIELDS,
+  "outcomeNotes",
+])
+export type EditableField = z.infer<typeof editableFieldSchema>
+
 /** Which fields this actor may edit and what else they may do, on THIS ticket (RBAC.md §7). */
 export const ticketCapabilitiesSchema = z.object({
-  editableFields: z.array(z.enum(["title", "description", "impact", "urgency", "categoryId"])),
+  /**
+   * The core fields, then a Problem's or Change's own — named one by one,
+   * because which of a Change's fields are open depends on where it is (the
+   * plan while `DRAFT`, the outcome while it is carried out) and the UI must
+   * not work that out for itself.
+   */
+  editableFields: z.array(editableFieldSchema),
+  /** Links to and from this ticket may be added and removed. */
+  canLink: z.boolean(),
   canAssign: z.boolean(),
   canCommentPublic: z.boolean(),
   canCommentInternal: z.boolean(),
@@ -175,6 +243,40 @@ export const ticketSummarySchema = z.object({
 })
 export type TicketSummary = z.infer<typeof ticketSummarySchema>
 
+export const problemFieldsSchema = z.object({
+  rootCause: z.string().nullable(),
+  workaround: z.string().nullable(),
+  knownErrorAt: z.iso.datetime().nullable(),
+})
+export type ProblemFields = z.infer<typeof problemFieldsSchema>
+
+export const approvalDecisionSchema = z.enum(["APPROVED", "REJECTED"])
+export type ApprovalDecision = z.infer<typeof approvalDecisionSchema>
+
+/** One decision on a Change; a rejected and resubmitted Change collects several. */
+export const changeApprovalSchema = z.object({
+  id: idSchema,
+  approver: personSchema,
+  decision: approvalDecisionSchema,
+  /** The documented last-approver case (DOMAIN.md §2.3, rule 3), labelled as such. */
+  selfApproved: z.boolean(),
+  reason: z.string().nullable(),
+  decidedAt: z.iso.datetime(),
+})
+export type ChangeApproval = z.infer<typeof changeApprovalSchema>
+
+export const changeFieldsSchema = z.object({
+  plannedStart: z.iso.datetime().nullable(),
+  plannedEnd: z.iso.datetime().nullable(),
+  risk: changeRiskSchema.nullable(),
+  implementationPlan: z.string().nullable(),
+  rollbackPlan: z.string().nullable(),
+  outcomeNotes: z.string().nullable(),
+  /** Newest first. */
+  approvals: z.array(changeApprovalSchema),
+})
+export type ChangeFields = z.infer<typeof changeFieldsSchema>
+
 export const ticketSchema = ticketSummarySchema.extend({
   description: z.string(),
   version: z.int(),
@@ -188,15 +290,54 @@ export const ticketSchema = ticketSummarySchema.extend({
   closedAt: z.iso.datetime().nullable(),
   availableActions: z.array(ticketActionSchema),
   capabilities: ticketCapabilitiesSchema,
+  /** Present on a Problem, `null` otherwise. */
+  problem: problemFieldsSchema.nullable(),
+  /** Present on a Change, `null` otherwise. */
+  change: changeFieldsSchema.nullable(),
 })
 export type Ticket = z.infer<typeof ticketSchema>
 
 /**
+ * A link as read from one ticket (DOMAIN.md §1). Stored once in its canonical
+ * direction; each end reads it its own way — `CAUSED_BY` from the incident is
+ * `CAUSES` from the problem.
+ */
+export const linkKindSchema = z.enum([
+  "CAUSED_BY",
+  "CAUSES",
+  "RESOLVED_BY",
+  "RESOLVES",
+  "DUPLICATE_OF",
+  "HAS_DUPLICATE",
+  "RELATES_TO",
+])
+export type LinkKind = z.infer<typeof linkKindSchema>
+
+export const ticketLinkSchema = z.object({
+  id: idSchema,
+  kind: linkKindSchema,
+  ticket: z.object({
+    id: idSchema,
+    number: z.string(),
+    type: ticketTypeSchema,
+    title: z.string(),
+    status: ticketStatusSchema,
+  }),
+  createdAt: z.iso.datetime(),
+})
+export type TicketLink = z.infer<typeof ticketLinkSchema>
+
+/** `POST /tickets/:id/links`: "this ticket <kind> that one", read from this ticket. */
+export const createLinkRequestSchema = z.strictObject({ kind: linkKindSchema, ticketId: idSchema })
+export type CreateLinkRequest = z.infer<typeof createLinkRequestSchema>
+
+/**
  * The lists (ARCHITECTURE.md §Frontend): `mine` is what the actor raised,
  * `assigned` what is theirs to work, `teams` their teams' open work,
- * `open` everything open they may see, `unassigned` the queue with no team.
+ * `open` everything open they may see, `unassigned` the queue with no team,
+ * `approvals` the Changes awaiting a decision this actor may make.
  */
-export const ticketViewSchema = z.enum(["mine", "assigned", "teams", "open", "unassigned"])
+export const ticketViewSchema = z.enum(["mine", "assigned", "teams", "open", "unassigned", "approvals"])
 export type TicketView = z.infer<typeof ticketViewSchema>
 
 /**
@@ -209,6 +350,8 @@ export type TicketSort = z.infer<typeof ticketSortSchema>
 
 export const ticketListQuerySchema = paginationQuerySchema.extend({
   view: ticketViewSchema.default("mine"),
+  /** The per-type queues. */
+  type: ticketTypeSchema.optional(),
   status: ticketStatusSchema.optional(),
   sort: ticketSortSchema.default("newest"),
 })

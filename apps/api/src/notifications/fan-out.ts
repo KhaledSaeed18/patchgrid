@@ -61,6 +61,9 @@ const STATUS_WORDS: Partial<Record<TicketStatus, string>> = {
   PENDING: "is waiting for your reply",
   RESOLVED: "was resolved",
   CLOSED: "was closed",
+  // A Change's outcome, either way it went.
+  IMPLEMENTED: "was implemented",
+  ROLLED_BACK: "was rolled back",
 }
 
 /**
@@ -129,6 +132,26 @@ export function deliveriesFor(event: NotifyEvent, circle: TicketCircle): Deliver
     }
     case "ticket-reopened":
       send([circle.assignee, ...circle.teamLeads], "TICKET_REOPENED", `Reopened — ${ref}`)
+      if (event.comment !== null) comment(event.comment)
+      break
+    case "change-submitted":
+      // Rules 1 and 2's approvers (DOMAIN.md §2.3): the team's leads and the admins.
+      // `deliveriesFor` drops the actor; the audience check and the requester/assignee
+      // exclusion below keep it to people who could decide.
+      send(
+        [...circle.teamLeads, ...circle.admins].filter(
+          (p) => p.membershipId !== ticket.requesterMembershipId && p.membershipId !== ticket.assigneeMembershipId,
+        ),
+        "CHANGE_AWAITING_APPROVAL",
+        `Awaiting your approval — ${ref}`,
+      )
+      break
+    case "change-decided":
+      send(
+        [circle.requester, circle.assignee],
+        event.decision === "APPROVED" ? "CHANGE_APPROVED" : "CHANGE_REJECTED",
+        `${event.decision === "APPROVED" ? "Approved" : "Rejected"} — ${ref}`,
+      )
       if (event.comment !== null) comment(event.comment)
       break
     case "watcher-added": {
