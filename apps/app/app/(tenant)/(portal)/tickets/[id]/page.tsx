@@ -1,4 +1,5 @@
 import {
+  attachmentSchema,
   categorySchema,
   commentSchema,
   memberPageSchema,
@@ -31,11 +32,14 @@ export default async function TicketPage({
 }) {
   const { id } = await params
   if (!ID.safeParse(id).success) notFound()
-  const [ticket, comments, watchers, links] = await Promise.all([
+  const [ticket, comments, watchers, links, files] = await Promise.all([
     serverApi(`/tickets/${id}`, { schema: ticketSchema }),
     serverApi(`/tickets/${id}/comments`, { schema: z.array(commentSchema) }),
     serverApi(`/tickets/${id}/watchers`, { schema: z.array(watcherSchema) }),
     serverApi(`/tickets/${id}/links`, { schema: z.array(ticketLinkSchema) }),
+    serverApi(`/tickets/${id}/attachments`, {
+      schema: z.array(attachmentSchema),
+    }),
   ])
   // The assignment control's candidates, only for someone who may assign.
   const assignable = ticket.capabilities.canAssign
@@ -67,6 +71,7 @@ export default async function TicketPage({
       watchers={watchers}
       watchCandidates={watchCandidates}
       links={links}
+      files={files}
     />
   )
 }

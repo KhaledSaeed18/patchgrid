@@ -8,6 +8,7 @@ import {
   type Team,
   type Ticket,
   type TicketAction,
+  type Attachment,
   type TicketLink,
   ticketSchema,
   type TicketType,
@@ -33,6 +34,7 @@ import { toast } from "sonner"
 import { Assignment } from "./assignment"
 import { CommentItem } from "./comment-item"
 import { EditTicket } from "./edit-ticket"
+import { Files } from "./files"
 import { Links } from "./links"
 import { RecordDetails } from "./record-details"
 import { Watchers } from "./watchers"
@@ -43,6 +45,7 @@ import { RelativeTime } from "@/components/tickets/relative-time"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { failureMessage } from "@/lib/failure"
+import { fileProblem, uploadAttachment, uploadFailure } from "@/lib/upload"
 import {
   IMPACT_LABEL,
   TICKET_ACTION_LABEL,
@@ -93,9 +96,11 @@ export function TicketDetail({
   watchers,
   watchCandidates,
   links,
+  files,
 }: {
   ticket: Ticket
   comments: Comment[]
+  files: Attachment[]
   watchers: Watcher[]
   links: TicketLink[]
   /** Active members who could be added as watchers; present when the actor may add them. */
@@ -162,6 +167,7 @@ export function TicketDetail({
             </p>
           </article>
           <RecordDetails ticket={ticket} />
+          <Files ticket={ticket} files={files} comments={comments} />
           <Thread ticketId={ticket.id} comments={comments} />
           {(ticket.capabilities.canCommentPublic ||
             ticket.capabilities.canCommentInternal) && (
@@ -245,15 +251,30 @@ function Reply({ ticket }: { ticket: Ticket }) {
   const router = useRouter()
   const { canCommentPublic, canCommentInternal } = ticket.capabilities
   const [body, setBody] = useState("")
+  const [picked, setPicked] = useState<File[]>([])
   const send = useMutation({
-    mutationFn: (visibility: "PUBLIC" | "INTERNAL") =>
-      clientApi(`/tickets/${ticket.id}/comments`, {
+    mutationFn: async (visibility: "PUBLIC" | "INTERNAL") => {
+      const comment = await clientApi(`/tickets/${ticket.id}/comments`, {
         method: "POST",
         body: { body: body.trim(), visibility },
         schema: commentSchema,
-      }),
+      })
+      // The files go on the comment just written, sharing its visibility.
+      for (const file of picked) {
+        try {
+          await uploadAttachment(
+            { ticketId: ticket.id, commentId: comment.id },
+            file
+          )
+        } catch (error) {
+          toast.error(uploadFailure(error, file.name))
+        }
+      }
+      return comment
+    },
     onSuccess: () => {
       setBody("")
+      setPicked([])
       router.refresh()
     },
     onError: (error) =>
@@ -282,6 +303,33 @@ function Reply({ ticket }: { ticket: Ticket }) {
             : "Add a reply"
         }
       />
+      {ticket.capabilities.canUploadAttachment && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <label className="cursor-pointer hover:text-foreground">
+            Add files
+            <input
+              type="file"
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? [])
+                const ok = files.filter((f) => {
+                  const problem = fileProblem(f)
+                  if (problem !== null) toast.error(problem)
+                  return problem === null
+                })
+                setPicked((before) => [...before, ...ok])
+                e.target.value = ""
+              }}
+            />
+          </label>
+          {picked.map((f) => (
+            <span key={f.name} className="rounded bg-muted px-2 py-0.5 text-xs">
+              {f.name}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mt-2 flex gap-2">
         {canCommentPublic && (
           <Button type="submit" disabled={send.isPending || body.trim() === ""}>
