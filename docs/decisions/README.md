@@ -49,6 +49,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0040](0040-platform-credential-and-the-admin-host.md) | The platform credential, and MFA for platform admins ahead of M9 | Accepted |
 | [0041](0041-support-sessions-read-through-the-tenants-own-routes.md) | A support session reads through the tenant's own routes, as a read-only support actor | Accepted |
 | [0042](0042-api-tokens-as-built.md) | API tokens as built: one token, one service account | Accepted |
+| [0043](0043-org-deletion-and-the-purge.md) | Deleting a workspace: a 30-day window, then a purge that keeps only a tombstone | Accepted |
 
 ## Reading order for someone new
 
