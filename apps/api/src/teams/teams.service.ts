@@ -92,6 +92,8 @@ export class TeamsService {
       if (target === null || target.status === "REMOVED") throw new NotFoundProblem("No such member")
       if (target.status !== "ACTIVE") throw new ConflictProblem("Only an active member can join a team")
       if (target.role === "REQUESTER") throw new ConflictProblem("Requesters do not join teams; change their role first")
+      // Teams are where people work; a token's service account works in none (ADR-0042).
+      if (target.kind !== "HUMAN") throw new ConflictProblem("An API token's service account does not join teams")
       if ((await this.teams.findMembership(orgId, team.id, membershipId)) !== null) return []
 
       await this.teams.addMember(orgId, team.id, membershipId)

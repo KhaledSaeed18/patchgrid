@@ -16,7 +16,7 @@ const ORG = "o-1"
 
 type World = {
   actor: { id: string; role: Role; leads?: string[] }
-  members: { id: string; role: Role; status?: MembershipStatus }[]
+  members: { id: string; role: Role; status?: MembershipStatus; service?: boolean }[]
   teams: { id: string; name: string; isActive?: boolean; members?: string[]; lead?: string }[]
 }
 
@@ -74,7 +74,17 @@ function harness(world: World) {
   const memberships = {
     findById: async (_o: string, id: string): Promise<MembershipRecord | null> => {
       const m = world.members.find((x) => x.id === id)
-      return m === undefined ? null : { id: m.id, orgId: ORG, userId: `u-${m.id}`, role: m.role, status: m.status ?? "ACTIVE", kind: "HUMAN", displayName: m.id, teamIds: [], leadOfTeamIds: [] }
+      return m === undefined ? null : {
+            id: m.id,
+            orgId: ORG,
+            userId: m.service === true ? null : `u-${m.id}`,
+            role: m.role,
+            status: m.status ?? "ACTIVE",
+            kind: m.service === true ? "SERVICE_ACCOUNT" : "HUMAN",
+            displayName: m.id,
+            teamIds: [],
+            leadOfTeamIds: [],
+          }
     },
   }
   const actor: MemberActor = {
@@ -101,6 +111,7 @@ function harness(world: World) {
 
 const base: Omit<World, "actor"> = {
   members: [
+    { id: "bot", role: "AGENT", service: true },
     { id: "lead", role: "AGENT" },
     { id: "agent", role: "AGENT" },
     { id: "req", role: "REQUESTER" },
@@ -128,11 +139,13 @@ describe("TeamsService — who may change a team's members", () => {
     await expect(harness({ ...base, actor: { id: "a", role: "ADMIN" } }).service.addMember("sec", "agent")).resolves.toBeUndefined()
   })
 
-  it("refuses requesters, inactive members, unknown members and deactivated teams", async () => {
+  it("refuses requesters, service accounts, inactive members, unknown members and deactivated teams", async () => {
     const h = harness({ ...base, actor: { id: "a", role: "ADMIN" } })
     await expect(h.service.addMember("net", "req")).rejects.toBeInstanceOf(ConflictProblem)
     await expect(h.service.addMember("net", "off")).rejects.toBeInstanceOf(ConflictProblem)
     await expect(h.service.addMember("net", "ghost")).rejects.toBeInstanceOf(NotFoundProblem)
+    // An API token's service account is no one to route work to (ADR-0042).
+    await expect(h.service.addMember("net", "bot")).rejects.toBeInstanceOf(ConflictProblem)
     await expect(h.service.addMember("old", "agent")).rejects.toBeInstanceOf(ConflictProblem)
     await expect(h.service.addMember("nope", "agent")).rejects.toBeInstanceOf(NotFoundProblem)
   })
