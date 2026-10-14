@@ -19,10 +19,11 @@ const defaults: Record<string, string> = {
   THROTTLE_ENABLED: "false",
   JWT_SECRET: "integration-test-secret-that-is-at-least-32-chars",
   REDIS_URL: "redis://localhost:6379",
+  // docker-compose.yml's MinIO, as CI starts it with no .env: the attachment specs PUT real bytes.
   S3_ENDPOINT: "http://localhost:9000",
   S3_BUCKET: "patchgrid-attachments",
-  S3_ACCESS_KEY_ID: "test",
-  S3_SECRET_ACCESS_KEY: "test",
+  S3_ACCESS_KEY_ID: "patchgrid",
+  S3_SECRET_ACCESS_KEY: "patchgrid-local-dev",
 }
 for (const [name, value] of Object.entries(defaults)) {
   if (process.env[name] === undefined || process.env[name] === "") process.env[name] = value

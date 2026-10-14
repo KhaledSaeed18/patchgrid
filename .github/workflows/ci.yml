@@ -248,6 +248,14 @@ jobs:
       - name: Tenant client against the live schema
         run: pnpm --filter @patchgrid/database run test:integration
 
+      # The attachment specs PUT real bytes to a presigned URL and sniff them
+      # back (ADR-0005), so object storage is the compose file's MinIO and its
+      # bucket. A service container cannot be given MinIO's `server` command.
+      - name: Start object storage
+        run: |
+          docker compose up -d --wait minio
+          docker compose up minio-init
+
       # The API against the live schema: the request context and crossing
       # helpers over RLS, the platform repositories, and the whole session
       # lifecycle through the booted AppModule — every guard in production
