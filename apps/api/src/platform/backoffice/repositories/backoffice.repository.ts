@@ -98,6 +98,11 @@ export class BackofficeRepository {
     return { seats, requesters, tickets, openTickets, assets, articles, storageBytes: Number(storage?.value ?? 0) }
   }
 
+  /** Inside `runAsTenant(orgId)`: whether anyone could still run the workspace if it came back. */
+  async hasActiveOwner(orgId: string): Promise<boolean> {
+    return (await this.prisma.db.membership.count({ where: { orgId, role: "OWNER", status: "ACTIVE", kind: "HUMAN" } })) > 0
+  }
+
   /** Inside `runAsTenant(orgId)`: every membership, so each one's sessions can be ended. */
   async membershipIdsIn(orgId: string): Promise<string[]> {
     const rows = await this.prisma.db.membership.findMany({ where: { orgId }, select: { id: true } })

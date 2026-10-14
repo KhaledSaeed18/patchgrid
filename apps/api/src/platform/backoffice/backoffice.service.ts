@@ -118,6 +118,9 @@ export class BackofficeService {
     if (row.deletionRequestedAt !== null && this.clock.now().getTime() >= purgeDateFor(row.deletionRequestedAt).getTime()) {
       throw new ConflictProblem("This workspace's deletion window has closed")
     }
+    // Its last owner may have erased their account meanwhile (ADR-0044): an ownerless workspace is not restored.
+    const owned = await runAsTenant(row.id, crossing(actor, "restore: check ownership"), () => this.prisma.transaction(() => this.orgs.hasActiveOwner(row.id)))
+    if (!owned) throw new ConflictProblem("The workspace has no owner left to run it")
     if (!(await this.orgs.restoreDeletion(id))) throw new ConflictProblem("The workspace is not pending deletion")
     await this.lookup.invalidate({ id: row.id, slug: row.slug })
     await runAsTenant(row.id, crossing(actor, "restore"), () =>

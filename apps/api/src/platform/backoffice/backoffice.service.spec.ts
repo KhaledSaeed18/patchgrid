@@ -15,11 +15,12 @@ const ORG = "0190b2f0-0000-7000-8000-00000000000a"
 const NOW = new Date("2026-10-15T12:00:00Z")
 const org: OrgRow = { id: ORG, name: "Acme", slug: "acme", status: "ACTIVE", plan: "FREE", domain: null, createdAt: new Date(0), deletionRequestedAt: null }
 
-function harness(actor: PlatformActor | undefined, row: OrgRow | null = org, moved = true) {
+function harness(actor: PlatformActor | undefined, row: OrgRow | null = org, moved = true, owned = true) {
   const repo = {
     find: vi.fn(async () => row),
     moveStatus: vi.fn(async () => moved),
     restoreDeletion: vi.fn(async () => moved),
+    hasActiveOwner: vi.fn(async () => owned),
     setPlan: vi.fn(async () => undefined),
     activeMembers: vi.fn(async () => new Map([[ORG, 3]])),
     countsIn: vi.fn(async () => ({ seats: 2, requesters: 1, tickets: 0, openTickets: 0, assets: 0, articles: 0, storageBytes: 0 })),
@@ -89,5 +90,9 @@ describe("BackofficeService", () => {
     await expect(late.service.restore(ORG)).rejects.toBeInstanceOf(ConflictProblem)
     expect(late.repo.restoreDeletion).not.toHaveBeenCalled()
     await expect(harness(operator, org, false).service.restore(ORG)).rejects.toBeInstanceOf(ConflictProblem)
+    // Its last owner erased their account while it waited: nobody could run it.
+    const ownerless = harness(operator, pending(10), true, false)
+    await expect(ownerless.service.restore(ORG)).rejects.toBeInstanceOf(ConflictProblem)
+    expect(ownerless.repo.restoreDeletion).not.toHaveBeenCalled()
   })
 })
