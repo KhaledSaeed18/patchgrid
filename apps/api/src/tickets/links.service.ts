@@ -8,8 +8,9 @@ import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../common/p
 import { TicketPulse } from "../notifications/live/ticket-pulse"
 import { PrismaService } from "../prisma/prisma.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
-import { canonicalLink, readFrom } from "./domain/links"
+import { canonicalLink, readFrom, type StoredLink } from "./domain/links"
 import { LinkRepository, type LinkRow } from "./repositories/link.repository"
+import { TicketRepository } from "./repositories/ticket.repository"
 import { TicketAccess } from "./ticket-access"
 
 /**
@@ -23,6 +24,7 @@ import { TicketAccess } from "./ticket-access"
 export class LinksService {
   constructor(
     private readonly links: LinkRepository,
+    private readonly tickets: TicketRepository,
     private readonly access: TicketAccess,
     private readonly permissions: PermissionService,
     private readonly actors: ActorService,
@@ -47,18 +49,17 @@ export class LinksService {
     const otherId = await this.prisma.transaction(async () => {
       const self = await this.access.load(orgId, ticketId, actor, this.visibility())
       this.permissions.assert(actor, "ticket:link", self.subject)
-      // A duplicate points at the survivor of whatever it duplicates, so chains — and cycles — cannot form.
-      const target = request.kind === "DUPLICATE_OF" ? await this.links.survivorOf(orgId, request.ticketId) : request.ticketId
-      if (request.kind === "DUPLICATE_OF" && target === ticketId) throw new ConflictProblem("That ticket is already a duplicate of this one")
-      const [other] = await this.access.loadVisible(orgId, [target], actor, this.visibility())
-      if (other === undefined) throw new NotFoundProblem("No such ticket to link")
-      this.permissions.assert(actor, "ticket:link", other.subject)
+      // The ticket the actor named, as they see it — before anything about it is followed or said.
+      const [requested] = await this.access.loadVisible(orgId, [request.ticketId], actor, this.visibility())
+      if (requested === undefined) throw new NotFoundProblem("No such ticket to link")
+      this.permissions.assert(actor, "ticket:link", requested.subject)
 
-      const made = canonicalLink(request.kind, { id: ticketId, type: self.row.type }, { id: other.row.id, type: other.row.type })
+      const made = canonicalLink(request.kind, { id: ticketId, type: self.row.type }, { id: requested.row.id, type: requested.row.type })
       if (!made.ok) throw new ValidationProblem([{ path: "kind", message: made.reason, code: "invalid_link" }])
-      if (!(await this.links.create(orgId, made.link, actor.membershipId))) throw new ConflictProblem("These tickets are already linked that way")
-      await this.audit.record(orgId, [{ action: "TICKET_LINKED", entityType: "Ticket", entityId: ticketId, diff: { ...made.link } }])
-      return other.row.id
+      const link = made.link.relation === "DUPLICATE_OF" ? await this.toSurvivor(orgId, actor, made.link) : made.link
+      if (!(await this.links.create(orgId, link, actor.membershipId))) throw new ConflictProblem("These tickets are already linked that way")
+      await this.audit.record(orgId, [{ action: "TICKET_LINKED", entityType: "Ticket", entityId: ticketId, diff: { ...link } }])
+      return link.fromTicketId === ticketId ? link.toTicketId : link.fromTicketId
     })
     await this.pulse.changed(orgId, ticketId)
     await this.pulse.changed(orgId, otherId)
@@ -86,6 +87,26 @@ export class LinksService {
     await this.pulse.changed(orgId, ticketId)
     await this.pulse.changed(orgId, otherId)
     return this.list(ticketId)
+  }
+
+  /**
+   * A duplicate stands for one survivor (DOMAIN.md §1), whichever end asked:
+   * under row locks on the tickets involved, the duplicate must not already
+   * stand for another, nor have duplicates of its own (mark those first),
+   * and the target is followed to its survivor — which must not be the
+   * duplicate itself, and must be a ticket the actor can see.
+   */
+  private async toSurvivor(orgId: string, actor: TenantActor, link: StoredLink): Promise<StoredLink> {
+    await this.tickets.lock(orgId, [link.fromTicketId, link.toTicketId])
+    const duplicate = await this.links.duplicateFacts(orgId, link.fromTicketId)
+    if (duplicate.isDuplicate) throw new ConflictProblem("That ticket is already marked as a duplicate")
+    if (duplicate.hasDuplicates) throw new ConflictProblem("That ticket has duplicates of its own; mark them as duplicates of the survivor first")
+    const survivor = await this.links.survivorOf(orgId, link.toTicketId)
+    if (survivor === link.fromTicketId) throw new ConflictProblem("That would make the two tickets duplicates of each other")
+    if (survivor === link.toTicketId) return link
+    const [visible] = await this.access.loadVisible(orgId, [survivor], actor, this.visibility())
+    if (visible === undefined) throw new ConflictProblem("That ticket is a duplicate of one you cannot see")
+    return { ...link, toTicketId: survivor }
   }
 
   /** This ticket's links whose other end the actor may read, as read from this ticket. */

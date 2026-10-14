@@ -843,5 +843,7 @@ model TicketLink {
 
   @@unique([orgId, id])
   @@unique([orgId, fromTicketId, toTicketId, relation])
+  /// A duplicate stands for one survivor: never two, so chains and cycles cannot form (DOMAIN.md §1).
+  @@unique([orgId, fromTicketId], where: raw("(relation = 'DUPLICATE_OF'::\"LinkRelation\")"), map: "TicketLink_one_survivor")
   @@index([orgId, toTicketId])
 }

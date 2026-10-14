@@ -78,6 +78,16 @@ export class LinkRepository {
     })
   }
 
+  /** Whether this ticket is already a duplicate of something, or has duplicates of its own. */
+  async duplicateFacts(orgId: string, ticketId: string): Promise<{ isDuplicate: boolean; hasDuplicates: boolean }> {
+    const rows = await this.prisma.db.ticketLink.findMany({
+      where: { orgId, relation: "DUPLICATE_OF", OR: [{ fromTicketId: ticketId }, { toTicketId: ticketId }] },
+      select: { fromTicketId: true },
+      take: 2,
+    })
+    return { isDuplicate: rows.some((r) => r.fromTicketId === ticketId), hasDuplicates: rows.some((r) => r.fromTicketId !== ticketId) }
+  }
+
   async remove(orgId: string, id: string): Promise<boolean> {
     const { count } = await this.prisma.db.ticketLink.deleteMany({ where: { orgId, id } })
     return count === 1
