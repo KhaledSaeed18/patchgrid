@@ -14,6 +14,7 @@ import { PasswordService } from "./passwords/password.service"
 import { RequestedWithGuard } from "./requested-with.guard"
 import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
+import { StandingService } from "./sessions/standing.service"
 import { AccessTokenService } from "./tokens/access-token.service"
 
 /**
@@ -30,11 +31,12 @@ import { AccessTokenService } from "./tokens/access-token.service"
     AccessTokenService,
     RevocationEpochService,
     SessionService,
+    StandingService,
     IdentityService,
     ActorService,
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [ActorService, RevocationEpochService, SessionService, CookieService, PasswordService],
+  exports: [ActorService, RevocationEpochService, SessionService, StandingService, CookieService, PasswordService],
 })
 export class AuthModule {}
