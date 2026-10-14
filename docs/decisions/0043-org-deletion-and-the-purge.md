@@ -17,8 +17,8 @@
 Building it leaves five gaps:
 
 - **What the record is.** Deleting the `Organization` row frees its slug for the next signup, which §2
-  forbids. Keeping the row means the status needs a terminal value, and `ACTIVE | SUSPENDED |
-  PENDING_DELETION` has none.
+  forbids. Keeping the row means the status needs a terminal value, and none of `ACTIVE`,
+  `SUSPENDED` or `PENDING_DELETION` is one.
 - **Who can cancel, and where.** RBAC grants an owner `org:cancel_deletion`. But a pending workspace's
   subdomain 404s, so no tenant route can reach it.
 - **What a pending workspace still does.** Sessions, API tokens, support sessions and sweeps.
