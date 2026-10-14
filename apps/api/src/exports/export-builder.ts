@@ -126,7 +126,8 @@ export class ExportBuilder {
       const [, sizeBytes] = await Promise.all([pipeline(zip.outputStream, stream), done])
       return { storageKey, sizeBytes }
     } catch (error) {
-      // `pipeline` has already destroyed both ends.
+      // Ends the pipeline too, whichever side failed first.
+      stream.destroy()
       await done.catch(() => undefined)
       await this.storage.remove(storageKey).catch(() => undefined)
       throw error
