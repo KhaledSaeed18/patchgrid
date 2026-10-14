@@ -264,6 +264,8 @@ export const ticketSummarySchema = z.object({
   title: z.string(),
   status: ticketStatusSchema,
   priority: prioritySchema,
+  /** How it arrived — an email-raised ticket says so in the queue. */
+  source: ticketSourceSchema,
   requester: personSchema,
   assignee: personSchema.nullable(),
   team: z.object({ id: idSchema, name: z.string() }).nullable(),

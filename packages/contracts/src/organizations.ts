@@ -77,6 +77,8 @@ export const organizationSettingsSchema = z.object({
   domain: z.string().nullable(),
   agentVisibility: agentVisibilitySchema,
   emailNotificationsEnabled: z.boolean(),
+  /** Where mail becomes a ticket (ADR-0027): `<slug>@inbound.<root domain>`. */
+  inboundAddress: z.string(),
   slugChangeAvailableAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
 })
