@@ -45,6 +45,8 @@ enum OrganizationStatus {
   ACTIVE
   SUSPENDED
   PENDING_DELETION
+  /// Terminal: purged, kept as a tombstone so its slug is never reused (ADR-0043).
+  DELETED
 }
 
 enum Plan {
@@ -117,6 +119,8 @@ model Organization {
   agentVisibility           AgentVisibility    @default(ALL_TICKETS)
   emailNotificationsEnabled Boolean            @default(true)
   deletionRequestedAt       DateTime?          @db.Timestamptz(3)
+  /// When the purge made this row a tombstone (ADR-0043).
+  deletedAt                 DateTime?          @db.Timestamptz(3)
   createdAt                 DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt                 DateTime           @updatedAt @db.Timestamptz(3)
 
@@ -272,15 +276,17 @@ model EmailVerification {
 /// the same transaction as its source rows, reconciled nightly, and NEVER read to
 /// authorize — hence `…ForDisplay`. The authoritative role is `Membership.role`.
 model UserOrgIndex {
-  userId           String             @db.Uuid
-  orgId            String             @db.Uuid
-  roleForDisplay   Role
-  statusForDisplay MembershipStatus
-  orgSlug          String
-  orgName          String
-  orgStatus        OrganizationStatus
-  createdAt        DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime           @updatedAt @db.Timestamptz(3)
+  userId                 String             @db.Uuid
+  orgId                  String             @db.Uuid
+  roleForDisplay         Role
+  statusForDisplay       MembershipStatus
+  orgSlug                String
+  orgName                String
+  orgStatus              OrganizationStatus
+  /// Mirrored so the picker can say when a pending workspace is purged (ADR-0043).
+  orgDeletionRequestedAt DateTime?          @db.Timestamptz(3)
+  createdAt              DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime           @updatedAt @db.Timestamptz(3)
 
   user         User         @relation(fields: [userId], references: [id])
   organization Organization @relation(fields: [orgId], references: [id])
@@ -290,7 +296,7 @@ model UserOrgIndex {
 }
 
 /// DERIVED projection (ADR-0022): which org does an API-token prefix belong to?
-/// No secret, no hash, no scopes. `ApiToken` itself is tenant-owned and lands in M8.
+/// No secret, no hash, no scopes. `ApiToken` itself is tenant-owned (ADR-0042).
 model ApiTokenIndex {
   prefix    String    @id
   orgId     String    @db.Uuid
