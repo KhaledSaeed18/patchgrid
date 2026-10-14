@@ -57,7 +57,7 @@ importers:
     dependencies:
       '@nestjs/bullmq':
         specifier: ^12.0.0
-        version: 12.0.0(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.7)(bullmq@6.3.11(ioredis@5.11.1)(pg@8.23.0))
+        version: 12.0.0(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.7)(bullmq@6.3.11(ioredis@6.0.0)(pg@8.23.0))
       '@nestjs/common':
         specifier: ^11.2.7
         version: 11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -90,7 +90,7 @@ importers:
         version: 2.1.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       bullmq:
         specifier: ^6.3.11
-        version: 6.3.11(ioredis@5.11.1)(pg@8.23.0)
+        version: 6.3.11(ioredis@6.0.0)(pg@8.23.0)
       cookie:
         specifier: ^2.0.1
         version: 2.0.1
@@ -98,8 +98,8 @@ importers:
         specifier: ^8.3.0
         version: 8.3.0
       ioredis:
-        specifier: ^5.9.0
-        version: 5.11.1
+        specifier: ^6.0.0
+        version: 6.0.0
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -1613,8 +1613,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@ioredis/commands@1.10.0':
-    resolution: {integrity: sha512-UmeW7z4LfctwoQ5wkhVzgq8tXkreED2xZGpX+Bg+zA+WJFZCT6c062AfCK/Dfk81xZnnwdhJCUMkitihRaoC2Q==}
+  '@ioredis/commands@2.0.0':
+    resolution: {integrity: sha512-vrx0AE/T0h7cRZwfo1M39Cr+ZhZrkf0V8mQN75wucKCxCLD9l/VX6no3gFvrLqD1IlG/1LtzWovqEw3t0Vr9zg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -4644,9 +4644,9 @@ packages:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
     engines: {node: '>=12'}
 
-  ioredis@5.11.1:
-    resolution: {integrity: sha512-ehuGcf94bQXhfagULNXrJdfnWO38v070jxSx/qE87Kjzmu2fU7ro5EFAb+OPituLqgfyuQaym5DlrNydW2sJ9A==}
-    engines: {node: '>=12.22.0'}
+  ioredis@6.0.0:
+    resolution: {integrity: sha512-f+Dtubxfpf6KYFq7WVXJoOLn0bk4TJrMrN9SzeE+jrWrCWj7XX3fA6vkryafhADX+GMymRxgDJDOI33COkJc0w==}
+    engines: {node: '>=20.0.0'}
 
   ip-address@10.7.2:
     resolution: {integrity: sha512-7H/2gFSIitxc0hG3nOI1glS8QLo/EHBFFLk8vEUjXY/xu0AdL8jZ9U1IzO2PUm0d2D/ofQcAifb0g6OBkt8U7w==}
@@ -5917,10 +5917,6 @@ packages:
     resolution: {integrity: sha512-1qny3OExCf0UvUV/5wpYKf2YwPcOqXzkwKKSmKHiE6ZMQs5heeE/c8eXK+PNllPvmjgAbfnsbpkGZWy8cBpn9w==}
     engines: {node: '>=4'}
 
-  redis-parser@3.0.0:
-    resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
-    engines: {node: '>=4'}
-
   reflect-metadata@0.2.2:
     resolution: {integrity: sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==}
 
@@ -6368,9 +6364,6 @@ packages:
     engines: {node: '>=10.0.0'}
     os: [darwin, linux, win32, freebsd, openbsd, netbsd, sunos, android]
     hasBin: true
-
-  tailwindcss@4.3.0:
-    resolution: {integrity: sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q==}
 
   tailwindcss@4.3.3:
     resolution: {integrity: sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ==}
@@ -7926,7 +7919,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.19.2
 
-  '@ioredis/commands@1.10.0': {}
+  '@ioredis/commands@2.0.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -8077,12 +8070,12 @@ snapshots:
       '@nestjs/core': 11.2.7(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.2.7)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       tslib: 2.8.1
 
-  '@nestjs/bullmq@12.0.0(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.7)(bullmq@6.3.11(ioredis@5.11.1)(pg@8.23.0))':
+  '@nestjs/bullmq@12.0.0(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.7)(bullmq@6.3.11(ioredis@6.0.0)(pg@8.23.0))':
     dependencies:
       '@nestjs/bull-shared': 12.0.0(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.7)
       '@nestjs/common': 11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/core': 11.2.7(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.2.7)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      bullmq: 6.3.11(ioredis@5.11.1)(pg@8.23.0)
+      bullmq: 6.3.11(ioredis@6.0.0)(pg@8.23.0)
       tslib: 2.8.1
 
   '@nestjs/cli@11.0.24(@swc/cli@0.7.10(@swc/core@1.16.2(@swc/helpers@0.5.23))(chokidar@4.0.3))(@swc/core@1.16.2(@swc/helpers@0.5.23))(@types/node@24.19.2)(esbuild@0.28.2)(lightningcss@1.32.0)(prettier@3.8.3)':
@@ -9762,7 +9755,7 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
-  bullmq@6.3.11(ioredis@5.11.1)(pg@8.23.0):
+  bullmq@6.3.11(ioredis@6.0.0)(pg@8.23.0):
     dependencies:
       cron-parser: 5.10.1
       msgpackr: 2.1.0
@@ -9770,7 +9763,7 @@ snapshots:
       semver: 7.8.5
       tslib: 2.8.1
     optionalDependencies:
-      ioredis: 5.11.1
+      ioredis: 6.0.0
       pg: 8.23.0
 
   bundle-name@4.1.0:
@@ -11130,14 +11123,13 @@ snapshots:
 
   internmap@2.0.3: {}
 
-  ioredis@5.11.1:
+  ioredis@6.0.0:
     dependencies:
-      '@ioredis/commands': 1.10.0
+      '@ioredis/commands': 2.0.0
       cluster-key-slot: 1.1.1
       debug: 4.4.3
       denque: 2.1.0
       redis-errors: 1.2.0
-      redis-parser: 3.0.0
       standard-as-callback: 2.1.0
     transitivePeerDependencies:
       - supports-color
@@ -12259,10 +12251,6 @@ snapshots:
 
   redis-errors@1.2.0: {}
 
-  redis-parser@3.0.0:
-    dependencies:
-      redis-errors: 1.2.0
-
   reflect-metadata@0.2.2: {}
 
   reflect.getprototypeof@1.0.10:
@@ -12847,8 +12835,6 @@ snapshots:
   symbol-observable@4.0.0: {}
 
   systeminformation@5.33.13: {}
-
-  tailwindcss@4.3.0: {}
 
   tailwindcss@4.3.3: {}
 
