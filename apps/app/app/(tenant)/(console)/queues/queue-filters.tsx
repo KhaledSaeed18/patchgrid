@@ -1,48 +1,52 @@
 "use client"
 
 import {
+  TICKET_STATUSES_BY_TYPE,
   type TicketSort,
   ticketSortSchema,
   type TicketStatus,
   ticketStatusSchema,
+  type TicketType,
+  ticketTypeSchema,
   type TicketView,
 } from "@patchgrid/contracts"
 import { Input } from "@patchgrid/ui/components/input"
 import { useRouter } from "next/navigation"
 
 import { NativeSelect } from "@/components/native-select"
-import { TICKET_STATUS_LABEL } from "@/lib/labels"
+import { TICKET_STATUS_LABEL, TICKET_TYPE_LABEL } from "@/lib/labels"
 
-/** The statuses an incident queue can hold; Problem and Change states arrive with M4. */
-const STATUSES: TicketStatus[] = [
-  "NEW",
-  "ASSIGNED",
-  "IN_PROGRESS",
-  "PENDING",
-  "RESOLVED",
-  "CLOSED",
-  "CANCELLED",
+/** Every status, in the order the types' lifecycles first meet them. */
+const ALL_STATUSES: TicketStatus[] = [
+  ...new Set(Object.values(TICKET_STATUSES_BY_TYPE).flat()),
 ]
 
-/** Search, status and order, written to the URL; the server page reads them back. */
+/** Search, type, status and order, written to the URL; the server page reads them back. */
 export function QueueFilters({
   view,
+  type,
   status,
   sort,
   q,
 }: {
   view: TicketView
+  type: TicketType | undefined
   status: TicketStatus | undefined
   sort: TicketSort
   q: string
 }) {
   const router = useRouter()
+  const statuses =
+    type === undefined ? ALL_STATUSES : TICKET_STATUSES_BY_TYPE[type]
   const go = (next: {
+    type?: TicketType | undefined
     status?: TicketStatus | undefined
     sort?: TicketSort
     q?: string
   }) => {
     const params = new URLSearchParams({ view })
+    const t = "type" in next ? next.type : type
+    if (t !== undefined) params.set("type", t)
     const s = "status" in next ? next.status : status
     if (s !== undefined) params.set("status", s)
     const order = next.sort ?? sort
@@ -71,7 +75,31 @@ export function QueueFilters({
           aria-label="Search tickets"
         />
       </form>
-      {q === "" && (
+      {q === "" && view !== "approvals" && (
+        <NativeSelect
+          aria-label="Type"
+          className="w-44"
+          value={type ?? ""}
+          onChange={(e) => {
+            const parsed = ticketTypeSchema.safeParse(e.target.value)
+            const nextType = parsed.success ? parsed.data : undefined
+            // A status the new type never has would only empty the list.
+            const keep =
+              status !== undefined &&
+              (nextType === undefined ||
+                TICKET_STATUSES_BY_TYPE[nextType].includes(status))
+            go({ type: nextType, status: keep ? status : undefined })
+          }}
+        >
+          <option value="">Every type</option>
+          {ticketTypeSchema.options.map((t) => (
+            <option key={t} value={t}>
+              {TICKET_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </NativeSelect>
+      )}
+      {q === "" && view !== "approvals" && (
         <NativeSelect
           aria-label="Status"
           className="w-48"
@@ -82,7 +110,7 @@ export function QueueFilters({
           }}
         >
           <option value="">Any open status</option>
-          {STATUSES.map((s) => (
+          {statuses.map((s) => (
             <option key={s} value={s}>
               {TICKET_STATUS_LABEL[s]}
             </option>

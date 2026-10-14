@@ -1,8 +1,10 @@
 import {
+  meSchema,
   ticketPageSchema,
   ticketSearchResultSchema,
   ticketSortSchema,
   ticketStatusSchema,
+  ticketTypeSchema,
   type TicketView,
   ticketViewSchema,
 } from "@patchgrid/contracts"
@@ -25,6 +27,7 @@ const QUEUES: { view: Exclude<TicketView, "mine">; label: string }[] = [
   { view: "teams", label: "My teams" },
   { view: "unassigned", label: "Unassigned" },
   { view: "open", label: "All open" },
+  { view: "approvals", label: "Awaiting my approval" },
 ]
 
 /**
@@ -45,6 +48,9 @@ export default async function QueuesPage({
     parsedView.success && parsedView.data !== "mine"
       ? parsedView.data
       : "assigned"
+  const parsedType = ticketTypeSchema.safeParse(one("type"))
+  const type =
+    parsedType.success && view !== "approvals" ? parsedType.data : undefined
   const parsedStatus = ticketStatusSchema.safeParse(one("status"))
   const status = parsedStatus.success ? parsedStatus.data : undefined
   const parsedSort = ticketSortSchema.safeParse(one("sort"))
@@ -52,7 +58,15 @@ export default async function QueuesPage({
   const q = one("q")?.trim() ?? ""
 
   const query = new URLSearchParams({ view, limit: "25" })
+  if (type !== undefined) query.set("type", type)
   if (status !== undefined) query.set("status", status)
+  // The approvals queue only for those who could ever decide on a change.
+  const me = await serverApi("/me", { schema: meSchema })
+  const queues = QUEUES.filter(
+    (queue) =>
+      queue.view !== "approvals" ||
+      me.permissions.includes("ticket:approve_change")
+  )
   if (sort !== "newest") query.set("sort", sort)
 
   return (
@@ -67,9 +81,12 @@ export default async function QueuesPage({
           aria-label="Queues"
           className="flex flex-wrap gap-1 border-b border-border"
         >
-          {QUEUES.map((queue) => {
+          {queues.map((queue) => {
             const href = new URLSearchParams({ view: queue.view })
-            if (status !== undefined) href.set("status", status)
+            if (type !== undefined && queue.view !== "approvals")
+              href.set("type", type)
+            if (status !== undefined && queue.view !== "approvals")
+              href.set("status", status)
             if (sort !== "newest") href.set("sort", sort)
             const current = q === "" && queue.view === view
             return (
@@ -89,7 +106,13 @@ export default async function QueuesPage({
             )
           })}
         </nav>
-        <QueueFilters view={view} status={status} sort={sort} q={q} />
+        <QueueFilters
+          view={view}
+          type={type}
+          status={status}
+          sort={sort}
+          q={q}
+        />
         <div className="mt-4">
           {q === "" ? (
             <TicketFeed
@@ -101,9 +124,9 @@ export default async function QueuesPage({
               columns="console"
               empty={
                 <p className="py-10 text-sm text-muted-foreground">
-                  Nothing here
-                  {status === undefined ? "" : " with that status"}. Try another
-                  queue.
+                  {view === "approvals"
+                    ? "No changes are waiting on you. Changes for teams you lead, and every change if you are an admin, land here once submitted."
+                    : `Nothing here${status === undefined ? "" : " with that status"}. Try another queue.`}
                 </p>
               }
             />
