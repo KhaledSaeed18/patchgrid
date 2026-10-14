@@ -32,8 +32,12 @@ export class RevocationEpochService {
   }
 
   /** Invalidate every token minted for this membership before now. */
-  async bump(membershipId: string): Promise<void> {
-    const now = Math.floor(this.clock.now().getTime() / 1000)
+  /**
+   * `before` revokes what was issued up to the second before now, so a credential
+   * minted right after — the session a recovery code just earned — survives it.
+   */
+  async bump(membershipId: string, options: { before?: boolean } = {}): Promise<void> {
+    const now = Math.floor(this.clock.now().getTime() / 1000) - (options.before === true ? 1 : 0)
     try {
       await this.redis.client.set(key(membershipId), String(now), "EX", this.ttlSeconds)
     } catch (error) {

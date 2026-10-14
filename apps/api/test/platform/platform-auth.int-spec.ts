@@ -127,12 +127,13 @@ describe("signing in", () => {
   })
 
   it("signs out everywhere, and a revoked grant ends logins", async () => {
-    const here = admin()
-    await here.post("/auth/login", { email: operator.email, password: PASSWORD })
-    expect((await here.post("/auth/mfa", { recoveryCode: recovery[1] ?? "" })).status).toBe(204)
+    // `there` first: a recovery code ends the sessions before it, so the later sign-in is the one kept.
     const there = admin()
     await there.post("/auth/login", { email: operator.email, password: PASSWORD })
     expect((await there.post("/auth/mfa", { recoveryCode: recovery[2] ?? "" })).status).toBe(204)
+    const here = admin()
+    await here.post("/auth/login", { email: operator.email, password: PASSWORD })
+    expect((await here.post("/auth/mfa", { recoveryCode: recovery[1] ?? "" })).status).toBe(204)
     const copied = new Map(here.jar)
     expect((await here.post("/auth/logout")).status).toBe(204)
     // Every session ends: the other browser's, and a copy of the cookie taken before signing out.
@@ -141,5 +142,17 @@ describe("signing in", () => {
 
     await db.platformAdmin.update({ where: { id: operator.adminId }, data: { revokedAt: new Date() } })
     expect((await admin().post("/auth/login", { email: operator.email, password: PASSWORD })).status).toBe(401)
+  })
+
+  it("locks the factor after five wrong codes, whatever address they came from, and says so (ADR-0029)", async () => {
+    await db.platformAdmin.update({ where: { id: operator.adminId }, data: { revokedAt: null } })
+    const browser = admin()
+    await browser.post("/auth/login", { email: operator.email, password: PASSWORD })
+    for (let i = 0; i < 5; i += 1) expect((await browser.post("/auth/mfa", { code: "000000" })).status).toBe(400)
+    // Even a good recovery code waits out the hour, as would a good TOTP code.
+    const locked = await browser.post("/auth/mfa", { recoveryCode: recovery[3] ?? "" })
+    expect(locked.status).toBe(429)
+    expect(Number(locked.headers["retry-after"])).toBeGreaterThan(3000)
+    expect(await db.platformAuditLog.count({ where: { platformAdminId: operator.adminId, action: "PLATFORM_MFA_LOCKED" } })).toBe(1)
   })
 })

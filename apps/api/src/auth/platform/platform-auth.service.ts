@@ -10,6 +10,9 @@ import { PlatformAdminRepository } from "../../platform/repositories/platform-ad
 import { PlatformAuditRepository } from "../../platform/repositories/platform-audit.repository"
 import { UserRepository } from "../../platform/repositories/user.repository"
 import type { PlatformActor } from "../actor"
+import { MailService } from "../../mail/mail.service"
+import type { PlatformSecurityEvent } from "../../mail/templates/platform-security"
+import { FactorLockout } from "../mfa/factor-lockout"
 import { SecretBox } from "../mfa/secret-box"
 import { acceptedStep, newTotpSecret, otpauthUri } from "../mfa/totp"
 import { PasswordService } from "../passwords/password.service"
@@ -46,6 +49,8 @@ export class PlatformAuthService {
     private readonly passwords: PasswordService,
     private readonly tokens: PlatformTokenService,
     private readonly epochs: RevocationEpochService,
+    private readonly lockout: FactorLockout,
+    private readonly mail: MailService,
     @InjectConfig() config: AppConfig,
     @InjectClock() private readonly clock: Clock,
   ) {
@@ -77,14 +82,16 @@ export class PlatformAuthService {
   /** Proves the new factor, returns its recovery codes once, and signs in. */
   async confirm(challengeToken: string | undefined, code: string): Promise<SignedIn & { recoveryCodes: string[] }> {
     const challenge = await this.challenge(challengeToken, "enrol")
+    await this.lockout.assertOpen(challenge.userId)
     const now = this.clock.now()
     const factor = await this.mfa.pending(challenge.userId, new Date(now.getTime() - ENROLMENT_TTL_MS))
     const secret = factor === null ? null : this.box.open(factor.secretEncrypted)
     const step = factor === null || secret === null ? null : acceptedStep(secret, code, now, null)
-    if (factor === null || step === null) throw codeRefused()
+    if (factor === null || step === null) throw await this.refused(challenge)
     const recoveryCodes = Array.from({ length: RECOVERY_CODES }, recoveryCode)
     const hashes = await Promise.all(recoveryCodes.map((c) => this.passwords.hash(normalise(c))))
-    if (!(await this.mfa.confirm(challenge.userId, factor.id, step, now, hashes))) throw codeRefused()
+    if (!(await this.mfa.confirm(challenge.userId, factor.id, step, now, hashes))) throw await this.refused(challenge)
+    await this.lockout.clear(challenge.userId)
     await this.audit.record({ platformAdminId: challenge.platformAdminId, action: "PLATFORM_MFA_ENROLLED", targetUserId: challenge.userId })
     return { ...(await this.signIn(challenge, "totp")), recoveryCodes }
   }
@@ -92,23 +99,30 @@ export class PlatformAuthService {
   /** The second factor: a current code, or one unused recovery code. */
   async verify(challengeToken: string | undefined, request: MfaVerifyRequest): Promise<SignedIn> {
     const challenge = await this.challenge(challengeToken, "verify")
+    // Per person, before any code is looked at (ADR-0029): codes and recovery codes alike.
+    await this.lockout.assertOpen(challenge.userId)
     const now = this.clock.now()
     if (request.code !== undefined) {
       const factor = await this.mfa.confirmed(challenge.userId)
       const secret = factor === null ? null : this.box.open(factor.secretEncrypted)
       const step = factor === null || secret === null ? null : acceptedStep(secret, request.code, now, factor.lastUsedStep)
       // Spent atomically: the same code twice, even at once, signs in once.
-      if (factor === null || step === null || !(await this.mfa.spendStep(factor.id, step, now))) throw codeRefused()
+      if (factor === null || step === null || !(await this.mfa.spendStep(factor.id, step, now))) throw await this.refused(challenge)
+      await this.lockout.clear(challenge.userId)
       return this.signIn(challenge, "totp")
     }
     const presented = normalise(request.recoveryCode ?? "")
     for (const stored of await this.mfa.unusedRecoveryCodes(challenge.userId)) {
       if ((await this.passwords.verify(stored.codeHash, presented)) && (await this.mfa.spendRecoveryCode(stored.id, now))) {
+        await this.lockout.clear(challenge.userId)
         await this.audit.record({ platformAdminId: challenge.platformAdminId, action: "PLATFORM_RECOVERY_CODE_USED", targetUserId: challenge.userId })
+        // A recovery code means the factor may be lost — or taken: every other session ends, and the operator hears of it.
+        await this.epochs.bump(platformEpochKey(challenge.platformAdminId), { before: true })
+        await this.tell(challenge, "recovery-code-used", (await this.mfa.unusedRecoveryCodes(challenge.userId)).length)
         return this.signIn(challenge, "recovery")
       }
     }
-    throw codeRefused()
+    throw await this.refused(challenge)
   }
 
   /** Ends every session this operator holds, here and elsewhere. */
@@ -125,6 +139,29 @@ export class PlatformAuthService {
       email: admin.email,
       name: admin.name,
       sessionExpiresAt: new Date(actor.sessionExpiresAt * 1000).toISOString(),
+    }
+  }
+
+  /** A wrong code, counted against the person; the fifth locks the factor, on the record and by email. */
+  private async refused(challenge: PlatformChallenge): Promise<ValidationProblem> {
+    if (await this.lockout.fail(challenge.userId)) {
+      await this.audit.record({ platformAdminId: challenge.platformAdminId, action: "PLATFORM_MFA_LOCKED", targetUserId: challenge.userId })
+      await this.tell(challenge, "factor-locked", 0)
+    }
+    return codeRefused()
+  }
+
+  /** After the fact, best effort: the lock and the audit row stand whether or not the mail goes. */
+  private async tell(challenge: PlatformChallenge, event: PlatformSecurityEvent, remaining: number): Promise<void> {
+    try {
+      const admin = await this.admins.active(challenge.platformAdminId)
+      if (admin === null) return
+      await this.mail.enqueue(
+        { kind: "platform-security", to: admin.email, orgId: null, fromName: "Patchgrid", params: { event, remaining } },
+        `${challenge.platformAdminId}.${event}.${String(this.clock.now().getTime())}`,
+      )
+    } catch (error) {
+      this.logger.error({ msg: "platform security mail not queued", platformAdminId: challenge.platformAdminId, event, error: String(error) })
     }
   }
 

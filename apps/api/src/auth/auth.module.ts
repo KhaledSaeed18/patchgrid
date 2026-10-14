@@ -18,6 +18,7 @@ import { CookieService } from "./cookies"
 import { IdentityController } from "./identity/identity.controller"
 import { IdentityService } from "./identity/identity.service"
 import { ApiTokenCoreModule } from "../api-tokens/api-token-core.module"
+import { FactorLockout } from "./mfa/factor-lockout"
 import { PasswordService } from "./passwords/password.service"
 import { PlatformAuthController } from "./platform/platform-auth.controller"
 import { PlatformAuthService } from "./platform/platform-auth.service"
@@ -60,6 +61,7 @@ import { AccessTokenService } from "./tokens/access-token.service"
     PlatformAuthService,
     SupportTokenService,
     SupportReadLog,
+    FactorLockout,
     AccountErasureRepository,
     AccountErasureService,
     CredentialRetentionService,
