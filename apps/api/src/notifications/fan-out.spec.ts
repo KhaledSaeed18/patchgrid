@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { deliveriesFor, type Person, type TicketCircle } from "./fan-out"
 
 const ID = (n: number) => `0190b2f0-0000-7000-8000-${String(n).padStart(12, "0")}`
-const person = (n: number, active = true): Person => ({ membershipId: ID(n), userId: `u-${n}`, active })
+const person = (n: number, active = true): Person => ({ membershipId: ID(n), userId: `u-${n}`, role: "AGENT", teamIds: [], leadOfTeamIds: [], active })
 const REQ = person(1)
 const AGENT = person(2)
 const LEAD = person(3)
@@ -13,7 +13,17 @@ const TEAMMATE = person(6)
 const TICKET = ID(99)
 
 const circle = (over: Partial<TicketCircle> = {}): TicketCircle => ({
-  ticket: { id: TICKET, type: "INCIDENT", number: 42, title: "Printer", status: "IN_PROGRESS" },
+  ticket: {
+    id: TICKET,
+    type: "INCIDENT",
+    number: 42,
+    title: "Printer",
+    status: "IN_PROGRESS",
+    teamId: null,
+    requesterMembershipId: ID(1),
+    assigneeMembershipId: ID(2),
+  },
+  visibility: "ALL_TICKETS",
   requester: REQ,
   assignee: AGENT,
   teamMembers: [LEAD, TEAMMATE, AGENT],
@@ -49,10 +59,13 @@ describe("who hears about what (DOMAIN.md §8)", () => {
   })
 
   it("status changes the requester cares about, and only those", () => {
-    const resolved = deliveriesFor({ kind: "status-changed", ticketId: TICKET, actorMembershipId: AGENT.membershipId, to: "RESOLVED" }, circle())
+    const resolved = deliveriesFor({ kind: "status-changed", ticketId: TICKET, actorMembershipId: AGENT.membershipId, to: "RESOLVED", comment: null }, circle())
     expect(who(resolved)).toEqual([REQ, WATCHER].map((p) => p.membershipId).toSorted())
+    const closedByRequester = deliveriesFor({ kind: "status-changed", ticketId: TICKET, actorMembershipId: REQ.membershipId, to: "CLOSED", comment: null }, circle())
+    // The assignee watches implicitly.
+    expect(who(closedByRequester)).toEqual([AGENT, WATCHER].map((p) => p.membershipId).toSorted())
     expect(resolved[0]?.title).toBe("INC-000042 was resolved — Printer")
-    expect(deliveriesFor({ kind: "status-changed", ticketId: TICKET, actorMembershipId: AGENT.membershipId, to: "IN_PROGRESS" }, circle())).toEqual([])
+    expect(deliveriesFor({ kind: "status-changed", ticketId: TICKET, actorMembershipId: AGENT.membershipId, to: "IN_PROGRESS", comment: null }, circle())).toEqual([])
   })
 
   it("a breach reaches the assignee, the team lead and every admin; a warning only the first two", () => {
@@ -67,5 +80,24 @@ describe("who hears about what (DOMAIN.md §8)", () => {
     expect(who(gone)).toEqual([WATCHER.membershipId])
     const reassigned = deliveriesFor({ kind: "ticket-assigned", ticketId: TICKET, actorMembershipId: LEAD.membershipId, assigneeMembershipId: TEAMMATE.membershipId }, circle())
     expect(reassigned).toEqual([])
+  })
+
+  it("a comment carried by a move reaches whoever the move does not, once each", () => {
+    // Cancelled tells nobody by status; the required reason reaches the requester and watchers as a reply.
+    const cancelled = deliveriesFor({ kind: "status-changed", ticketId: TICKET, actorMembershipId: AGENT.membershipId, to: "CANCELLED", comment: "PUBLIC" }, circle())
+    expect(cancelled.map((d) => [d.person.membershipId, d.type])).toEqual([
+      [REQ.membershipId, "COMMENT_PUBLIC"],
+      [WATCHER.membershipId, "COMMENT_PUBLIC"],
+    ])
+    // Resolved: one row each — the status — not a second "new reply".
+    const resolved = deliveriesFor({ kind: "status-changed", ticketId: TICKET, actorMembershipId: AGENT.membershipId, to: "RESOLVED", comment: "PUBLIC" }, circle())
+    expect(resolved.map((d) => d.type)).toEqual(["STATUS_CHANGED", "STATUS_CHANGED"])
+    // A reopen with a note: the assignee and lead hear the reopen; the note goes nowhere new.
+    const reopened = deliveriesFor({ kind: "ticket-reopened", ticketId: TICKET, actorMembershipId: REQ.membershipId, comment: "PUBLIC" }, circle())
+    expect(reopened.map((d) => [d.person.membershipId, d.type])).toEqual([
+      [AGENT.membershipId, "TICKET_REOPENED"],
+      [LEAD.membershipId, "TICKET_REOPENED"],
+      [WATCHER.membershipId, "COMMENT_PUBLIC"],
+    ])
   })
 })

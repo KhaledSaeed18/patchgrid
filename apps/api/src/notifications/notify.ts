@@ -6,15 +6,20 @@ import { type Clock, InjectClock } from "../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../config/app-config"
 import { runJob } from "../jobs/dispatcher/run-job"
 import { jobId } from "../jobs/job-id"
+import { PrismaService } from "../prisma/prisma.service"
+import { TicketAudience } from "./audience"
 import { deliveriesFor, type Person } from "./fan-out"
 import { type NotifyEvent, notifyJobSchema } from "./notify-events"
-import { NotificationRepository, type NotificationRow } from "./repositories/notification.repository"
+import { type AddedNotification, NotificationRepository } from "./repositories/notification.repository"
 import { TicketCircleRepository } from "./repositories/ticket-circle.repository"
 
 export const NOTIFY_QUEUE = "notify"
 
 /** One inbox row written for one person — what the live stream announces. */
-export type Delivered = { person: Person; row: NotificationRow & { inserted: boolean } }
+export type Delivered = { person: Person; row: AddedNotification }
+
+/** One thing to tell: the event, and the entity and discriminator that make its job id. */
+export type Notice = { event: NotifyEvent; entityId: string; discriminator: string }
 
 /**
  * After commit, a service says what happened; this queues it (ADR-0018). The
@@ -27,16 +32,28 @@ export class Notifier {
 
   constructor(@InjectQueue(NOTIFY_QUEUE) private readonly queue: Queue) {}
 
-  /**
-   * Never throws: the change it reports has already committed, and a lost
-   * notification must not turn a successful request into a 500. The table
-   * stays the source of truth for whatever did arrive.
-   */
   async notify(orgId: string, event: NotifyEvent, entityId: string, discriminator: string): Promise<void> {
+    await this.notifyAll(orgId, [{ event, entityId, discriminator }])
+  }
+
+  /**
+   * Many at once, in one round trip. Never throws: the change it reports has
+   * already committed, and a lost notification must not turn a successful
+   * request into a 500. The table stays the source of truth for whatever did
+   * arrive.
+   */
+  async notifyAll(orgId: string, notices: readonly Notice[]): Promise<void> {
+    if (notices.length === 0) return
     try {
-      await this.queue.add(event.kind, { orgId, event }, { jobId: jobId(NOTIFY_QUEUE, orgId, entityId, discriminator) })
+      await this.queue.addBulk(
+        notices.map(({ event, entityId, discriminator }) => ({
+          name: event.kind,
+          data: { orgId, event },
+          opts: { jobId: jobId(NOTIFY_QUEUE, orgId, entityId, discriminator) },
+        })),
+      )
     } catch (error) {
-      this.logger.error({ msg: "notification not queued", orgId, kind: event.kind, error: String(error) })
+      this.logger.error({ msg: "notifications not queued", orgId, count: notices.length, error: String(error) })
     }
   }
 }
@@ -51,31 +68,47 @@ export class NotifyService {
   constructor(
     private readonly circles: TicketCircleRepository,
     private readonly notifications: NotificationRepository,
+    private readonly audience: TicketAudience,
+    private readonly prisma: PrismaService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
+  /**
+   * One transaction for the event: the reads see one state, the rows land
+   * together — and the raw upsert runs where the tenant setting is applied,
+   * which RLS insists on.
+   */
   async deliver(orgId: string, event: NotifyEvent): Promise<Delivered[]> {
+    return this.prisma.transaction(() => this.write(orgId, event))
+  }
+
+  private async write(orgId: string, event: NotifyEvent): Promise<Delivered[]> {
     const circle = await this.circles.load(orgId, event.ticketId, event.actorMembershipId)
     if (circle === null) return []
-    const now = this.clock.now()
-    const delivered: Delivered[] = []
-    for (const delivery of deliveriesFor(event, circle)) {
-      const row = await this.notifications.add(
-        orgId,
-        {
-          userId: delivery.person.userId,
-          membershipId: delivery.person.membershipId,
-          type: delivery.type,
-          title: delivery.title,
-          body: null,
-          ticketId: circle.ticket.id,
-          dedupeKey: delivery.dedupeKey,
-        },
-        now,
-      )
-      delivered.push({ person: delivery.person, row })
-    }
-    return delivered
+    const ticket = { ...circle.ticket, watcherMembershipIds: new Set(circle.watchers.map((w) => w.membershipId)) }
+    // A notification about a ticket is a read of it: nobody hears about one
+    // they could not open, nor about an internal note they could not see.
+    const deliveries = deliveriesFor(event, circle).filter((d) =>
+      this.audience.mayRead(orgId, d.person, ticket, circle.visibility, d.type === "COMMENT_INTERNAL" ? "internal" : "ticket"),
+    )
+    const rows = await this.notifications.addMany(
+      orgId,
+      deliveries.map((d) => ({
+        userId: d.person.userId,
+        membershipId: d.person.membershipId,
+        type: d.type,
+        title: d.title,
+        body: null,
+        ticketId: circle.ticket.id,
+        dedupeKey: d.dedupeKey,
+      })),
+      this.clock.now(),
+    )
+    const byMember = new Map(deliveries.map((d) => [d.person.membershipId, d.person]))
+    return rows.flatMap((row) => {
+      const person = byMember.get(row.membershipId)
+      return person === undefined ? [] : [{ person, row }]
+    })
   }
 }
 

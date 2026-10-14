@@ -1,13 +1,34 @@
-import { formatTicketNumber, type NotificationType, type TicketStatus, type TicketType } from "@patchgrid/contracts"
+import {
+  type AgentVisibility,
+  formatTicketNumber,
+  type NotificationType,
+  type TicketStatus,
+  type TicketType,
+} from "@patchgrid/contracts"
 
+import type { Reader } from "./audience"
 import type { NotifyEvent } from "./notify-events"
 
-/** A member who might be told: their membership, their delivery address, and whether they still belong. */
-export type Person = { membershipId: string; userId: string; active: boolean }
+/**
+ * A member who might be told: their membership, their delivery address,
+ * whether they still belong, and the role and teams a read decision needs.
+ */
+export type Person = Reader & { active: boolean }
 
 /** The ticket and the people around it, as they are when the job runs. */
 export type TicketCircle = {
-  ticket: { id: string; type: TicketType; number: number; title: string; status: TicketStatus }
+  ticket: {
+    id: string
+    type: TicketType
+    number: number
+    title: string
+    status: TicketStatus
+    teamId: string | null
+    requesterMembershipId: string
+    assigneeMembershipId: string | null
+  }
+  /** The workspace's agent visibility, for deciding who may read the ticket. */
+  visibility: AgentVisibility
   requester: Person
   assignee: Person | null
   /** Every member of the ticket's team, for "a ticket arrived" (in-app only). */
@@ -52,6 +73,16 @@ export function deliveriesFor(event: NotifyEvent, circle: TicketCircle): Deliver
     }
   }
 
+  // `send` keeps each member's first delivery, so a comment carried by a move
+  // reaches only those the move itself did not.
+  const comment = (visibility: "PUBLIC" | "INTERNAL") => {
+    if (visibility === "INTERNAL") {
+      send([circle.assignee], "COMMENT_INTERNAL", `Internal note on ${ref}`, `note:${ticket.id}`)
+    } else {
+      send([circle.requester, circle.assignee, ...circle.watchers], "COMMENT_PUBLIC", `New reply on ${ref}`, `comment:${ticket.id}`)
+    }
+  }
+
   switch (event.kind) {
     case "ticket-created":
       if (event.actorMembershipId !== null && event.actorMembershipId !== circle.requester.membershipId) {
@@ -65,21 +96,20 @@ export function deliveriesFor(event: NotifyEvent, circle: TicketCircle): Deliver
       break
     }
     case "comment-added":
-      if (event.visibility === "INTERNAL") {
-        send([circle.assignee], "COMMENT_INTERNAL", `Internal note on ${ref}`, `note:${ticket.id}`)
-      } else {
-        send([circle.requester, circle.assignee, ...circle.watchers], "COMMENT_PUBLIC", `New reply on ${ref}`, `comment:${ticket.id}`)
-      }
+      comment(event.visibility)
       break
     case "status-changed": {
       const words = STATUS_WORDS[event.to]
       if (words !== undefined) {
-        send([circle.requester, ...circle.watchers], "STATUS_CHANGED", `${formatTicketNumber(ticket.type, ticket.number)} ${words} — ${ticket.title}`, `status:${ticket.id}`)
+        // The assignee is an implicit watcher (DOMAIN.md §8).
+        send([circle.requester, circle.assignee, ...circle.watchers], "STATUS_CHANGED", `${formatTicketNumber(ticket.type, ticket.number)} ${words} — ${ticket.title}`, `status:${ticket.id}`)
       }
+      if (event.comment !== null) comment(event.comment)
       break
     }
     case "ticket-reopened":
       send([circle.assignee, ...circle.teamLeads], "TICKET_REOPENED", `Reopened — ${ref}`)
+      if (event.comment !== null) comment(event.comment)
       break
     case "watcher-added": {
       const added = circle.watchers.find((w) => w.membershipId === event.membershipId) ?? null

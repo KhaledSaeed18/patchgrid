@@ -2,6 +2,7 @@ import { BullModule } from "@nestjs/bullmq"
 import { Module } from "@nestjs/common"
 
 import { AuthModule } from "../auth/auth.module"
+import { TicketAudience } from "./audience"
 import { NotificationsController } from "./notifications.controller"
 import { NotificationsService } from "./notifications.service"
 import { NOTIFY_QUEUE, Notifier, NotifyProcessor, NotifyService } from "./notify"
@@ -12,7 +13,7 @@ import { TicketCircleRepository } from "./repositories/ticket-circle.repository"
 @Module({
   imports: [AuthModule, BullModule.registerQueue({ name: NOTIFY_QUEUE })],
   controllers: [NotificationsController],
-  providers: [NotificationRepository, TicketCircleRepository, NotificationsService, Notifier, NotifyService, NotifyProcessor],
+  providers: [TicketAudience, NotificationRepository, TicketCircleRepository, NotificationsService, Notifier, NotifyService, NotifyProcessor],
   exports: [Notifier],
 })
 export class NotificationsModule {}

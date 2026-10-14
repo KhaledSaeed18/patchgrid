@@ -26,6 +26,9 @@ export type NewNotification = {
   dedupeKey: string | null
 }
 
+/** A row as written by `addMany`: whose it is, and whether it is new or a burst folded into one. */
+export type AddedNotification = NotificationRow & { membershipId: string; inserted: boolean }
+
 const ROW = {
   id: true,
   type: true,
@@ -93,32 +96,41 @@ export class NotificationRepository {
   }
 
   /**
-   * Adds one notification, or — when an unread one with the same `dedupeKey`
-   * exists for that member — folds into it: `count` up by one, the newer
-   * title and body, `updatedAt` now. One statement against the partial unique
-   * index, so two bursts racing cannot make two rows. Raw SQL because Prisma
-   * cannot name a partial index as a conflict target. Returns the row the
-   * member will see.
+   * Adds a batch of notifications in one statement — or, for each member who
+   * already has an unread one with the same `dedupeKey`, folds into it:
+   * `count` up by one, the newer title and body, `updatedAt` now. One
+   * statement against the partial unique index, so two bursts racing cannot
+   * make two rows and a fan-out to fifty admins is not fifty round trips. The
+   * batch must name each member at most once. Raw SQL because Prisma cannot
+   * name a partial index as a conflict target — so call it inside
+   * `transaction()`, where the tenant setting is applied. Returns the rows the
+   * members will see.
    */
-  async add(orgId: string, note: NewNotification, now: Date): Promise<NotificationRow & { inserted: boolean }> {
-    const [row] = await this.prisma.db.$queryRaw<(NotificationRow & { inserted: boolean })[]>`
+  async addMany(orgId: string, notes: readonly NewNotification[], now: Date): Promise<AddedNotification[]> {
+    if (notes.length === 0) return []
+    return this.prisma.db.$queryRaw<AddedNotification[]>`
       INSERT INTO "Notification"
         ("id", "orgId", "userId", "membershipId", "type", "title", "body", "ticketId", "dedupeKey", "createdAt", "updatedAt")
-      VALUES (
-        ${uuidv7()}::uuid, ${orgId}::uuid, ${note.userId}::uuid, ${note.membershipId}::uuid,
-        ${note.type}::"NotificationType", ${note.title}, ${note.body}, ${note.ticketId}::uuid, ${note.dedupeKey},
-        ${now}, ${now}
-      )
+      SELECT n."id", ${orgId}::uuid, n."userId", n."membershipId", n."type"::"NotificationType", n."title", n."body",
+        n."ticketId", n."dedupeKey", ${now}, ${now}
+      FROM unnest(
+        ${notes.map(() => uuidv7())}::uuid[],
+        ${notes.map((n) => n.userId)}::uuid[],
+        ${notes.map((n) => n.membershipId)}::uuid[],
+        ${notes.map((n) => n.type)}::text[],
+        ${notes.map((n) => n.title)}::text[],
+        ${notes.map((n) => n.body)}::text[],
+        ${notes.map((n) => n.ticketId)}::uuid[],
+        ${notes.map((n) => n.dedupeKey)}::text[]
+      ) AS n("id", "userId", "membershipId", "type", "title", "body", "ticketId", "dedupeKey")
       ON CONFLICT ("orgId", "membershipId", "dedupeKey") WHERE "readAt" IS NULL
       DO UPDATE SET
         "count" = "Notification"."count" + 1,
         "title" = EXCLUDED."title",
         "body" = EXCLUDED."body",
         "updatedAt" = EXCLUDED."updatedAt"
-      RETURNING "id", "type", "title", "body", "ticketId", "count", "readAt", "createdAt", "updatedAt",
+      RETURNING "id", "membershipId", "type", "title", "body", "ticketId", "count", "readAt", "createdAt", "updatedAt",
         (xmax = 0) AS "inserted"
     `
-    if (row === undefined) throw new Error("notification insert returned no row")
-    return row
   }
 }
