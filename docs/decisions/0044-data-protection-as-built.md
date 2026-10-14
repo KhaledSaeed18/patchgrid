@@ -4,6 +4,12 @@
 - **Date:** 2026-10-15
 - **Refines:** [0028](0028-data-protection-export-erasure-retention.md)
 
+> **Erratum (2026-10-15).** Erasure has to find every workspace a person was ever in, and memberships
+> are tenant-owned, so the only place to look is the picker's projection. Removing a member used to
+> delete their `UserOrgIndex` row, which would hide exactly the memberships that still carry their name.
+> The row now stays, marked `REMOVED`. The picker leaves it out, which keeps ADR-0033's promise, and
+> erasure reads every row, removed ones included.
+
 ## Context
 
 ADR-0028 decides the policy:
