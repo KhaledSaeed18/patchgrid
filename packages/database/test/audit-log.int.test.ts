@@ -27,6 +27,8 @@ function requireEnv(name: string): string {
 }
 
 const PARTITION = "AuditLog_2099_03"
+/** Far enough back to be past the seven-year window whenever this runs. */
+const EXPIRED = "AuditLog_2010_01"
 const IN_PARTITION = "2099-03-15T12:00:00Z"
 const suffix = randomUUID().slice(0, 8)
 
@@ -75,6 +77,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await owner.query(`DROP TABLE IF EXISTS "${PARTITION}"`)
+  await owner.query(`DROP TABLE IF EXISTS "${EXPIRED}"`)
+  await owner.query(`DROP TABLE IF EXISTS audit_archive."${EXPIRED}"`)
   await owner.query(`DELETE FROM "AuditLog" WHERE "orgId" = ANY($1)`, [Object.values(orgs)])
   await owner.query(`DELETE FROM "Organization" WHERE id = ANY($1)`, [Object.values(orgs)])
   await Promise.all([owner.end(), app.end()])
@@ -131,5 +135,27 @@ describe("audit-log partitions", () => {
 
   it("a month with no partition refuses the insert — there is no default partition", async () => {
     await expect(insert(orgs.acme, "2098-01-15T00:00:00Z")).rejects.toThrow(/no partition of relation/)
+  })
+
+  it("archives a month wholly past retention — out of public, out of reach, still fenced — and nothing newer", async () => {
+    await app.query("SELECT ensure_audit_log_partition($1)", ["2010-01-15T00:00:00Z"])
+    await insert(orgs.acme, "2010-01-15T00:00:00Z")
+
+    const archived = await app.query<{ name: string }>("SELECT archive_expired_audit_log_partitions() AS name")
+    expect(archived.rows.map((r) => r.name)).toContain(EXPIRED)
+    expect(archived.rows.map((r) => r.name)).not.toContain(PARTITION)
+    expect((await app.query("SELECT archive_expired_audit_log_partitions()")).rows).toEqual([])
+
+    const { rows } = await owner.query<{ schema: string; forced: boolean; policies: string; fks: string }>(
+      `SELECT n.nspname AS schema, c.relforcerowsecurity AS forced,
+              (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid)::text AS policies,
+              (SELECT count(*) FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype = 'f')::text AS fks
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = $1`,
+      [EXPIRED],
+    )
+    expect(rows).toEqual([{ schema: "audit_archive", forced: true, policies: "1", fks: "0" }])
+    await expect(app.query(`SELECT id FROM audit_archive."${EXPIRED}"`)).rejects.toThrow(/permission denied/)
+    // Its rows went with it; the parent no longer answers for that month.
+    expect(await asTenant(orgs.acme, `SELECT id FROM "AuditLog" WHERE "createdAt" < '2011-01-01'`)).toEqual([])
   })
 })
