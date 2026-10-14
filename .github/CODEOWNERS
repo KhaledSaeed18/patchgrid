@@ -11,3 +11,9 @@
 /docker/postgres/           @KhaledSaeed18
 /packages/eslint-config/boundaries.js  @KhaledSaeed18
 /.github/workflows/         @KhaledSaeed18
+
+# Dependency manifests, deliberately unowned: Dependabot rewrites them on every
+# bump, and a review request per bump is noise. CI is the gate for these.
+# Later rules win, so this only clears what `*` assigned above.
+**/package.json
+/pnpm-lock.yaml
