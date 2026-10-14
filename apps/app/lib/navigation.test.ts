@@ -45,6 +45,7 @@ describe("navigation", () => {
       "Members",
       "Teams",
       "Audit log",
+      "Inbound email",
     ])
     expect(homeFor(["ticket:assign"])).toBe("/queues")
   })

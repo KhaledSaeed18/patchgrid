@@ -45,6 +45,11 @@ const SECTIONS: NavSection[] = [
         href: "/settings/audit",
         requires: "org:read_audit",
       },
+      {
+        label: "Inbound email",
+        href: "/settings/inbound",
+        requires: "org:read_audit",
+      },
     ],
   },
 ]

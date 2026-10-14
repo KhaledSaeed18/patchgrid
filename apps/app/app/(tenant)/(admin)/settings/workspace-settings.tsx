@@ -163,6 +163,13 @@ export function WorkspaceSettings({
       </Section>
 
       <Section
+        title="Email"
+        description="Mail to this address becomes a ticket, and replies to ticket emails land on their ticket. Only members' mail that passes DMARC is taken; the rest is listed in the inbound log."
+      >
+        <p className="font-mono text-sm break-all">{settings.inboundAddress}</p>
+      </Section>
+
+      <Section
         title="Plan and usage"
         description={`This workspace is on the ${usage.plan === "FREE" ? "Free" : "Pro"} plan.`}
       >

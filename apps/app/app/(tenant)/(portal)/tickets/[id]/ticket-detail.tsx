@@ -39,7 +39,11 @@ import { Assets } from "./assets"
 import { Links } from "./links"
 import { RecordDetails } from "./record-details"
 import { Watchers } from "./watchers"
-import { PriorityBadge, StatusBadge } from "@/components/tickets/badges"
+import {
+  PriorityBadge,
+  SourceBadge,
+  StatusBadge,
+} from "@/components/tickets/badges"
 import { LiveRefresh } from "@/components/live-refresh"
 import { DueBadge } from "@/components/tickets/due-badge"
 import { RelativeTime } from "@/components/tickets/relative-time"
@@ -125,6 +129,7 @@ export function TicketDetail({
         <span className="font-mono text-xs tabular-nums">{ticket.number}</span>
         <StatusBadge status={ticket.status} />
         <PriorityBadge priority={ticket.priority} />
+        <SourceBadge source={ticket.source} />
         {ticket.dueAt !== null && ticket.capabilities.canAssign && (
           <DueBadge
             dueAt={ticket.dueAt}

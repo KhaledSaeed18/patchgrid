@@ -1,5 +1,7 @@
 import type {
   ArticleVisibility,
+  AuthVerdict,
+  InboundOutcome,
   AssetStatus,
   AssetType,
   ChangeRisk,
@@ -158,4 +160,22 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   CHANGE_AWAITING_APPROVAL: "A change awaits my approval",
   CHANGE_APPROVED: "A change I raised or carry out is approved",
   CHANGE_REJECTED: "A change I raised or carry out is rejected",
+}
+
+/** What became of an inbound message, as the admins' log says it (ADR-0027). */
+export const INBOUND_OUTCOME_LABEL: Record<InboundOutcome, string> = {
+  RECEIVED: "Waiting",
+  CREATED: "New ticket",
+  THREADED: "Reply on a ticket",
+  UNAUTHENTICATED: "Sender not verified",
+  UNKNOWN_SENDER: "Not a member",
+  AUTO_REPLY: "Automatic mail",
+  RATE_LIMITED: "Too many from this sender",
+  FAILED: "Could not be processed",
+}
+
+export const AUTH_VERDICT_LABEL: Record<AuthVerdict, string> = {
+  PASS: "DMARC pass",
+  FAIL: "DMARC fail",
+  NONE: "No DMARC result",
 }

@@ -9,7 +9,7 @@ import {
 } from "@patchgrid/ui/components/table"
 import Link from "next/link"
 
-import { PriorityBadge, StatusBadge } from "./badges"
+import { PriorityBadge, SourceBadge, StatusBadge } from "./badges"
 import { DueBadge } from "./due-badge"
 import { RelativeTime } from "./relative-time"
 
@@ -53,12 +53,15 @@ export function TicketTable({
               {ticket.number}
             </TableCell>
             <TableCell className="max-w-xs">
-              <Link
-                href={`/tickets/${ticket.id}`}
-                className="block truncate font-medium hover:underline"
-              >
-                {ticket.title}
-              </Link>
+              <div className="flex min-w-0 items-center gap-2">
+                <Link
+                  href={`/tickets/${ticket.id}`}
+                  className="block truncate font-medium hover:underline"
+                >
+                  {ticket.title}
+                </Link>
+                <SourceBadge source={ticket.source} />
+              </div>
             </TableCell>
             <TableCell>
               <StatusBadge status={ticket.status} />

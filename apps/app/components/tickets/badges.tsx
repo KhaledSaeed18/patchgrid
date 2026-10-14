@@ -1,4 +1,4 @@
-import type { Priority, TicketStatus } from "@patchgrid/contracts"
+import type { Priority, TicketSource, TicketStatus } from "@patchgrid/contracts"
 import { cn } from "@patchgrid/ui/lib/utils"
 
 import { PRIORITY_LABEL, TICKET_STATUS_LABEL } from "@/lib/labels"
@@ -42,6 +42,16 @@ export function StatusBadge({ status }: { status: TicketStatus }) {
       )}
     >
       {TICKET_STATUS_LABEL[status]}
+    </span>
+  )
+}
+
+/** Only the unusual arrival says so: a ticket raised by email (ADR-0027). */
+export function SourceBadge({ source }: { source: TicketSource }) {
+  if (source !== "EMAIL") return null
+  return (
+    <span className="inline-flex h-5 items-center rounded-sm border border-dashed border-border px-1.5 text-xs whitespace-nowrap text-muted-foreground">
+      Email
     </span>
   )
 }
