@@ -37,6 +37,9 @@ import { TenantDispatchService } from "../../src/jobs/dispatcher/tenant-dispatch
 import { MailProcessor } from "../../src/mail/mail.processor"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
 import { PrismaService } from "../../src/prisma/prisma.service"
+import { AttachmentSweepProcessor } from "../../src/jobs/maintenance/attachment-sweep"
+import { ProjectionReconcileProcessor } from "../../src/memberships/projections/projection-reconcile"
+import { AutoCloseProcessor } from "../../src/tickets/sweeps/auto-close"
 import { SlaScanProcessor } from "../../src/tickets/sweeps/sla-scan"
 import { NOTIFY_QUEUE } from "../../src/notifications/notify"
 import { settler } from "../support/queues"
@@ -288,9 +291,23 @@ describe("8 · background jobs carry their tenant", () => {
     }
   })
 
-  it("a sweep job without its tenant is refused, never run across tenants", async () => {
+  it("a sweep job without its tenant is refused, never run across tenants — every sweep", async () => {
     const job = { id: "isolation/sweep-missing-org", data: { tick: 1 } } as unknown as Job
-    await expect(app.get(SlaScanProcessor).process(job)).rejects.toBeInstanceOf(UnrecoverableError)
+    for (const processor of [SlaScanProcessor, AutoCloseProcessor, AttachmentSweepProcessor, ProjectionReconcileProcessor]) {
+      await expect(app.get(processor).process(job), processor.name).rejects.toBeInstanceOf(UnrecoverableError)
+    }
+  })
+
+  it("projection-reconcile repairs one tenant's picker rows and never touches the other's", async () => {
+    const rita = seed.people.rita.userId
+    const rosa = seed.people.rosa.userId
+    await owner.userOrgIndex.update({ where: { userId_orgId: { userId: rita, orgId: seed.acme.id } }, data: { orgName: "Drifted" } })
+    await owner.userOrgIndex.update({ where: { userId_orgId: { userId: rosa, orgId: seed.globex.id } }, data: { orgName: "Drifted" } })
+    const job = { id: "isolation/reconcile", data: { orgId: seed.acme.id, tick: 1 } } as unknown as Job
+    expect(await app.get(ProjectionReconcileProcessor).process(job)).toBe(1)
+    expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rita, orgId: seed.acme.id } } })).orgName).not.toBe("Drifted")
+    expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rosa, orgId: seed.globex.id } } })).orgName).toBe("Drifted")
+    await app.get(ProjectionReconcileProcessor).process({ id: "isolation/reconcile-globex", data: { orgId: seed.globex.id, tick: 1 } } as unknown as Job)
   })
 })
 
