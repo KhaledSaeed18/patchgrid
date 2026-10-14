@@ -64,25 +64,27 @@ export class TicketCircleRepository {
     const requester = toPerson(ticket.requester)
     if (requester === null) return null
 
-    const [org, team, admins, actor] = await Promise.all([
-      this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { agentVisibility: true } }),
+    // One after another: these run on the caller's transaction, and one
+    // connection takes one statement at a time.
+    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { agentVisibility: true } })
+    const team =
       ticket.teamId === null
-        ? Promise.resolve([])
-        : this.prisma.db.teamMembership.findMany({
+        ? []
+        : await this.prisma.db.teamMembership.findMany({
             where: { orgId, teamId: ticket.teamId },
             select: { isLead: true, membership: { select: PERSON } },
-          }),
-      this.prisma.db.membership.findMany({
-        where: { orgId, role: { in: ["ADMIN", "OWNER"] }, status: "ACTIVE", kind: "HUMAN" },
-        select: PERSON,
-      }),
+          })
+    const admins = await this.prisma.db.membership.findMany({
+      where: { orgId, role: { in: ["ADMIN", "OWNER"] }, status: "ACTIVE", kind: "HUMAN" },
+      select: PERSON,
+    })
+    const actor =
       actorMembershipId === null
-        ? Promise.resolve(null)
-        : this.prisma.db.membership.findUnique({
+        ? null
+        : await this.prisma.db.membership.findUnique({
             where: { orgId_id: { orgId, id: actorMembershipId } },
             select: { displayName: true },
-          }),
-    ])
+          })
     if (org === null) return null
 
     return {
