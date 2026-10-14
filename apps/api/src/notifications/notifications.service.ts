@@ -1,10 +1,14 @@
 import { Injectable } from "@nestjs/common"
 import {
   decodeCursor,
+  emailWanted,
   encodeCursor,
   type Notification,
   type NotificationListQuery,
   type NotificationPage,
+  type NotificationPreferences,
+  notificationTypeSchema,
+  type UpdateNotificationPreferences,
 } from "@patchgrid/contracts"
 
 import { ActorService, type MemberActor } from "../auth/actor"
@@ -12,6 +16,7 @@ import { PermissionService } from "../authz/permission.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { NotFoundProblem, NotPermittedProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { TenantContextService } from "../tenancy/tenant-context.service"
+import { NotificationPreferencesRepository } from "./repositories/notification-preferences.repository"
 import { NotificationRepository, type NotificationRow } from "./repositories/notification.repository"
 
 /**
@@ -23,6 +28,7 @@ import { NotificationRepository, type NotificationRow } from "./repositories/not
 export class NotificationsService {
   constructor(
     private readonly notifications: NotificationRepository,
+    private readonly preferences: NotificationPreferencesRepository,
     private readonly permissions: PermissionService,
     private readonly actors: ActorService,
     private readonly tenant: TenantContextService,
@@ -69,6 +75,21 @@ export class NotificationsService {
     await this.notifications.markAllRead(this.tenant.requireOrgId(), actor.userId, this.clock.now())
   }
 
+  /** The member's email choices in this workspace, every type spelled out (DOMAIN.md §8). */
+  async readPreferences(): Promise<NotificationPreferences> {
+    const actor = this.self("notification:read")
+    const stored = await this.preferences.read(this.tenant.requireOrgId(), actor.membershipId)
+    if (stored === null) throw new NotFoundProblem()
+    return { emailEnabledForOrg: stored.orgEnabled, email: spelledOut(stored.prefs) }
+  }
+
+  async updatePreferences(request: UpdateNotificationPreferences): Promise<NotificationPreferences> {
+    const actor = this.self("notification:update")
+    const orgId = this.tenant.requireOrgId()
+    if ((await this.preferences.merge(orgId, actor.membershipId, request.email)) === null) throw new NotFoundProblem()
+    return this.readPreferences()
+  }
+
   private self(permission: "notification:read" | "notification:update"): MemberActor {
     const actor = this.actors.requireTenantActor()
     this.permissions.assert(actor, permission, { self: true })
@@ -89,4 +110,8 @@ export function toNotification(row: NotificationRow): Notification {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
+}
+
+function spelledOut(prefs: Parameters<typeof emailWanted>[0]): NotificationPreferences["email"] {
+  return Object.fromEntries(notificationTypeSchema.options.map((type) => [type, emailWanted(prefs, type)])) as NotificationPreferences["email"]
 }
