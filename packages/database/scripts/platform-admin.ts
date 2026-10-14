@@ -41,7 +41,8 @@ async function main(): Promise<void> {
       const admin = await db.platformAdmin.upsert({
         where: { userId: user.id },
         create: { userId: user.id },
-        update: { revokedAt: null },
+        // A new grant starts a new era: nothing issued under the last one works again.
+        update: { revokedAt: null, grantedAt: new Date() },
         select: { id: true },
       })
       await db.platformAuditLog.create({ data: { action: "PLATFORM_ADMIN_GRANTED", targetUserId: user.id, diff: { platformAdminId: admin.id } } })

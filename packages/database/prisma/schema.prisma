@@ -208,6 +208,8 @@ model PlatformAdmin {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   /// Revoked by CLI; the row stays, because audit rows point at it (ADR-0040).
   revokedAt DateTime? @db.Timestamptz(3)
+  /// Reset by every grant: a token issued before it — under an earlier grant — is dead.
+  grantedAt DateTime  @default(now()) @db.Timestamptz(3)
 
   user                 User               @relation(fields: [userId], references: [id])
   auditEntries         AuditLog[]

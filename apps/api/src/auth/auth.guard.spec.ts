@@ -68,7 +68,7 @@ const memberships = { findById: vi.fn(async () => membership as MembershipRecord
 const epochs = { isRevoked: vi.fn(async (): Promise<boolean | null> => false) }
 const ADMIN = "0190b2f0-0000-7000-8000-0000000000ad"
 const platformAdmins = {
-  active: vi.fn(async (id: string) => (id === ADMIN ? { id: ADMIN, userId: USER, email: "dana@x.test", name: "Dana" } : null) as unknown),
+  active: vi.fn(async (id: string) => (id === ADMIN ? { id: ADMIN, userId: USER, email: "dana@x.test", name: "Dana", grantedAt: new Date(0) } : null) as unknown),
 }
 const SESSION = "0190b2f0-0000-7000-8000-0000000000cc"
 const liveSession = () => ({

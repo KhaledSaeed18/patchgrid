@@ -173,8 +173,14 @@ export class AuthGuard implements CanActivate {
     if (session === null || session.platformAdminId !== claims.platformAdminId || statusOf(session, now) !== "ACTIVE") {
       throw new NotAuthenticatedProblem("The support session has ended")
     }
+    // Signing out of the back-office ends support too (ADR-0041: whichever ends first).
+    if ((await this.epochs.isRevoked(platformEpochKey(claims.platformAdminId), claims.iat)) === true) {
+      throw new NotAuthenticatedProblem("The platform session was ended")
+    }
     const admin = await this.platformAdmins.active(claims.platformAdminId)
-    if (admin?.userId !== claims.userId) throw new NotAuthenticatedProblem("The platform grant is no longer active")
+    if (admin?.userId !== claims.userId || issuedBefore(claims.iat, admin.grantedAt)) {
+      throw new NotAuthenticatedProblem("The platform grant is no longer active")
+    }
     const actor = {
       kind: "support" as const,
       orgId,
@@ -214,7 +220,9 @@ export class AuthGuard implements CanActivate {
       throw new ServiceUnavailableProblem("The session could not be confirmed; retry shortly")
     }
     const admin = await this.platformAdmins.active(session.platformAdminId)
-    if (admin?.userId !== session.userId) throw new NotAuthenticatedProblem("The platform grant is no longer active")
+    if (admin?.userId !== session.userId || issuedBefore(session.iat, admin.grantedAt)) {
+      throw new NotAuthenticatedProblem("The platform grant is no longer active")
+    }
     this.setActor({ kind: "platform", platformAdminId: admin.id, userId: admin.userId, sessionExpiresAt: session.exp })
     return true
   }
@@ -222,4 +230,9 @@ export class AuthGuard implements CanActivate {
   private setActor(actor: Actor): void {
     this.cls.set("actor", actor)
   }
+}
+
+/** Issued under an earlier grant: a revoke and a re-grant must not bring old tokens back. */
+function issuedBefore(iat: number, grantedAt: Date): boolean {
+  return iat < Math.floor(grantedAt.getTime() / 1000)
 }

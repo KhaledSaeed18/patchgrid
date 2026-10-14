@@ -147,3 +147,25 @@ describe("declining and expiry", () => {
     expect(await db.auditLog.count({ where: { orgId: ws.orgId, action: "SUPPORT_ACCESS_EXPIRED", entityId: expiring } })).toBe(1)
   })
 })
+
+describe("the operator's own session", () => {
+  it("is what a support session hangs on: a re-grant or a sign-out ends it", async () => {
+    const id = (await operator.post(`/orgs/${ws.orgId}/support`, { reason: "One more look at the VPN ticket" })).body.id as string
+    await as("owner").post(`/org/support-sessions/${id}/grant`, { hours: 1 })
+    const entered = await operator.post(`/orgs/${ws.orgId}/support/${id}/enter`)
+    supportCookie = String(entered.headers["set-cookie"]).split(";")[0] ?? ""
+    expect((await asSupport().get("/me")).status).toBe(200)
+
+    // Revoked and granted again: nothing issued under the old grant comes back.
+    const admin = await db.platformAdmin.findUniqueOrThrow({ where: { id: operator.platformAdminId } })
+    await db.platformAdmin.update({ where: { id: admin.id }, data: { grantedAt: new Date(Date.now() + 2_000) } })
+    expect((await asSupport().get("/me")).status).toBe(401)
+    await db.platformAdmin.update({ where: { id: admin.id }, data: { grantedAt: admin.grantedAt } })
+    expect((await asSupport().get("/me")).status).toBe(200)
+
+    // Signing out of the back-office ends the support session in the workspace too.
+    expect((await operator.post("/auth/logout")).status).toBe(204)
+    expect((await asSupport().get("/me")).status).toBe(401)
+    await app.get(SupportReadLog).drain()
+  })
+})
