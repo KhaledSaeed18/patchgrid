@@ -47,6 +47,19 @@ members who could open that ticket — a CI test holds that decision equal to th
   - computed priority and per-org numbers (`INC-000042`), routing by category;
   - a transition table with required notes, and stale-write `409`s;
   - public replies and internal notes, watchers, and full-text search.
+- **Four record types, four lifecycles** — service requests; problems with root
+  cause, workaround and known errors; changes with a plan, a risk, an approval by
+  someone other than their author, and a recorded outcome. Tickets link to each
+  other (caused by, resolves, duplicate of, relates to), read from either end.
+- **Files** — attachments on tickets and replies, uploaded straight to object storage
+  with a presigned URL, checked by their bytes rather than their name, and served
+  from a domain that shares nothing with the app. Each workspace has a storage quota.
+- **Assets** — a register of laptops, phones, printers, network kit and licences:
+  who has each, its warranty, and every ticket raised about it. Requesters see
+  their own and name them when they raise a ticket.
+- **Knowledge base** — markdown articles that are drafts, internal runbooks or
+  published to the workspace. Full-text search; versioned edits; suggestions under
+  a new ticket's title while a requester types.
 - **SLA clocks** — response and resolution targets with pause on pending. A
   per-tenant scan flags warnings and breaches once each and audits them. Resolved
   tickets auto-close after seven days.
@@ -57,8 +70,8 @@ members who could open that ticket — a CI test holds that decision equal to th
   - email for assignments, replies, status changes and SLA events, with
     preferences per membership and a workspace-wide off switch.
 - **Housekeeping jobs** — audit-log partitions kept a month ahead and archived past
-  seven years, a nightly repair of the org picker's projection, and the
-  attachment-sweep scaffold for M5.
+  seven years, a nightly repair of the org picker's projection, and a sweep that
+  clears uploads nobody finished and gives their quota back.
 
 ## Running it
 
@@ -73,7 +86,8 @@ pnpm dev
 ```
 
 `www` on `lvh.me:3000`, `app` on `<slug>.lvh.me:3001`, `api` on `api.lvh.me:4000`.
-Outgoing mail lands in Mailpit at `localhost:8025`.
+Outgoing mail lands in Mailpit at `localhost:8025`. Attachments are served by MinIO
+at `localhost:9000` — a different site from `lvh.me`, as files must be (ADR-0037).
 
 Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
 
@@ -108,14 +122,14 @@ The docs are the specification, not a description written afterwards.
 | [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
 | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
 | [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
-| [`docs/decisions/`](docs/decisions/)                                                | 36 ADRs — _why_ any of it is this way                         |
+| [`docs/decisions/`](docs/decisions/)                                                | 38 ADRs — _why_ any of it is this way                         |
 
 ## Status
 
-**M0 (foundation), M1 (tenancy and identity), M2 (incident lifecycle) and M3 (SLA
-sweeps, notifications, live updates, email) are complete.** M4 — service requests,
-problems and changes, each with its own state machine, plus linking and change
-approvals — is next. `docs/HANDOFF.md` has the detail. Screenshots, an architecture
+**M0 (foundation) through M5 are complete:** tenancy and identity, the incident
+lifecycle, SLA sweeps and notifications, service requests, problems and changes, and
+then attachments, assets and the knowledge base. M6 — tickets raised and answered by
+email — is next. `docs/HANDOFF.md` has the detail. Screenshots, an architecture
 diagram and a public demo arrive with the final milestone.
 
 MIT licensed — the value of this repository is that people read it.

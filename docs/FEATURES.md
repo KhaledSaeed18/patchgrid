@@ -284,13 +284,18 @@ stored under the tenant's key prefix and served so an uploaded file can never ex
 
 - [x] `Asset`, `TicketAsset`; asset CRUD, picker on tickets, asset detail with ticket history, requesters
       see their own
-- [ ] `KnowledgeArticle` with per-org tsvector search, markdown editor, `version`, three-tier visibility
+- [x] `KnowledgeArticle` with per-org tsvector search, markdown editor, `version`, three-tier visibility
       (`DRAFT` / `INTERNAL` / `PUBLISHED`), portal search + suggestions on the new-ticket form
 - [x] `Attachment` presigned upload (exact signed `Content-Length` + `Content-Type`) → confirm with
       **byte sniffing** → `READY`; MIME allow-list excluding SVG/HTML; `org/<orgId>/…` keys; separate
       serving origin with `Content-Disposition: attachment`; storage quota increment **and decrement**
       (ADR-0005)
-- [ ] Seed: ~20 assets and ~15 articles per org
+- [x] Seed: ~20 assets and ~15 articles per org
+
+_Met 2026-10-15, walked in headless Chromium against the seeded workspaces: files attached, opened from
+`localhost:9000` and a disguised SVG refused; an asset's history, a requester naming her phone on a new
+ticket; articles searched with stemming, suggested under a ticket title, written, published, and a stale
+save refused. Uploads land in staging and only checked bytes are served (ADR-0038)._
 
 ## M6 — Email intake
 
