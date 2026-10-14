@@ -112,6 +112,7 @@ export class PermissionService {
     return {
       editableFields: editable,
       canLink: this.can(actor, "ticket:link", subject),
+      canUploadAttachment: open && this.can(actor, "attachment:upload", subject),
       canAssign: open && this.can(actor, "ticket:assign", subject),
       canCommentPublic: this.can(actor, "comment:create_public", subject),
       canCommentInternal: this.can(actor, "comment:create_internal", subject),

@@ -15,7 +15,9 @@ import { CategoriesModule } from "./categories/categories.module"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
 import { ConfigModule } from "./config/config.module"
 import { HealthModule } from "./health/health.module"
+import { AttachmentsModule } from "./attachments/attachments.module"
 import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
+import { StorageModule } from "./storage/storage.module"
 import { MaintenanceModule } from "./jobs/maintenance/maintenance.module"
 import { JobsModule } from "./jobs/jobs.module"
 import { NotificationsModule } from "./notifications/notifications.module"
@@ -111,6 +113,8 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     JobsModule,
     DispatchModule,
     MaintenanceModule,
+    StorageModule,
+    AttachmentsModule,
     AuditModule,
     QuotaModule,
     MailModule,
