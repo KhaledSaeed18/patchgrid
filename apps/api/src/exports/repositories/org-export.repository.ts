@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common"
-import type { OrgExportStatus } from "@patchgrid/contracts"
+import type { MembershipStatus, OrgExportStatus, Role } from "@patchgrid/contracts"
 
 import { PrismaService } from "../../prisma/prisma.service"
 
@@ -12,7 +12,7 @@ export type OrgExportRow = {
   sizeBytes: bigint | null
   storageKey: string | null
   failure: string | null
-  requestedBy: { id: string; displayName: string; user: { email: string } | null }
+  requestedBy: { id: string; displayName: string; role: Role; status: MembershipStatus; user: { email: string } | null }
 }
 
 const ROW = {
@@ -24,7 +24,7 @@ const ROW = {
   sizeBytes: true,
   storageKey: true,
   failure: true,
-  requestedBy: { select: { id: true, displayName: true, user: { select: { email: true } } } },
+  requestedBy: { select: { id: true, displayName: true, role: true, status: true, user: { select: { email: true } } } },
 } as const
 
 /**

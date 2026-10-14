@@ -29,7 +29,8 @@ export class ExportReaderRepository {
         take: PAGE,
         include: { user: { select: { email: true } } },
       })
-      return rows.map(({ user, ...m }) => ({ ...m, email: user?.email ?? null }))
+      // An erased member's address left with them (ADR-0028); the export does not bring it back.
+      return rows.map(({ user, ...m }) => ({ ...m, email: m.anonymisedAt === null ? (user?.email ?? null) : null }))
     }),
     this.byId("teams", (orgId, after) => this.prisma.db.team.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
     this.byKey(

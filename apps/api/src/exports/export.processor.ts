@@ -64,7 +64,9 @@ export class ExportRunner {
   private async tell(orgId: string, exportId: string, orgName: string, built: { storageKey: string; sizeBytes: number }, expiresAt: Date): Promise<void> {
     try {
       const row = await this.prisma.transaction(() => this.exports.find(orgId, exportId))
-      const to = row?.requestedBy.user?.email
+      // Whoever asked may have lost the right to the whole workspace while it was made: Settings still has it for owners.
+      if (row?.requestedBy.role !== "OWNER" || row.requestedBy.status !== "ACTIVE") return
+      const to = row.requestedBy.user?.email
       if (to === undefined) return
       const filename = `export-${exportId}.zip`
       const downloadUrl = await this.storage.presignGet(built.storageKey, { filename, contentType: "application/zip", inline: false }, EXPORT_LINK_HOURS * 3600)
