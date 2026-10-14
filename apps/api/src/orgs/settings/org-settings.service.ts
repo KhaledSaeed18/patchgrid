@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common"
 import {
+  inboundAddress,
   type ChangeSlugResponse,
   type OrganizationSettings,
   SLUG_CHANGE_COOLDOWN_DAYS,
@@ -15,6 +16,7 @@ import { type ClientInfo, SessionService } from "../../auth/sessions/session.ser
 import { type AuditEntry, AuditService } from "../../audit/audit.service"
 import { PermissionService } from "../../authz/permission.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
+import { type AppConfig, InjectConfig } from "../../config/app-config"
 import { ConflictProblem, NotFoundProblem } from "../../common/problems/problem.exception"
 import { PrismaService } from "../../prisma/prisma.service"
 import { QuotaService } from "../../quota/quota.service"
@@ -49,6 +51,7 @@ export class OrgSettingsService {
     private readonly sessions: SessionService,
     private readonly cookies: CookieService,
     private readonly quota: QuotaService,
+    @InjectConfig() private readonly config: AppConfig,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -57,7 +60,7 @@ export class OrgSettingsService {
     const orgId = this.tenant.requireOrgId()
     const [record, lastRelease] = await Promise.all([this.settings.find(orgId), this.settings.lastSlugRelease(orgId)])
     if (record === null) throw new NotFoundProblem()
-    return toSettings(record, this.nextSlugChange(lastRelease))
+    return toSettings(record, this.nextSlugChange(lastRelease), this.config.ROOT_DOMAIN)
   }
 
   /** What the plan allows and what is used — the usage panel and the over-limit banner (TENANCY.md §8). */
@@ -176,7 +179,7 @@ function stripUndefined(request: UpdateOrganizationSettingsRequest) {
   }
 }
 
-function toSettings(record: OrganizationSettingsRecord, slugChangeAvailableAt: Date | null): OrganizationSettings {
+function toSettings(record: OrganizationSettingsRecord, slugChangeAvailableAt: Date | null, rootDomain: string): OrganizationSettings {
   return {
     id: record.id,
     name: record.name,
@@ -186,6 +189,7 @@ function toSettings(record: OrganizationSettingsRecord, slugChangeAvailableAt: D
     domain: record.domain,
     agentVisibility: record.agentVisibility,
     emailNotificationsEnabled: record.emailNotificationsEnabled,
+    inboundAddress: inboundAddress(record.slug, rootDomain),
     slugChangeAvailableAt: slugChangeAvailableAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
   }

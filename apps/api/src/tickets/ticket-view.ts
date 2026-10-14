@@ -28,6 +28,7 @@ export function toSummary(row: TicketSummaryRow, now: Date): TicketSummary {
     title: row.title,
     status: row.status,
     priority: row.priority,
+    source: row.source,
     requester: { membershipId: row.requester.id, displayName: row.requester.displayName },
     assignee: person(row.assignee),
     team: row.team,

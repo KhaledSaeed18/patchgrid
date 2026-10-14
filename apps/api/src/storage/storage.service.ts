@@ -74,6 +74,22 @@ export class StorageService {
     return object.Body === undefined ? new Uint8Array() : object.Body.transformToByteArray()
   }
 
+  /** Bytes the API itself received — an emailed file (ADR-0027 §7), a stored message. */
+  async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    await this.internal.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: bytes, ContentType: contentType, ContentLength: bytes.length }))
+  }
+
+  /** A whole object — a stored inbound message, never a user's download. `null` when it is not there. */
+  async read(key: string): Promise<Uint8Array | null> {
+    try {
+      const object = await this.internal.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }))
+      return object.Body === undefined ? new Uint8Array() : await object.Body.transformToByteArray()
+    } catch (error) {
+      if (isNotFound(error)) return null
+      throw error
+    }
+  }
+
   /** A server-side copy: the bytes never pass through the API. */
   async copy(from: string, to: string): Promise<void> {
     await this.internal.send(

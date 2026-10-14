@@ -97,6 +97,21 @@ export const envSchema = z
       .default("Patchgrid <notifications@patchgrid.test>"),
 
     /**
+     * The inbound mail webhook's signing secret, Standard Webhooks form
+     * (`whsec_` + base64 of at least 24 bytes). Shared with whatever forwards
+     * mail to `POST /inbound/email` (ADR-0039).
+     */
+    INBOUND_WEBHOOK_SECRET: z
+      .string()
+      .regex(/^whsec_[A-Za-z0-9+/]{32,}={0,2}$/, { error: "INBOUND_WEBHOOK_SECRET must be whsec_ followed by base64 of 24+ bytes" }),
+    /**
+     * The authserv-id of the MTA that receives tenant mail. Only an
+     * Authentication-Results header carrying it is the verdict; any other is
+     * the sender's own claim (ADR-0039, RFC 8601).
+     */
+    INBOUND_AUTHSERV_ID: z.string().regex(/^[A-Za-z0-9.-]+$/, { error: "INBOUND_AUTHSERV_ID must be a host name" }),
+
+    /**
      * Which halves of the process run. `all` locally; `api` and `worker` let
      * the deployables split later without a code change (ARCHITECTURE.md
      * §Background jobs). Processors are always registered and only RUN in

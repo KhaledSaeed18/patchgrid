@@ -20,6 +20,7 @@ import { AttachmentsModule } from "./attachments/attachments.module"
 import { DispatchModule } from "./jobs/dispatcher/dispatch.module"
 import { StorageModule } from "./storage/storage.module"
 import { MaintenanceModule } from "./jobs/maintenance/maintenance.module"
+import { InboundModule } from "./inbound/inbound.module"
 import { JobsModule } from "./jobs/jobs.module"
 import { KnowledgeModule } from "./knowledge/knowledge.module"
 import { NotificationsModule } from "./notifications/notifications.module"
@@ -119,6 +120,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     AssetsModule,
     AttachmentsModule,
     KnowledgeModule,
+    InboundModule,
     AuditModule,
     QuotaModule,
     MailModule,

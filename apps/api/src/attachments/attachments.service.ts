@@ -1,10 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common"
 import {
+  ALLOWED_ATTACHMENT_MIME_TYPES,
   type Attachment,
   type AttachmentDownload,
   type AttachmentMimeType,
   COMMENT_EDIT_WINDOW_MINUTES,
   INLINE_RENDERABLE_MIME_TYPES,
+  MAX_ATTACHMENT_BYTES,
   type PresignAttachmentRequest,
   type PresignedUpload,
 } from "@patchgrid/contracts"
@@ -15,14 +17,20 @@ import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import type { Subject } from "../authz/subject"
 import { type Clock, InjectClock } from "../common/clock/clock"
-import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../common/problems/problem.exception"
+import {
+  ConflictProblem,
+  NotFoundProblem,
+  NotPermittedProblem,
+  PlanLimitProblem,
+  ValidationProblem,
+} from "../common/problems/problem.exception"
 import { TicketPulse } from "../notifications/live/ticket-pulse"
 import { PrismaService } from "../prisma/prisma.service"
 import { QuotaService } from "../quota/quota.service"
 import { StorageService } from "../storage/storage.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
 import { CommentRepository } from "../tickets/repositories/comment.repository"
-import { type LoadedTicket, TicketAccess } from "../tickets/ticket-access"
+import { type Acting, type LoadedTicket, TicketAccess } from "../tickets/ticket-access"
 import { SNIFF_BYTES, sniff } from "./domain/sniff"
 import { type AttachmentRow, AttachmentRepository } from "./repositories/attachment.repository"
 
@@ -39,7 +47,9 @@ const WINDOW_MS = COMMENT_EDIT_WINDOW_MINUTES * 60_000
  *   is taken now, for the declared size the upload is signed to.
  * - **Complete**: the uploader confirms; the stored size must be the signed
  *   one, and the first bytes must be what the type claims. A file that is
- *   not is deleted — object, row and quota — and the answer is a 400.
+ *   not loses its bytes and is a 400; its row and quota wait for the sweep (ADR-0038).
+ * - **Ingest**: a file that arrived by email, checked by the same rules,
+ *   written by the API straight to its final key (ADR-0027 §7).
  * - **Serve**: a two-minute link on the files domain, as the sniffed type,
  *   an attachment unless it is a raster image. A file inherits its comment's
  *   visibility: one on an internal note is never listed, linked or deleted
@@ -133,6 +143,63 @@ export class AttachmentsService {
     })
     await this.pulse.changed(orgId, row.ticketId, row.comment?.visibility === "INTERNAL" ? "internal" : "ticket")
     return this.toAttachment(actor, { ...row, status: "READY", mimeType: sniffed })
+  }
+
+  /**
+   * A file that arrived with an authenticated email (ADR-0027 §7): the same
+   * allow-list, size cap, byte sniffing and quota as a browser upload, and
+   * the sender's own right to attach to this ticket. The API holds the bytes,
+   * so there is no presign and no staging: the object is written to its
+   * final key, then the row; a failed row removes the object. A refusal is a
+   * reason, never a throw — the rest of the message still lands.
+   */
+  async ingest(
+    acting: Acting,
+    file: { ticketId: string; commentId: string | null; filename: string; contentType: string; bytes: Uint8Array },
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const { actor } = acting
+    const orgId = this.tenant.requireOrgId()
+    const declared = file.contentType.split(";")[0]?.trim().toLowerCase() ?? ""
+    if (!(ALLOWED_ATTACHMENT_MIME_TYPES as readonly string[]).includes(declared)) return { ok: false, reason: "not an allowed type" }
+    if (file.bytes.length === 0) return { ok: false, reason: "empty" }
+    if (file.bytes.length > MAX_ATTACHMENT_BYTES) return { ok: false, reason: "too large" }
+    const sniffed = sniff(file.bytes.subarray(0, SNIFF_BYTES), declared as AttachmentMimeType)
+    if (sniffed === null) return { ok: false, reason: `not a ${declared} file` }
+    const filename = file.filename.trim().slice(0, 255) || "attachment"
+
+    const key = storageKey(orgId, file.ticketId, filename)
+    await this.storage.put(key, file.bytes, sniffed)
+    try {
+      await this.prisma.transaction(async () => {
+        const loaded = await this.access.load(orgId, file.ticketId, actor, acting.visibility)
+        this.permissions.assert(actor, "attachment:upload", loaded.subject)
+        await this.quota.consume(orgId, "STORAGE_BYTES", file.bytes.length)
+        const row = await this.attachments.create(orgId, {
+          ticketId: file.ticketId,
+          commentId: file.commentId,
+          uploaderMembershipId: actor.membershipId,
+          filename,
+          declaredMimeType: declared,
+          sizeBytes: file.bytes.length,
+          storageKey: key,
+        })
+        await this.attachments.markReady(orgId, row.id, sniffed, this.clock.now())
+        await this.audit.record(orgId, [
+          {
+            action: "ATTACHMENT_ADDED",
+            entityType: "Ticket",
+            entityId: file.ticketId,
+            diff: { attachmentId: row.id, filename, sizeBytes: file.bytes.length, via: "email" },
+          },
+        ])
+      })
+    } catch (error) {
+      await this.removeObject(key)
+      if (error instanceof PlanLimitProblem) return { ok: false, reason: "the workspace's storage is full" }
+      if (error instanceof NotPermittedProblem) return { ok: false, reason: "the sender may not attach files to this ticket" }
+      throw error
+    }
+    return { ok: true }
   }
 
   async list(ticketId: string): Promise<Attachment[]> {

@@ -69,7 +69,7 @@ import {
   type TicketRow,
   type TicketSummaryRow,
 } from "./repositories/ticket.repository"
-import { type LoadedTicket, TicketAccess } from "./ticket-access"
+import { type Acting, type LoadedTicket, TicketAccess } from "./ticket-access"
 import { toSummary, toTicket } from "./ticket-view"
 
 /** Statuses a ticket of any type is still being worked in (DOMAIN.md §2). */
@@ -120,7 +120,18 @@ export class TicketsService {
    * LAST, the number, whose counter row lock serialises creation per type.
    */
   async create(request: CreateTicketRequest): Promise<Ticket> {
-    const actor = this.actors.requireTenantActor()
+    const id = await this.createAs({ actor: this.actors.requireTenantActor(), visibility: this.visibility() }, request)
+    return this.get(id)
+  }
+
+  /**
+   * The same create, for an actor that did not arrive on a request — a member
+   * whose authenticated email is their credential (ADR-0039). Every check is
+   * the request's; only where the actor and the org's visibility come from
+   * differs. Returns the new ticket's id.
+   */
+  async createAs(acting: Acting, request: CreateTicketRequest, options: { source?: TicketSource } = {}): Promise<string> {
+    const { actor } = acting
     const orgId = this.tenant.requireOrgId()
     this.permissions.assert(actor, "ticket:create", { ticketType: request.type })
 
@@ -163,7 +174,7 @@ export class TicketsService {
       // Only the clocked types have a policy (DOMAIN.md §4.1); Problems and Changes never run a clock.
       const policy = clocked ? await this.sla.policyFor(orgId, request.type, priority) : null
       // The tickets a create links to are checked first, as the actor sees them (a 400 names the field).
-      const linked = await this.linkTargets(orgId, actor, request)
+      const linked = await this.linkTargets(orgId, actor, request, acting.visibility)
       const assetIds = await this.assetTargets(orgId, actor, request.assetIds ?? [])
       const number = await this.tickets.nextNumber(orgId, request.type)
       const created = await this.tickets.create(
@@ -177,7 +188,7 @@ export class TicketsService {
         impact: request.impact,
         urgency: request.urgency,
         priority,
-        source: sourceOf(actor),
+        source: options.source ?? sourceOf(actor),
         categoryId,
         requesterMembershipId: requesterId,
         assigneeMembershipId: null,
@@ -219,7 +230,7 @@ export class TicketsService {
     await this.announce(orgId, id, [
       { event: { kind: "ticket-created", ticketId: id, actorMembershipId: actor.membershipId }, entityId: id, discriminator: "created" },
     ])
-    return this.get(id)
+    return id
   }
 
   /** Field-level rules are RBAC.md §6's table, read through `capabilitiesFor`. */
@@ -638,7 +649,7 @@ export class TicketsService {
    * and may link, and of the type the relation joins — incidents for a new
    * Problem, a Problem for a new Change. Loaded in one go.
    */
-  private async linkTargets(orgId: string, actor: TenantActor, request: CreateTicketRequest): Promise<TicketRow[]> {
+  private async linkTargets(orgId: string, actor: TenantActor, request: CreateTicketRequest, visibility: AgentVisibility): Promise<TicketRow[]> {
     const [path, ids, type] =
       request.causedIncidentIds !== undefined
         ? (["causedIncidentIds", [...new Set(request.causedIncidentIds)], "INCIDENT"] as const)
@@ -646,7 +657,7 @@ export class TicketsService {
           ? (["resolvesProblemId", [request.resolvesProblemId], "PROBLEM"] as const)
           : (["", [], "INCIDENT"] as const)
     if (ids.length === 0) return []
-    const visible = await this.access.loadVisible(orgId, ids, actor, this.visibility())
+    const visible = await this.access.loadVisible(orgId, ids, actor, visibility)
     if (visible.length !== ids.length) throw fieldError(path, "names a ticket that does not exist")
     for (const target of visible) {
       if (target.row.type !== type) throw fieldError(path, `must name ${type === "INCIDENT" ? "incidents" : "a problem"}`)

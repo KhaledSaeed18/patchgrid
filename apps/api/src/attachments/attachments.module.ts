@@ -12,6 +12,6 @@ import { AttachmentRepository } from "./repositories/attachment.repository"
   imports: [AuthModule, NotificationsModule, TicketsModule],
   controllers: [AttachmentsController, TicketAttachmentsController],
   providers: [AttachmentRepository, AttachmentsService],
-  exports: [AttachmentRepository],
+  exports: [AttachmentRepository, AttachmentsService],
 })
 export class AttachmentsModule {}

@@ -11,6 +11,8 @@ const valid = {
   S3_ACCESS_KEY_ID: "patchgrid",
   S3_SECRET_ACCESS_KEY: "patchgrid-local-dev",
   JWT_SECRET: "local-development-secret-that-is-at-least-32-chars",
+  INBOUND_WEBHOOK_SECRET: "whsec_cGF0Y2hncmlkLWxvY2FsLWluYm91bmQtc2VjcmV0",
+  INBOUND_AUTHSERV_ID: "mx.inbound.lvh.me",
 }
 
 const issues = (overrides: Record<string, string>) => {

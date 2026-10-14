@@ -30,3 +30,13 @@ export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUB
  */
 export const TenantOptional = (): MethodDecorator & ClassDecorator =>
   SetMetadata(IS_TENANT_OPTIONAL, true)
+
+export const IS_SIGNED_WEBHOOK = Symbol("IS_SIGNED_WEBHOOK")
+
+/**
+ * A machine-to-machine route whose credential is a signature over its body,
+ * never a cookie (ADR-0039). CSRF is a browser riding a cookie it holds, so
+ * the `X-Requested-With` check does not apply; the route still verifies its
+ * signature before anything else. Always paired with `@Public`.
+ */
+export const SignedWebhook = (): MethodDecorator & ClassDecorator => SetMetadata(IS_SIGNED_WEBHOOK, true)

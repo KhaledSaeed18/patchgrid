@@ -14,7 +14,7 @@ import { TenantContextService } from "../tenancy/tenant-context.service"
 import { onResponded, onResume } from "./domain/sla"
 import { type CommentRow, CommentRepository } from "./repositories/comment.repository"
 import { type TicketChanges, TicketRepository } from "./repositories/ticket.repository"
-import { type LoadedTicket, TicketAccess } from "./ticket-access"
+import { type Acting, type LoadedTicket, TicketAccess } from "./ticket-access"
 
 const WINDOW_MS = COMMENT_EDIT_WINDOW_MINUTES * 60_000
 
@@ -49,9 +49,21 @@ export class CommentsService {
   }
 
   async add(ticketId: string, input: CommentInput): Promise<Comment> {
-    const { actor, orgId } = this.who()
+    const { actor } = this.who()
+    const row = await this.addAs({ actor, visibility: this.visibility() }, ticketId, input)
+    return this.toComment(actor, row.loaded, row.created)
+  }
+
+  /**
+   * The same comment, for an actor that did not arrive on a request — a
+   * member replying by authenticated email (ADR-0039). Every check, effect
+   * and notification is the request's.
+   */
+  async addAs(acting: Acting, ticketId: string, input: CommentInput): Promise<{ created: CommentRow; loaded: LoadedTicket }> {
+    const { actor } = acting
+    const orgId = this.tenant.requireOrgId()
     const row = await this.prisma.transaction(async () => {
-      const loaded = await this.access.load(orgId, ticketId, actor, this.visibility())
+      const loaded = await this.access.load(orgId, ticketId, actor, acting.visibility)
       this.permissions.assert(
         actor,
         input.visibility === "PUBLIC" ? "comment:create_public" : "comment:create_internal",
@@ -93,7 +105,7 @@ export class CommentsService {
       "added",
     )
     await this.pulse.changed(orgId, ticketId, contentOf(input.visibility))
-    return this.toComment(actor, row.loaded, row.created)
+    return row
   }
 
   /** The author, within the window; the previous body goes to the audit trail. */

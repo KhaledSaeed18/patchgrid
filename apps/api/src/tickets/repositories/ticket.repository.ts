@@ -84,6 +84,7 @@ export type TicketSummaryRow = Pick<
   | "id"
   | "number"
   | "type"
+  | "source"
   | "title"
   | "status"
   | "priority"
@@ -191,6 +192,7 @@ const SUMMARY = {
   id: true,
   number: true,
   type: true,
+  source: true,
   title: true,
   status: true,
   priority: true,
@@ -458,6 +460,12 @@ export class TicketRepository {
    * Direct hits on a ticket number (DOMAIN.md §9.1) — every type when the
    * query named none — within the actor's scope.
    */
+  /** The ticket an email's `[INC-000042]` names, by its per-org number — no scope; the caller decides. */
+  async findIdByNumber(orgId: string, type: TicketType, number: number): Promise<string | null> {
+    const row = await this.prisma.db.ticket.findUnique({ where: { orgId_type_number: { orgId, type, number } }, select: { id: true } })
+    return row?.id ?? null
+  }
+
   async findByNumber(orgId: string, number: number, filter: SearchFilter): Promise<TicketSummaryRow[]> {
     return this.prisma.db.ticket.findMany({
       where: {

@@ -53,6 +53,6 @@ import { WatchersService } from "./watchers.service"
     SlaScanService,
     SlaScanProcessor,
   ],
-  exports: [TicketAccess, CommentRepository, TicketRepository],
+  exports: [TicketAccess, CommentRepository, TicketRepository, LinkRepository, TicketsService, CommentsService],
 })
 export class TicketsModule {}

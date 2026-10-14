@@ -11,6 +11,7 @@ function row(over: Partial<TicketSummaryRow> = {}): TicketSummaryRow {
     id: "t-1",
     number: 7,
     type: "INCIDENT",
+    source: "PORTAL",
     title: "Printer",
     status: "IN_PROGRESS",
     priority: "HIGH",

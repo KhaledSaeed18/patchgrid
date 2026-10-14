@@ -9,6 +9,7 @@ import { PermissionService } from "../../authz/permission.service"
 import { FixedClock } from "../../common/clock/clock"
 import { ConflictProblem, NotPermittedProblem } from "../../common/problems/problem.exception"
 import type { PrismaService } from "../../prisma/prisma.service"
+import type { AppConfig } from "../../config/app-config"
 import type { QuotaService } from "../../quota/quota.service"
 import type { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
 import type { TenantContextService } from "../../tenancy/tenant-context.service"
@@ -60,6 +61,7 @@ function harness(role: Role, options: { lastRelease?: Date; taken?: string[] } =
     sessions as unknown as SessionService,
     { pairOf: (slug: string) => [{ name: `pg_at_${slug}`, path: "/" }, { name: `pg_rt_${slug}`, path: "/api/v1/auth" }] } as unknown as CookieService,
     { usage: async () => ({ plan: "FREE", metrics: [] }) } as unknown as QuotaService,
+    { ROOT_DOMAIN: "lvh.me" } as unknown as AppConfig,
     new FixedClock(NOW),
   )
   return { service, repo, slugs, lookup, sessions, audit }

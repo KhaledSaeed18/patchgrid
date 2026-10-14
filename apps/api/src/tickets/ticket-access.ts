@@ -9,6 +9,9 @@ import { NotFoundProblem } from "../common/problems/problem.exception"
 import type { ActorRelation } from "./domain/transitions"
 import { type TicketRow, TicketRepository } from "./repositories/ticket.repository"
 
+/** Who is acting, and the org's agent visibility — what a request's context supplies, supplied explicitly (ADR-0039). */
+export type Acting = { actor: TenantActor; visibility: AgentVisibility }
+
 export type LoadedTicket = {
   row: TicketRow
   subject: Subject & { ticketStatus: TicketStatus }
