@@ -110,7 +110,7 @@ describe("who reads what", () => {
     const rows = [article({ id: "a-int", visibility: "INTERNAL", publishedAt: null }), article({ id: "a-draft", visibility: "DRAFT", publishedAt: null })]
     await expect(harness("REQUESTER", "m-rita", rows).service.get("a-int")).rejects.toBeInstanceOf(NotFoundProblem)
     await expect(harness("AGENT", "m-tina", rows).service.get("a-draft")).rejects.toBeInstanceOf(NotFoundProblem)
-    expect((await harness("AGENT", "m-sam", rows).service.get("a-draft")).capabilities).toEqual({ canEdit: true, canPublish: true, canDelete: true })
+    expect((await harness("AGENT", "m-sam", rows).service.get("a-draft")).capabilities).toEqual({ canEdit: true, canPublish: true, canDraft: true, canDelete: true })
     expect((await harness("ADMIN", "m-alice", rows).service.get("a-draft")).id).toBe("a-draft")
   })
 
@@ -155,6 +155,15 @@ describe("writing", () => {
     ])
     await h.service.update("a-1", { version: 2, visibility: "INTERNAL" })
     expect(h.store.get("a-1")?.publishedAt).toBeNull()
+  })
+
+  it("lets only the author or an admin return an article to draft", async () => {
+    const other = harness("AGENT", "m-tina", [article()])
+    expect((await other.service.get("a-1")).capabilities.canDraft).toBe(false)
+    await expect(other.service.update("a-1", { version: 1, visibility: "DRAFT" })).rejects.toBeInstanceOf(NotPermittedProblem)
+    await other.service.update("a-1", { version: 1, visibility: "INTERNAL" })
+    await harness("ADMIN", "m-alice", [article()]).service.update("a-1", { version: 1, visibility: "DRAFT" })
+    await harness("AGENT", "m-sam", [article()]).service.update("a-1", { version: 1, visibility: "DRAFT" })
   })
 
   it("lets an agent delete only their own article; an admin any", async () => {

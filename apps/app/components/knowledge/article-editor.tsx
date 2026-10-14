@@ -69,6 +69,8 @@ export function ArticleEditor({
   const router = useRouter()
   const { holds } = useTenant()
   const canPublish = article?.capabilities.canPublish ?? holds("kb:publish")
+  // A new article is the writer's own, so it may always stay a draft.
+  const canDraft = article?.capabilities.canDraft ?? true
   const [idempotencyKey] = useState(newIdempotencyKey)
   const [body, setBody] = useState(article?.body ?? "")
   const [visibility, setVisibility] = useState<ArticleVisibility>(
@@ -243,7 +245,10 @@ export function ArticleEditor({
                     name="visibility"
                     value={value}
                     checked={visibility === value}
-                    disabled={!canPublish && value !== visibility}
+                    disabled={
+                      value !== visibility &&
+                      (!canPublish || (value === "DRAFT" && !canDraft))
+                    }
                     onChange={() => setVisibility(value)}
                     className="accent-primary"
                   />

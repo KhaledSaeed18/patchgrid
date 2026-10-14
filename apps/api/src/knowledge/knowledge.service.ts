@@ -18,7 +18,7 @@ import { ActorService, type TenantActor } from "../auth/actor"
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { CategoriesService } from "../categories/categories.service"
-import { ConflictProblem, NotFoundProblem, StaleWriteProblem, ValidationProblem } from "../common/problems/problem.exception"
+import { ConflictProblem, NotFoundProblem, NotPermittedProblem, StaleWriteProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { PrismaService } from "../prisma/prisma.service"
 import { QuotaService } from "../quota/quota.service"
@@ -164,6 +164,10 @@ export class KnowledgeService {
       }
       if (fields.visibility !== undefined && fields.visibility !== row.visibility) {
         this.permissions.assert(actor, "kb:publish")
+        // A draft is its author's: anyone else who made one would lose sight of it, mid-save.
+        if (fields.visibility === "DRAFT" && !this.mayDraft(actor, row)) {
+          throw new NotPermittedProblem("Only its author or an admin can return an article to draft; make it internal instead")
+        }
         changes.visibility = fields.visibility
         changes.publishedAt = fields.visibility === "PUBLISHED" ? this.clock.now() : null
       }
@@ -223,6 +227,11 @@ export class KnowledgeService {
     return { visibilities, draftsBy: ownDrafts ? actor.membershipId : null }
   }
 
+  /** Whether the article would still be theirs to read as a draft. */
+  private mayDraft(actor: TenantActor, row: Pick<ArticleRow, "authorMembershipId">): boolean {
+    return this.permissions.can(actor, "kb:read_draft", { own: row.authorMembershipId === actor.membershipId })
+  }
+
   /** Reads are 404 for an article the actor may not read (RBAC.md §11). */
   private readableOne(actor: TenantActor, row: ArticleRow | null): ArticleRow {
     if (row === null || !canRead(this.readable(actor), row)) throw new NotFoundProblem()
@@ -240,6 +249,7 @@ export class KnowledgeService {
       capabilities: {
         canEdit: this.permissions.can(actor, "kb:write"),
         canPublish: this.permissions.can(actor, "kb:publish"),
+        canDraft: this.permissions.can(actor, "kb:publish") && this.mayDraft(actor, row),
         canDelete: this.permissions.can(actor, "kb:delete", { own }),
       },
     }

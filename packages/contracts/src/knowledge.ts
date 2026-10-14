@@ -60,8 +60,10 @@ export type ArticleSummary = z.infer<typeof articleSummarySchema>
 /** What this actor may do to THIS article (RBAC.md §7). */
 export const articleCapabilitiesSchema = z.object({
   canEdit: z.boolean(),
-  /** Move it between draft, internal and published. */
+  /** Move it between internal and published. */
   canPublish: z.boolean(),
+  /** Return it to draft — its author's, or an admin's: a draft is its author's (DOMAIN.md §9.2). */
+  canDraft: z.boolean(),
   canDelete: z.boolean(),
 })
 export type ArticleCapabilities = z.infer<typeof articleCapabilitiesSchema>

@@ -400,7 +400,9 @@ Articles carry a `version` for optimistic concurrency — two agents editing the
 
 - **Editing is `kb:write` on an article the editor can read**: an agent edits any internal or published
   article and their own drafts; an admin edits any. Moving an article between the three tiers is
-  `kb:publish`, including creating one straight into `INTERNAL` or `PUBLISHED`.
+  `kb:publish`, including creating one straight into `INTERNAL` or `PUBLISHED`. **Returning an article
+  to `DRAFT` is its author's or an admin's** (`403` otherwise): a draft is its author's, and anyone else
+  would lose sight of the article in the act. To take it from requesters, make it `INTERNAL`.
 - **`publishedAt` is when it last became `PUBLISHED`**, and is cleared when it leaves — "published
   since", not "first published".
 - **The `slug` is made from the title once, at creation**, unique per org (`-2`, `-3` on a clash), and
