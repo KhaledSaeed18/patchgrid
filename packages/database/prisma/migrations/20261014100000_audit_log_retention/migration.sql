@@ -12,7 +12,9 @@
 -- * DETACH takes an exclusive lock on AuditLog, which every mutation writes
 --   to; it waits two seconds at most and the job tries again the next day.
 -- * Archiving or dropping the archive is an operator's decision.
-CREATE SCHEMA audit_archive;
+-- IF NOT EXISTS: a shadow database is reset by dropping `public` alone, so the
+-- schema outlives it between runs.
+CREATE SCHEMA IF NOT EXISTS audit_archive;
 REVOKE ALL ON SCHEMA audit_archive FROM PUBLIC;
 
 CREATE FUNCTION archive_expired_audit_log_partitions() RETURNS SETOF text
