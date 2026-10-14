@@ -17,6 +17,13 @@ export const IDENTITY_COOKIE = "pg_id"
 export const REFRESH_COOKIE_PATH = "/api/v1/auth"
 
 export const accessCookieName = (slug: string): string => `${ACCESS_COOKIE_PREFIX}${slug}`
+/**
+ * An operator's read-only support session in this workspace (ADR-0041). Read
+ * where an access cookie is, and preferred over one: in a browser holding
+ * both, that workspace is support and nothing else.
+ */
+export const SUPPORT_COOKIE_PREFIX = "pg_st_"
+export const supportCookieName = (slug: string): string => `${SUPPORT_COOKIE_PREFIX}${slug}`
 export const refreshCookieName = (slug: string): string => `${REFRESH_COOKIE_PREFIX}${slug}`
 
 /** Every request a browser can send with cookies must carry this header (ADR-0024 §4). */

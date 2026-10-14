@@ -55,6 +55,12 @@ export const auditActionSchema = z.enum([
   "ORG_SUSPENDED",
   "ORG_UNSUSPENDED",
   "ORG_PLAN_CHANGED",
+  "SUPPORT_ACCESS_REQUESTED",
+  "SUPPORT_ACCESS_GRANTED",
+  "SUPPORT_ACCESS_DECLINED",
+  "SUPPORT_ACCESS_REVOKED",
+  "SUPPORT_ACCESS_EXPIRED",
+  "SUPPORT_READ",
 ])
 export type AuditAction = z.infer<typeof auditActionSchema>
 

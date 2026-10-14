@@ -69,6 +69,8 @@ export const platformAuditActionSchema = z.enum([
   "PLATFORM_ORG_UNSUSPENDED",
   "PLATFORM_ORG_PLAN_SET",
   "PLATFORM_ORG_DELETION_RESTORED",
+  "PLATFORM_SUPPORT_REQUESTED",
+  "PLATFORM_SUPPORT_ENTERED",
 ])
 export type PlatformAuditAction = z.infer<typeof platformAuditActionSchema>
 
@@ -119,3 +121,7 @@ export type SuspendOrgRequest = z.infer<typeof suspendOrgRequestSchema>
 
 export const setPlanRequestSchema = z.strictObject({ plan: planSchema })
 export type SetPlanRequest = z.infer<typeof setPlanRequestSchema>
+
+/** Entering a granted support session: where to go, read-only (ADR-0041). */
+export const supportEntrySchema = z.object({ workspaceUrl: z.string(), expiresAt: z.iso.datetime() })
+export type SupportEntry = z.infer<typeof supportEntrySchema>

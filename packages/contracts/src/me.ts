@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { supportStateSchema } from "./support.ts"
+
 import { emailSchema } from "./auth.ts"
 import { idSchema } from "./id.ts"
 import { permissionSchema } from "./permissions.ts"
@@ -30,6 +32,8 @@ export const meSchema = z.object({
   }),
   teams: z.array(z.object({ id: idSchema, name: z.string(), isLead: z.boolean() })),
   permissions: z.array(permissionSchema),
+  /** A support session that matters to this browser, or `null` (ADR-0041). */
+  support: supportStateSchema.nullable(),
   /**
    * The types this member may raise — `ticket:create` decided per type, so
    * the form offers exactly what will be accepted.
