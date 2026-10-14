@@ -10,6 +10,10 @@ import { needsRefresh } from "./session"
  * - `<slug>.` serves the workspace. No session at all → login on `app.`, with
  *   the way back. An access token missing or about to lapse, with an identity
  *   to refresh from → `/session/refresh` first.
+ * - `admin.` serves the back-office (ADR-0040), rewritten under `/backoffice`
+ *   so its `/login` is not `app.`'s. Its session cookie is scoped to the
+ *   API's platform routes and never reaches this server, so the pages are
+ *   client-rendered and the API alone decides who may see them.
  * - Anything else is not ours.
  */
 
@@ -22,6 +26,10 @@ const APP_PATHS: Record<string, "public" | "identity"> = {
   "/workspaces": "identity",
   "/new": "identity",
 }
+
+/** The back-office's pages, under the internal prefix only `admin.` is rewritten to. */
+export const BACKOFFICE_PREFIX = "/backoffice"
+const ADMIN_PATHS: ReadonlySet<string> = new Set(["/login", "/orgs"])
 
 /** Set by the proxy only — a client that sends them has them overwritten — and read by server components. */
 export const SLUG_HEADER = "x-patchgrid-slug"
@@ -46,6 +54,7 @@ export type RouteInput = {
 export type RouteDecision =
   | { kind: "next"; slug: string | null }
   | { kind: "redirect"; to: string }
+  | { kind: "rewrite"; to: string }
   | { kind: "not-found" }
 
 export function decideRoute(input: RouteInput): RouteDecision {
@@ -54,6 +63,17 @@ export function decideRoute(input: RouteInput): RouteDecision {
   const hasIdentity = input.cookies("pg_id") !== undefined
 
   if (host.kind === "foreign") return { kind: "not-found" }
+  // The back-office prefix is an internal name, reachable only through admin.'s rewrite.
+  if (page === BACKOFFICE_PREFIX) return { kind: "not-found" }
+
+  if (host.kind === "admin") {
+    if (input.pathname === "/") return { kind: "redirect", to: "/orgs" }
+    if (!ADMIN_PATHS.has(page)) return { kind: "not-found" }
+    return {
+      kind: "rewrite",
+      to: `${BACKOFFICE_PREFIX}${input.pathname}${input.search}`,
+    }
+  }
 
   if (host.kind === "app") {
     if (input.pathname === "/")

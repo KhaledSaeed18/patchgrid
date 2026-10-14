@@ -162,3 +162,33 @@ describe("decideRoute on a workspace", () => {
     })
   })
 })
+
+describe("the admin surface (ADR-0040)", () => {
+  it("is its own host, rewritten under the back-office prefix", () => {
+    expect(parseHost("admin.lvh.me:3001", "lvh.me")).toEqual({ kind: "admin" })
+    expect(route("admin.lvh.me:3001", "/")).toEqual({
+      kind: "redirect",
+      to: "/orgs",
+    })
+    expect(route("admin.lvh.me:3001", "/login")).toEqual({
+      kind: "rewrite",
+      to: "/backoffice/login",
+    })
+    expect(route("admin.lvh.me:3001", "/orgs/x?y=1")).toEqual({
+      kind: "rewrite",
+      to: "/backoffice/orgs/x?y=1",
+    })
+    expect(route("admin.lvh.me:3001", "/tickets")).toEqual({
+      kind: "not-found",
+    })
+  })
+
+  it("is not reachable from any other host", () => {
+    expect(route("app.lvh.me:3001", "/backoffice/orgs")).toEqual({
+      kind: "not-found",
+    })
+    expect(
+      route("acme.lvh.me:3001", "/backoffice/login", { pg_id: "x" })
+    ).toEqual({ kind: "not-found" })
+  })
+})

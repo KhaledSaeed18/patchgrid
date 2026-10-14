@@ -335,12 +335,12 @@ _Exit: an operator can run the platform without being able to read anyone's mail
 time-boxed read-only support session and see exactly what was looked at; a monitoring system can raise
 incidents through a scoped token._
 
-- [ ] **The platform credential** (ADR-0040, resolves TM-2): its own login, TOTP enrolment and
+- [x] **The platform credential** (ADR-0040, resolves TM-2): its own login, TOTP enrolment and
       verification with recovery codes (the platform-admin half of ADR-0029, brought forward from M9),
       a path-scoped one-hour `pg_pa` session, `@PlatformRoute`, CLI-only `platform:grant`/`revoke`,
       `PlatformAuditLog`
-- [ ] Platform back-office (`admin.patchgrid.xyz`): org list, suspend/unsuspend, set plan,
-      request/restore deletion; metadata only, no tenant content (`RBAC.md` §8). Platform admins created
+- [~] Platform back-office (`admin.patchgrid.xyz`): org list, suspend/unsuspend, set plan (done);
+      request/restore deletion (with the deletion flow below); metadata only, no tenant content (`RBAC.md` §8). Platform admins created
       by CLI only
 - [ ] **Consent-based support access** (ADR-0020): owner grants a time-boxed read-only session,
       `SupportSession`, **per-request** `SUPPORT_READ` audit into the tenant's log, in-app banner, owner

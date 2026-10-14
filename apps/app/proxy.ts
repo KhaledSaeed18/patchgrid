@@ -28,6 +28,8 @@ export function proxy(request: NextRequest): NextResponse {
   switch (decision.kind) {
     case "redirect":
       return NextResponse.redirect(new URL(decision.to, request.url))
+    case "rewrite":
+      return NextResponse.rewrite(new URL(decision.to, request.url))
     case "not-found":
       return new NextResponse("Not found", {
         status: 404,
