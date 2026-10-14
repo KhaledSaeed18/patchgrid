@@ -192,7 +192,8 @@ The `NULLIF` matters: an unset GUC yields `NULL` and filters everything (fail-cl
 platform-class list is closed and worth writing down:
 
 > `Organization`, `User`, `PlatformAdmin`, `OrganizationSlugHistory`, `RefreshToken`,
-> `PasswordResetToken`, `EmailVerification`, `UserOrgIndex`, `ApiTokenIndex`.
+> `PasswordResetToken`, `EmailVerification`, `UserOrgIndex`, `ApiTokenIndex`, `UserMfaFactor`,
+> `UserMfaRecovery`, `PlatformAuditLog`.
 
 Everything else is tenant-owned: it carries `orgId`, has a policy, has `orgId`-first indexes, and appears
 in the schema-coverage test. Join tables carry `orgId` too, even when derivable, so a policy can be

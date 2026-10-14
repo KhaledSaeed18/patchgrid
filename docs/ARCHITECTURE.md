@@ -200,7 +200,11 @@ P  Organization      { id, name, slug (unique), status: ACTIVE|SUSPENDED|PENDING
 P  OrganizationSlugHistory { id, orgId, slug (unique), releasedAt, redirectUntil }
 P  User              { id, email (unique), passwordHash, name, avatarUrl?,
                        emailVerifiedAt?, lastLoginAt?, anonymisedAt? }
-P  PlatformAdmin     { id, userId (unique) }
+P  PlatformAdmin     { id, userId (unique), revokedAt? }
+P  UserMfaFactor     { id, userId, kind: TOTP, secretEncrypted, label, confirmedAt?,
+                      lastUsedStep?, lastUsedAt? }   -- one confirmed per kind (ADR-0029, ADR-0040)
+P  UserMfaRecovery   { id, userId, codeHash, usedAt? }
+P  PlatformAuditLog  { id, platformAdminId?, action, targetOrgId?, targetUserId?, diff, createdAt }
 P  RefreshToken      { id, userId, orgId?, tokenHash, expiresAt, revokedAt?, replacedById?,
                        userAgent?, ip? }
 P  PasswordResetToken{ id, userId, tokenHash, expiresAt, usedAt? }

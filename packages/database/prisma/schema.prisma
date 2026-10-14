@@ -189,17 +189,22 @@ model User {
   emailVerifications  EmailVerification[]
   userOrgIndex        UserOrgIndex[]
   memberships         Membership[]
+  mfaFactors          UserMfaFactor[]
+  mfaRecoveryCodes    UserMfaRecovery[]
 }
 
 /// An operator, outside all tenancy. Created only by CLI (RBAC.md §8).
 model PlatformAdmin {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  userId    String   @unique @db.Uuid
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @unique @db.Uuid
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  /// Revoked by CLI; the row stays, because audit rows point at it (ADR-0040).
+  revokedAt DateTime? @db.Timestamptz(3)
 
-  user         User       @relation(fields: [userId], references: [id])
-  auditEntries AuditLog[]
+  user                 User               @relation(fields: [userId], references: [id])
+  auditEntries         AuditLog[]
+  platformAuditEntries PlatformAuditLog[]
 }
 
 /// Rotating refresh tokens, chained through `replacedById`; presenting a rotated
@@ -1060,4 +1065,64 @@ model InboundEmail {
   @@index([orgId, receivedAt(sort: Desc), id(sort: Desc)])
   /// The per-sender rate limit: this sender's mail in the last hour.
   @@index([orgId, fromAddress, receivedAt])
+}
+
+/// A second factor (ADR-0029, ADR-0040). TOTP today; WebAuthn becomes another
+/// kind with its own payload. Platform-class: a factor belongs to a person,
+/// not to a workspace.
+enum MfaFactorKind {
+  TOTP
+}
+
+model UserMfaFactor {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  userId          String        @db.Uuid
+  kind            MfaFactorKind @default(TOTP)
+  /// AES-256-GCM under MFA_ENCRYPTION_KEY: TOTP needs the secret itself, so it is encrypted, not hashed.
+  secretEncrypted String
+  label           String
+  /// Set once a code has proved it; an unconfirmed factor expires in an hour.
+  confirmedAt     DateTime?     @db.Timestamptz(3)
+  /// The last 30-second step a code was accepted for — a code is never accepted twice.
+  lastUsedStep    Int?
+  lastUsedAt      DateTime?     @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// One confirmed TOTP factor per person.
+  @@unique([userId, kind], where: raw("\"confirmedAt\" IS NOT NULL"), map: "UserMfaFactor_one_confirmed")
+  @@index([userId])
+}
+
+/// Ten single-use recovery codes, Argon2id-hashed, shown once (ADR-0029).
+model UserMfaRecovery {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @db.Uuid
+  codeHash  String
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// What operators did at the platform level (ADR-0040): grants, revocations,
+/// sign-ins, factor enrolment. Their actions on a tenant are also written to
+/// that tenant's own log, as actor kind PLATFORM.
+model PlatformAuditLog {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  /// Null for the CLI, which acts as no admin.
+  platformAdminId String?  @db.Uuid
+  action          String
+  targetOrgId     String?  @db.Uuid
+  targetUserId    String?  @db.Uuid
+  diff            Json     @default("{}")
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  platformAdmin PlatformAdmin? @relation(fields: [platformAdminId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([platformAdminId, createdAt])
 }
