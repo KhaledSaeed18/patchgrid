@@ -1,5 +1,7 @@
 import type {
+  ChangeRisk,
   Impact,
+  LinkKind,
   MembershipStatus,
   NotificationType,
   Priority,
@@ -68,12 +70,29 @@ export const TICKET_ACTION_LABEL: Record<TicketAction, string> = {
   close: "Close",
   reopen: "Reopen",
   cancel: "Cancel ticket",
-  workaround: "Record workaround",
+  workaround: "Mark as known error",
   submit: "Submit for approval",
   approve: "Approve",
   reject: "Reject",
   complete: "Mark implemented",
   rollback: "Roll back",
+}
+
+export const RISK_LABEL: Record<ChangeRisk, string> = {
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+}
+
+/** A link as read from the ticket it is shown on (DOMAIN.md §1). */
+export const LINK_KIND_LABEL: Record<LinkKind, string> = {
+  CAUSED_BY: "Caused by",
+  CAUSES: "Causes",
+  RESOLVED_BY: "Resolved by",
+  RESOLVES: "Resolves",
+  DUPLICATE_OF: "Duplicate of",
+  HAS_DUPLICATE: "Has duplicate",
+  RELATES_TO: "Relates to",
 }
 
 export const IMPACT_LABEL: Record<Impact, string> = {

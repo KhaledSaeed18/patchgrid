@@ -2,10 +2,13 @@
 
 import {
   type Category,
+  type ChangeRisk,
+  changeRiskSchema,
   type CreateTicketRequest,
   type Impact,
   impactSchema,
   ticketSchema,
+  type TicketType,
   type Urgency,
   urgencySchema,
 } from "@patchgrid/contracts"
@@ -27,6 +30,7 @@ import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 
 import { FormAlert } from "@/components/form-alert"
+import { useTenant } from "@/components/tenant-provider"
 import { FormField } from "@/components/form-field"
 import { NativeSelect } from "@/components/native-select"
 import { clientApi } from "@/lib/api/client"
@@ -34,15 +38,42 @@ import { ApiError } from "@/lib/api/errors"
 import { categoryPath, inTreeOrder } from "@/lib/category-tree"
 import { failureMessage } from "@/lib/failure"
 import { newIdempotencyKey } from "@/lib/idempotency"
-import { IMPACT_LABEL, URGENCY_LABEL } from "@/lib/labels"
+import {
+  IMPACT_LABEL,
+  RISK_LABEL,
+  TICKET_TYPE_LABEL,
+  URGENCY_LABEL,
+} from "@/lib/labels"
+
+/** What a create may carry over from the ticket it was raised from. */
+export type RaisedFrom =
+  | { kind: "incident"; id: string; number: string }
+  | { kind: "problem"; id: string; number: string }
+  | null
 
 /**
- * The portal's incident form. There is no priority field, on purpose: the
+ * One form for every type. There is no priority field, on purpose: the
  * server computes it from impact × urgency (DOMAIN.md §3) and refuses one
- * sent by a client. People answer two questions they can actually answer.
+ * sent by a client. The types on offer are `/me`'s `creatableTypes` — a
+ * requester sees incidents and requests, an agent all four — and a Problem
+ * or Change adds its own fields, every one optional until the work needs it.
  */
-export function NewTicketForm({ categories }: { categories: Category[] }) {
+export function NewTicketForm({
+  categories,
+  initialType,
+  raisedFrom,
+}: {
+  categories: Category[]
+  initialType: TicketType
+  raisedFrom: RaisedFrom
+}) {
   const router = useRouter()
+  const { creatableTypes } = useTenant()
+  const [type, setType] = useState<TicketType>(
+    creatableTypes.includes(initialType)
+      ? initialType
+      : (creatableTypes[0] ?? "INCIDENT")
+  )
   // One key per form: a double submit or a retry after a dropped response
   // replays the first ticket instead of raising a second.
   const [idempotencyKey] = useState(newIdempotencyKey)
@@ -94,17 +125,56 @@ export function NewTicketForm({ categories }: { categories: Category[] }) {
         setMissing(empty)
         if (Object.keys(empty).length > 0) return
         create.mutate({
-          type: "INCIDENT",
+          type,
           title,
           description,
           impact: impactSchema.parse(data.get("impact")),
           urgency: urgencySchema.parse(data.get("urgency")),
           ...(categoryId === "" ? {} : { categoryId }),
+          ...extrasFor(type, data, raisedFrom),
         })
       }}
     >
       <FieldGroup>
         {formError !== undefined && <FormAlert>{formError}</FormAlert>}
+        {creatableTypes.length > 1 && (
+          <FieldSet>
+            <FieldLegend variant="label">What kind of ticket</FieldLegend>
+            <div
+              className={cn(
+                "grid gap-2",
+                creatableTypes.length > 2 ? "sm:grid-cols-4" : "sm:grid-cols-2"
+              )}
+            >
+              {creatableTypes.map((value) => (
+                <label
+                  key={value}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2 rounded-lg border border-input px-3 py-2 text-sm",
+                    "has-checked:border-primary has-checked:bg-primary/5 has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="type"
+                    value={value}
+                    checked={type === value}
+                    onChange={() => setType(value)}
+                    className="accent-primary"
+                  />
+                  {TICKET_TYPE_LABEL[value]}
+                </label>
+              ))}
+            </div>
+          </FieldSet>
+        )}
+        {raisedFrom !== null && (
+          <p className="text-sm text-muted-foreground">
+            {raisedFrom.kind === "incident"
+              ? `${raisedFrom.number} will be linked as caused by this problem.`
+              : `This change will be linked as resolving ${raisedFrom.number}.`}
+          </p>
+        )}
         <FormField
           id="ticket-title"
           name="title"
@@ -165,10 +235,18 @@ export function NewTicketForm({ categories }: { categories: Category[] }) {
           labels={URGENCY_LABEL}
           initial="MEDIUM"
         />
+        {type === "PROBLEM" && (
+          <TextField
+            name="workaround"
+            label="Workaround, if there is one"
+            hint="People hitting it can use this while the root cause is found."
+          />
+        )}
+        {type === "CHANGE" && <ChangePlan />}
         <div>
           <Button type="submit" disabled={create.isPending}>
             {create.isPending && <Spinner />}
-            Raise ticket
+            {type === "CHANGE" ? "Save as draft" : "Raise ticket"}
           </Button>
         </div>
       </FieldGroup>
@@ -215,4 +293,119 @@ function Choice<T extends string>({
       </div>
     </FieldSet>
   )
+}
+
+/**
+ * A Change's plan (DOMAIN.md §2.3). All optional now — it is saved as a
+ * draft — and all required before it can be submitted for approval.
+ */
+function ChangePlan() {
+  return (
+    <FieldSet>
+      <FieldLegend variant="label">The plan</FieldLegend>
+      <FieldDescription>
+        Saved as a draft. Everything here is needed before it can go for
+        approval.
+      </FieldDescription>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="plannedStart">Window opens</FieldLabel>
+          <input
+            id="plannedStart"
+            name="plannedStart"
+            type="datetime-local"
+            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="plannedEnd">Window closes</FieldLabel>
+          <input
+            id="plannedEnd"
+            name="plannedEnd"
+            type="datetime-local"
+            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+          />
+        </Field>
+      </div>
+      <Field>
+        <FieldLabel htmlFor="risk">Risk</FieldLabel>
+        <NativeSelect id="risk" name="risk" defaultValue="">
+          <option value="">Not assessed yet</option>
+          {changeRiskSchema.options.map((risk: ChangeRisk) => (
+            <option key={risk} value={risk}>
+              {RISK_LABEL[risk]}
+            </option>
+          ))}
+        </NativeSelect>
+      </Field>
+      <TextField name="implementationPlan" label="How it will be done" />
+      <TextField
+        name="rollbackPlan"
+        label="How it will be undone if it goes wrong"
+      />
+    </FieldSet>
+  )
+}
+
+function TextField({
+  name,
+  label,
+  hint,
+}: {
+  name: string
+  label: string
+  hint?: string
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={name}>{label}</FieldLabel>
+      <Textarea id={name} name={name} rows={3} />
+      {hint !== undefined && <FieldDescription>{hint}</FieldDescription>}
+    </Field>
+  )
+}
+
+/** The type's own fields and the link a "create from" carries; blanks are left out, not sent empty. */
+function extrasFor(
+  type: TicketType,
+  data: FormData,
+  raisedFrom: RaisedFrom
+): Partial<CreateTicketRequest> {
+  const text = (name: string) => {
+    const value = String(data.get(name) ?? "").trim()
+    return value === "" ? undefined : value
+  }
+  const when = (name: string) => {
+    const value = text(name)
+    return value === undefined ? undefined : new Date(value).toISOString()
+  }
+  if (type === "PROBLEM") {
+    const workaround = text("workaround")
+    return {
+      ...(workaround === undefined ? {} : { problem: { workaround } }),
+      ...(raisedFrom?.kind === "incident"
+        ? { causedIncidentIds: [raisedFrom.id] }
+        : {}),
+    }
+  }
+  if (type === "CHANGE") {
+    const risk = changeRiskSchema.safeParse(text("risk"))
+    const fields = {
+      plannedStart: when("plannedStart"),
+      plannedEnd: when("plannedEnd"),
+      risk: risk.success ? risk.data : undefined,
+      implementationPlan: text("implementationPlan"),
+      rollbackPlan: text("rollbackPlan"),
+    }
+    const change = Object.fromEntries(
+      Object.entries(fields).filter(([, v]) => v !== undefined)
+    )
+    return {
+      ...(Object.keys(change).length === 0 ? {} : { change }),
+      ...(raisedFrom?.kind === "problem"
+        ? { resolvesProblemId: raisedFrom.id }
+        : {}),
+    }
+  }
+  return {}
 }
