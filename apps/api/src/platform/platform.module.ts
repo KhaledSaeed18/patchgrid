@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common"
 
 import { ApiTokenIndexRepository } from "./repositories/api-token-index.repository"
+import { CredentialRetentionRepository } from "./repositories/credential-retention.repository"
 import { MfaRepository } from "./repositories/mfa.repository"
 import { PlatformAdminRepository } from "./repositories/platform-admin.repository"
 import { PlatformAuditRepository } from "./repositories/platform-audit.repository"
@@ -17,6 +18,7 @@ import { UserRepository } from "./repositories/user.repository"
  */
 @Module({
   providers: [
+    CredentialRetentionRepository,
     OrganizationRepository,
     ApiTokenIndexRepository,
     UserRepository,
@@ -29,6 +31,7 @@ import { UserRepository } from "./repositories/user.repository"
     PlatformAuditRepository,
   ],
   exports: [
+    CredentialRetentionRepository,
     OrganizationRepository,
     ApiTokenIndexRepository,
     UserRepository,

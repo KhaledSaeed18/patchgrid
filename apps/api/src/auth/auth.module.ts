@@ -1,7 +1,14 @@
 import { Module } from "@nestjs/common"
 import { APP_GUARD } from "@nestjs/core"
 
+import { BullModule } from "@nestjs/bullmq"
+
 import { MailModule } from "../mail/mail.module"
+import { QuotaModule } from "../quota/quota.module"
+import { AccountController } from "./account/account.controller"
+import { AccountErasureService } from "./account/account-erasure.service"
+import { AccountErasureRepository } from "./account/repositories/account-erasure.repository"
+import { CREDENTIAL_RETENTION_QUEUE, CredentialRetentionProcessor, CredentialRetentionService } from "./credential-retention"
 import { MembershipRepositoryModule } from "../memberships/membership-repository.module"
 import { PlatformModule } from "../platform/platform.module"
 import { ActorService } from "./actor"
@@ -30,8 +37,16 @@ import { AccessTokenService } from "./tokens/access-token.service"
  * refuse cookie-borne mutations without the CSRF header, verify the credential.
  */
 @Module({
-  imports: [PlatformModule, MembershipRepositoryModule, MailModule, SupportCoreModule, ApiTokenCoreModule],
-  controllers: [AuthController, IdentityController, PlatformAuthController],
+  imports: [
+    PlatformModule,
+    MembershipRepositoryModule,
+    MailModule,
+    QuotaModule,
+    SupportCoreModule,
+    ApiTokenCoreModule,
+    BullModule.registerQueue({ name: CREDENTIAL_RETENTION_QUEUE }),
+  ],
+  controllers: [AuthController, IdentityController, PlatformAuthController, AccountController],
   providers: [
     CookieService,
     PasswordService,
@@ -45,6 +60,10 @@ import { AccessTokenService } from "./tokens/access-token.service"
     PlatformAuthService,
     SupportTokenService,
     SupportReadLog,
+    AccountErasureRepository,
+    AccountErasureService,
+    CredentialRetentionService,
+    CredentialRetentionProcessor,
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
