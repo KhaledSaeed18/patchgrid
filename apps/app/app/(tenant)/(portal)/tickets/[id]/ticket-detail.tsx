@@ -8,6 +8,7 @@ import {
   type Team,
   type Ticket,
   type TicketAction,
+  type TicketLink,
   ticketSchema,
   type Watcher,
 } from "@patchgrid/contracts"
@@ -31,6 +32,8 @@ import { toast } from "sonner"
 import { Assignment } from "./assignment"
 import { CommentItem } from "./comment-item"
 import { EditTicket } from "./edit-ticket"
+import { Links } from "./links"
+import { RecordDetails } from "./record-details"
 import { Watchers } from "./watchers"
 import { PriorityBadge, StatusBadge } from "@/components/tickets/badges"
 import { LiveRefresh } from "@/components/live-refresh"
@@ -55,8 +58,17 @@ const WITH_NOTE: Partial<Record<TicketAction, string>> = {
   wait: "What do you need from the requester?",
   resolve: "What was done to fix it?",
   cancel: "Why is it being cancelled?",
+  reject: "Why is it rejected? Say what to fix before it is resubmitted.",
 }
-const PRIMARY: readonly TicketAction[] = ["start", "resolve", "close", "resume"]
+const PRIMARY: readonly TicketAction[] = [
+  "start",
+  "resolve",
+  "close",
+  "resume",
+  "submit",
+  "approve",
+  "complete",
+]
 
 export function TicketDetail({
   ticket,
@@ -65,10 +77,12 @@ export function TicketDetail({
   categories,
   watchers,
   watchCandidates,
+  links,
 }: {
   ticket: Ticket
   comments: Comment[]
   watchers: Watcher[]
+  links: TicketLink[]
   /** Active members who could be added as watchers; present when the actor may add them. */
   watchCandidates: Member[] | null
   /** The picker for an editable category; empty when it is not editable. */
@@ -132,6 +146,7 @@ export function TicketDetail({
               {ticket.description}
             </p>
           </article>
+          <RecordDetails ticket={ticket} />
           <Thread ticketId={ticket.id} comments={comments} />
           {(ticket.capabilities.canCommentPublic ||
             ticket.capabilities.canCommentInternal) && (
@@ -167,6 +182,7 @@ export function TicketDetail({
               </Fact>
             )}
           </dl>
+          <Links ticket={ticket} links={links} />
           <Watchers
             ticket={ticket}
             watchers={watchers}
@@ -285,8 +301,10 @@ function TransitionButton({
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState("")
   const prompt = WITH_NOTE[action]
+  // A soft block's reason, while the person decides whether to go ahead anyway.
+  const [early, setEarly] = useState<string | null>(null)
   const run = useMutation({
-    mutationFn: (comment: string) =>
+    mutationFn: ({ comment, confirm }: { comment: string; confirm: boolean }) =>
       clientApi(`/tickets/${ticket.id}/transitions`, {
         method: "POST",
         body: {
@@ -295,11 +313,13 @@ function TransitionButton({
           ...(comment === ""
             ? {}
             : { comment: { body: comment, visibility: "PUBLIC" } }),
+          ...(confirm ? { confirm: true } : {}),
         },
         schema: ticketSchema,
       }),
     onSuccess: () => {
       setOpen(false)
+      setEarly(null)
       setNote("")
       router.refresh()
     },
@@ -308,11 +328,38 @@ function TransitionButton({
         toast.error("Someone else changed this ticket. It has been reloaded.")
         router.refresh()
         setOpen(false)
+      } else if (
+        error instanceof ApiError &&
+        error.type === "change-window-early"
+      ) {
+        setEarly(error.message)
       } else if (!(error instanceof ApiError && error.status === 400)) {
         toast.error(failureMessage(error, "That didn't go through."))
       }
     },
   })
+  const confirmEarly = (
+    <Dialog open={early !== null} onOpenChange={(o) => !o && setEarly(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Start before the window?</DialogTitle>
+          <DialogDescription>{early}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setEarly(null)}>
+            Wait
+          </Button>
+          <Button
+            disabled={run.isPending}
+            onClick={() => run.mutate({ comment: "", confirm: true })}
+          >
+            {run.isPending && <Spinner />}
+            Start anyway
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
   const noteError =
     run.error instanceof ApiError
       ? (run.error.fieldError("comment") ??
@@ -322,14 +369,17 @@ function TransitionButton({
 
   if (prompt === undefined) {
     return (
-      <Button
-        variant={variant}
-        disabled={run.isPending}
-        onClick={() => run.mutate("")}
-      >
-        {run.isPending && <Spinner />}
-        {TICKET_ACTION_LABEL[action]}
-      </Button>
+      <>
+        <Button
+          variant={variant}
+          disabled={run.isPending}
+          onClick={() => run.mutate({ comment: "", confirm: false })}
+        >
+          {run.isPending && <Spinner />}
+          {TICKET_ACTION_LABEL[action]}
+        </Button>
+        {confirmEarly}
+      </>
     )
   }
   return (
@@ -350,7 +400,7 @@ function TransitionButton({
             id={`transition-${action}`}
             onSubmit={(event) => {
               event.preventDefault()
-              run.mutate(note.trim())
+              run.mutate({ comment: note.trim(), confirm: false })
             }}
           >
             <label htmlFor={`note-${action}`} className="sr-only">

@@ -3,6 +3,7 @@ import {
   commentSchema,
   memberPageSchema,
   teamSchema,
+  ticketLinkSchema,
   ticketSchema,
   watcherSchema,
 } from "@patchgrid/contracts"
@@ -30,10 +31,11 @@ export default async function TicketPage({
 }) {
   const { id } = await params
   if (!ID.safeParse(id).success) notFound()
-  const [ticket, comments, watchers] = await Promise.all([
+  const [ticket, comments, watchers, links] = await Promise.all([
     serverApi(`/tickets/${id}`, { schema: ticketSchema }),
     serverApi(`/tickets/${id}/comments`, { schema: z.array(commentSchema) }),
     serverApi(`/tickets/${id}/watchers`, { schema: z.array(watcherSchema) }),
+    serverApi(`/tickets/${id}/links`, { schema: z.array(ticketLinkSchema) }),
   ])
   // The assignment control's candidates, only for someone who may assign.
   const assignable = ticket.capabilities.canAssign
@@ -64,6 +66,7 @@ export default async function TicketPage({
       categories={categories}
       watchers={watchers}
       watchCandidates={watchCandidates}
+      links={links}
     />
   )
 }
