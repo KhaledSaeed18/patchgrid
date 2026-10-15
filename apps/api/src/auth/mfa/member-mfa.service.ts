@@ -147,7 +147,8 @@ export class MemberMfaService {
       if ((await this.passwords.verify(stored.codeHash, presented)) && (await this.mfa.spendRecoveryCode(stored.id, now))) {
         await this.lockout.clear(userId)
         this.logger.warn({ msg: "recovery code used", userId })
-        await this.sessions.revokeEverywhere(userId)
+        // Every session before this second ends; the one this proof earns, minted next, survives.
+        await this.sessions.revokeEverywhere(userId, { before: true })
         await this.tell(userId, "recovery-code-used", (await this.mfa.unusedRecoveryCodes(userId)).length)
         return "recovery"
       }

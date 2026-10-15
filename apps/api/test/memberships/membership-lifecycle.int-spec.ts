@@ -85,6 +85,13 @@ async function invite(access: string, email: string, body: object = {}): Promise
 }
 
 /** The workspace session a `pg_id` holder reopens after their membership changed. */
+/** A fresh proof for the workspace (ADR-0029): the password, since nobody here has a factor. */
+async function prove(pgId: string): Promise<string> {
+  clock.advance(1_000)
+  const response = await http().post("/api/v1/auth/step-up").set(HEADERS).set("Cookie", pgId).send({ slug, password })
+  return pick(cookiesOf(response), `pg_at_${slug}=`)
+}
+
 async function reopen(pgId: string): Promise<string> {
   clock.advance(1_000)
   const response = await http().post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", pgId).send({ slug })
@@ -257,7 +264,11 @@ describe("membership lifecycle", () => {
     const ownerId = (await db.membership.findFirstOrThrow({ where: { orgId, role: "OWNER" } })).id
     expect((await as(state.owner).patch(`/members/${ownerId}/role`, { role: "ADMIN" })).status).toBe(409)
 
-    expect((await as(state.owner).patch(`/members/${state.bobMembership}/role`, { role: "OWNER" })).status).toBe(200)
+    // Making a second owner is the transfer of ownership: a step-up action (ADR-0029).
+    const unproved = await as(state.owner).patch(`/members/${state.bobMembership}/role`, { role: "OWNER" })
+    expect(unproved.status).toBe(403)
+    expect(unproved.body.type).toContain("step-up-required")
+    expect((await as(await prove((await login(people.owner)).pgId)).patch(`/members/${state.bobMembership}/role`, { role: "OWNER" })).status).toBe(200)
     const bobAsOwner = await reopen(state.bobPgId)
     const ownerAgain = await reopen((await login(people.owner)).pgId)
 

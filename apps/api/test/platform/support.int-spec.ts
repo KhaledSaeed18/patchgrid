@@ -22,7 +22,7 @@ import { SupportReadLog } from "../../src/auth/support/support-read-log"
 import { SupportSweepProcessor } from "../../src/support/support-sweep"
 import { type Operator, signInOperator } from "../support/platform"
 import { type Settler, settler } from "../support/queues"
-import { browser, HEADERS, seedWorkspace, type Workspace } from "../support/workspace"
+import { browser, HEADERS, seedWorkspace, stepUp, type Workspace } from "../support/workspace"
 
 type Who = "owner" | "admin" | "agent" | "requester"
 
@@ -64,6 +64,8 @@ afterAll(async () => {
 })
 
 const as = (who: Who) => browser(app, ws.origin, ws.people[who].access)
+/** The same person, re-proved for the next five minutes (ADR-0029). */
+const proved = async (who: Who) => browser(app, ws.origin, await stepUp(app, ws.slug, ws.people[who]))
 const asSupport = () => ({
   get: (path: string) => request(app.getHttpServer()).get(`/api/v1${path}`).set("Origin", ws.origin).set("Cookie", supportCookie),
   post: (path: string, body: object = {}) =>
@@ -89,8 +91,12 @@ describe("asking and granting", () => {
 
   it("is granted by an owner only, for at most 72 hours", async () => {
     expect((await as("admin").post(`/org/support-sessions/${sessionId}/grant`, { hours: 2 })).status).toBe(403)
-    expect((await as("owner").post(`/org/support-sessions/${sessionId}/grant`, { hours: 73 })).status).toBe(400)
-    const granted = await as("owner").post(`/org/support-sessions/${sessionId}/grant`, { hours: 2 })
+    // Letting an outsider in is a step-up action (ADR-0029): the owner's plain session is refused first.
+    const unproved = await as("owner").post(`/org/support-sessions/${sessionId}/grant`, { hours: 2 })
+    expect(unproved.status).toBe(403)
+    expect(unproved.body.type).toContain("step-up-required")
+    expect((await (await proved("owner")).post(`/org/support-sessions/${sessionId}/grant`, { hours: 73 })).status).toBe(400)
+    const granted = await (await proved("owner")).post(`/org/support-sessions/${sessionId}/grant`, { hours: 2 })
     expect(granted.body).toMatchObject({ status: "ACTIVE" })
     expect(await ownerMail()).toContainEqual(expect.stringMatching(/can now read/))
   })
@@ -136,10 +142,10 @@ describe("declining and expiry", () => {
   it("can be declined, and expires on its own, on the record", async () => {
     const declined = (await operator.post(`/orgs/${ws.orgId}/support`, { reason: "Another look at the VPN ticket" })).body.id as string
     expect((await as("owner").post(`/org/support-sessions/${declined}/decline`)).body.status).toBe("DECLINED")
-    expect((await as("owner").post(`/org/support-sessions/${declined}/grant`, { hours: 1 })).status).toBe(409)
+    expect((await (await proved("owner")).post(`/org/support-sessions/${declined}/grant`, { hours: 1 })).status).toBe(409)
 
     const expiring = (await operator.post(`/orgs/${ws.orgId}/support`, { reason: "A third look at the VPN ticket" })).body.id as string
-    await as("owner").post(`/org/support-sessions/${expiring}/grant`, { hours: 1 })
+    await (await proved("owner")).post(`/org/support-sessions/${expiring}/grant`, { hours: 1 })
     await db.supportSession.update({ where: { id: expiring }, data: { grantedAt: new Date(Date.now() - 2 * 3_600_000), expiresAt: new Date(Date.now() - 3_600_000) } })
     const ended = await app.get(SupportSweepProcessor).process({ id: "spec/support-sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
     expect(ended).toBe(1)
@@ -151,7 +157,7 @@ describe("declining and expiry", () => {
 describe("the operator's own session", () => {
   it("is what a support session hangs on: a re-grant or a sign-out ends it", async () => {
     const id = (await operator.post(`/orgs/${ws.orgId}/support`, { reason: "One more look at the VPN ticket" })).body.id as string
-    await as("owner").post(`/org/support-sessions/${id}/grant`, { hours: 1 })
+    await (await proved("owner")).post(`/org/support-sessions/${id}/grant`, { hours: 1 })
     const entered = await operator.post(`/orgs/${ws.orgId}/support/${id}/enter`)
     supportCookie = String(entered.headers["set-cookie"]).split(";")[0] ?? ""
     expect((await asSupport().get("/me")).status).toBe(200)

@@ -144,7 +144,7 @@ describe("MemberMfaService.completeLogin", () => {
     const h = harness({ secret: SECRET, recovery: ["abcde-fghij", "klmnp-qrstu"] })
     const first = await h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { recoveryCode: "ABCDE FGHIJ" }, client)
     expect(first.response.status).toBe("signed-in")
-    expect(h.sessions.revokeEverywhere).toHaveBeenCalledWith(ada.id)
+    expect(h.sessions.revokeEverywhere).toHaveBeenCalledWith(ada.id, { before: true })
     expect(h.sent()).toEqual(["recovery-code-used"])
     expect(h.mail.enqueue.mock.calls[0]?.[0]).toMatchObject({ to: ada.email, orgId: null, params: { remaining: 1 } })
     await expect(h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { recoveryCode: "abcde-fghij" }, client)).rejects.toBeInstanceOf(ValidationProblem)
