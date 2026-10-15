@@ -121,7 +121,9 @@ function passwordMessage(error: Error): string {
 /**
  * Wraps an action so that a `step-up-required` refusal opens the dialog and,
  * once proved, runs the action again. A closed dialog rejects with
- * `StepUpCancelled`, which callers treat as "nothing happened".
+ * `StepUpCancelled`, which callers treat as "nothing happened". `waiting`
+ * lets a dialog that triggered the action step aside while the proof is
+ * taken, rather than stacking two dialogs.
  */
 export function useStepUp() {
   const [waiting, setWaiting] = useState<{
@@ -154,5 +156,5 @@ export function useStepUp() {
       }}
     />
   )
-  return { guard, dialog }
+  return { guard, dialog, waiting: waiting !== null }
 }
