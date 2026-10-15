@@ -9,6 +9,7 @@ import { runJob } from "../../jobs/dispatcher/run-job"
 import { readTenantSweep } from "../../jobs/sweeps"
 import { Notifier } from "../../notifications/notify"
 import { PrismaService } from "../../prisma/prisma.service"
+import { recordSlaBreach } from "../../telemetry/metrics"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { scanSignals, type SlaSignal } from "../domain/sla"
 import { TicketRepository } from "../repositories/ticket.repository"
@@ -67,7 +68,11 @@ export class SlaScanService {
             )
             return true
           })
-          if (done) flagged.push({ ...signal, ticketId: row.id, due })
+          if (done) {
+            flagged.push({ ...signal, ticketId: row.id, due })
+            // A product metric that happens to be an ops metric (ADR-0030).
+            if (signal.kind !== "warning") recordSlaBreach(orgId, row.priority)
+          }
         }
       }
       if (rows.length < PAGE) break

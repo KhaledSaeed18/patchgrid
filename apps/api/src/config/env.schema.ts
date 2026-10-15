@@ -142,6 +142,16 @@ export const envSchema = z
      * mail. Ignored in production, where links carry no port.
      */
     WEB_APP_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
+
+    /**
+     * Where traces and metrics go (ADR-0030): an OTLP/HTTP collector, such as
+     * the one `docker compose --profile observability up` runs. Unset means
+     * off — the SDK does not start and every span and metric is a no-op.
+     * Read by `startTelemetry` before this schema runs; listed here so a
+     * typo fails boot like any other setting.
+     */
+    OTEL_EXPORTER_OTLP_ENDPOINT: url("OTEL_EXPORTER_OTLP_ENDPOINT").optional(),
+    OTEL_SERVICE_NAME: z.string().min(1).default("patchgrid-api"),
   })
   .superRefine((env, ctx) => {
     // The single most damaging misconfiguration available: running the

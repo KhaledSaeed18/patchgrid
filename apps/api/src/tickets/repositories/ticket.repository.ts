@@ -125,6 +125,7 @@ export type RunningClockRow = Pick<
   | "resolutionWarningSentAt"
 > & {
   id: string
+  priority: Priority
   slaPolicy: { responseWarningMinutes: number; resolutionWarningMinutes: number } | null
 }
 
@@ -382,6 +383,7 @@ export class TicketRepository {
       take: limit,
       select: {
         id: true,
+        priority: true,
         responseClockStartedAt: true,
         resolutionClockStartedAt: true,
         respondedAt: true,

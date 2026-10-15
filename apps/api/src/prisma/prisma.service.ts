@@ -12,6 +12,9 @@ import { ClsService } from "nestjs-cls"
 
 import { InjectConfig, type AppConfig } from "../config/app-config"
 import type { RequestContextStore } from "../tenancy/request-context"
+import { isRlsDenied, observePool, recordRlsDenied, recordTransaction } from "../telemetry/metrics"
+import process from "node:process"
+
 import { TenantContextService } from "../tenancy/tenant-context.service"
 
 /**
@@ -54,6 +57,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     this.base = createPrismaClient({
       connectionString: config.DATABASE_URL,
       maxConnections: config.DATABASE_POOL_MAX,
+      // Pool saturation is the one gauge every tenant shares (ADR-0030).
+      onPool: (pool) => observePool(() => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: config.DATABASE_POOL_MAX })),
     })
     // Every tenant-owned query reads the tenant from the request context at
     // the moment it is awaited, and throws if there is none.
@@ -94,6 +99,20 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     const open = this.cls.isActive() ? this.cls.get("prismaTransaction") : undefined
     if (open !== undefined && open.orgId === orgId) return fn(open.client)
 
+    // Timed and counted per request (ADR-0030): the pool is what every tenant shares.
+    this.tenantContext.countTransaction()
+    const started = process.hrtime.bigint()
+    try {
+      return await this.open(orgId, fn)
+    } catch (error) {
+      if (isRlsDenied(error)) recordRlsDenied(orgId)
+      throw error
+    } finally {
+      recordTransaction({ orgId, durationMs: Number(process.hrtime.bigint() - started) / 1_000_000 })
+    }
+  }
+
+  private open<T>(orgId: string | null, fn: (tx: TenantTransactionClient) => Promise<T>): Promise<T> {
     // A child context: the transaction slot and the `inTransaction` flag must
     // not outlive `fn`, and must not be visible to concurrent work sharing the
     // parent store. Await INSIDE it — Prisma promises are lazy.

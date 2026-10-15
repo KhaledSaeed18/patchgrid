@@ -1,22 +1,16 @@
-import "reflect-metadata"
-
-import { NestFactory } from "@nestjs/core"
 import { existsSync } from "node:fs"
 import path from "node:path"
 import process from "node:process"
-import type { NestExpressApplication } from "@nestjs/platform-express"
-import helmet from "helmet"
-import { Logger } from "nestjs-pino"
 
-import { AppModule } from "./app.module"
-import { INBOUND_WEBHOOK_PATH, inboundBodyParser } from "./inbound/inbound.controller"
-import { corsOriginCallback, originPolicyFrom } from "./common/http/origin-policy"
-import { APP_CONFIG, type AppConfig } from "./config/app-config"
+import { startTelemetry } from "./telemetry/otel"
 
 /**
- * The order below is the request pipeline from `ARCHITECTURE.md`, and it is
- * load-bearing rather than incidental — the cheapest defence runs first, and the
- * tenant is resolved from the credential rather than the host (ADR-0024).
+ * The entry point does three things, in an order that is load-bearing: read
+ * the local `.env`, start telemetry, THEN load the application. The
+ * OpenTelemetry instrumentations patch `http`, `pg`, `ioredis` and `pino` as
+ * those modules are first required (ADR-0030, ADR-0046), so Nest and
+ * everything under it must be required after the SDK is up — which is why
+ * `bootstrap.ts` is loaded with `require` below rather than imported here.
  */
 /**
  * The repository root `.env` is the local development source of variables. Node
@@ -57,65 +51,9 @@ function loadLocalEnv(): void {
   }
 }
 
-async function bootstrap(): Promise<void> {
-  loadLocalEnv()
+loadLocalEnv()
+startTelemetry()
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    // Buffer startup logs until the pino logger exists, so boot failures are
-    // formatted like everything else instead of being raw console output.
-    bufferLogs: true,
-  })
-
-  app.useLogger(app.get(Logger))
-  app.flushLogs()
-
-  const config = app.get<AppConfig>(APP_CONFIG)
-
-  app.use(
-    helmet({
-      // This process serves JSON, not documents. A content-security policy for
-      // HTML would be cargo cult; the headers that matter for an API are the
-      // rest of the set.
-      contentSecurityPolicy: false,
-      // CORP would block the cross-origin reads that the tenant subdomains make
-      // on purpose; CORS is the mechanism that governs those (below).
-      crossOriginResourcePolicy: false,
-    }),
-  )
-
-  app.enableCors({
-    origin: corsOriginCallback(originPolicyFrom(config)),
-    // Cookies are the session mechanism, so credentialed requests are the norm.
-    credentials: true,
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Patchgrid-Tenant", "X-Patchgrid-Surface", "Idempotency-Key"],
-    exposedHeaders: ["X-Request-Id"],
-    maxAge: 600,
-  })
-
-  // The inbound webhook is signed over its bytes (ADR-0039): they are kept raw, ahead of Nest's JSON parser.
-  app.use(INBOUND_WEBHOOK_PATH, inboundBodyParser())
-  // Health lives outside the version prefix so orchestrators find it where they
-  // expect, and so a future /api/v2 does not move it.
-  app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
-
-  if (config.isProduction) {
-    // Behind a reverse proxy the client IP arrives in X-Forwarded-For. Rate
-    // limiting keyed on the proxy's own address would be worse than none at all.
-    app.set("trust proxy", 1)
-  }
-
-  // Lets Prisma and Redis close their connections on SIGTERM rather than having
-  // them severed mid-query.
-  app.enableShutdownHooks()
-
-  await app.listen(config.PORT, "0.0.0.0")
-
-  const logger = app.get(Logger)
-  logger.log(
-    `api listening on http://api.${config.ROOT_DOMAIN}:${String(config.PORT)} ` +
-      `(${config.NODE_ENV}, root domain ${config.ROOT_DOMAIN})`,
-  )
-}
-
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- after the SDK, on purpose (see above)
+const { bootstrap } = require("./bootstrap") as typeof import("./bootstrap")
 void bootstrap()

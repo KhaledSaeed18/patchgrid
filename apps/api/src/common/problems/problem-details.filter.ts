@@ -17,6 +17,7 @@ import {
 import type { Request, Response } from "express"
 import { ZodError } from "zod"
 
+import { isRlsDenied, recordRlsDenied } from "../../telemetry/metrics"
 import { ProblemException, RateLimitedProblem } from "./problem.exception"
 
 type Resolved = {
@@ -51,6 +52,8 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       return
     }
 
+    // A policy refusal reaching a request is a bug, and a loud one (ADR-0030).
+    if (isRlsDenied(exception)) recordRlsDenied(undefined)
     const resolved = resolve(exception)
     const status = statusFor(resolved.type)
     const correlationId = typeof request.id === "string" ? request.id : undefined

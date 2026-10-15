@@ -16,6 +16,7 @@ const WARNINGS = { responseWarningMinutes: 10, resolutionWarningMinutes: 60 }
 function clock(id: string, over: Partial<RunningClockRow> = {}): RunningClockRow {
   return {
     id,
+    priority: "HIGH",
     responseClockStartedAt: T0,
     resolutionClockStartedAt: T0,
     respondedAt: null,
