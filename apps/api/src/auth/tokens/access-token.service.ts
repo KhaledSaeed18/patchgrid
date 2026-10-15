@@ -6,7 +6,7 @@ import { type Clock, InjectClock } from "../../common/clock/clock"
 import { InjectConfig, type AppConfig } from "../../config/app-config"
 import { type AccessTokenClaims, accessTokenClaimsSchema } from "./access-token"
 
-export type SessionClaims = Pick<AccessTokenClaims, "sub" | "org" | "mem" | "role">
+export type SessionClaims = Pick<AccessTokenClaims, "sub" | "org" | "mem" | "role" | "sua">
 
 const ISSUER = "patchgrid"
 const AUDIENCE = "patchgrid-api"
@@ -33,7 +33,7 @@ export class AccessTokenService {
   async sign(session: SessionClaims): Promise<{ token: string; claims: AccessTokenClaims }> {
     const iat = Math.floor(this.clock.now().getTime() / 1000)
     const claims: AccessTokenClaims = { ...session, iat, exp: iat + this.ttlSeconds, jti: randomUUID() }
-    const token = await new SignJWT({ org: claims.org, mem: claims.mem, role: claims.role })
+    const token = await new SignJWT({ org: claims.org, mem: claims.mem, role: claims.role, ...(claims.sua === undefined ? {} : { sua: claims.sua }) })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setSubject(claims.sub)
       .setJti(claims.jti ?? randomUUID())

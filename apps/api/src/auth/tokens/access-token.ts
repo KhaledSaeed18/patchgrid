@@ -20,6 +20,8 @@ export const accessTokenClaimsSchema = z.object({
   /** membershipId — what the revocation epoch is keyed on. */
   mem: idSchema,
   role: roleSchema,
+  /** Step-up at: when the holder last re-proved themselves (ADR-0029). Good for five minutes from then. */
+  sua: z.int().optional(),
   iat: z.int(),
   exp: z.int(),
   /** Random per token, so two mints in one second are still two tokens and logs can tell them apart. */

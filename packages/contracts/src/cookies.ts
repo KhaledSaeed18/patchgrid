@@ -12,6 +12,12 @@ export const ACCESS_COOKIE_PREFIX = "pg_at_"
 export const REFRESH_COOKIE_PREFIX = "pg_rt_"
 /** Tenant-less identity, a `RefreshToken` row with `orgId = NULL` (ADR-0031). */
 export const IDENTITY_COOKIE = "pg_id"
+/**
+ * The five minutes between a member's password and their second factor
+ * (ADR-0045): a signed challenge, path-scoped like the refresh cookie so only
+ * the auth routes ever receive it. Good for nothing but `POST /auth/mfa`.
+ */
+export const MFA_CHALLENGE_COOKIE = "pg_mc"
 
 /** Only the auth routes ever receive the refresh cookie (ADR-0004, ADR-0024) — never the Next server (ADR-0035). */
 export const REFRESH_COOKIE_PATH = "/api/v1/auth"

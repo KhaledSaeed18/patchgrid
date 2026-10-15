@@ -15,6 +15,7 @@ const acme: OrganizationSummary = {
   status: "ACTIVE",
   plan: "FREE",
   agentVisibility: "ALL_TICKETS",
+  requireMfa: false,
 }
 
 /** An in-memory Redis that can be switched off to simulate an outage. */

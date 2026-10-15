@@ -1,4 +1,5 @@
 import { Logger } from "@nestjs/common"
+import type { LoginResponse, SignedInResponse } from "@patchgrid/contracts"
 import { ClsServiceManager } from "nestjs-cls"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -29,6 +30,8 @@ import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { CookieService, type CookieSpec } from "../cookies"
 import type { PasswordService } from "../passwords/password.service"
 import type { RevocationEpochService } from "../revocation/revocation-epoch.service"
+import type { MfaRepository } from "../../platform/repositories/mfa.repository"
+import { MfaChallengeService } from "../mfa/mfa-challenge.service"
 import { AccessTokenService } from "../tokens/access-token.service"
 import { hash, SessionService } from "./session.service"
 
@@ -40,7 +43,7 @@ const config = {
   isProduction: false,
 } as AppConfig
 
-const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS" }
+const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false }
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const frozen: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000f", slug: "frozen", status: "SUSPENDED" }
 const ORGS = [acme, globex, frozen]
@@ -61,8 +64,10 @@ const membership = (orgId: string, status: MembershipRecord["status"] = "ACTIVE"
   leadOfTeamIds: [],
 })
 
-function harness(memberships: MembershipRecord[] = [membership(acme.id)]) {
+function harness(memberships: MembershipRecord[] = [membership(acme.id)], options: { enrolled?: string[] } = {}) {
   const clock = new FixedClock(new Date("2026-10-05T12:00:00Z"))
+  const enrolled = new Set(options.enrolled ?? [])
+  const mfa = { confirmed: vi.fn(async (userId: string) => (enrolled.has(userId) ? { id: "f-1", secretEncrypted: "x", confirmedAt: clock.now(), lastUsedStep: null } : null)) }
   const tokens = new Map<string, RefreshTokenRecord>()
   let nextId = 0
   const refreshTokens = {
@@ -140,13 +145,20 @@ function harness(memberships: MembershipRecord[] = [membership(acme.id)]) {
     new AccessTokenService(config, clock),
     epochs as unknown as RevocationEpochService,
     new CookieService(config),
+    mfa as unknown as MfaRepository,
+    new MfaChallengeService(config, clock),
     clock,
     config,
   )
-  return { service, clock, tokens, refreshTokens, passwords, epochs, users, context: new TenantContextService(cls), membershipsRepo }
+  return { service, clock, tokens, refreshTokens, passwords, epochs, users, context: new TenantContextService(cls), membershipsRepo, enrolled }
 }
 
 const client = { userAgent: "vitest", ip: "127.0.0.1" }
+/** The login answer when it is a session, as every existing case expects. */
+function signedIn(response: LoginResponse): SignedInResponse {
+  if (response.status !== "signed-in") throw new Error(`expected a session, got ${response.status}`)
+  return response
+}
 const cookieNamed = (cookies: CookieSpec[], name: string) => cookies.find((c) => c.name === name)
 
 beforeEach(() => {
@@ -157,7 +169,8 @@ beforeEach(() => {
 describe("SessionService.login", () => {
   it("mints pg_id, lists workspaces, and opens the requested workspace", async () => {
     const { service, tokens } = harness()
-    const { response, cookies } = await service.login("owner@acme.test", "correct horse battery staple", "acme", client)
+    const { response: answered, cookies } = await service.login("owner@acme.test", "correct horse battery staple", "acme", client)
+    const response = signedIn(answered)
     expect(response.user).toEqual({ id: owner.id, email: owner.email, name: "Owner" })
     expect(response.workspaces.map((w) => w.slug)).toEqual(["acme"])
     expect(response.session).toEqual({ slug: "acme" })
@@ -186,7 +199,7 @@ describe("SessionService.login", () => {
   it("still logs in when the requested workspace cannot be opened, without that pair", async () => {
     const { service } = harness()
     const { response, cookies } = await service.login("owner@acme.test", "correct horse battery staple", "globex", client)
-    expect(response.session).toBeNull()
+    expect(signedIn(response).session).toBeNull()
     expect(cookies.map((c) => c.name)).toEqual(["pg_id"])
   })
 

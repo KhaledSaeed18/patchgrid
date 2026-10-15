@@ -23,6 +23,8 @@ export type Actor =
       role: Role
       teamIds: string[]
       leadOfTeamIds: string[]
+      /** When the session last re-proved itself, in unix seconds (ADR-0029); absent until it has. */
+      stepUpAt?: number
     }
   | { kind: "service"; orgId: string; membershipId: string; role: Role; scopes: TokenScope[]; tokenId: string }
   | { kind: "identity"; userId: string }

@@ -23,7 +23,7 @@ import type { OrganizationLookup } from "./organization-lookup"
  * - Negative answers are cached briefly, so an unknown-slug flood costs one
  *   database read per ten seconds rather than one per request. Throttling
  *   (pipeline step 3) is the real defence; this is cheapness.
- * - Whoever changes a slug, status, plan or agent visibility calls
+ * - Whoever changes a slug, status, plan, agent visibility or MFA policy calls
  *   `invalidate`. The TTL bounds the damage if they forget.
  */
 @Injectable()
@@ -142,4 +142,5 @@ const summarySchema: z.ZodType<OrganizationSummary> = z.object({
   status: organizationStatusSchema,
   plan: planSchema,
   agentVisibility: agentVisibilitySchema,
+  requireMfa: z.boolean(),
 })

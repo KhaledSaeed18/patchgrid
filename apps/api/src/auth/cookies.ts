@@ -3,6 +3,8 @@ import { parseCookie } from "cookie"
 import type { Request, Response } from "express"
 
 import { InjectConfig, type AppConfig } from "../config/app-config"
+import { MFA_CHALLENGE_COOKIE } from "@patchgrid/contracts"
+
 import {
   accessCookieName,
   IDENTITY_COOKIE,
@@ -55,6 +57,11 @@ export class CookieService {
       path: "/",
       maxAgeSeconds: this.config.REFRESH_TOKEN_TTL_DAYS * 86_400,
     }
+  }
+
+  /** Between the password and the factor (ADR-0045): auth routes only, five minutes. */
+  mfaChallenge(token: string, ttlSeconds: number): CookieSpec {
+    return { name: MFA_CHALLENGE_COOKIE, value: token, path: REFRESH_COOKIE_PATH, maxAgeSeconds: ttlSeconds }
   }
 
   /** The names a workspace's pair is cleared under. */

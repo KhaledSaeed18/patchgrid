@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { mfaVerifyRequestSchema, totpCodeSchema } from "./platform.ts"
+import { slugSchema } from "./slug.ts"
 
 /**
  * A member's second factor (ADR-0029, ADR-0045). The TOTP shapes themselves —
@@ -38,6 +39,8 @@ export const STEP_UP_TTL_SECONDS = 5 * 60
  */
 export const stepUpRequestSchema = z
   .strictObject({
+    /** The workspace whose session is re-issued with the proof — tenant-less, as every auth route is. */
+    slug: slugSchema,
     code: totpCodeSchema.optional(),
     recoveryCode: z.string().trim().min(8).max(32).optional(),
     password: z.string().min(1).max(200).optional(),

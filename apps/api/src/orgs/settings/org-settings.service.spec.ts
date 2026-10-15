@@ -34,6 +34,7 @@ function harness(role: Role, options: { lastRelease?: Date; taken?: string[] } =
     domain: null,
     agentVisibility: "ALL_TICKETS",
     emailNotificationsEnabled: true,
+    requireMfa: false,
     createdAt: new Date("2026-01-01T00:00:00Z"),
   }
   const audit: AuditEntry[] = []

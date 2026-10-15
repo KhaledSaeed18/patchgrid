@@ -65,6 +65,20 @@ export class OrganizationSuspendedProblem extends ProblemException {
   }
 }
 
+/** The workspace requires a second factor and this account has none confirmed (ADR-0045). */
+export class MfaRequiredProblem extends ProblemException {
+  constructor(detail = "This workspace requires a second factor; set one up under your account") {
+    super("mfa-required", detail)
+  }
+}
+
+/** An irreversible action without a fresh proof (ADR-0029): re-authenticate, then retry. */
+export class StepUpRequiredProblem extends ProblemException {
+  constructor(detail = "Confirm it is you before doing this; the proof is good for five minutes") {
+    super("step-up-required", detail)
+  }
+}
+
 /** `402`, and only ever a plan limit — never a permission problem. */
 export class PlanLimitProblem extends ProblemException {
   constructor(
