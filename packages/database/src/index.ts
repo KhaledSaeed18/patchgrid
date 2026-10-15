@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg"
+import { Pool } from "pg"
 
 import { PrismaClient } from "../generated/client/client.ts"
 
@@ -34,6 +35,8 @@ export type PrismaClientOptions = {
    *  connection is held for a full round trip — this is the number that decides
    *  how many concurrent requests the process can actually serve. */
   maxConnections?: number
+  /** Handed the driver pool once it exists — for the saturation gauge, nothing else (ADR-0030). */
+  onPool?: (pool: Pool) => void
 }
 
 /**
@@ -44,12 +47,14 @@ export type PrismaClientOptions = {
 export function createPrismaClient({
   connectionString,
   maxConnections,
+  onPool,
 }: PrismaClientOptions): PrismaClient {
-  const adapter = new PrismaPg({
+  const pool = new Pool({
     connectionString,
     ...(maxConnections === undefined ? {} : { max: maxConnections }),
   })
-  return new PrismaClient({ adapter })
+  onPool?.(pool)
+  return new PrismaClient({ adapter: new PrismaPg(pool) })
 }
 
 /**
