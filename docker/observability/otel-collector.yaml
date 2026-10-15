@@ -1,0 +1,47 @@
+# The collector the API exports to (ADR-0030): OTLP in, traces to Tempo,
+# metrics scraped by Prometheus from this process. One hop, so a later backend
+# is a change here and nowhere in the application.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 2s
+  # Spans and metrics already carry ids only; this is the belt to that brace.
+  attributes/no-pii:
+    actions:
+      - key: http.request.header.authorization
+        action: delete
+      - key: http.request.header.cookie
+        action: delete
+      - key: http.response.header.set-cookie
+        action: delete
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # `org`, `queue`, `http.route` and the rest become labels as they are.
+    resource_to_telemetry_conversion:
+      enabled: false
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/no-pii, batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]

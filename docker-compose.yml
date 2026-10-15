@@ -109,7 +109,65 @@ services:
       timeout: 3s
       retries: 20
 
+  # ─── Observability (ADR-0030) — `docker compose --profile observability up` ──
+  # The API exports OTLP to the collector when OTEL_EXPORTER_OTLP_ENDPOINT is
+  # set; the collector hands traces to Tempo and exposes metrics for
+  # Prometheus; Grafana is provisioned with both and the tenant dashboard.
+  # Off by default so the everyday stack stays light.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./docker/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "${OTEL_HTTP_PORT:-4318}:4318"
+      - "${OTEL_GRPC_PORT:-4317}:4317"
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./docker/observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SERVER_HTTP_PORT: "3000"
+    volumes:
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    # 3000 is the marketing site on the host; Grafana answers on 3100.
+    ports:
+      - "${GRAFANA_PORT:-3100}:3000"
+    depends_on:
+      - prometheus
+      - tempo
+
 volumes:
   postgres-data:
   redis-data:
   object-data:
+  tempo-data:
+  prometheus-data:
