@@ -387,10 +387,15 @@ lockfile and CI cannot disagree about which pnpm produced them.
   SHA-256, so abuse is still correlatable without storing the address.
 - `GET /health` (liveness) and `GET /health/ready` (Postgres, Redis, MinIO reachability) via
   `@nestjs/terminus`, in the first milestone — not deferred.
-- **The instrumentation seam exists from M0**, even though the implementation is later: a `Tracer`
-  provider with a no-op implementation, injected wherever a span would start. Retrofitting OpenTelemetry
-  through 200 files is the reason most projects never add it. The real implementation, per-tenant metrics
-  and the local collector are an M9 item with their own ADR.
+- **OpenTelemetry** (ADR-0030, ADR-0046): the SDK starts in `main.ts` before the application is
+  required, and only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Traces carry `org.id`, `membership.id`
+  and `actor.kind`; every permission decision is an event on the active span; the request id is the
+  trace id, so a 5xx's `correlationId` opens the waterfall. Metrics live in `src/telemetry/metrics.ts`
+  as plain functions over the global meter — request duration by route and tenant, transactions per
+  request, pool saturation, job duration by queue and tenant, SLA breaches, quota rejections,
+  RLS refusals — with `org` bounded to the top 25 tenants and `other`. Locally,
+  `docker compose --profile observability up` runs the collector, Tempo, Prometheus and Grafana
+  (`http://localhost:3100`, dashboard "Patchgrid — which tenant is slow").
 - No error-tracking SaaS in the local stage; the Problem Details filter logs every 5xx with its
   correlation id.
 

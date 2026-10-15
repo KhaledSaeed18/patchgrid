@@ -52,6 +52,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0043](0043-org-deletion-and-the-purge.md) | Deleting a workspace: a 30-day window, then a purge that keeps only a tombstone | Accepted |
 | [0044](0044-data-protection-as-built.md) | Data protection as built: a streamed export, self-service erasure, retention sweeps | Accepted |
 | [0045](0045-member-mfa-as-built.md) | Member MFA as built: a challenge before the session, a proof on the token | Accepted |
+| [0046](0046-observability-as-built.md) | Observability as built: the SDK before the app, metrics by top-N tenant, a trace id as the request id | Accepted |
 
 ## Reading order for someone new
 

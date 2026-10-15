@@ -107,6 +107,12 @@ It signs the message as the receiving server would; add `--dmarc fail` to see a 
 refused. Attachments are served by MinIO
 at `localhost:9000` — a different site from `lvh.me`, as files must be (ADR-0037).
 
+To see which tenant is slow, start the observability profile and point the API at it
+(ADR-0030, ADR-0046): `docker compose --profile observability up -d`, then set
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` in `.env` and restart `pnpm dev`. Grafana is at
+`localhost:3100` with the dashboard "Patchgrid — which tenant is slow"; traces in Tempo carry the
+tenant, and a 5xx's `correlationId` is the trace id.
+
 Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
 
 | Account | Who they are |
