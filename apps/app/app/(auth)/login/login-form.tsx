@@ -1,26 +1,43 @@
 "use client"
 
-import { loginResponseSchema } from "@patchgrid/contracts"
+import {
+  loginResponseSchema,
+  type SignedInResponse,
+} from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import { FieldGroup } from "@patchgrid/ui/components/field"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation } from "@tanstack/react-query"
 import Link from "next/link"
+import { useState } from "react"
 
 import { FormField } from "@/components/form-field"
 import { FormAlert } from "@/components/form-alert"
+import { FactorForm, type FactorProof } from "@/components/mfa/factor-form"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { parseNext } from "@/lib/next-url"
 
 /**
- * Email and password. When the browser arrived from a workspace, the login
- * asks for that workspace's session in the same request and goes straight
- * back; otherwise it goes to the picker. One message for every failure: the
- * API does not say whether the address exists, and neither does this page.
+ * Email and password — then, for an account with a second factor, the code
+ * (ADR-0045). When the browser arrived from a workspace, the login asks for
+ * that workspace's session in the same request and goes straight back;
+ * otherwise it goes to the picker. One message for every failure: the API
+ * does not say whether the address exists, and neither does this page.
  */
 export function LoginForm({ next }: { next: string | undefined }) {
   const target = parseNext(next)
+  const [stage, setStage] = useState<"password" | "factor">("password")
+  const go = (response: SignedInResponse) => {
+    if (target?.kind === "workspace" && response.session !== null) {
+      window.location.assign(target.url)
+    } else if (target?.kind === "path") {
+      window.location.assign(target.path)
+    } else {
+      window.location.assign("/workspaces")
+    }
+  }
+
   const login = useMutation({
     mutationFn: (form: { email: string; password: string }) =>
       clientApi("/auth/login", {
@@ -33,15 +50,38 @@ export function LoginForm({ next }: { next: string | undefined }) {
         schema: loginResponseSchema,
       }),
     onSuccess: (response) => {
-      if (target?.kind === "workspace" && response.session !== null) {
-        window.location.assign(target.url)
-      } else if (target?.kind === "path") {
-        window.location.assign(target.path)
-      } else {
-        window.location.assign("/workspaces")
-      }
+      if (response.status === "mfa-required") setStage("factor")
+      else go(response)
     },
   })
+  const factor = useMutation({
+    mutationFn: (proof: FactorProof) =>
+      clientApi("/auth/mfa", {
+        method: "POST",
+        anonymous: true,
+        body: proof,
+        schema: loginResponseSchema,
+      }),
+    onSuccess: (response) => {
+      if (response.status === "signed-in") go(response)
+    },
+  })
+
+  if (stage === "factor") {
+    return (
+      <FactorForm
+        onSubmit={(proof) => factor.mutate(proof)}
+        pending={factor.isPending || factor.isSuccess}
+        error={factor.error}
+        submitLabel="Sign in"
+      >
+        <p className="text-sm text-pretty text-muted-foreground">
+          Your account has two-factor authentication on. Enter the code from
+          your authenticator app.
+        </p>
+      </FactorForm>
+    )
+  }
 
   return (
     <form

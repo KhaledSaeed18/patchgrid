@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { clientApi } from "@/lib/api/client"
+import { ApiError } from "@/lib/api/errors"
 import { failureMessage } from "@/lib/failure"
 import { appOrigin, ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
 import { ROLE_LABEL } from "@/lib/labels"
@@ -18,6 +19,7 @@ export function WorkspaceList({
 }: {
   workspaces: WorkspaceSummary[]
 }) {
+  const router = useRouter()
   const open = useMutation({
     mutationFn: (slug: string) =>
       clientApi("/auth/sessions", {
@@ -26,12 +28,17 @@ export function WorkspaceList({
         schema: null,
       }).then(() => slug),
     onSuccess: (slug) => window.location.assign(workspaceOrigin(slug)),
-    onError: () =>
+    onError: (error, slug) => {
+      // The workspace requires a second factor (ADR-0045): set one up, then come back.
+      if (error instanceof ApiError && error.type === "mfa-required") {
+        router.push(`/account/security?required=${encodeURIComponent(slug)}`)
+        return
+      }
       toast.error(
         "That workspace couldn't be opened. It may have been suspended, or your access removed."
-      ),
+      )
+    },
   })
-  const router = useRouter()
   // A workspace waiting to be purged: its subdomain 404s, so its owners take it back from here (ADR-0043).
   const keep = useMutation({
     mutationFn: (orgId: string) =>

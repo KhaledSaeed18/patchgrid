@@ -68,6 +68,8 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   ORG_DELETION_REQUESTED: "asked for this workspace to be deleted",
   ORG_DELETION_CANCELLED: "cancelled this workspace's deletion",
   ORG_EXPORTED: "exported this workspace",
+  ORG_MFA_REQUIREMENT_CHANGED:
+    "changed whether two-factor authentication is required",
 }
 
 export function actorName(entry: AuditEntry): string {

@@ -6,6 +6,7 @@ import { AuthShell } from "@/components/auth-shell"
 import { serverIdentity } from "@/lib/api/server"
 
 import { EraseAccount } from "./erase-account"
+import { SecuritySummary } from "./security/security-summary"
 
 export const metadata: Metadata = { title: "Your account" }
 
@@ -31,6 +32,7 @@ export default async function AccountPage() {
         </Link>
       }
     >
+      <SecuritySummary enrolled={identity.mfa.enrolled} />
       <EraseAccount />
     </AuthShell>
   )

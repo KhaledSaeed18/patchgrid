@@ -27,8 +27,11 @@ export function Verify({ token }: { token: string }) {
       }),
     onSuccess: (response) => {
       // A brand-new account has no workspace yet: creating one is the next step.
+      // (A factor cannot exist before the address is verified, so this is never a challenge.)
       window.location.assign(
-        response.workspaces.length === 0 ? "/new" : "/workspaces"
+        response.status === "signed-in" && response.workspaces.length === 0
+          ? "/new"
+          : "/workspaces"
       )
     },
   })
