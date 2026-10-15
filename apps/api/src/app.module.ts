@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common"
+import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common"
 import { APP_FILTER, APP_PIPE } from "@nestjs/core"
 import { LoggerModule } from "nestjs-pino"
 import { randomUUID } from "node:crypto"
@@ -39,6 +39,9 @@ import { SlaModule } from "./sla/sla.module"
 import { TeamsModule } from "./teams/teams.module"
 import { TicketsModule } from "./tickets/tickets.module"
 import { TenantContextService } from "./tenancy/tenant-context.service"
+import { TelemetryModule } from "./telemetry/telemetry.module"
+import { TelemetryMiddleware } from "./telemetry/telemetry.middleware"
+import { activeTraceId } from "./telemetry/metrics"
 import { TenancyModule } from "./tenancy/tenancy.module"
 import { ThrottlingModule } from "./throttling/throttling.module"
 
@@ -46,6 +49,7 @@ import { ThrottlingModule } from "./throttling/throttling.module"
   imports: [
     ConfigModule,
     CommonModule,
+    TelemetryModule,
     LoggerModule.forRootAsync({
       imports: [TenancyModule],
       inject: [APP_CONFIG, TenantContextService],
@@ -64,8 +68,9 @@ import { ThrottlingModule } from "./throttling/throttling.module"
            * upstream proxy is honoured so a trace survives the hop.
            */
           genReqId: (req: IncomingMessage, res: ServerResponse): string => {
+            // The trace id, when a trace is running (ADR-0030): the correlation id on a 5xx opens the waterfall.
             const forwarded = req.headers["x-request-id"]
-            const id = typeof forwarded === "string" && forwarded !== "" ? forwarded : randomUUID()
+            const id = typeof forwarded === "string" && forwarded !== "" ? forwarded : (activeTraceId() ?? randomUUID())
             res.setHeader("x-request-id", id)
             return id
           },
@@ -149,4 +154,9 @@ import { ThrottlingModule } from "./throttling/throttling.module"
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Request duration, transactions per request and the tenant on the span, measured on `finish` (ADR-0030).
+    consumer.apply(TelemetryMiddleware).forRoutes("{*path}")
+  }
+}

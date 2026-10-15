@@ -27,6 +27,8 @@ export interface RequestContextStore extends ClsStore {
    * on requests — a crossing sets `tenant` and leaves this absent.
    */
   organization?: ResolvedTenant
+  /** Transactions this request has opened so far — the N in "an N+1 is N pooled connections" (ADR-0030). */
+  transactions?: number
 }
 
 export type TenantScope = {
