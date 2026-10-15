@@ -1,22 +1,23 @@
 # End-to-end tests
 
-Empty until M9, on purpose. `docs/ENGINEERING.md` §Testing: E2E is written once a
-milestone's feature is functionally complete, not before — a browser test against a
-half-built screen tests the scaffolding.
+Playwright, against a running stack: the API on `api.lvh.me:4000`, the app on `app.lvh.me:3001` and
+every `<slug>.lvh.me:3001`, Mailpit on `localhost:8025`, and the seeded workspaces (`pnpm db:seed`:
+Acme and Globex, every account's password `patchgrid-demo`). One worker, in order — the specs share
+the stack. Browsers are not installed by `pnpm install`: `pnpm exec playwright install chromium` once.
 
-What lands here (`docs/FEATURES.md` M9):
+```
+pnpm --filter @patchgrid/app test:e2e
+```
 
-- signup → provisioning → invite → full incident lifecycle
-- an SLA breach, using a one-minute policy rather than waiting
-- a Change going submit → approve → implement → close
-- **a cross-tenant negative test** — a session for one workspace must not reach
-  another's, in a real browser rather than a mocked request
-- **a role-escalation negative test**
-- **two tabs, two tenants**, both staying usable — the property per-tenant cookies
-  exist to provide (ADR-0024)
+| Spec | What it proves |
+| --- | --- |
+| `signup-to-incident` | Signup (the form's one fetch, made as the site makes it) → the emailed link verifies and signs in → a workspace provisioned on its own subdomain → an agent invited, joining with a new account from the emailed link → one incident raised, started, resolved with a note, and closed by its requester |
+| `sla-breach` | The owner shortens one incident policy to a two-minute response; a requester raises an incident at that priority; the minute sweep marks it overdue, seen from the owner's view; the policy is put back |
+| `change-approval` | An agent drafts a Change with its plan and submits it; the requester of a change is never offered its approval; an admin who did not raise it approves; the agent takes it, starts, records the outcome, marks it implemented and closes it |
+| `isolation` | **Cross-tenant:** a session for Acme is sent away from Globex's pages, answers `401` when the same cookies are asked as Globex, and cannot open a workspace it is not a member of. **Role escalation:** an agent gets "Nothing here" on admin pages and `403` promoting anyone, themselves included, inviting an admin or minting a token. **Two tabs, two tenants:** one person in Acme and Globex at once, raising a ticket in each, each tab keeping its own workspace and neither list showing the other's ticket (ADR-0024) |
 
-The last three are the point. The happy path is the easy part.
+The negatives are the point. The happy paths are the easy part.
 
-Run with `pnpm --filter @patchgrid/app test:e2e` against a seeded stack. Browsers
-are not installed by `pnpm install`; run `pnpm exec playwright install chromium`
-when the suite arrives.
+Every run makes its own rows — a workspace `e2e-<run>` and tickets titled with the run id — so a
+re-run never trips over the last one. The SLA spec is the slow one (it waits for a real breach);
+`test.setTimeout` there is five minutes. In CI the suite runs on `main` only (ADR-0011).

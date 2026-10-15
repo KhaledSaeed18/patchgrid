@@ -38,7 +38,11 @@
     "SMTP_PORT",
     "MAIL_FROM",
     "CI",
-    "E2E_BASE_URL"
+    "E2E_BASE_URL",
+    "E2E_ROOT_DOMAIN",
+    "E2E_APP_PORT",
+    "E2E_API_PORT",
+    "E2E_MAILPIT_URL"
   ],
   "globalDependencies": [".env", ".nvmrc"],
   "tasks": {
