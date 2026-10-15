@@ -142,8 +142,10 @@ export class SessionService {
    * membership's epoch bumped so the stateless access tokens die now rather than
    * in fifteen minutes. "Log out everywhere", password reset and password change
    * all come here (ADR-0024 §5, ADR-0031). Returns the cookies to clear.
+   * `before` spares a credential minted in this very second — the session a
+   * recovery code is about to earn (ADR-0045).
    */
-  async revokeEverywhere(userId: string): Promise<CookieName[]> {
+  async revokeEverywhere(userId: string, options: { before?: boolean } = {}): Promise<CookieName[]> {
     const now = this.clock.now()
     const clear: CookieName[] = []
     await this.refreshTokens.revokeAllForUser(userId, now)
@@ -153,7 +155,7 @@ export class SessionService {
       const org = await this.organizations.byId(workspace.orgId)
       if (org === null) continue
       const membership = await this.membershipOf(org, userId, "revoke everywhere", false)
-      if (membership !== null) await this.epochs.bump(membership.id)
+      if (membership !== null) await this.epochs.bump(membership.id, options)
       clear.push(...this.cookies.pairOf(org.slug))
     }
     clear.push({ name: this.cookies.identity("").name, path: "/" })

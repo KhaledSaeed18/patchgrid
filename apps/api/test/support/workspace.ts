@@ -12,7 +12,7 @@ import request from "supertest"
 import { PasswordService } from "../../src/auth/passwords/password.service"
 
 export const HEADERS = { "Content-Type": "application/json", "X-Requested-With": "patchgrid" }
-const PASSWORD = "correct horse battery staple"
+export const PASSWORD = "correct horse battery staple"
 
 export type Person = { userId: string; membershipId: string; email: string; access: string; pgId: string }
 
@@ -83,6 +83,18 @@ export async function seedWorkspace<P extends string>(
   }
 
   return { orgId: org.id, slug, origin: `http://${slug}.lvh.me:3001`, people, teams, cleanup }
+}
+
+/**
+ * The person re-proves themselves for the workspace (ADR-0029) — with the
+ * password, since the seed enrols no factor — and gets back an access cookie
+ * stamped for the next five minutes. The four irreversible actions want it.
+ */
+export async function stepUp(app: INestApplication, slug: string, person: Person): Promise<string> {
+  const proved = await request(app.getHttpServer()).post("/api/v1/auth/step-up").set(HEADERS).set("Cookie", person.pgId).send({ slug, password: PASSWORD })
+  if (proved.status !== 200) throw new Error(`step-up failed: ${String(proved.status)} ${JSON.stringify(proved.body)}`)
+  const cookies = ((proved.headers["set-cookie"] as unknown as string[] | undefined) ?? []).map((c) => c.split(";")[0] ?? "")
+  return cookies.find((c) => c.startsWith(`pg_at_${slug}=`)) ?? ""
 }
 
 /** A browser on the workspace: its access cookie, its Origin, the CSRF header on writes. */

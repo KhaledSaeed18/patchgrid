@@ -14,7 +14,7 @@ import request from "supertest"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { AppModule } from "../../src/app.module"
-import { browser, seedWorkspace, type Workspace } from "../support/workspace"
+import { browser, seedWorkspace, stepUp, type Workspace } from "../support/workspace"
 
 type Who = "owner" | "admin" | "agent" | "requester"
 type Minted = { id: string; secret: string; membershipId: string }
@@ -69,14 +69,21 @@ const machine = (secret: string) => {
     put: (path: string) => http().put(`/api/v1${path}`).set(auth),
   }
 }
+/** The same person, re-proved for the next five minutes (ADR-0029). */
+const proved = async (who: Who) => browser(app, ws.origin, await stepUp(app, ws.slug, ws.people[who]))
 const mint = async (body: object): Promise<Minted> => {
-  const created = await as("admin").post("/org/api-tokens", body)
+  const created = await (await proved("admin")).post("/org/api-tokens", body)
   expect(created.status, JSON.stringify(created.body)).toBe(201)
   return { id: created.body.token.id as string, secret: created.body.secret as string, membershipId: created.body.token.membershipId as string }
 }
 
 describe("minting", () => {
-  it("lets an admin mint a token and shows its secret exactly once", async () => {
+  it("lets an admin mint a token and shows its secret exactly once — after a fresh proof", async () => {
+    // A token outlives the session that made it: without a step-up it is refused before anything is written (ADR-0029).
+    const unproved = await as("admin").post("/org/api-tokens", { name: "Monitoring", role: "AGENT", scopes: ["tickets:read"], expiresInDays: 30 })
+    expect(unproved.status).toBe(403)
+    expect(unproved.body.type).toContain("step-up-required")
+    expect(await db.apiToken.count({ where: { orgId: ws.orgId } })).toBe(0)
     writer = await mint({ name: "Monitoring", role: "AGENT", scopes: ["tickets:read", "tickets:write"], expiresInDays: 30 })
     expect(writer.secret).toMatch(API_TOKEN_PATTERN)
     reader = await mint({ name: "Dashboard", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
@@ -93,8 +100,8 @@ describe("minting", () => {
     const body = { name: "x", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null }
     expect((await as("agent").get("/org/api-tokens")).status).toBe(403)
     expect((await as("agent").post("/org/api-tokens", body)).status).toBe(403)
-    expect((await as("admin").post("/org/api-tokens", { ...body, role: "ADMIN" })).status).toBe(400)
-    expect((await as("admin").post("/org/api-tokens", { ...body, scopes: ["webhooks:write"] })).status).toBe(400)
+    expect((await (await proved("admin")).post("/org/api-tokens", { ...body, role: "ADMIN" })).status).toBe(400)
+    expect((await (await proved("admin")).post("/org/api-tokens", { ...body, scopes: ["webhooks:write"] })).status).toBe(400)
   })
 
   it("puts the service account in the member list, marked, and keeps member admin's hands off it", async () => {

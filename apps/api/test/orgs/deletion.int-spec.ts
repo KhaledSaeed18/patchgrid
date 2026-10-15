@@ -18,7 +18,7 @@ import { MAIL_QUEUE } from "../../src/mail/mail.service"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
 import { type Operator, signInOperator } from "../support/platform"
 import { type Settler, settler } from "../support/queues"
-import { browser, HEADERS, seedWorkspace, type Workspace } from "../support/workspace"
+import { browser, HEADERS, seedWorkspace, stepUp, type Workspace } from "../support/workspace"
 
 type Who = "owner" | "admin" | "agent"
 
@@ -50,6 +50,8 @@ afterAll(async () => {
 })
 
 const as = (who: Who) => browser(app, ws.origin, ws.people[who].access)
+/** The same person, re-proved for the next five minutes (ADR-0029). */
+const proved = async (who: Who) => browser(app, ws.origin, await stepUp(app, ws.slug, ws.people[who]))
 const picker = (who: Who) => ({
   get: () => request(app.getHttpServer()).get("/api/v1/auth/identity").set("Cookie", ws.people[who].pgId),
   cancel: () => request(app.getHttpServer()).post(`/api/v1/orgs/${ws.orgId}/cancel-deletion`).set(HEADERS).set("Cookie", ws.people[who].pgId),
@@ -61,14 +63,17 @@ const mailFor = async (who: Who) => {
 }
 
 describe("asking", () => {
-  it("is an owner's alone, and only with the workspace's own slug typed", async () => {
+  it("is an owner's alone, freshly proved, and only with the workspace's own slug typed", async () => {
     expect((await as("admin").post("/org/deletion", { confirmSlug: ws.slug })).status).toBe(403)
-    expect((await as("owner").post("/org/deletion", { confirmSlug: "not-this-one" })).status).toBe(400)
+    const unproved = await as("owner").post("/org/deletion", { confirmSlug: ws.slug })
+    expect(unproved.status).toBe(403)
+    expect(unproved.body.type).toContain("step-up-required")
+    expect((await (await proved("owner")).post("/org/deletion", { confirmSlug: "not-this-one" })).status).toBe(400)
     expect((await db.organization.findUniqueOrThrow({ where: { id: ws.orgId } })).status).toBe("ACTIVE")
   })
 
   it("puts everyone out at once, and the subdomain answers as if it never existed", async () => {
-    expect((await as("owner").post("/org/deletion", { confirmSlug: ws.slug })).status).toBe(202)
+    expect((await (await proved("owner")).post("/org/deletion", { confirmSlug: ws.slug })).status).toBe(202)
     expect((await as("agent").get("/me")).status).toBe(404)
     expect((await request(app.getHttpServer()).get(`/api/v1/tenants/${ws.slug}`)).status).toBe(404)
     expect((await picker("agent").open()).status).toBe(404)
