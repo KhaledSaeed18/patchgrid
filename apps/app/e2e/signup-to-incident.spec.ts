@@ -2,7 +2,12 @@ import { expect, test } from "@playwright/test"
 
 import { linkInMailTo } from "./support/mailpit"
 import { signUp, transition } from "./support/session"
-import { appOrigin, runId, workspaceOrigin } from "./support/stack"
+import {
+  appOrigin,
+  runId,
+  workspaceOrigin,
+  escapeRegExp,
+} from "./support/stack"
 
 /**
  * The first day of a new customer, in a real browser: signup, the emailed
@@ -44,9 +49,7 @@ test("signup → verification → a provisioned workspace", async ({
   await page.fill("#name", `E2E ${runId}`)
   await page.fill("#slug", slug)
   await page.click("button[type=submit]")
-  await page.waitForURL(
-    new RegExp(`^${workspaceOrigin(slug).replace(/[.]/g, "\\.")}/`)
-  )
+  await page.waitForURL(new RegExp(`^${escapeRegExp(workspaceOrigin(slug))}/`))
   await expect(page.locator("body")).toContainText(`E2E ${runId}`)
 })
 
@@ -86,7 +89,7 @@ test("the owner invites an agent, who joins with a new account", async ({
     .getByRole("button", { name: "Create account and join" })
     .click()
   await agentPage.waitForURL(
-    new RegExp(`^${workspaceOrigin(slug).replace(/[.]/g, "\\.")}/`)
+    new RegExp(`^${escapeRegExp(workspaceOrigin(slug))}/`)
   )
   await expect(agentPage.locator("body")).toContainText(agent.name)
   await theirs.close()
