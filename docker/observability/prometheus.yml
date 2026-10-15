@@ -1,0 +1,10 @@
+# Scrapes the collector's Prometheus endpoint; the API never exposes metrics
+# itself (ADR-0030: collector in between, backend behind it).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: patchgrid-api
+    static_configs:
+      - targets: ["otel-collector:8889"]
