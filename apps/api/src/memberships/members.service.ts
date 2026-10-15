@@ -9,6 +9,7 @@ import {
 } from "@patchgrid/contracts"
 
 import { ActorService, type TenantActor } from "../auth/actor"
+import { StepUpService } from "../auth/mfa/step-up.service"
 import { RevocationEpochService } from "../auth/revocation/revocation-epoch.service"
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
@@ -48,6 +49,7 @@ export class MembersService {
     private readonly audit: AuditService,
     private readonly epochs: RevocationEpochService,
     private readonly quota: QuotaService,
+    private readonly stepUp: StepUpService,
   ) {}
 
   async list(query: MemberListQuery): Promise<MemberPage> {
@@ -100,6 +102,11 @@ export class MembersService {
       assertPerson(target)
       // Raising anyone to ADMIN or OWNER is an owner's call, whoever they are now.
       if (PRIVILEGED.has(role)) this.permissions.assert(actor, "member:promote_admin")
+      // Making a second owner is how ownership transfers (RBAC.md §2): the step-up action, with a fresh proof (ADR-0029).
+      if (role === "OWNER") {
+        this.permissions.assert(actor, "org:transfer_ownership")
+        this.stepUp.assert(actor)
+      }
       if (target.role === role) return false
       if (target.role === "OWNER") await this.assertNotLastOwner(orgId, target)
 

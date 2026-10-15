@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common"
 import { type SupportSession, type SupportState } from "@patchgrid/contracts"
 
 import { ActorService, type TenantActor } from "../auth/actor"
+import { StepUpService } from "../auth/mfa/step-up.service"
 import { RevocationEpochService } from "../auth/revocation/revocation-epoch.service"
 import { supportEpochKey } from "../auth/support/support-token.service"
 import { AuditService } from "../audit/audit.service"
@@ -30,6 +31,7 @@ export class SupportService {
     private readonly epochs: RevocationEpochService,
     private readonly audit: AuditService,
     private readonly permissions: PermissionService,
+    private readonly stepUp: StepUpService,
     private readonly actors: ActorService,
     private readonly tenant: TenantContextService,
     private readonly prisma: PrismaService,
@@ -45,6 +47,8 @@ export class SupportService {
   async grant(id: string, hours: number): Promise<SupportSession> {
     const actor = this.actors.requireTenantActor()
     this.permissions.assert(actor, "support:grant_access")
+    // Letting an outsider read the workspace is a step-up action (ADR-0029).
+    this.stepUp.assert(actor)
     const orgId = this.tenant.requireOrgId()
     if (this.tenant.organization()?.status !== "ACTIVE") throw new ConflictProblem("Support access is not granted to a workspace pending deletion")
     const now = this.clock.now()

@@ -28,6 +28,7 @@ import type { OrganizationLookup } from "../../tenancy/organization-lookup"
 import type { RequestContextStore } from "../../tenancy/request-context"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { CookieService, type CookieSpec } from "../cookies"
+import { MfaRequiredProblem } from "../../common/problems/problem.exception"
 import type { PasswordService } from "../passwords/password.service"
 import type { RevocationEpochService } from "../revocation/revocation-epoch.service"
 import type { MfaRepository } from "../../platform/repositories/mfa.repository"
@@ -46,7 +47,9 @@ const config = {
 const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false }
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const frozen: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000f", slug: "frozen", status: "SUSPENDED" }
-const ORGS = [acme, globex, frozen]
+/** Requires a second factor of every member (ADR-0045). */
+const strict: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000c", slug: "strict", requireMfa: true }
+const ORGS = [acme, globex, frozen, strict]
 
 const owner: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "owner@acme.test", name: "Owner", passwordHash: "$argon2id$owner", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
 const unverified: AccountRecord = { ...owner, id: "0190b2f0-0000-7000-8000-000000000002", email: "new@acme.test", passwordHash: "$argon2id$new", emailVerifiedAt: null }
@@ -211,6 +214,57 @@ describe("SessionService.login", () => {
     })
     await service.login("owner@acme.test", "correct horse battery staple", "acme", client)
     expect(membershipsRepo.findByUser).toHaveBeenCalledWith(acme.id, owner.id)
+  })
+})
+
+describe("SessionService with a second factor (ADR-0045)", () => {
+  it("answers the right password with a challenge, not a session, when a factor is confirmed", async () => {
+    const { service, tokens } = harness([membership(acme.id)], { enrolled: [owner.id] })
+    const { response, cookies } = await service.login("owner@acme.test", "correct horse battery staple", "acme", client)
+    expect(response).toEqual({ status: "mfa-required" })
+    expect(cookies.map((c) => [c.name, c.path, c.maxAgeSeconds])).toEqual([["pg_mc", "/api/v1/auth", 300]])
+    // Nothing was issued: no identity, no pair.
+    expect(tokens.size).toBe(0)
+  })
+
+  it("still answers one 401 for a wrong password, factor or not", async () => {
+    const { service } = harness([membership(acme.id)], { enrolled: [owner.id] })
+    await expect(service.login("owner@acme.test", "wrong", "acme", client)).rejects.toThrow(NotAuthenticatedProblem)
+  })
+
+  it("tells the picker whether a factor exists", async () => {
+    const without = harness()
+    expect((await without.service.identity(owner.id)).mfa).toEqual({ enrolled: false })
+    const withFactor = harness([membership(acme.id)], { enrolled: [owner.id] })
+    expect((await withFactor.service.identity(owner.id)).mfa).toEqual({ enrolled: true })
+  })
+
+  it("opens a workspace that requires a factor only for someone who has one — at login, open and refresh", async () => {
+    const without = harness([membership(strict.id)])
+    const login = await without.service.login("owner@acme.test", "correct horse battery staple", "strict", client)
+    expect(signedIn(login.response).session).toBeNull()
+    await expect(without.service.open(owner.id, "strict", client)).rejects.toThrow(MfaRequiredProblem)
+
+    const enrolled = harness([membership(strict.id)], { enrolled: [owner.id] })
+    const cookies = await enrolled.service.open(owner.id, "strict", client)
+    expect(cookies.map((c) => c.name)).toEqual(["pg_at_strict", "pg_rt_strict"])
+    // The factor goes away (turned off): the next refresh is where the policy bites, not the open session.
+    enrolled.enrolled.delete(owner.id)
+    await expect(enrolled.service.refresh("strict", cookieNamed(cookies, "pg_rt_strict")?.value ?? "", client)).rejects.toThrow(MfaRequiredProblem)
+    // The refresh token itself was not revoked: enrolling again makes it good.
+    enrolled.enrolled.add(owner.id)
+    expect((await enrolled.service.refresh("strict", cookieNamed(cookies, "pg_rt_strict")?.value ?? "", client)).map((c) => c.name)).toEqual(["pg_at_strict", "pg_rt_strict"])
+  })
+
+  it("stamps a pair opened after a step-up with when it was proved, and nothing else carries the claim", async () => {
+    const { service, clock } = harness()
+    const proved = await service.open(owner.id, "acme", client, { stepUpAt: clock.now() })
+    const plain = await service.open(owner.id, "acme", client)
+    const access = new AccessTokenService(config, clock)
+    expect((await access.verify(cookieNamed(proved, "pg_at_acme")?.value ?? ""))?.sua).toBe(Math.floor(clock.now().getTime() / 1000))
+    expect((await access.verify(cookieNamed(plain, "pg_at_acme")?.value ?? ""))?.sua).toBeUndefined()
+    const refreshed = await service.refresh("acme", cookieNamed(proved, "pg_rt_acme")?.value ?? "", client)
+    expect((await access.verify(cookieNamed(refreshed, "pg_at_acme")?.value ?? ""))?.sua).toBeUndefined()
   })
 })
 
