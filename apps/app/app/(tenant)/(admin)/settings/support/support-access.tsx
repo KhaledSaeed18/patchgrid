@@ -185,7 +185,7 @@ function GrantDialog({
     <>
       {stepUp.dialog}
       <Dialog
-        open={session !== null}
+        open={session !== null && !stepUp.waiting}
         onOpenChange={(open) => !open && onClose()}
       >
         <DialogContent>

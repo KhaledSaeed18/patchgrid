@@ -257,7 +257,10 @@ function CreateDialog({
   return (
     <>
       {stepUp.dialog}
-      <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <Dialog
+        open={open && !stepUp.waiting}
+        onOpenChange={(next) => !next && onClose()}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create an API token</DialogTitle>
