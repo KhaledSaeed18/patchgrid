@@ -97,6 +97,23 @@ describe("OrgSettingsService.update", () => {
     expect(h.lookup.invalidate).toHaveBeenCalledWith({ id: "o-1", slug: "acme" })
   })
 
+  it("lets only an owner require a second factor of everyone, audits it, and invalidates the summary resolution reads (ADR-0045)", async () => {
+    await expect(harness("ADMIN").service.update({ requireMfa: true })).rejects.toBeInstanceOf(NotPermittedProblem)
+    await expect(harness("ADMIN").service.update({ name: "Acme Inc", requireMfa: true })).rejects.toBeInstanceOf(NotPermittedProblem)
+    const h = harness("OWNER")
+    const settings = await h.service.update({ requireMfa: true })
+    expect(settings.requireMfa).toBe(true)
+    expect(h.audit).toEqual([
+      { action: "ORG_MFA_REQUIREMENT_CHANGED", entityType: "Organization", entityId: "o-1", diff: { requireMfa: { from: false, to: true } } },
+    ])
+    expect(h.lookup.invalidate).toHaveBeenCalledWith({ id: "o-1", slug: "acme" })
+    // Already on: nothing to record, nothing to invalidate.
+    h.lookup.invalidate.mockClear()
+    await h.service.update({ requireMfa: true })
+    expect(h.audit).toHaveLength(1)
+    expect(h.lookup.invalidate).not.toHaveBeenCalled()
+  })
+
   it("records nothing when nothing changed", async () => {
     const h = harness("ADMIN")
     await h.service.update({ name: "Acme", agentVisibility: "ALL_TICKETS" })

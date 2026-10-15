@@ -2,6 +2,8 @@ import type { MembershipStatus, Role } from "@patchgrid/contracts"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ActorService, MemberActor } from "../auth/actor"
+import { StepUpService } from "../auth/mfa/step-up.service"
+import { FixedClock } from "../common/clock/clock"
 import type { RevocationEpochService } from "../auth/revocation/revocation-epoch.service"
 import type { AuditEntry, AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
@@ -14,7 +16,7 @@ import {
 import type { UserOrgIndexRepository } from "../platform/repositories/user-org-index.repository"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
-import { PlanLimitProblem } from "../common/problems/problem.exception"
+import { PlanLimitProblem, StepUpRequiredProblem } from "../common/problems/problem.exception"
 import type { QuotaService } from "../quota/quota.service"
 import { MembersService } from "./members.service"
 import type { MembershipRecord, MembershipRepository, MemberRow } from "./repositories/membership.repository"
@@ -28,7 +30,9 @@ type Seed = { id: string; role: Role; status?: MembershipStatus; teams?: string[
  * driven through the service exactly as a request would drive it — permission,
  * then state, then the last-owner count — with the side effects observable.
  */
-function harness(actorId: string, seeds: Seed[], seatsFree = true) {
+const NOW = new Date("2026-10-15T12:00:00Z")
+
+function harness(actorId: string, seeds: Seed[], seatsFree = true, options: { stepUpAt?: number } = { stepUpAt: Math.floor(NOW.getTime() / 1000) }) {
   const rows = new Map<string, MembershipRecord>(
     seeds.map((s) => [
       s.id,
@@ -120,6 +124,7 @@ function harness(actorId: string, seeds: Seed[], seatsFree = true) {
     role: actorRow?.role ?? "REQUESTER",
     teamIds: [],
     leadOfTeamIds: [],
+    ...(options.stepUpAt === undefined ? {} : { stepUpAt: options.stepUpAt }),
   }
 
   const service = new MembersService(
@@ -136,6 +141,7 @@ function harness(actorId: string, seeds: Seed[], seatsFree = true) {
     } as unknown as AuditService,
     epochs as unknown as RevocationEpochService,
     quota as unknown as QuotaService,
+    new StepUpService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, new FixedClock(NOW)),
   )
   return { service, rows, events, audit, memberships, workspaces, epochs, seats }
 }
@@ -150,6 +156,16 @@ describe("MembersService.changeRole", () => {
       { action: "MEMBER_ROLE_CHANGED", entityType: "Membership", entityId: "a", diff: { role: { from: "AGENT", to: "ADMIN" } } },
     ])
     expect(h.events).toEqual(["begin", "lock", "bump:a", "commit"])
+  })
+
+  it("treats making a second owner as the transfer of ownership: an owner's permission and a fresh proof (ADR-0029)", async () => {
+    const proved = harness("owner", [{ id: "owner", role: "OWNER" }, { id: "a", role: "ADMIN" }])
+    expect((await proved.service.changeRole("a", "OWNER")).role).toBe("OWNER")
+    const unproved = harness("owner", [{ id: "owner", role: "OWNER" }, { id: "a", role: "ADMIN" }], true, {})
+    await expect(unproved.service.changeRole("a", "OWNER")).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    expect(unproved.rows.get("a")?.role).toBe("ADMIN")
+    // Below owner, no proof is asked for.
+    expect((await unproved.service.changeRole("a", "AGENT")).role).toBe("AGENT")
   })
 
   it("lets an admin move members below admin, never to admin, never an admin, never themselves", async () => {

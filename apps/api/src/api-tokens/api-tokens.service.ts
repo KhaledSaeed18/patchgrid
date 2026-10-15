@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common"
 import type { ApiToken, CreateApiTokenRequest, CreatedApiToken } from "@patchgrid/contracts"
 
 import { ActorService } from "../auth/actor"
+import { StepUpService } from "../auth/mfa/step-up.service"
 import { PasswordService } from "../auth/passwords/password.service"
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
@@ -31,6 +32,7 @@ export class ApiTokensService {
     private readonly passwords: PasswordService,
     private readonly audit: AuditService,
     private readonly permissions: PermissionService,
+    private readonly stepUp: StepUpService,
     private readonly actors: ActorService,
     private readonly tenant: TenantContextService,
     private readonly prisma: PrismaService,
@@ -46,6 +48,8 @@ export class ApiTokensService {
   async create(request: CreateApiTokenRequest): Promise<CreatedApiToken> {
     const actor = this.actors.requireTenantActor()
     this.permissions.assert(actor, "token:create")
+    // A token outlives the session that made it: a fresh proof first (ADR-0029).
+    this.stepUp.assert(actor)
     const orgId = this.tenant.requireOrgId()
     const now = this.clock.now()
     const minted = mintToken()

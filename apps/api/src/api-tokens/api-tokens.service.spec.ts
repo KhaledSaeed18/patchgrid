@@ -2,11 +2,12 @@ import { API_TOKEN_PATTERN } from "@patchgrid/contracts"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ActorService, MemberActor, TenantActor } from "../auth/actor"
+import { StepUpService } from "../auth/mfa/step-up.service"
 import type { PasswordService } from "../auth/passwords/password.service"
 import type { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { FixedClock } from "../common/clock/clock"
-import { ConflictProblem, NotFoundProblem, NotPermittedProblem } from "../common/problems/problem.exception"
+import { ConflictProblem, NotFoundProblem, NotPermittedProblem, StepUpRequiredProblem } from "../common/problems/problem.exception"
 import type { ApiTokenIndexRepository } from "../platform/repositories/api-token-index.repository"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { OrganizationLookupService } from "../tenancy/organization-lookup.service"
@@ -17,7 +18,7 @@ import type { ApiTokenRepository, ApiTokenRow } from "./repositories/api-token.r
 const ORG = "o-1"
 const NOW = new Date("2026-10-15T12:00:00Z")
 
-function harness(role: MemberActor["role"] = "ADMIN", found: Partial<ApiTokenRow> | null = {}) {
+function harness(role: MemberActor["role"] = "ADMIN", found: Partial<ApiTokenRow> | null = {}, options: { stepUpAt?: number | undefined } = { stepUpAt: Math.floor(NOW.getTime() / 1000) }) {
   const actor: TenantActor = {
     kind: "member",
     userId: "u",
@@ -26,6 +27,7 @@ function harness(role: MemberActor["role"] = "ADMIN", found: Partial<ApiTokenRow
     role,
     teamIds: [],
     leadOfTeamIds: [],
+    ...(options.stepUpAt === undefined ? {} : { stepUpAt: options.stepUpAt }),
   }
   const steps: string[] = []
   const row = (): ApiTokenRow => ({
@@ -79,6 +81,7 @@ function harness(role: MemberActor["role"] = "ADMIN", found: Partial<ApiTokenRow
     } as unknown as PasswordService,
     audit as unknown as AuditService,
     new PermissionService(),
+    stepUpWith(NOW),
     { requireTenantActor: () => actor } as unknown as ActorService,
     { requireOrgId: () => ORG } as unknown as TenantContextService,
     prisma as unknown as PrismaService,
@@ -92,6 +95,19 @@ const request = {
   role: "AGENT" as const,
   scopes: ["tickets:write" as const],
   expiresInDays: 30 as const,
+}
+
+/** The real condition, on a fixed clock: the window is what is under test, not a stub of it. */
+function stepUpWith(now: Date): StepUpService {
+  return new StepUpService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    new FixedClock(now),
+  )
 }
 
 describe("ApiTokensService", () => {
@@ -114,6 +130,16 @@ describe("ApiTokensService", () => {
     )
     // The audit row names the token; it never holds the secret.
     expect(JSON.stringify(h.audit.record.mock.calls)).not.toContain(created.secret.split("_")[2])
+  })
+
+  it("asks for a fresh proof before minting: none, or one older than five minutes, is a step-up refusal before any write (ADR-0029)", async () => {
+    const stale = harness("ADMIN", {}, { stepUpAt: Math.floor(NOW.getTime() / 1000) - 301 })
+    await expect(stale.service.create(request)).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    const never = harness("ADMIN", {}, { stepUpAt: undefined })
+    await expect(never.service.create(request)).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    expect(never.steps).toEqual([])
+    // Listing and revoking are not irreversible in the same way; they stay a permission check.
+    expect(await never.service.list()).toHaveLength(1)
   })
 
   it("lets only admins and owners hold tokens", async () => {

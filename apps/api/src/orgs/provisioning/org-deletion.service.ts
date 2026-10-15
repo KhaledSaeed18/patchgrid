@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common"
 import { purgeDateFor } from "@patchgrid/contracts"
 
 import { ActorService } from "../../auth/actor"
+import { StepUpService } from "../../auth/mfa/step-up.service"
 import { RevocationEpochService } from "../../auth/revocation/revocation-epoch.service"
 import { AuditService } from "../../audit/audit.service"
 import { PermissionService } from "../../authz/permission.service"
@@ -34,6 +35,7 @@ export class OrgDeletionService {
     private readonly epochs: RevocationEpochService,
     private readonly audit: AuditService,
     private readonly permissions: PermissionService,
+    private readonly stepUp: StepUpService,
     private readonly actors: ActorService,
     private readonly tenant: TenantContextService,
     private readonly lookup: OrganizationLookupService,
@@ -47,6 +49,8 @@ export class OrgDeletionService {
   async request(confirmSlug: string): Promise<void> {
     const actor = this.actors.requireMember()
     this.permissions.assert(actor, "org:delete")
+    // Irreversible after thirty days, and everyone is out at once: a fresh proof first (ADR-0029).
+    this.stepUp.assert(actor)
     const orgId = this.tenant.requireOrgId()
     const now = this.clock.now()
     const org = await this.prisma.transaction(async () => {
