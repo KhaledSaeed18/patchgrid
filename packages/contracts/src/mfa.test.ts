@@ -16,13 +16,14 @@ describe("loginResponseSchema", () => {
 })
 
 describe("stepUpRequestSchema", () => {
-  it("takes exactly one proof", () => {
-    expect(stepUpRequestSchema.safeParse({ code: "123456" }).success).toBe(true)
-    expect(stepUpRequestSchema.safeParse({ password: "hunter2hunter2" }).success).toBe(true)
-    expect(stepUpRequestSchema.safeParse({ recoveryCode: "abcde-fghij" }).success).toBe(true)
-    expect(stepUpRequestSchema.safeParse({}).success).toBe(false)
-    expect(stepUpRequestSchema.safeParse({ code: "123456", password: "x" }).success).toBe(false)
-    expect(stepUpRequestSchema.safeParse({ code: "12345" }).success).toBe(false)
+  it("names the workspace and takes exactly one proof", () => {
+    expect(stepUpRequestSchema.safeParse({ slug: "acme", code: "123456" }).success).toBe(true)
+    expect(stepUpRequestSchema.safeParse({ slug: "acme", password: "hunter2hunter2" }).success).toBe(true)
+    expect(stepUpRequestSchema.safeParse({ slug: "acme", recoveryCode: "abcde-fghij" }).success).toBe(true)
+    expect(stepUpRequestSchema.safeParse({ code: "123456" }).success).toBe(false)
+    expect(stepUpRequestSchema.safeParse({ slug: "acme" }).success).toBe(false)
+    expect(stepUpRequestSchema.safeParse({ slug: "acme", code: "123456", password: "x" }).success).toBe(false)
+    expect(stepUpRequestSchema.safeParse({ slug: "acme", code: "12345" }).success).toBe(false)
   })
 })
 
