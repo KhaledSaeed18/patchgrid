@@ -366,9 +366,10 @@ browser, including the negative cases; observability answers "which tenant is sl
       session), recovery codes, and step-up re-authentication carried as a `sua` claim on the access token
       for `org:delete`, `org:transfer_ownership` (raising anyone to `OWNER`), `support:grant_access` and
       `token:create`; the password proves a step-up only when no factor exists. Done 2026-10-16
-- [ ] Playwright E2E: signup → provision → invite → incident lifecycle; SLA breach with a 1-minute
-      policy; change approval; **a cross-tenant negative test, a role-escalation negative test, and the
-      two-tabs-two-tenants test in a real browser**
+- [x] Playwright E2E (`apps/app/e2e`, on `main` only): signup → verification → provision → invite →
+      incident lifecycle; an SLA breach on a two-minute response target seen from the owner's view;
+      change draft → submit → approve by someone else → implement → close; **the cross-tenant,
+      role-escalation and two-tabs-two-tenants negatives in a real browser**. Done 2026-10-16
 - [ ] **Observability** (ADR-0030): OpenTelemetry replacing the no-op `Tracer`, `orgId`/`permission` span
       attributes, Prometheus metrics (request duration, DB transaction duration, queue depth and job
       duration per tenant, SLA breaches per tenant), collector + Grafana behind a Compose profile

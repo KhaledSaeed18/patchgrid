@@ -150,6 +150,72 @@ jobs:
         run: docker compose down -v
 
   # ───────────────────────────────────────────────────────────────────────────
+  # The browser suite (ENGINEERING.md §Testing, ADR-0011): on `main` only, so PR
+  # feedback stays short. The whole stack, built as it ships — the API from
+  # `dist`, the app from `next start` — against the seeded two-tenant database,
+  # with Mailpit for the links the flows wait on. The negatives in
+  # `apps/app/e2e/isolation.spec.ts` are the point: a session for one workspace
+  # reaching nothing of another's, in a real browser.
+  # ───────────────────────────────────────────────────────────────────────────
+  e2e:
+    name: Browser suite
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Use the documented example environment
+        run: cp .env.example .env
+
+      - name: Start infrastructure
+        run: |
+          docker compose up -d --wait postgres redis minio mailpit
+          docker compose up minio-init
+
+      - run: pnpm db:bootstrap
+      - run: pnpm db:generate
+      - run: pnpm --filter @patchgrid/database run migrate:deploy
+      - run: pnpm db:seed
+      - run: pnpm --filter @patchgrid/api run build
+      - run: pnpm --filter @patchgrid/app run build
+      - run: pnpm --filter @patchgrid/app exec playwright install --with-deps chromium
+
+      - name: Boot the API and the app
+        run: |
+          node apps/api/dist/main.js > /tmp/api.log 2>&1 &
+          (cd apps/app && pnpm start > /tmp/app.log 2>&1 &)
+          for _ in $(seq 1 60); do
+            if curl -fsS http://api.lvh.me:4000/health/ready > /dev/null 2>&1 && curl -fsS -o /dev/null http://app.lvh.me:3001/login; then break; fi
+            sleep 2
+          done
+          curl -fsS http://api.lvh.me:4000/health/ready | grep -q '"status":"ok"'
+
+      - name: Run the suite
+        env:
+          CI: "true"
+        run: pnpm --filter @patchgrid/app test:e2e
+
+      - name: Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/app/playwright-report
+          retention-days: 7
+
+      - name: API and app logs
+        if: failure()
+        run: |
+          tail -200 /tmp/api.log || true
+          tail -200 /tmp/app.log || true
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # ───────────────────────────────────────────────────────────────────────────
   security:
     name: Secrets and dependencies
     runs-on: ubuntu-latest
