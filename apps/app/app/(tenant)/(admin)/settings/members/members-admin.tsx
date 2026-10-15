@@ -43,9 +43,11 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 import { NativeSelect } from "@/components/native-select"
+import { useStepUp } from "@/components/mfa/step-up-dialog"
 import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { failureMessage } from "@/lib/failure"
+import { StepUpCancelled } from "@/lib/step-up"
 import { ROLE_LABEL, STATUS_LABEL } from "@/lib/labels"
 
 import { InviteDialog } from "./invite-dialog"
@@ -81,6 +83,8 @@ export function MembersAdmin({
   })
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["members"] })
 
+  // Making a second owner is the transfer of ownership: a step-up action (ADR-0029).
+  const stepUp = useStepUp()
   const act = useMutation({
     mutationFn: (
       action:
@@ -90,11 +94,13 @@ export function MembersAdmin({
       const path = `/members/${action.member.id}`
       switch (action.kind) {
         case "role":
-          return clientApi(`${path}/role`, {
-            method: "PATCH",
-            body: { role: action.role },
-            schema: memberSchema,
-          })
+          return stepUp.guard(() =>
+            clientApi(`${path}/role`, {
+              method: "PATCH",
+              body: { role: action.role },
+              schema: memberSchema,
+            })
+          )
         case "disable":
         case "enable":
           return clientApi(`${path}/${action.kind}`, {
@@ -114,6 +120,7 @@ export function MembersAdmin({
       void refresh()
     },
     onError: (error) => {
+      if (error instanceof StepUpCancelled) return
       toast.error(failureMessage(error, "That change didn't go through."))
       void refresh()
     },
@@ -126,6 +133,7 @@ export function MembersAdmin({
 
   return (
     <div className="px-6 py-6 md:px-10">
+      {stepUp.dialog}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <input

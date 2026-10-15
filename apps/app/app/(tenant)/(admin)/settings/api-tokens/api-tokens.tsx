@@ -35,10 +35,12 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { useStepUp } from "@/components/mfa/step-up-dialog"
 import { NativeSelect } from "@/components/native-select"
 import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { failureMessage } from "@/lib/failure"
+import { StepUpCancelled } from "@/lib/step-up"
 
 const SCOPE_LABEL: Record<OfferedTokenScope, string> = {
   "tickets:read": "Read tickets, their files and categories",
@@ -219,25 +221,31 @@ function CreateDialog({
   const [role, setRole] = useState<ApiTokenRole>("AGENT")
   const [scopes, setScopes] = useState<OfferedTokenScope[]>(["tickets:read"])
   const [days, setDays] = useState<string>("90")
+  // A token outlives the session that made it: the API asks for a fresh proof first (ADR-0029).
+  const stepUp = useStepUp()
   const create = useMutation({
     mutationFn: () =>
-      clientApi("/org/api-tokens", {
-        method: "POST",
-        body: {
-          name: name.trim(),
-          role,
-          scopes,
-          expiresInDays: days === "never" ? null : Number(days),
-        },
-        schema: createdApiTokenSchema,
-      }),
+      stepUp.guard(() =>
+        clientApi("/org/api-tokens", {
+          method: "POST",
+          body: {
+            name: name.trim(),
+            role,
+            scopes,
+            expiresInDays: days === "never" ? null : Number(days),
+          },
+          schema: createdApiTokenSchema,
+        })
+      ),
     onSuccess: (created) => {
       setName("")
       setScopes(["tickets:read"])
       onCreated(created.secret)
     },
-    onError: (error) =>
-      toast.error(failureMessage(error, "The token wasn't created.")),
+    onError: (error) => {
+      if (error instanceof StepUpCancelled) return
+      toast.error(failureMessage(error, "The token wasn't created."))
+    },
   })
   const toggle = (scope: OfferedTokenScope) =>
     setScopes((current) =>
@@ -247,92 +255,96 @@ function CreateDialog({
     )
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create an API token</DialogTitle>
-          <DialogDescription>
-            It appears in the member list as a service account named after it.
-            Give it only what its job needs; its scopes cannot be changed later.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4">
-          <Field>
-            <FieldLabel htmlFor="token-name">Name</FieldLabel>
-            <Input
-              id="token-name"
-              value={name}
-              maxLength={80}
-              placeholder="Zabbix alerts"
-              onChange={(e) => setName(e.target.value)}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="token-role">Acts as</FieldLabel>
-            <NativeSelect
-              id="token-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as ApiTokenRole)}
-            >
-              <option value="AGENT">
-                An agent: sees and works every ticket
-              </option>
-              <option value="REQUESTER">
-                A requester: raises tickets and sees its own
-              </option>
-            </NativeSelect>
-          </Field>
-          <fieldset className="grid gap-2">
-            <legend className="mb-1 text-sm font-medium">Scopes</legend>
-            {offeredTokenScopeSchema.options.map((scope) => (
-              <label key={scope} className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 size-4 accent-primary"
-                  checked={scopes.includes(scope)}
-                  onChange={() => toggle(scope)}
-                />
-                <span>
-                  {SCOPE_LABEL[scope]}{" "}
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {scope}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <Field>
-            <FieldLabel htmlFor="token-expiry">Expires</FieldLabel>
-            <NativeSelect
-              id="token-expiry"
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-            >
-              {API_TOKEN_EXPIRY_DAYS.map((d) => (
-                <option key={d} value={String(d)}>
-                  In {d} days
+    <>
+      {stepUp.dialog}
+      <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create an API token</DialogTitle>
+            <DialogDescription>
+              It appears in the member list as a service account named after it.
+              Give it only what its job needs; its scopes cannot be changed
+              later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <Field>
+              <FieldLabel htmlFor="token-name">Name</FieldLabel>
+              <Input
+                id="token-name"
+                value={name}
+                maxLength={80}
+                placeholder="Zabbix alerts"
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="token-role">Acts as</FieldLabel>
+              <NativeSelect
+                id="token-role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as ApiTokenRole)}
+              >
+                <option value="AGENT">
+                  An agent: sees and works every ticket
                 </option>
+                <option value="REQUESTER">
+                  A requester: raises tickets and sees its own
+                </option>
+              </NativeSelect>
+            </Field>
+            <fieldset className="grid gap-2">
+              <legend className="mb-1 text-sm font-medium">Scopes</legend>
+              {offeredTokenScopeSchema.options.map((scope) => (
+                <label key={scope} className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 accent-primary"
+                    checked={scopes.includes(scope)}
+                    onChange={() => toggle(scope)}
+                  />
+                  <span>
+                    {SCOPE_LABEL[scope]}{" "}
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {scope}
+                    </span>
+                  </span>
+                </label>
               ))}
-              <option value="never">Never — until revoked</option>
-            </NativeSelect>
-          </Field>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              create.isPending || name.trim() === "" || scopes.length === 0
-            }
-            onClick={() => create.mutate()}
-          >
-            {create.isPending && <Spinner />}
-            Create token
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            </fieldset>
+            <Field>
+              <FieldLabel htmlFor="token-expiry">Expires</FieldLabel>
+              <NativeSelect
+                id="token-expiry"
+                value={days}
+                onChange={(e) => setDays(e.target.value)}
+              >
+                {API_TOKEN_EXPIRY_DAYS.map((d) => (
+                  <option key={d} value={String(d)}>
+                    In {d} days
+                  </option>
+                ))}
+                <option value="never">Never — until revoked</option>
+              </NativeSelect>
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                create.isPending || name.trim() === "" || scopes.length === 0
+              }
+              onClick={() => create.mutate()}
+            >
+              {create.isPending && <Spinner />}
+              Create token
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

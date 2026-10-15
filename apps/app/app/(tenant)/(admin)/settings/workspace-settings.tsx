@@ -31,6 +31,7 @@ import { toast } from "sonner"
 
 import { FormAlert } from "@/components/form-alert"
 import { FormField } from "@/components/form-field"
+import { useStepUp } from "@/components/mfa/step-up-dialog"
 import { NativeSelect } from "@/components/native-select"
 import { Section } from "@/components/page-header"
 import { useTenant } from "@/components/tenant-provider"
@@ -38,6 +39,7 @@ import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { appOrigin, ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
 import { failureMessage } from "@/lib/failure"
+import { StepUpCancelled } from "@/lib/step-up"
 
 import { WorkspaceExport } from "./workspace-export"
 
@@ -205,10 +207,66 @@ export function WorkspaceSettings({
         </dl>
       </Section>
 
+      {holds("org:require_mfa") && (
+        <RequireMfa settings={settings} onSaved={setSettings} />
+      )}
+
       {holds("org:export") && <WorkspaceExport />}
 
       {holds("org:delete") && <DeleteWorkspace settings={settings} />}
     </>
+  )
+}
+
+/**
+ * The owner's policy (ADR-0029, ADR-0045): every member must hold a second
+ * factor to open the workspace. It gates the next sign-in, not the sessions
+ * already open — a policy, not an outage.
+ */
+function RequireMfa({
+  settings,
+  onSaved,
+}: {
+  settings: OrganizationSettings
+  onSaved: (updated: OrganizationSettings) => void
+}) {
+  const save = useMutation({
+    mutationFn: (requireMfa: boolean) =>
+      clientApi("/org/settings", {
+        method: "PATCH",
+        body: { requireMfa },
+        schema: organizationSettingsSchema,
+      }),
+    onSuccess: (updated) => {
+      onSaved(updated)
+      toast.success(
+        updated.requireMfa
+          ? "Two-factor authentication is now required."
+          : "Two-factor authentication is no longer required."
+      )
+    },
+    onError: (error) =>
+      toast.error(failureMessage(error, "The setting wasn't saved.")),
+  })
+  return (
+    <Section
+      title="Security"
+      description="Members without an authenticator app set up will be asked to add one the next time they open this workspace. Nobody who is already in is signed out."
+    >
+      <Field orientation="horizontal">
+        <input
+          id="requireMfa"
+          type="checkbox"
+          checked={settings.requireMfa}
+          disabled={save.isPending}
+          onChange={(e) => save.mutate(e.target.checked)}
+          className="size-4 accent-primary"
+        />
+        <FieldLabel htmlFor="requireMfa" className="font-normal">
+          Require two-factor authentication of every member
+        </FieldLabel>
+      </Field>
+    </Section>
   )
 }
 
@@ -220,16 +278,21 @@ export function WorkspaceSettings({
 function DeleteWorkspace({ settings }: { settings: OrganizationSettings }) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState("")
+  const stepUp = useStepUp()
   const remove = useMutation({
     mutationFn: () =>
-      clientApi("/org/deletion", {
-        method: "POST",
-        body: { confirmSlug: typed },
-        schema: null,
-      }),
+      stepUp.guard(() =>
+        clientApi("/org/deletion", {
+          method: "POST",
+          body: { confirmSlug: typed },
+          schema: null,
+        })
+      ),
     onSuccess: () => window.location.assign(`${appOrigin()}/workspaces`),
-    onError: (error) =>
-      toast.error(failureMessage(error, "The workspace wasn't deleted.")),
+    onError: (error) => {
+      if (error instanceof StepUpCancelled) return
+      toast.error(failureMessage(error, "The workspace wasn't deleted."))
+    },
   })
   return (
     <Section
@@ -274,6 +337,7 @@ function DeleteWorkspace({ settings }: { settings: OrganizationSettings }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {stepUp.dialog}
     </Section>
   )
 }

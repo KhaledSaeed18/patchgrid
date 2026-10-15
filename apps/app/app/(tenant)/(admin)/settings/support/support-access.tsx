@@ -21,10 +21,12 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { useStepUp } from "@/components/mfa/step-up-dialog"
 import { NativeSelect } from "@/components/native-select"
 import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { failureMessage } from "@/lib/failure"
+import { StepUpCancelled } from "@/lib/step-up"
 
 const STATUS_LABEL: Record<SupportSession["status"], string> = {
   REQUESTED: "Waiting for an owner",
@@ -158,81 +160,93 @@ function GrantDialog({
 }) {
   const router = useRouter()
   const [hours, setHours] = useState(4)
+  // Letting an outsider read the workspace is a step-up action (ADR-0029).
+  const stepUp = useStepUp()
   const grant = useMutation({
     mutationFn: (id: string) =>
-      clientApi(`/org/support-sessions/${id}/grant`, {
-        method: "POST",
-        body: { hours },
-        schema: supportSessionSchema,
-      }),
+      stepUp.guard(() =>
+        clientApi(`/org/support-sessions/${id}/grant`, {
+          method: "POST",
+          body: { hours },
+          schema: supportSessionSchema,
+        })
+      ),
     onSuccess: () => {
       toast.success("Support access granted.")
       onClose()
       router.refresh()
     },
-    onError: (error) =>
-      toast.error(failureMessage(error, "It wasn't granted.")),
+    onError: (error) => {
+      if (error instanceof StepUpCancelled) return
+      toast.error(failureMessage(error, "It wasn't granted."))
+    },
   })
   return (
-    <Dialog open={session !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            Let {session?.operator.name} read this workspace?
-          </DialogTitle>
-          <DialogDescription>
-            Read what this allows before you say yes.
-          </DialogDescription>
-        </DialogHeader>
-        <ul className="grid list-disc gap-1 pl-5 text-sm">
-          <li>
-            They can read everything an admin can read: every ticket,{" "}
-            <strong>internal notes included</strong>, files, assets, the
-            knowledge base, members and teams, and{" "}
-            <strong>this workspace&apos;s audit log</strong>.
-          </li>
-          <li>
-            They cannot change anything: every write is refused. They never act
-            as anyone here.
-          </li>
-          <li>
-            Every page they open is written to your audit log, and you get an
-            email when they first read.
-          </li>
-          <li>Any owner can end it at once, here.</li>
-        </ul>
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">For how long</span>
-          <NativeSelect
-            value={hours}
-            onChange={(e) => setHours(Number(e.target.value))}
-          >
-            {DURATIONS.map((h) => (
-              <option key={h} value={h}>
-                {h === 1
-                  ? "1 hour"
-                  : h < 24
-                    ? `${String(h)} hours`
-                    : h === 24
-                      ? "1 day"
-                      : `${String(h / 24)} days`}
-              </option>
-            ))}
-          </NativeSelect>
-        </label>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Not now
-          </Button>
-          <Button
-            disabled={grant.isPending || session === null}
-            onClick={() => session !== null && grant.mutate(session.id)}
-          >
-            {grant.isPending && <Spinner />}
-            Grant read-only access
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <>
+      {stepUp.dialog}
+      <Dialog
+        open={session !== null}
+        onOpenChange={(open) => !open && onClose()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Let {session?.operator.name} read this workspace?
+            </DialogTitle>
+            <DialogDescription>
+              Read what this allows before you say yes.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="grid list-disc gap-1 pl-5 text-sm">
+            <li>
+              They can read everything an admin can read: every ticket,{" "}
+              <strong>internal notes included</strong>, files, assets, the
+              knowledge base, members and teams, and{" "}
+              <strong>this workspace&apos;s audit log</strong>.
+            </li>
+            <li>
+              They cannot change anything: every write is refused. They never
+              act as anyone here.
+            </li>
+            <li>
+              Every page they open is written to your audit log, and you get an
+              email when they first read.
+            </li>
+            <li>Any owner can end it at once, here.</li>
+          </ul>
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">For how long</span>
+            <NativeSelect
+              value={hours}
+              onChange={(e) => setHours(Number(e.target.value))}
+            >
+              {DURATIONS.map((h) => (
+                <option key={h} value={h}>
+                  {h === 1
+                    ? "1 hour"
+                    : h < 24
+                      ? `${String(h)} hours`
+                      : h === 24
+                        ? "1 day"
+                        : `${String(h / 24)} days`}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
+              Not now
+            </Button>
+            <Button
+              disabled={grant.isPending || session === null}
+              onClick={() => session !== null && grant.mutate(session.id)}
+            >
+              {grant.isPending && <Spinner />}
+              Grant read-only access
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

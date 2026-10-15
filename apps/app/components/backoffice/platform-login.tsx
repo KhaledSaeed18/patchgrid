@@ -10,17 +10,22 @@ import { Button } from "@patchgrid/ui/components/button"
 import { FieldGroup } from "@patchgrid/ui/components/field"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation } from "@tanstack/react-query"
-import QRCode from "qrcode"
 import { useEffect, useState } from "react"
 
 import { FormAlert } from "@/components/form-alert"
 import { FormField } from "@/components/form-field"
+import {
+  EnrolForm,
+  FactorForm,
+  factorMessage,
+} from "@/components/mfa/factor-form"
+import { RecoveryCodes } from "@/components/mfa/recovery-codes"
 import { ApiError } from "@/lib/api/errors"
 import { platformApi } from "@/lib/api/platform"
 
 type Stage =
   | { kind: "password" }
-  | { kind: "verify"; useRecovery: boolean }
+  | { kind: "verify" }
   | { kind: "enrol"; enrolment: MfaEnrolment | null }
   | { kind: "recovery"; codes: string[] }
 
@@ -44,7 +49,7 @@ export function PlatformLogin({ next }: { next: string }) {
     onSuccess: (step) =>
       setStage(
         step.next === "verify"
-          ? { kind: "verify", useRecovery: false }
+          ? { kind: "verify" }
           : { kind: "enrol", enrolment: null }
       ),
   })
@@ -99,7 +104,7 @@ export function PlatformLogin({ next }: { next: string }) {
       >
         <FieldGroup>
           {password.error !== null && (
-            <FormAlert>{messageFor(password.error, "password")}</FormAlert>
+            <FormAlert>{passwordMessage(password.error)}</FormAlert>
           )}
           <FormField
             id="email"
@@ -129,166 +134,42 @@ export function PlatformLogin({ next }: { next: string }) {
 
   if (stage.kind === "verify") {
     return (
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault()
-          const value = String(
-            new FormData(event.currentTarget).get("code") ?? ""
-          ).trim()
-          verify.mutate(
-            stage.useRecovery ? { recoveryCode: value } : { code: value }
-          )
-        }}
-      >
-        <FieldGroup>
-          {verify.error !== null && (
-            <FormAlert>{messageFor(verify.error, "code")}</FormAlert>
-          )}
-          <FormField
-            key={stage.useRecovery ? "recovery" : "code"}
-            id="code"
-            name="code"
-            label={
-              stage.useRecovery
-                ? "Recovery code"
-                : "Code from your authenticator"
-            }
-            inputMode={stage.useRecovery ? "text" : "numeric"}
-            autoComplete="one-time-code"
-            placeholder={stage.useRecovery ? "abcde-fghij" : "123456"}
-            required
-            autoFocus
-          />
-          <Button
-            type="submit"
-            size="lg"
-            disabled={verify.isPending || verify.isSuccess}
-          >
-            {(verify.isPending || verify.isSuccess) && <Spinner />}
-            Sign in
-          </Button>
-          <button
-            type="button"
-            className="w-fit text-sm text-muted-foreground underline underline-offset-4"
-            onClick={() =>
-              setStage({ kind: "verify", useRecovery: !stage.useRecovery })
-            }
-          >
-            {stage.useRecovery
-              ? "Use your authenticator instead"
-              : "Use a recovery code"}
-          </button>
-        </FieldGroup>
-      </form>
+      <FactorForm
+        onSubmit={(proof) => verify.mutate(proof)}
+        pending={verify.isPending || verify.isSuccess}
+        error={verify.error}
+        submitLabel="Sign in"
+      />
     )
   }
 
   if (stage.kind === "enrol") {
     if (stage.enrolment === null) {
       return enrol.error !== null ? (
-        <FormAlert>{messageFor(enrol.error, "code")}</FormAlert>
+        <FormAlert>{factorMessage(enrol.error)}</FormAlert>
       ) : (
         <Spinner />
       )
     }
     return (
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault()
-          confirm.mutate(
-            String(new FormData(event.currentTarget).get("code") ?? "").trim()
-          )
-        }}
-      >
-        <FieldGroup>
-          <p className="text-sm text-pretty text-muted-foreground">
-            Operators sign in with a second factor. Scan this with an
-            authenticator app, then enter the code it shows.
-          </p>
-          <QrCode value={stage.enrolment.otpauthUri} />
-          <p className="text-xs text-muted-foreground">
-            Or type this key:{" "}
-            <span className="font-mono break-all text-foreground">
-              {stage.enrolment.secret}
-            </span>
-          </p>
-          {confirm.error !== null && (
-            <FormAlert>{messageFor(confirm.error, "code")}</FormAlert>
-          )}
-          <FormField
-            id="code"
-            name="code"
-            label="Code from your authenticator"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            required
-            autoFocus
-          />
-          <Button type="submit" size="lg" disabled={confirm.isPending}>
-            {confirm.isPending && <Spinner />}
-            Turn on and sign in
-          </Button>
-        </FieldGroup>
-      </form>
+      <EnrolForm
+        enrolment={stage.enrolment}
+        intro="Operators sign in with a second factor. Scan this with an authenticator app, then enter the code it shows."
+        onConfirm={(code) => confirm.mutate(code)}
+        pending={confirm.isPending}
+        error={confirm.error}
+        submitLabel="Turn on and sign in"
+      />
     )
   }
 
-  return (
-    <div className="grid gap-4">
-      <p className="text-sm text-pretty">
-        These recovery codes each sign you in once if you lose your
-        authenticator. <strong>They are shown only now.</strong> Keep them
-        somewhere safe.
-      </p>
-      <ul
-        aria-label="Recovery codes"
-        className="grid grid-cols-2 gap-2 rounded-lg border border-border p-4 font-mono text-sm"
-      >
-        {stage.codes.map((code) => (
-          <li key={code}>{code}</li>
-        ))}
-      </ul>
-      <Button size="lg" onClick={done}>
-        I&apos;ve saved them — continue
-      </Button>
-    </div>
-  )
+  return <RecoveryCodes codes={stage.codes} onDone={done} />
 }
 
-/** The authenticator's QR code, drawn here: the secret never leaves the browser for an image service. */
-function QrCode({ value }: { value: string }) {
-  const [src, setSrc] = useState<string | null>(null)
-  useEffect(() => {
-    let live = true
-    void QRCode.toDataURL(value, { margin: 1, width: 192 }).then((url) => {
-      if (live) setSrc(url)
-    })
-    return () => {
-      live = false
-    }
-  }, [value])
-  return src === null ? (
-    <div className="size-48 rounded-md bg-muted" />
-  ) : (
-    // eslint-disable-next-line @next/next/no-img-element -- a data URL drawn in the browser, not an asset to optimise
-    <img
-      src={src}
-      alt="QR code for your authenticator app"
-      className="size-48 rounded-md border border-border"
-    />
-  )
-}
-
-function messageFor(error: Error, step: "password" | "code"): string {
+function passwordMessage(error: Error): string {
   if (error instanceof ApiError && error.type === "rate-limited")
     return "Too many attempts from here. Wait a minute, then try again."
-  if (step === "password" && error instanceof ApiError && error.status === 401)
-    return "That email and password don't match an operator."
-  if (step === "code" && error instanceof ApiError && error.status === 400)
-    return "That code didn't work. Codes change every 30 seconds — try the current one."
   if (error instanceof ApiError && error.status === 401)
-    return "This sign-in took too long. Start again."
+    return "That email and password don't match an operator."
   return "Signing in didn't work just now. Try again in a moment."
 }
