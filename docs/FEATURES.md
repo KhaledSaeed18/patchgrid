@@ -370,9 +370,12 @@ browser, including the negative cases; observability answers "which tenant is sl
       incident lifecycle; an SLA breach on a two-minute response target seen from the owner's view;
       change draft → submit → approve by someone else → implement → close; **the cross-tenant,
       role-escalation and two-tabs-two-tenants negatives in a real browser**. Done 2026-10-16
-- [ ] **Observability** (ADR-0030): OpenTelemetry replacing the no-op `Tracer`, `orgId`/`permission` span
-      attributes, Prometheus metrics (request duration, DB transaction duration, queue depth and job
-      duration per tenant, SLA breaches per tenant), collector + Grafana behind a Compose profile
+- [x] **Observability** (ADR-0030, ADR-0046): OpenTelemetry behind the `Tracer` seam, started before the
+      app loads; `org.id`/`membership.id`/`actor.kind` on spans and every permission decision as a span
+      event; the trace id as the request id; metrics for request duration, transactions per request and
+      their duration, pool saturation, job duration by queue and tenant, SLA breaches, quota rejections,
+      RLS refusals and authorization denials, `org` bounded to the top-25 tenants; collector, Tempo,
+      Prometheus and a provisioned Grafana dashboard behind `--profile observability`. Done 2026-10-16
 - [ ] Security review against the M1 threat model: headers, rate limits, dependency audit, attachment
       handling, inbound mail, cookie tossing, token leakage (prompt injection is reviewed with M7, which
       brings the models)
