@@ -135,6 +135,7 @@ export class AuthGuard implements CanActivate {
       role: membership.role,
       teamIds: membership.teamIds,
       leadOfTeamIds: membership.leadOfTeamIds,
+      ...(claims.sua === undefined ? {} : { stepUpAt: claims.sua }),
     })
     return true
   }

@@ -1,6 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common"
 import type { MfaEnrolment, MfaVerifyRequest, PlatformLoginStep, PlatformMe } from "@patchgrid/contracts"
-import { randomBytes } from "node:crypto"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import { NotAuthenticatedProblem, NotFoundProblem, ValidationProblem } from "../../common/problems/problem.exception"
@@ -13,6 +12,7 @@ import type { PlatformActor } from "../actor"
 import { MailService } from "../../mail/mail.service"
 import type { PlatformSecurityEvent } from "../../mail/templates/platform-security"
 import { FactorLockout } from "../mfa/factor-lockout"
+import { normaliseRecoveryCode, RECOVERY_CODES, recoveryCode } from "../mfa/recovery-codes"
 import { SecretBox } from "../mfa/secret-box"
 import { acceptedStep, newTotpSecret, otpauthUri } from "../mfa/totp"
 import { PasswordService } from "../passwords/password.service"
@@ -21,7 +21,6 @@ import { type PlatformChallenge, PlatformTokenService } from "./platform-token.s
 
 /** An unconfirmed factor is good for this long (ADR-0029). */
 const ENROLMENT_TTL_MS = 60 * 60_000
-const RECOVERY_CODES = 10
 
 /** The epoch key a platform admin's sessions are revoked under — never a membership's. */
 export function platformEpochKey(platformAdminId: string): string {
@@ -89,7 +88,7 @@ export class PlatformAuthService {
     const step = factor === null || secret === null ? null : acceptedStep(secret, code, now, null)
     if (factor === null || step === null) throw await this.refused(challenge)
     const recoveryCodes = Array.from({ length: RECOVERY_CODES }, recoveryCode)
-    const hashes = await Promise.all(recoveryCodes.map((c) => this.passwords.hash(normalise(c))))
+    const hashes = await Promise.all(recoveryCodes.map((c) => this.passwords.hash(normaliseRecoveryCode(c))))
     if (!(await this.mfa.confirm(challenge.userId, factor.id, step, now, hashes))) throw await this.refused(challenge)
     await this.lockout.clear(challenge.userId)
     await this.audit.record({ platformAdminId: challenge.platformAdminId, action: "PLATFORM_MFA_ENROLLED", targetUserId: challenge.userId })
@@ -111,7 +110,7 @@ export class PlatformAuthService {
       await this.lockout.clear(challenge.userId)
       return this.signIn(challenge, "totp")
     }
-    const presented = normalise(request.recoveryCode ?? "")
+    const presented = normaliseRecoveryCode(request.recoveryCode ?? "")
     for (const stored of await this.mfa.unusedRecoveryCodes(challenge.userId)) {
       if ((await this.passwords.verify(stored.codeHash, presented)) && (await this.mfa.spendRecoveryCode(stored.id, now))) {
         await this.lockout.clear(challenge.userId)
@@ -185,18 +184,6 @@ export class PlatformAuthService {
     if (admin?.userId !== challenge.userId) throw new NotAuthenticatedProblem("Sign in again")
     return admin
   }
-}
-
-/** `abcde-fghij`: ten base32 letters, easy to read off paper. */
-function recoveryCode(): string {
-  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
-  const bytes = randomBytes(10)
-  const letters = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("")
-  return `${letters.slice(0, 5)}-${letters.slice(5)}`
-}
-
-function normalise(code: string): string {
-  return code.trim().toLowerCase().replace(/[\s-]/g, "")
 }
 
 function codeRefused(): ValidationProblem {

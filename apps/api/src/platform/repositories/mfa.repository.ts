@@ -65,6 +65,22 @@ export class MfaRepository {
     return count === 1
   }
 
+  /** Fresh recovery codes in place of whatever was left — used and unused alike. */
+  async replaceRecoveryCodes(userId: string, recoveryHashes: readonly string[]): Promise<void> {
+    await this.prisma.db.$transaction(async (tx) => {
+      await tx.userMfaRecovery.deleteMany({ where: { userId } })
+      await tx.userMfaRecovery.createMany({ data: recoveryHashes.map((codeHash) => ({ userId, codeHash })) })
+    })
+  }
+
+  /** Turning the factor off: every factor and every recovery code, together. */
+  async removeAll(userId: string): Promise<void> {
+    await this.prisma.db.$transaction(async (tx) => {
+      await tx.userMfaRecovery.deleteMany({ where: { userId } })
+      await tx.userMfaFactor.deleteMany({ where: { userId } })
+    })
+  }
+
   unusedRecoveryCodes(userId: string): Promise<{ id: string; codeHash: string }[]> {
     return this.prisma.db.userMfaRecovery.findMany({ where: { userId, usedAt: null }, select: { id: true, codeHash: true } })
   }

@@ -19,6 +19,10 @@ import { IdentityController } from "./identity/identity.controller"
 import { IdentityService } from "./identity/identity.service"
 import { ApiTokenCoreModule } from "../api-tokens/api-token-core.module"
 import { FactorLockout } from "./mfa/factor-lockout"
+import { MemberMfaService } from "./mfa/member-mfa.service"
+import { MfaChallengeService } from "./mfa/mfa-challenge.service"
+import { MfaController } from "./mfa/mfa.controller"
+import { StepUpService } from "./mfa/step-up.service"
 import { PasswordService } from "./passwords/password.service"
 import { PlatformAuthController } from "./platform/platform-auth.controller"
 import { PlatformAuthService } from "./platform/platform-auth.service"
@@ -47,7 +51,7 @@ import { AccessTokenService } from "./tokens/access-token.service"
     ApiTokenCoreModule,
     BullModule.registerQueue({ name: CREDENTIAL_RETENTION_QUEUE }),
   ],
-  controllers: [AuthController, IdentityController, PlatformAuthController, AccountController],
+  controllers: [AuthController, IdentityController, PlatformAuthController, MfaController, AccountController],
   providers: [
     CookieService,
     PasswordService,
@@ -62,6 +66,9 @@ import { AccessTokenService } from "./tokens/access-token.service"
     SupportTokenService,
     SupportReadLog,
     FactorLockout,
+    MfaChallengeService,
+    MemberMfaService,
+    StepUpService,
     AccountErasureRepository,
     AccountErasureService,
     CredentialRetentionService,
@@ -69,6 +76,6 @@ import { AccessTokenService } from "./tokens/access-token.service"
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [ActorService, RevocationEpochService, SessionService, StandingService, CookieService, PasswordService, SupportTokenService, SupportReadLog],
+  exports: [ActorService, RevocationEpochService, SessionService, StandingService, CookieService, PasswordService, SupportTokenService, SupportReadLog, StepUpService],
 })
 export class AuthModule {}

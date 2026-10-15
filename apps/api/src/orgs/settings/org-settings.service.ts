@@ -70,7 +70,10 @@ export class OrgSettingsService {
   }
 
   async update(request: UpdateOrganizationSettingsRequest): Promise<OrganizationSettings> {
-    this.permissions.assert(this.actors.requireTenantActor(), "org:update_settings")
+    const actor = this.actors.requireTenantActor()
+    this.permissions.assert(actor, "org:update_settings")
+    // Requiring a second factor of everyone is the owner's policy, whatever else the form carries (ADR-0029).
+    if (request.requireMfa !== undefined) this.permissions.assert(actor, "org:require_mfa")
     const orgId = this.tenant.requireOrgId()
     const before = await this.prisma.transaction(async () => {
       const current = await this.settings.find(orgId)
@@ -82,9 +85,10 @@ export class OrgSettingsService {
       await this.audit.record(orgId, auditFor(current, request))
       return current
     })
-    if (request.agentVisibility !== undefined && request.agentVisibility !== before.agentVisibility) {
-      await this.lookup.invalidate({ id: orgId, slug: before.slug })
-    }
+    // Resolution reads both from the cached summary: visibility for scoping, the MFA policy at open and refresh.
+    const visibilityChanged = request.agentVisibility !== undefined && request.agentVisibility !== before.agentVisibility
+    const policyChanged = request.requireMfa !== undefined && request.requireMfa !== before.requireMfa
+    if (visibilityChanged || policyChanged) await this.lookup.invalidate({ id: orgId, slug: before.slug })
     return this.get()
   }
 
@@ -158,6 +162,14 @@ function auditFor(before: OrganizationSettingsRecord, request: UpdateOrganizatio
   if (Object.keys(diff).length > 0) {
     entries.push({ action: "ORG_SETTINGS_UPDATED", entityType: "Organization", entityId: before.id, diff })
   }
+  if (request.requireMfa !== undefined && request.requireMfa !== before.requireMfa) {
+    entries.push({
+      action: "ORG_MFA_REQUIREMENT_CHANGED",
+      entityType: "Organization",
+      entityId: before.id,
+      diff: { requireMfa: { from: before.requireMfa, to: request.requireMfa } },
+    })
+  }
   if (request.agentVisibility !== undefined && request.agentVisibility !== before.agentVisibility) {
     entries.push({
       action: "AGENT_VISIBILITY_CHANGED",
@@ -176,6 +188,7 @@ function stripUndefined(request: UpdateOrganizationSettingsRequest) {
     ...(request.emailNotificationsEnabled === undefined
       ? {}
       : { emailNotificationsEnabled: request.emailNotificationsEnabled }),
+    ...(request.requireMfa === undefined ? {} : { requireMfa: request.requireMfa }),
   }
 }
 
@@ -189,6 +202,7 @@ function toSettings(record: OrganizationSettingsRecord, slugChangeAvailableAt: D
     domain: record.domain,
     agentVisibility: record.agentVisibility,
     emailNotificationsEnabled: record.emailNotificationsEnabled,
+    requireMfa: record.requireMfa,
     inboundAddress: inboundAddress(record.slug, rootDomain),
     slugChangeAvailableAt: slugChangeAvailableAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),

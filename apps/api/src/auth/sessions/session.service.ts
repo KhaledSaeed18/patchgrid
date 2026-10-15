@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common"
-import type { IdentityResponse, LoginResponse } from "@patchgrid/contracts"
+import type { IdentityResponse, LoginResponse, SignedInResponse } from "@patchgrid/contracts"
 import { createHash, randomBytes } from "node:crypto"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import {
+  MfaRequiredProblem,
   NotAuthenticatedProblem,
   NotFoundProblem,
   NotPermittedProblem,
@@ -15,6 +16,7 @@ import {
   MembershipRepository,
   type MembershipRecord,
 } from "../../memberships/repositories/membership.repository"
+import { MfaRepository } from "../../platform/repositories/mfa.repository"
 import type { OrganizationSummary } from "../../platform/repositories/organization.repository"
 import { RefreshTokenRepository } from "../../platform/repositories/refresh-token.repository"
 import { UserOrgIndexRepository } from "../../platform/repositories/user-org-index.repository"
@@ -22,12 +24,16 @@ import { type AccountRecord, UserRepository } from "../../platform/repositories/
 import { runAsTenant } from "../../platform/run-as-tenant"
 import { ORGANIZATION_LOOKUP, type OrganizationLookup } from "../../tenancy/organization-lookup"
 import { type CookieName, CookieService, type CookieSpec } from "../cookies"
+import { MFA_CHALLENGE_TTL_SECONDS, MfaChallengeService } from "../mfa/mfa-challenge.service"
 import { PasswordService } from "../passwords/password.service"
 import { RevocationEpochService } from "../revocation/revocation-epoch.service"
 import { AccessTokenService } from "../tokens/access-token.service"
 
 /** Where the credential is being used from — recorded on the refresh token, never logged. */
 export type ClientInfo = { userAgent: string | null; ip: string | null }
+
+/** A pair minted after a step-up carries when it was proved (ADR-0029). */
+export type OpenOptions = { stepUpAt?: Date }
 
 export type LogoutInput = {
   slug: string | undefined
@@ -50,6 +56,9 @@ export type LogoutInput = {
  * - Refresh rotates; presenting a rotated token revokes its whole chain.
  * - Login answers uniformly: unknown address, wrong password, unverified or
  *   anonymised account are one 401, at one Argon2id cost.
+ * - A confirmed second factor turns the right password into a challenge, not
+ *   a session (ADR-0045); and a workspace that requires one opens for nobody
+ *   without it — at open and refresh, never mid-session.
  */
 @Injectable()
 export class SessionService {
@@ -65,6 +74,8 @@ export class SessionService {
     private readonly accessTokens: AccessTokenService,
     private readonly epochs: RevocationEpochService,
     private readonly cookies: CookieService,
+    private readonly mfa: MfaRepository,
+    private readonly challenges: MfaChallengeService,
     @InjectClock() private readonly clock: Clock,
     @InjectConfig() private readonly config: AppConfig,
   ) {}
@@ -82,6 +93,12 @@ export class SessionService {
       throw new NotAuthenticatedProblem("Invalid email or password")
     }
 
+    // The password was right; with a factor enrolled that is a challenge, not a session.
+    if ((await this.mfa.confirmed(account.id)) !== null) {
+      const challenge = await this.challenges.issue(account.id, slug)
+      return { response: { status: "mfa-required" }, cookies: [this.cookies.mfaChallenge(challenge, MFA_CHALLENGE_TTL_SECONDS)] }
+    }
+
     return this.startIdentity(account, client, slug)
   }
 
@@ -94,13 +111,13 @@ export class SessionService {
     account: AccountRecord,
     client: ClientInfo,
     slug?: string,
-  ): Promise<{ response: LoginResponse; cookies: CookieSpec[] }> {
+  ): Promise<{ response: SignedInResponse; cookies: CookieSpec[] }> {
     const now = this.clock.now()
     const identity = await this.issue(account.id, null, client, now)
     await this.users.touchLastLogin(account.id, now)
     const cookies: CookieSpec[] = [this.cookies.identity(identity)]
 
-    let session: LoginResponse["session"] = null
+    let session: SignedInResponse["session"] = null
     if (slug !== undefined) {
       const pair = await this.tryOpen(account.id, slug, client, now)
       if (pair !== null) {
@@ -111,6 +128,7 @@ export class SessionService {
 
     return {
       response: {
+        status: "signed-in",
         user: { id: account.id, email: account.email, name: account.name },
         workspaces: await this.workspaces.listWorkspacesForUser(account.id),
         session,
@@ -149,11 +167,12 @@ export class SessionService {
     return {
       user: { id: account.id, email: account.email, name: account.name },
       workspaces: await this.workspaces.listWorkspacesForUser(account.id),
+      mfa: { enrolled: (await this.mfa.confirmed(account.id)) !== null },
     }
   }
 
   /** The org switcher: a `pg_id` holder opens one workspace they belong to. */
-  async open(userId: string, slug: string, client: ClientInfo): Promise<CookieSpec[]> {
+  async open(userId: string, slug: string, client: ClientInfo, options: OpenOptions = {}): Promise<CookieSpec[]> {
     const org = await this.organizations.bySlug(slug)
     if (org === null) throw new NotFoundProblem("Unknown workspace")
     assertServing(org)
@@ -161,7 +180,8 @@ export class SessionService {
     if (membership === null) {
       throw new NotPermittedProblem("You are not a member of this workspace")
     }
-    return this.mint(userId, org, membership, client, this.clock.now())
+    await this.assertFactorPolicy(org, userId)
+    return this.mint(userId, org, membership, client, this.clock.now(), undefined, options)
   }
 
   /** `pg_id` → the user it identifies, or `null` for anything invalid. */
@@ -199,6 +219,8 @@ export class SessionService {
       await this.refreshTokens.revoke(row.id, now)
       throw new NotAuthenticatedProblem("The membership is no longer active")
     }
+    // A requirement turned on since the last mint gates this one; the refresh token itself stays good.
+    await this.assertFactorPolicy(org, row.userId)
 
     return this.mint(row.userId, org, membership, client, now, row.id)
   }
@@ -234,7 +256,17 @@ export class SessionService {
     const org = await this.organizations.bySlug(slug)
     if (org === null || org.status !== "ACTIVE") return null
     const membership = await this.membershipOf(org, userId, "login into workspace")
-    return membership === null ? null : this.mint(userId, org, membership, client, now)
+    if (membership === null || !(await this.meetsFactorPolicy(org, userId))) return null
+    return this.mint(userId, org, membership, client, now)
+  }
+
+  /** ADR-0045: a workspace that requires a second factor opens only for someone with one confirmed. */
+  private async meetsFactorPolicy(org: OrganizationSummary, userId: string): Promise<boolean> {
+    return !org.requireMfa || (await this.mfa.confirmed(userId)) !== null
+  }
+
+  private async assertFactorPolicy(org: OrganizationSummary, userId: string): Promise<void> {
+    if (!(await this.meetsFactorPolicy(org, userId))) throw new MfaRequiredProblem()
   }
 
   /**
@@ -263,12 +295,14 @@ export class SessionService {
     client: ClientInfo,
     now: Date,
     rotating?: string,
+    options: OpenOptions = {},
   ): Promise<CookieSpec[]> {
     const { token } = await this.accessTokens.sign({
       sub: userId,
       org: org.id,
       mem: membership.id,
       role: membership.role,
+      ...(options.stepUpAt === undefined ? {} : { sua: Math.floor(options.stepUpAt.getTime() / 1000) }),
     })
     const secret = await this.issue(userId, org.id, client, now, rotating)
     return [this.cookies.access(org.slug, token), this.cookies.refresh(org.slug, secret)]

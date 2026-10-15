@@ -38,7 +38,7 @@ const config = {
   ACCESS_TOKEN_TTL_SECONDS: 900,
 } as AppConfig
 
-const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS" }
+const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false }
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const USER = "0190b2f0-0000-7000-8000-000000000001"
 const MEM = "0190b2f0-0000-7000-8000-0000000000aa"

@@ -4,6 +4,7 @@ import type { ReactElement } from "react"
 import { z } from "zod"
 
 import { AccountExists } from "./account-exists"
+import { AccountSecurity, accountSecuritySubject } from "./account-security"
 import { Invite } from "./invite"
 import { ResetPassword } from "./reset-password"
 import { ApiTokenExpiring, apiTokenExpiringSubject } from "./api-token-expiring"
@@ -125,6 +126,14 @@ export const MAIL_KINDS = {
     subject: platformSecuritySubject,
     component: PlatformSecurity,
   },
+  "account-security": {
+    params: z.object({
+      event: z.enum(["factor-enabled", "factor-disabled", "factor-locked", "recovery-code-used", "recovery-codes-regenerated"]),
+      remaining: z.int().nonnegative(),
+    }),
+    subject: accountSecuritySubject,
+    component: AccountSecurity,
+  },
 } as const
 
 export type MailKind = keyof typeof MAIL_KINDS
@@ -149,6 +158,7 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("export-ready"), ...envelope, params: MAIL_KINDS["export-ready"].params }),
   z.object({ kind: z.literal("account-erased"), ...envelope, params: MAIL_KINDS["account-erased"].params }),
   z.object({ kind: z.literal("platform-security"), ...envelope, params: MAIL_KINDS["platform-security"].params }),
+  z.object({ kind: z.literal("account-security"), ...envelope, params: MAIL_KINDS["account-security"].params }),
 ])
 export type MailJob = z.infer<typeof mailJobSchema>
 
@@ -193,6 +203,8 @@ function elementFor(job: MailJob): ReactElement {
       return <AccountErased {...job.params} />
     case "platform-security":
       return <PlatformSecurity {...job.params} />
+    case "account-security":
+      return <AccountSecurity {...job.params} />
   }
 }
 
@@ -212,6 +224,8 @@ function subjectFor(job: MailJob): string {
       return MAIL_KINDS["export-ready"].subject(job.params)
     case "platform-security":
       return MAIL_KINDS["platform-security"].subject(job.params)
+    case "account-security":
+      return MAIL_KINDS["account-security"].subject(job.params)
     default:
       return MAIL_KINDS[job.kind].subject()
   }

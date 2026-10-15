@@ -35,7 +35,7 @@ export class MeService {
     const org = async () => {
       const profile = await this.organizations.findProfileById(resolved.id)
       if (profile === null) throw new NotAuthenticatedProblem()
-      return { id: resolved.id, name: profile.name, slug: resolved.slug, plan: resolved.plan, agentVisibility: resolved.agentVisibility }
+      return { id: resolved.id, name: profile.name, slug: resolved.slug, plan: resolved.plan, agentVisibility: resolved.agentVisibility, requireMfa: resolved.requireMfa }
     }
     const support = await this.support.stateFor(actor)
 
@@ -69,6 +69,7 @@ export class MeService {
         slug: resolved.slug,
         plan: resolved.plan,
         agentVisibility: resolved.agentVisibility,
+        requireMfa: resolved.requireMfa,
       },
       teams: member.teams,
       permissions: this.permissions.permissionsFor(actor),

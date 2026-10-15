@@ -11,6 +11,7 @@ const org = (n: number, slug: string, status: OrganizationSummary["status"] = "A
   status,
   plan: "FREE",
   agentVisibility: "ALL_TICKETS",
+  requireMfa: false,
 })
 const acme = org(1, "acme")
 const globex = org(2, "globex")
