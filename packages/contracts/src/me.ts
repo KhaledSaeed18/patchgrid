@@ -29,6 +29,8 @@ export const meSchema = z.object({
     slug: slugSchema,
     plan: planSchema,
     agentVisibility: agentVisibilitySchema,
+    /** Every member must hold a confirmed second factor to open this workspace (ADR-0045). */
+    requireMfa: z.boolean(),
   }),
   teams: z.array(z.object({ id: idSchema, name: z.string(), isLead: z.boolean() })),
   permissions: z.array(permissionSchema),

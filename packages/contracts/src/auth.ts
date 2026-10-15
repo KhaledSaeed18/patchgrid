@@ -59,12 +59,23 @@ export const sessionUserSchema = z.object({
   name: z.string(),
 })
 
-export const loginResponseSchema = z.object({
+export const signedInResponseSchema = z.object({
+  status: z.literal("signed-in"),
   user: sessionUserSchema,
   workspaces: z.array(workspaceSummarySchema),
   /** The workspace whose cookie pair this response set, when `slug` was given and admitted. */
   session: z.object({ slug: slugSchema }).nullable(),
 })
+export type SignedInResponse = z.infer<typeof signedInResponseSchema>
+
+/**
+ * The password was right and a second factor is enrolled (ADR-0045): no
+ * session yet, only a five-minute challenge cookie that `POST /auth/mfa`
+ * completes. Nothing about the account is disclosed before the factor.
+ */
+export const mfaRequiredResponseSchema = z.object({ status: z.literal("mfa-required") })
+
+export const loginResponseSchema = z.discriminatedUnion("status", [signedInResponseSchema, mfaRequiredResponseSchema])
 export type LoginResponse = z.infer<typeof loginResponseSchema>
 
 /**
@@ -74,6 +85,8 @@ export type LoginResponse = z.infer<typeof loginResponseSchema>
 export const identityResponseSchema = z.object({
   user: sessionUserSchema,
   workspaces: z.array(workspaceSummarySchema),
+  /** Whether a confirmed second factor exists — the picker routes to enrolment when a workspace demands one. */
+  mfa: z.object({ enrolled: z.boolean() }),
 })
 export type IdentityResponse = z.infer<typeof identityResponseSchema>
 

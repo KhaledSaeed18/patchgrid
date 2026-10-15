@@ -22,6 +22,10 @@ export const PROBLEM_TYPES = {
   "not-permitted": { status: 403, title: "Not permitted" },
   "tenant-mismatch": { status: 403, title: "Tenant mismatch" },
   "organization-suspended": { status: 403, title: "Organization suspended" },
+  /** The workspace requires a second factor and this account has none confirmed (ADR-0045). */
+  "mfa-required": { status: 403, title: "Second factor required" },
+  /** The action needs a fresh proof — a code, or the password when no factor exists — within five minutes (ADR-0029). */
+  "step-up-required": { status: 403, title: "Re-authentication required" },
   "not-found": { status: 404, title: "Not found" },
   "invalid-transition": { status: 409, title: "Invalid transition" },
   "stale-write": { status: 409, title: "Stale write" },

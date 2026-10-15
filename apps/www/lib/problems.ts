@@ -58,6 +58,18 @@ const PROBLEM_COPY: Record<ProblemTypeSlug, ProblemCopy> = {
     detail: "The organization has been suspended by a platform administrator.",
     resolution: "Contact support. Data is retained; nothing has been deleted.",
   },
+  "mfa-required": {
+    detail:
+      "The workspace requires a second factor of every member, and this account has not confirmed one. Returned when opening or refreshing a session for that workspace.",
+    resolution:
+      "Enrol an authenticator app under Account → Security, then open the workspace again. Sessions already open are not ended by the requirement; the next sign-in is what it gates.",
+  },
+  "step-up-required": {
+    detail:
+      "The action is irreversible — deleting the workspace, transferring ownership, granting support access, creating an API token — and the session has not re-proved itself within the last five minutes.",
+    resolution:
+      "Call `POST /auth/step-up` with a current authenticator code (or the password, if no factor is enrolled), then retry. The proof travels on the re-issued access cookie.",
+  },
   "not-found": {
     detail:
       "No such record — or none the caller is permitted to see. The two are deliberately indistinguishable.",
