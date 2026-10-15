@@ -51,6 +51,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0042](0042-api-tokens-as-built.md) | API tokens as built: one token, one service account | Accepted |
 | [0043](0043-org-deletion-and-the-purge.md) | Deleting a workspace: a 30-day window, then a purge that keeps only a tombstone | Accepted |
 | [0044](0044-data-protection-as-built.md) | Data protection as built: a streamed export, self-service erasure, retention sweeps | Accepted |
+| [0045](0045-member-mfa-as-built.md) | Member MFA as built: a challenge before the session, a proof on the token | Accepted |
 
 ## Reading order for someone new
 

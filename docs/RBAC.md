@@ -220,6 +220,12 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `support:read_sessions` | — | — | ✅ | ✅ |
 | `support:grant_access` / `support:revoke_access` | — | — | — | ✅ |
 
+**Step-up (ADR-0029, ADR-0045).** `org:delete`, `org:transfer_ownership` (raising anyone to `OWNER`),
+`support:grant_access` and `token:create` are asserted together with a fresh proof: the member's access
+token must carry a `sua` (step-up at) claim no older than five minutes, minted by `POST /auth/step-up`.
+The check is `StepUpService.assert`, in the service after the permission, never in a guard; a missing or
+stale proof is `403 step-up-required`. A service account or a support session has no proof to give.
+
 `support:request_access` is a **platform** permission, not a tenant one — a platform admin may ask, only
 an owner may grant (§9).
 

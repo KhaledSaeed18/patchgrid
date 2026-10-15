@@ -361,9 +361,11 @@ incidents through a scoped token._
 _Exit: the security review has no open findings; E2E covers the core flows across two tenants in a real
 browser, including the negative cases; observability answers "which tenant is slow" without grepping._
 
-- [ ] **MFA (TOTP)** (ADR-0029) for members — platform admins have it from M8 (ADR-0040):
-      optional-but-enforceable per org, with recovery codes and step-up re-authentication for `org:delete`, `org:transfer_ownership`,
-      `support:grant_access` and `token:create`
+- [x] **MFA (TOTP)** (ADR-0029, ADR-0045) for members — platform admins have it from M8 (ADR-0040):
+      optional-but-enforceable per org (`requireMfa`, owner-set, gating open and refresh but never an open
+      session), recovery codes, and step-up re-authentication carried as a `sua` claim on the access token
+      for `org:delete`, `org:transfer_ownership` (raising anyone to `OWNER`), `support:grant_access` and
+      `token:create`; the password proves a step-up only when no factor exists. Done 2026-10-16
 - [ ] Playwright E2E: signup → provision → invite → incident lifecycle; SLA breach with a 1-minute
       policy; change approval; **a cross-tenant negative test, a role-escalation negative test, and the
       two-tabs-two-tenants test in a real browser**
