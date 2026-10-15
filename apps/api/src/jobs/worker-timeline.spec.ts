@@ -76,6 +76,7 @@ describe("the SLA scan over a ticket's life", () => {
   function ticket(): RunningClockRow {
     return {
       id: "t-1",
+      priority: "HIGH",
       responseClockStartedAt: T0,
       resolutionClockStartedAt: T0,
       respondedAt: null,

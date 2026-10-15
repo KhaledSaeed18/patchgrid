@@ -12,6 +12,7 @@ import {
 
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { NotFoundProblem, PlanLimitProblem } from "../common/problems/problem.exception"
+import { recordQuotaRejection } from "../telemetry/metrics"
 import { UsageCounterRepository } from "./repositories/usage-counter.repository"
 
 /** A seat is an active human at AGENT or above (ADR-0033, TENANCY.md §8). */
@@ -41,6 +42,7 @@ export class QuotaService {
     const period = usagePeriod(metric, this.clock.now())
     await this.counters.ensure(orgId, period, metric)
     if (!(await this.counters.increment(orgId, period, metric, amount, limitFor(plan, metric)))) {
+      recordQuotaRejection(orgId, metric)
       throw new PlanLimitProblem(metric, limitMessage(metric, plan))
     }
   }

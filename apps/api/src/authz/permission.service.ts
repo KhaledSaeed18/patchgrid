@@ -17,6 +17,7 @@ import {
 } from "@patchgrid/contracts"
 
 import type { Actor, TenantActor } from "../auth/actor"
+import { recordAuthorization } from "../telemetry/metrics"
 import { NotFoundProblem, NotPermittedProblem } from "../common/problems/problem.exception"
 import type { ScopeBranch, ScopedResource, ScopeFilter } from "./scope-filter"
 import type { Subject } from "./subject"
@@ -74,12 +75,16 @@ export class PermissionService {
 
   /** For actions on something the actor can already see: `403`. */
   assert(actor: Actor | undefined, permission: Permission, subject?: Subject): void {
-    if (!this.can(actor, permission, subject)) throw new NotPermittedProblem()
+    const allowed = this.can(actor, permission, subject)
+    recordAuthorization(permission, allowed, actor?.kind)
+    if (!allowed) throw new NotPermittedProblem()
   }
 
   /** For reads: an invisible record is indistinguishable from an absent one — `404` (RBAC.md §11). */
   assertVisible(actor: Actor | undefined, permission: Permission, subject?: Subject): void {
-    if (!this.can(actor, permission, subject)) throw new NotFoundProblem()
+    const allowed = this.can(actor, permission, subject)
+    recordAuthorization(permission, allowed, actor?.kind)
+    if (!allowed) throw new NotFoundProblem()
   }
 
   /**

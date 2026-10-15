@@ -41,6 +41,16 @@ export class TenantContextService {
     return this.cls.get("organization")
   }
 
+  /** One more transaction opened in this context; `PrismaService` calls it, nothing else should. */
+  countTransaction(): void {
+    if (!this.cls.isActive()) return
+    this.cls.set("transactions", (this.cls.get("transactions") ?? 0) + 1)
+  }
+
+  transactionsThisRequest(): number {
+    return this.cls.isActive() ? (this.cls.get("transactions") ?? 0) : 0
+  }
+
   /** The request id the logger issued, when running inside a request. */
   requestId(): string | undefined {
     return this.cls.isActive() ? this.cls.getId() : undefined
