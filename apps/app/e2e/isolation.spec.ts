@@ -9,6 +9,7 @@ import {
   people,
   runId,
   SEED_PASSWORD,
+  escapeRegExp,
   workspaceOrigin,
 } from "./support/stack"
 
@@ -26,7 +27,7 @@ test("cross-tenant: a session for Acme reaches nothing of Globex, in the page or
 
   // The browser holds Alice's Acme pair and her pg_id. Globex has no cookie of its own and sends her away.
   await page.goto(`${workspaceOrigin(GLOBEX)}/tickets`)
-  await page.waitForURL(new RegExp(`^${appOrigin.replace(/[.]/g, "\\.")}/`))
+  await page.waitForURL(new RegExp(`^${escapeRegExp(appOrigin)}/`))
   expect(new URL(page.url()).host).toBe(new URL(appOrigin).host)
 
   // The same cookie jar, asked as Globex and as Acme: the per-tenant cookie is the whole difference.

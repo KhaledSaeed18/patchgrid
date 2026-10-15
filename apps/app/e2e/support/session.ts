@@ -1,6 +1,6 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test"
 
-import { apiUrl, appOrigin, workspaceOrigin } from "./stack"
+import { apiUrl, appOrigin, workspaceOrigin, escapeRegExp } from "./stack"
 
 /** The login form on `app.`; with `slug`, the login lands in that workspace. */
 export async function signIn(
@@ -20,7 +20,7 @@ export async function signIn(
   if (slug === undefined) await page.waitForURL(`${appOrigin}/workspaces`)
   else
     await page.waitForURL(
-      new RegExp(`^${workspaceOrigin(slug).replace(/[.]/g, "\\.")}/`)
+      new RegExp(`^${escapeRegExp(workspaceOrigin(slug))}/`)
     )
 }
 
@@ -32,9 +32,7 @@ export async function openFromPicker(
 ): Promise<void> {
   await page.goto(`${appOrigin}/workspaces`)
   await page.locator(`li:has-text("${name}") button:has-text("Open")`).click()
-  await page.waitForURL(
-    new RegExp(`^${workspaceOrigin(slug).replace(/[.]/g, "\\.")}/`)
-  )
+  await page.waitForURL(new RegExp(`^${escapeRegExp(workspaceOrigin(slug))}/`))
 }
 
 /**

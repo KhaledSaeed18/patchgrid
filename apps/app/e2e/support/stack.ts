@@ -30,3 +30,7 @@ export const GLOBEX = "globex"
 
 /** A unique suffix per run, so a re-run never trips over its own rows. */
 export const runId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+
+/** A literal origin inside a `RegExp`: every metacharacter escaped, not just the dots. */
+export const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
