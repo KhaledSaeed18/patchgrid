@@ -137,6 +137,8 @@ export const PERMISSION_MATRIX = {
   "org:export": owners,
   "org:change_slug": owners,
   "org:manage_plan": owners,
+  /** Requiring a second factor of everyone is the owner's policy, not an admin's setting (ADR-0029). */
+  "org:require_mfa": owners,
   "org:transfer_ownership": owners,
   "org:delete": owners,
   "org:cancel_deletion": owners,

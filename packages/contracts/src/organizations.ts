@@ -77,6 +77,8 @@ export const organizationSettingsSchema = z.object({
   domain: z.string().nullable(),
   agentVisibility: agentVisibilitySchema,
   emailNotificationsEnabled: z.boolean(),
+  /** Members without a confirmed second factor cannot open the workspace (ADR-0045). Owner-set. */
+  requireMfa: z.boolean(),
   /** Where mail becomes a ticket (ADR-0027): `<slug>@inbound.<root domain>`. */
   inboundAddress: z.string(),
   slugChangeAvailableAt: z.iso.datetime().nullable(),
@@ -89,6 +91,8 @@ export const updateOrganizationSettingsRequestSchema = z
     name: z.string().trim().min(1).max(100),
     agentVisibility: agentVisibilitySchema,
     emailNotificationsEnabled: z.boolean(),
+    /** Needs `org:require_mfa` — an owner's call, where the rest of the form is an admin's. */
+    requireMfa: z.boolean(),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, { error: "must change at least one field" })

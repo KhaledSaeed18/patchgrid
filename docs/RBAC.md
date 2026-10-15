@@ -213,6 +213,7 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `org:export` | — | — | — | ✅ |
 | `org:change_slug` | — | — | — | ✅ |
 | `org:manage_plan` | — | — | — | ✅ |
+| `org:require_mfa` | — | — | — | ✅ |
 | `org:transfer_ownership` | — | — | — | ✅ |
 | `org:delete` / `org:cancel_deletion` | — | — | — | ✅ |
 | `token:read` / `token:create` / `token:revoke` | — | — | ✅ | ✅ |
@@ -395,7 +396,8 @@ Beyond ticket mutations (`DOMAIN.md` §7), these are audited into the tenant's `
 `MEMBER_ENABLED`, `MEMBER_REMOVED`,
 `TEAM_CREATED/UPDATED/DELETED`, `TEAM_MEMBER_ADDED/REMOVED`, `TEAM_LEAD_CHANGED`,
 `ORG_SETTINGS_UPDATED`, `ORG_SLUG_CHANGED`, `ORG_PLAN_CHANGED`, `ORG_SUSPENDED/UNSUSPENDED`,
-`ORG_DELETION_REQUESTED/CANCELLED`, `ORG_EXPORTED`, `OWNERSHIP_TRANSFERRED`, `AGENT_VISIBILITY_CHANGED`,
+`ORG_DELETION_REQUESTED/CANCELLED`, `ORG_EXPORTED`, `ORG_MFA_REQUIREMENT_CHANGED`, `OWNERSHIP_TRANSFERRED`,
+`AGENT_VISIBILITY_CHANGED`,
 `TOKEN_CREATED/REVOKED`, `SUPPORT_ACCESS_REQUESTED/GRANTED/DECLINED/REVOKED/EXPIRED`, `SUPPORT_READ`,
 `WATCHER_ADDED/REMOVED`, `SLA_POLICY_CHANGED`, `AUTOMATION_RULE_CHANGED`,
 `COMMENT_EDITED`, `COMMENT_DELETED`, `CHANGE_SELF_APPROVED`.
