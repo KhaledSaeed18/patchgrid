@@ -392,7 +392,7 @@ browser, including the negative cases; observability answers "which tenant is sl
 _Exit: a stranger clones the repo, runs three commands, signs up, and uses a realistic system; the public
 demo is live; the README explains the decisions._
 
-- [ ] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, inbound mail; idempotent
+- [x] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, inbound mail; idempotent
       `db:reset` (M7 adds its rules and phishing tickets to it)
 - [ ] `apps/www` finished: docs, pricing, blog, `/problems/*`, OG images, sitemap, robots, Lighthouse pass
 - [ ] Dockerfiles (multi-stage `turbo prune`) for `www`, `app`, `api`; `docker-compose.prod.yml`
