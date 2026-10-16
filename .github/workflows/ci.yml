@@ -182,7 +182,13 @@ jobs:
       - run: pnpm --filter @patchgrid/app run build
       - run: pnpm --filter @patchgrid/app exec playwright install --with-deps chromium
 
+      # One runner, one address: the per-IP throttle would ration the whole
+      # suite — and the Next server's own fetches — to 300 requests a minute.
+      # Off here as it is for the integration specs; the throttles have their
+      # own tests.
       - name: Boot the API and the app
+        env:
+          THROTTLE_ENABLED: "false"
         run: |
           node apps/api/dist/main.js > /tmp/api.log 2>&1 &
           (cd apps/app && pnpm start > /tmp/app.log 2>&1 &)
