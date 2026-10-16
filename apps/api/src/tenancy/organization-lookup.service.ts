@@ -76,7 +76,15 @@ export class OrganizationLookupService implements OrganizationLookup {
   async invalidate(org: { id: string; slug: string; previousSlug?: string }): Promise<void> {
     const slugKeys = [keys.slug(org.slug)]
     if (org.previousSlug !== undefined) slugKeys.push(keys.slug(org.previousSlug))
-    await this.redisOrNothing(() => this.redis.client.del(keys.org(org.id), ...slugKeys))
+    const all = [keys.org(org.id), ...slugKeys]
+    // A read that began before the change and stores after this delete would
+    // re-cache the old answer for a full TTL (M9 review). The marker outlives
+    // any such read: while it stands, the keys are read through, never stored.
+    await this.redisOrNothing(async () => {
+      const multi = this.redis.client.multi().del(...all)
+      for (const key of all) multi.set(keys.stale(key), "1", "EX", OrganizationLookupService.TTL_SECONDS)
+      await multi.exec()
+    })
   }
 
   /** Call when a token is revoked, so the prefix stops resolving at once. */
@@ -115,7 +123,12 @@ export class OrganizationLookupService implements OrganizationLookup {
   }
 
   private store(key: string, value: unknown, ttl: number): Promise<unknown> {
-    return this.redisOrNothing(() => this.redis.client.set(key, JSON.stringify(value), "EX", ttl))
+    // Lua-free compare: the marker is checked and the value written in one round trip,
+    // and a marker set between the two only costs one more read-through.
+    return this.redisOrNothing(async () => {
+      if ((await this.redis.client.exists(keys.stale(key))) > 0) return null
+      return this.redis.client.set(key, JSON.stringify(value), "EX", ttl)
+    })
   }
 
   private async redisOrNothing<T>(operation: () => Promise<T>): Promise<T | undefined> {
@@ -131,6 +144,8 @@ export class OrganizationLookupService implements OrganizationLookup {
 }
 
 const keys = {
+  /** Set by `invalidate` for one TTL: the key named must not be stored meanwhile. */
+  stale: (key: string) => `${key}:stale`,
   org: (id: string) => `tenant:org:${id}`,
   slug: (slug: string) => `tenant:slug:${slug}`,
   token: (prefix: string) => `tenant:token:${prefix}`,

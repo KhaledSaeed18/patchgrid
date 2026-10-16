@@ -37,6 +37,19 @@ function fakeRedis() {
       for (const key of keys) store.delete(key)
       return Promise.resolve(keys.length)
     }),
+    exists: vi.fn((key: string) => (down ? fail() : Promise.resolve(store.has(key) ? 1 : 0))),
+    /** `invalidate` deletes and marks in one round trip; the fake runs the queued commands in order. */
+    multi: vi.fn(() => {
+      const queued: (() => Promise<unknown>)[] = []
+      const chain = {
+        del: (...keys: string[]) => (queued.push(() => client.del(...keys)), chain),
+        set: (key: string, value: string, ex: string, ttl: number) => (queued.push(() => client.set(key, value, ex, ttl)), chain),
+        exec: async () => {
+          for (const run of queued) await run()
+        },
+      }
+      return chain
+    }),
   }
   return {
     service: { client } as unknown as RedisService,
@@ -148,6 +161,19 @@ describe("OrganizationLookupService", () => {
       "tenant:slug:acme-corp",
       "tenant:slug:acme",
     )
-    expect(redis.store.size).toBe(0)
+    expect([...redis.store.keys()].filter((k) => !k.endsWith(":stale"))).toEqual([])
+  })
+
+  it("reads through, without storing, while an invalidation is fresh — a read that began before the change cannot re-cache the old answer (M9 review)", async () => {
+    await lookup.invalidate({ id: acme.id, slug: "acme" })
+    expect(await lookup.byId(acme.id)).toEqual(acme)
+    expect(await lookup.byId(acme.id)).toEqual(acme)
+    expect(repos.calls.organizations.findSummaryById).toHaveBeenCalledTimes(2)
+    expect(redis.store.has(`tenant:org:${acme.id}`)).toBe(false)
+    expect(redis.ttls.get(`tenant:org:${acme.id}:stale`)).toBe(60)
+    // Once the marker lapses, the cache fills again.
+    redis.store.delete(`tenant:org:${acme.id}:stale`)
+    await lookup.byId(acme.id)
+    expect(redis.store.has(`tenant:org:${acme.id}`)).toBe(true)
   })
 })

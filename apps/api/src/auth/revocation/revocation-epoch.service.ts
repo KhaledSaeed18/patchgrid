@@ -48,6 +48,11 @@ export class RevocationEpochService {
     }
   }
 
+  /** Lifts a bump that was a state, not an event — a workspace restored before its purge (ADR-0043). */
+  async clear(key: string): Promise<void> {
+    await this.redis.client.del(keyOf(key))
+  }
+
   /**
    * `true` revoked, `false` fine, `null` unknown because Redis is unreachable.
    * `iat` has second precision, so a token minted in the same second as the
@@ -70,3 +75,11 @@ export class RevocationEpochService {
 }
 
 const key = (membershipId: string) => `rev:${membershipId}`
+const keyOf = key
+
+/**
+ * The epoch every API token of a workspace shares (M9 review): bumped when
+ * deletion is requested, cleared when it is cancelled or restored. A token has
+ * no `iat`, so the guard asks with 0 — "is there a bump at all?".
+ */
+export const orgEpochKey = (orgId: string): string => `org:${orgId}`

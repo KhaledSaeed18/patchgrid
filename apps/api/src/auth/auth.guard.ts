@@ -27,7 +27,7 @@ import { readCookie } from "./cookies"
 import { platformEpochKey } from "./platform/platform-auth.service"
 import { PlatformTokenService } from "./platform/platform-token.service"
 import { fromAdminSurface, PLATFORM_SESSION_COOKIE } from "./platform/surface"
-import { RevocationEpochService } from "./revocation/revocation-epoch.service"
+import { orgEpochKey, RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SupportReadLog } from "./support/support-read-log"
 import { supportEpochKey, SupportTokenService } from "./support/support-token.service"
 import { SessionService } from "./sessions/session.service"
@@ -151,6 +151,12 @@ export class AuthGuard implements CanActivate {
     if (match?.[1] === undefined || match[2] === undefined) throw new NotAuthenticatedProblem("The bearer token is not a Patchgrid API token")
     const actor = await this.apiTokens.verify(orgId, match[1], match[2])
     if (actor === null) throw new NotAuthenticatedProblem("The API token is not valid")
+    // Deletion requested: every token is out at once, whatever the cached summary still says (THREAT-MODEL §7).
+    const suspended = await this.epochs.isRevoked(orgEpochKey(orgId), 0)
+    if (suspended === true) throw new NotAuthenticatedProblem("The workspace is pending deletion")
+    if (suspended === null && !SAFE_METHODS.has(request.method)) {
+      throw new ServiceUnavailableProblem("The token could not be confirmed; retry shortly")
+    }
     this.setActor(actor)
     return true
   }

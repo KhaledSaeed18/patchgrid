@@ -3,7 +3,7 @@ import { purgeDateFor } from "@patchgrid/contracts"
 
 import { ActorService } from "../../auth/actor"
 import { StepUpService } from "../../auth/mfa/step-up.service"
-import { RevocationEpochService } from "../../auth/revocation/revocation-epoch.service"
+import { orgEpochKey, RevocationEpochService } from "../../auth/revocation/revocation-epoch.service"
 import { AuditService } from "../../audit/audit.service"
 import { PermissionService } from "../../authz/permission.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
@@ -66,6 +66,8 @@ export class OrgDeletionService {
     await this.lookup.invalidate({ id: orgId, slug: org.slug })
     // Every member's sessions end now, the requester's included (TENANCY.md §6).
     for (const membershipId of await this.prisma.transaction(() => this.lifecycle.membershipIds(orgId))) await this.epochs.bump(membershipId)
+    // And every API token, which has no membership epoch to bump.
+    await this.epochs.bump(orgEpochKey(orgId))
     const name = (await this.memberships.findById(orgId, actor.membershipId))?.displayName ?? "An owner"
     await this.tell(orgId, org.name, "requested", name, now)
   }
@@ -95,6 +97,7 @@ export class OrgDeletionService {
         return membership
       })
       await this.lookup.invalidate({ id: orgId, slug: org.slug })
+      await this.epochs.clear(orgEpochKey(orgId))
       await this.tell(orgId, org.name, "cancelled", owner.displayName, requestedAt)
     })
   }
