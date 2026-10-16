@@ -26,7 +26,7 @@ function harness(actor: PlatformActor | undefined, row: OrgRow | null = org, mov
     countsIn: vi.fn(async () => ({ seats: 2, requesters: 1, tickets: 0, openTickets: 0, assets: 0, articles: 0, storageBytes: 0 })),
     membershipIdsIn: vi.fn(async () => ["m-1", "m-2"]),
   }
-  const epochs = { bump: vi.fn(async () => undefined) }
+  const epochs = { bump: vi.fn(async () => undefined), clear: vi.fn(async () => undefined) }
   const audit = { record: vi.fn(async () => undefined) }
   const platformAudit = { record: vi.fn(async () => undefined) }
   const service = new BackofficeService(

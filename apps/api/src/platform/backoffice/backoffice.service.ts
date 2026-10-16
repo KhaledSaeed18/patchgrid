@@ -12,7 +12,7 @@ import {
 
 import { ActorService, type PlatformActor } from "../../auth/actor"
 import { type Clock, InjectClock } from "../../common/clock/clock"
-import { RevocationEpochService } from "../../auth/revocation/revocation-epoch.service"
+import { orgEpochKey, RevocationEpochService } from "../../auth/revocation/revocation-epoch.service"
 import { AuditService } from "../../audit/audit.service"
 import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../../common/problems/problem.exception"
 import { PrismaService } from "../../prisma/prisma.service"
@@ -123,6 +123,7 @@ export class BackofficeService {
     if (!owned) throw new ConflictProblem("The workspace has no owner left to run it")
     if (!(await this.orgs.restoreDeletion(id))) throw new ConflictProblem("The workspace is not pending deletion")
     await this.lookup.invalidate({ id: row.id, slug: row.slug })
+    await this.epochs.clear(orgEpochKey(row.id))
     await runAsTenant(row.id, crossing(actor, "restore"), () =>
       this.prisma.transaction(() => this.audit.record(row.id, [{ action: "ORG_DELETION_CANCELLED", entityType: "Organization", entityId: row.id }])),
     )
