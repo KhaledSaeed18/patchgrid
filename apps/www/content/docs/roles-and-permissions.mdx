@@ -1,0 +1,116 @@
+What you can do in a workspace depends on your role in that workspace, and sometimes on how you relate to a particular ticket. Your role belongs to your membership, so the same person can be an Admin in one workspace and a Requester in another.
+
+## The four roles
+
+Roles are cumulative: each one can do everything the role before it can.
+
+| Role | In one line |
+| --- | --- |
+| Requester | Raises and follows their own tickets |
+| Agent | IT staff who work the queues |
+| Admin | Configures the workspace: members, teams, categories, SLA policies |
+| Owner | An Admin who is also responsible for the workspace itself |
+
+### Requesters
+
+- Raise Incidents and Service Requests, and choose impact, urgency and category when they do.
+- Read and publicly comment on their own tickets, and on tickets they watch.
+- Edit their own ticket's title and description while it is still `NEW`.
+- Cancel their own ticket while it is `NEW`, close it once it is resolved, and reopen it.
+- Attach files to their own tickets.
+- Read published knowledge-base articles, and see assets registered to them.
+
+### Agents
+
+Everything a requester can do, plus:
+
+- Raise Problems and Changes, and raise tickets on someone else's behalf.
+- Work tickets they can see: assign, transition, link, add watchers, write internal notes and read a ticket's audit trail.
+- Read and edit assets, and read internal knowledge-base articles.
+- Write and publish articles. Agents can delete their own articles.
+- See teams, SLA policies and workspace settings, and members' contact details.
+
+### Admins
+
+Everything an agent can do, on every ticket, plus:
+
+- Invite people, and change roles below Admin. An admin can never change their own role.
+- Disable or remove members, except owners and themselves.
+- Manage teams and their leads, categories and SLA policies.
+- Read the workspace audit log and the inbound email log, and manage API tokens.
+- Remove comments and delete assets.
+- See support access requests and sessions.
+
+### Owners
+
+Everything an admin can do, plus:
+
+- Promote members to Admin or Owner.
+- Change the workspace's address, at most once every 30 days.
+- Require two-factor authentication for every member.
+- Grant, decline and revoke support access.
+- Export the workspace's data, and delete the workspace.
+
+Every workspace always has at least one owner. The last owner cannot be demoted, disabled or removed. To hand a workspace over, promote the new owner, then step down.
+
+## Team leads
+
+Leading a team is not a role. It is something a member has in one team, and a member can be in several teams and lead some of them. A team lead:
+
+- can approve or reject Changes for that team, provided they neither raised the change nor are assigned to it;
+- receives that team's SLA warnings and breaches;
+- can add and remove existing members of the workspace in that team.
+
+A lead who is an Agent gains nothing beyond this. They cannot invite people or change roles.
+
+## What agents can see
+
+Admins choose how much of the workspace agents can see, under **Settings**.
+
+| Setting | An agent can see |
+| --- | --- |
+| All tickets (default) | Every ticket in the workspace |
+| Own teams only | Tickets in any of their teams, tickets with no team, tickets assigned to them, tickets they watch, and tickets they raised |
+
+Admins and owners always see everything. The setting applies everywhere: queues, search, notifications and live updates. An agent always keeps the right to read and reply to a ticket they raised. Working it is for the team it was routed to.
+
+## Not found and not permitted
+
+Patchgrid follows one rule for refusals:
+
+- **If you cannot see something, it does not exist for you.** Opening a ticket, article or asset outside your access gives "not found", exactly as if it had never existed.
+- **If you can see something but cannot do an action to it, you are told so.** Trying to approve your own change, for example, is "not permitted".
+
+Buttons are drawn from the server's answer for each ticket, so the buttons you see are the ones that will work. In the [API](/docs/api) these are `404` and `403`.
+
+## Two-factor authentication
+
+You can protect your account with an authenticator app (TOTP) under **Account → Security** in the workspace picker.
+
+- **Turning it on** asks for your password, then a code from the app. You get ten recovery codes, shown once. Keep them somewhere safe.
+- **Signing in** then takes your password and a code. A recovery code works in place of a code, once each. Using one signs you out everywhere else, because it means your authenticator may be lost.
+- **Turning it off** or replacing your recovery codes takes a current code, never just the password.
+
+Every change to your second factor is confirmed by email.
+
+### Owners can require it
+
+An owner can require two-factor authentication for everyone in the workspace. The rule applies the next time each member signs in, opens the workspace or has their session renewed, which happens every fifteen minutes. Sessions already open are not ended, but they cannot be renewed without a second factor. A member without a second factor is sent to set one up before they can enter.
+
+### Confirming irreversible actions
+
+Four actions cannot be undone, so Patchgrid asks you to prove it is you again just before them:
+
+- deleting the workspace;
+- making someone an Owner, by promotion or by invitation;
+- granting support access;
+- creating an API token.
+
+You confirm with a code from your authenticator, or with your password if you have no second factor. The confirmation lasts five minutes. API tokens and support sessions can never perform these actions.
+
+## Other actors
+
+- **API tokens** act as their own service account with the Agent or Requester role, further narrowed by their scopes. See the [API reference](/docs/api).
+- **Patchgrid support** can read your workspace only during a session an owner has granted. See [security and data](/docs/security-and-data).
+
+Every change to roles, teams, settings, tokens and support access is written to the workspace audit log.

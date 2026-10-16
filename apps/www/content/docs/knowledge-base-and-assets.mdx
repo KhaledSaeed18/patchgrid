@@ -1,0 +1,85 @@
+The knowledge base holds the answers your desk gives again and again, and the runbooks it works from. The asset register records the equipment and software your tickets are about. Both live inside your workspace and are never visible outside it.
+
+## Knowledge base
+
+### Visibility
+
+Every article is in one of three tiers:
+
+| Tier | Who can read it |
+| --- | --- |
+| Draft | Its author, plus admins and owners |
+| Internal | Agents, admins and owners: runbooks and internal procedures |
+| Published | Everyone in the workspace, requesters included |
+
+"Published" means published to your workspace. No article is ever readable by anyone outside it, and there is no public, anonymous knowledge base.
+
+### Writing and publishing
+
+- **Agents and above write articles.** An agent can edit any internal or published article and their own drafts. Admins can edit any article.
+- **Moving an article between tiers** is open to agents and above, including creating an article directly as internal or published.
+- **Returning an article to draft** is for its author or an admin. A draft belongs to its author, and anyone else would lose sight of the article by doing it. To hide an article from requesters, make it internal instead.
+- **Deleting** is for the article's author if they are an agent, and for any admin.
+
+Articles are written in Markdown. They are rendered without raw HTML, so an article can format text but can never run a script.
+
+### Addresses, dates and views
+
+- An article's address is made from its title when it is created and never changes afterwards. Retitling an article does not break links to it. If two articles have the same title, the second gets `-2`, the third `-3`, and so on.
+- The published date shows when the article last became published. It is cleared if the article is taken out of the published tier.
+- The view count counts reads of the article's page, not visits to the editor or appearances in lists.
+
+### Editing at the same time
+
+Each article carries a version number. If two people edit the same article and the second saves after the first, the second save is refused, so nobody silently overwrites a colleague's work. Reload, reapply your edit and save again. Patchgrid does not keep a revision history of article bodies; the audit log records which fields changed, and who changed them.
+
+### Search and suggestions
+
+Articles are searched by title and body, with English word-stemming, so "printing" finds "printed". Each person sees only the articles they may read.
+
+When a requester types a new ticket's title in the portal, matching published articles are suggested beneath it. Often the answer is already written.
+
+The Free plan holds up to 25 articles; Pro has no limit. See [pricing](/pricing).
+
+## Assets
+
+### What an asset records
+
+| Field | Notes |
+| --- | --- |
+| Name | Required |
+| Type | Laptop, Desktop, Monitor, Phone, Tablet, Printer, Network, Server, Software or Other |
+| Status | In stock, In use, In repair or Retired |
+| Owner | Optional: the member it is registered to |
+| Serial number | Optional; unique within the workspace when set |
+| Purchase date, warranty expiry | Calendar dates. The warranty cannot end before the purchase |
+| Notes | Free text |
+
+The types and statuses are fixed lists, so queues can filter on them. Anything more specific belongs in the name.
+
+### Who sees what
+
+| Role | Assets |
+| --- | --- |
+| Requester | Only assets registered to them |
+| Agent | Reads, creates and edits every asset |
+| Admin, Owner | As an agent, and can delete assets |
+
+### Linking assets to tickets
+
+A ticket can be about several assets, and an asset can appear on many tickets.
+
+- **When raising a ticket**, a requester can choose up to 10 of their own assets.
+- **After that**, agents link and unlink assets. They can link any asset they can see to any ticket they can work on.
+- **A ticket shows its linked assets** (name, type and status) to everyone who can read the ticket, even when the reader could not open the asset itself.
+- **An asset's page lists its tickets**. It shows only the tickets you could open anyway.
+
+Linking and unlinking are recorded in the ticket's audit trail.
+
+### Retiring rather than deleting
+
+An asset that is linked to any ticket cannot be deleted. Set its status to Retired instead, which keeps its history intact. Deleting is for an asset entered by mistake.
+
+## Through the API
+
+API tokens can use both. The `kb:read` scope reads published articles, and internal ones too when the token has the Agent role. The `assets:read` and `assets:write` scopes read and edit the register. See the [API reference](/docs/api).
