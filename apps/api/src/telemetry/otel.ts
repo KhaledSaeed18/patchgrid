@@ -42,6 +42,9 @@ export function startTelemetry(env: NodeJS.ProcessEnv = process.env): NodeSDK | 
       new HttpInstrumentation({
         // Probes every few seconds would be most of the traces and none of the signal.
         ignoreIncomingRequestHook: (request) => request.url?.startsWith("/health") === true,
+        // A query string is where bearer capabilities (an invitation's token) and
+        // tenant text (a search) travel; neither belongs in a span (M9 review).
+        redactedQueryParams: ["token", "q", "cursor"],
       }),
       // Not the Express or Nest instrumentations: they re-wrap every middleware
       // and guard in their own async context, which loses the request store
@@ -50,7 +53,8 @@ export function startTelemetry(env: NodeJS.ProcessEnv = process.env): NodeSDK | 
       // middleware, and the domain spans come from the `Tracer` seam.
       // Log lines get `trace_id` and `span_id`, so a line opens its trace and a trace lists its lines.
       new PinoInstrumentation(),
-      new IORedisInstrumentation(),
+      // The command only: keys carry addresses (throttles) and ids, values carry payloads.
+      new IORedisInstrumentation({ dbStatementSerializer: (command) => command }),
       new PgInstrumentation({ requireParentSpan: true }),
     ],
   })
