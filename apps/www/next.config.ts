@@ -2,6 +2,10 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@patchgrid/ui", "@patchgrid/contracts"],
+  // Every page is a prerendered shell; only the header's account links read the
+  // request, and they stream in behind it.
+  cacheComponents: true,
+  partialPrefetching: true,
   // The repository's CLAUDE.md already says to read node_modules/next/dist/docs;
   // a generated copy per app would only drift from it.
   agentRules: false,
