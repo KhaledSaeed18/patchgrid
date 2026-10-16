@@ -91,3 +91,9 @@ updates:
     groups:
       compose-images:
         patterns: ["*"]
+    ignore:
+      # A major here is a migration, not a bump: Tempo 3 and Grafana 13 change
+      # the configuration and provisioning docker/observability carries, and
+      # nothing in CI starts that profile to notice. Majors move by hand.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
