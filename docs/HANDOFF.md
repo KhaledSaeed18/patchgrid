@@ -200,7 +200,10 @@ Then M7, last, on the running system.
 | **External requesters** (`allowExternalRequesters`) | when asked for | Deferred by ADR-0039 |
 | **A production inbound adapter** | deploy | Verify the provider's signature, re-sign in ADR-0039's shape |
 | `MFA_ENCRYPTION_KEY` kept apart from the database | deploy | A dump without it yields no second factors (ADR-0040) |
-| `trust proxy` must match the deployment's hop count | deploy | With two hops every per-IP limit is attacker-chosen (THREAT-MODEL §7) |
+| Set `TRUST_PROXY_HOPS` to the deployment's real hop count | deploy | Default 1; with a CDN in front it is 2, and a wrong value makes every per-IP limit attacker-chosen (THREAT-MODEL §7) |
+| SMTP has no credentials or TLS setting | deploy | `SMTP_HOST`/`SMTP_PORT` only; every real provider needs both |
+| The API image is ~525 MB of `node_modules` | any time | The Prisma CLI, Studio and TypeScript ride in as resolved peers of `@prisma/client` |
+| `@nestjs/swagger` warns of duplicate `CreateDto`/`UpdateDto` names | any time | "Will throw in a future version"; name the DTO classes per module |
 | `org:manage_plan` has no tenant route yet; it gets the step-up when it gets the route | spec decision | ADR-0045 |
 | Tokens are unlimited per plan; service accounts hold no seat | spec decision | A plan-limit question, not isolation |
 | A `complete` racing the attachment sweep can orphan a final object | any time | Suspected in the review; a leak, not a bypass |

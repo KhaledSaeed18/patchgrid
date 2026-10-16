@@ -431,7 +431,34 @@ gets `permission denied for table …` the first time a migration adds a table �
 
 The three apps run on the host via `pnpm dev` for fast HMR, reachable at `lvh.me:3000` (www),
 `<slug>.lvh.me:3001` (app) and `api.lvh.me:4000` — wildcard subdomains work locally with no `/etc/hosts`
-edits (ADR-0014). Production-style Dockerfiles are a final-milestone task.
+edits (ADR-0014).
+
+## Production images and the deployment shape
+
+Three images, built from the repository root and pruned with `turbo prune --docker`, so the dependency
+layer is cached on the lockfile alone:
+
+| Image | Dockerfile | Runs |
+| --- | --- | --- |
+| `patchgrid/api` | `apps/api/Dockerfile` (`runtime`) | `node dist/main.js`; `WORKER_MODE=api` serves HTTP, `worker` runs the queues |
+| `patchgrid/tools` | `apps/api/Dockerfile` (`tools`) | `prisma migrate deploy`, the seed, operator grants — the build stage, CLI included |
+| `patchgrid/app`, `patchgrid/www` | `docker/next.Dockerfile` (`APP=app`/`www`) | Next's traced `standalone` server, and nothing else |
+
+- **The API keeps the workspace's shape.** The packages are consumed as TypeScript source and Node 24
+  strips their types at load — but not under `node_modules`. So the runtime is the pruned workspace with
+  a production install, `packages/*` as real directories linked in; `pnpm deploy`, which copies them
+  into `node_modules`, fails at the first import. `main.js` is the entry point, because it starts
+  telemetry before it requires the application (ADR-0046).
+- **The frontends are built per environment.** They read only `NEXT_PUBLIC_*`, which Next inlines at
+  build time; the Dockerfile's defaults are production's.
+- **`docker-compose.prod.yml`** is the single-host topology: `migrate` runs to completion, then `api`,
+  `worker`, `app` and `www`. Postgres, Redis and object storage are managed services named by variables,
+  each required (`${VAR:?}`); the platform's proxy terminates TLS and routes by host. Its project name is
+  `patchgrid-prod`, apart from the development stack's.
+- **`TRUST_PROXY_HOPS`** is the number of proxies in front of the API — one for the platform's ingress,
+  one more per CDN or balancer. Too low and every client shares an address; too high and each chooses
+  its own (THREAT-MODEL.md §7).
+- CI builds all three images on every change and boots the API image as far as its configuration check.
 
 ## Security posture
 
