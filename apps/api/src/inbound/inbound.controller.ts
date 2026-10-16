@@ -1,3 +1,4 @@
+import { Throttle } from "@nestjs/throttler"
 import { Controller, HttpCode, Post, Req } from "@nestjs/common"
 import type { Request } from "express"
 import express from "express"
@@ -25,6 +26,8 @@ export function inboundBodyParser() {
  * `202` whatever became of the recipients, so the answer says nothing about
  * which workspaces exist.
  */
+// Unauthenticated POSTs of up to 40 MB each cost an HMAC before refusal: fewer of them per address.
+@Throttle({ ip: { limit: 60, ttl: 60_000 } })
 @Controller("inbound")
 export class InboundController {
   constructor(private readonly receiver: InboundReceiver) {}

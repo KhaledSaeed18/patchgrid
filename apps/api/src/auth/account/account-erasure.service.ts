@@ -125,6 +125,7 @@ export class AccountErasureService {
         await this.erasure.anonymiseMembership(orgId, membership.id, now)
         await this.erasure.forgetPresence(orgId, membership.id, userId)
         await this.erasure.forgetInvitations(orgId, email, tombstone)
+        await this.erasure.forgetInboundSenders(orgId, email, tombstone)
         // Off the picker now, not only when the account is tombstoned at the end.
         await this.workspaces.markRemoved(userId, orgId)
         await this.audit.record(

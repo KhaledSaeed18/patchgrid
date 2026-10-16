@@ -35,6 +35,11 @@ export class AccountErasureRepository {
   }
 
   /** Inside the tenant: nobody is watching for them, and nothing waits to be delivered to them. */
+  /** Mail the person sent in keeps its ticket; the address on the row goes (M9 review). */
+  async forgetInboundSenders(orgId: string, email: string, tombstone: string): Promise<void> {
+    await this.prisma.db.inboundEmail.updateMany({ where: { orgId, fromAddress: email }, data: { fromAddress: tombstone } })
+  }
+
   async forgetPresence(orgId: string, membershipId: string, userId: string): Promise<void> {
     await this.prisma.db.ticketWatcher.deleteMany({ where: { orgId, membershipId } })
     await this.prisma.db.notification.deleteMany({ where: { orgId, userId } })
