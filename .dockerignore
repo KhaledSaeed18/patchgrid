@@ -1,0 +1,19 @@
+# Every image is built from the repository root and pruned with turbo, so the
+# context is the repo. Keep it to what a build reads: no installs, no build
+# output, no secrets, no history.
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/test-results
+**/playwright-report
+packages/database/generated
+.git
+.github
+.env
+.env.*
+!.env.example
+docs
+*.md
+!apps/www/assets/**/*.md
