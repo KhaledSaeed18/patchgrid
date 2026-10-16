@@ -67,6 +67,10 @@ members who could open that ticket — a CI test holds that decision equal to th
 - **SLA clocks** — response and resolution targets with pause on pending. A
   per-tenant scan flags warnings and breaches once each and audits them. Resolved
   tickets auto-close after seven days.
+- **Hardening** — a second factor for members, required per workspace if an owner says so,
+  with a fresh proof before deleting the workspace, making an owner, granting support access
+  or minting a token; traces and metrics that say which tenant is slow; a browser suite that
+  proves one workspace's session reaches nothing of another's.
 - **Notifications** —
   - a bell and inbox, with a burst on one ticket folded into one row;
   - live updates over Server-Sent Events, including an "assigned to you" toast and
@@ -146,21 +150,25 @@ The docs are the specification, not a description written afterwards.
 | [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
 | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
 | [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
-| [`docs/decisions/`](docs/decisions/)                                                | 44 ADRs — _why_ any of it is this way                         |
+| [`docs/decisions/`](docs/decisions/)                                                | 46 ADRs — _why_ any of it is this way                         |
 
 ## Status
 
-**M0 (foundation) through M6, and M8, are complete:**
+**M0 (foundation) through M6, M8 and M9 are complete:**
 - tenancy and identity;
 - the incident lifecycle;
 - SLA sweeps and notifications;
 - service requests, problems and changes;
 - attachments, assets and the knowledge base;
 - tickets raised and answered by email;
-- the platform layer: back-office, support access, API tokens, deletion and data protection.
+- the platform layer: back-office, support access, API tokens, deletion and data protection;
+- hardening: a second factor for members with step-up before irreversible actions, a browser
+  suite across two tenants with the negative cases, OpenTelemetry with per-tenant metrics and a
+  Grafana dashboard, a security review of every trust boundary (`docs/THREAT-MODEL.md` §7), OpenAPI
+  at `/api/docs`, and a load check at a hundred thousand tickets.
 
-Next is M9, hardening: MFA for members, end-to-end tests across two tenants, observability
-and a security review. M10 (ship) follows. M7 comes last because it needs local models: LLM triage, phishing scoring, duplicate
+Next is M10, ship: the demo seed, the marketing site, Dockerfiles, DNS and TLS, and the public
+deployment. M7 comes last because it needs local models: LLM triage, phishing scoring, duplicate
 detection and automation rules.
 `docs/HANDOFF.md` has the detail. Screenshots, an architecture
 diagram and a public demo arrive with the final milestone.
