@@ -407,8 +407,10 @@ demo is live; the README explains the decisions._
       `_acme-challenge`, CAA records, SPF/DKIM/DMARC progression, MX for `inbound.`
 - [ ] Deploy: Coolify on Hetzner, managed Postgres/Redis/MinIO, migrations in a post-deploy hook, nightly
       demo reset — without models: nothing before M7 calls one
-- [ ] README: architecture diagram, screenshots/GIF, "why these decisions" linking to ADRs, run
-      instructions
+- [x] README: architecture diagram, screenshots/GIF, "why these decisions" linking to ADRs, run
+      instructions. Three commands from a clone — `pnpm install && pnpm local:up && pnpm dev` — walked
+      on a fresh clone in its own compose project: 6/6 invariants, the seed, a signup whose verification
+      mail arrives
 
 ## M7 — Differentiators (built last)
 
