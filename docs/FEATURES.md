@@ -376,7 +376,8 @@ browser, including the negative cases; observability answers "which tenant is sl
       their duration, pool saturation, job duration by queue and tenant, SLA breaches, quota rejections,
       RLS refusals and authorization denials, `org` bounded to the top-25 tenants; collector, Tempo,
       Prometheus and a provisioned Grafana dashboard behind `--profile observability`. Done 2026-10-16
-- [ ] Security review against the M1 threat model: headers, rate limits, dependency audit, attachment
+- [x] Security review against the M1 threat model (`THREAT-MODEL.md` §7, 2026-10-16): sixteen confirmed
+      findings fixed with tests, the rest recorded with reasons. Covered: headers, rate limits, dependency audit, attachment
       handling, inbound mail, cookie tossing, token leakage (prompt injection is reviewed with M7, which
       brings the models)
 - [ ] OpenAPI polished (tags, examples) at `/api/docs`
