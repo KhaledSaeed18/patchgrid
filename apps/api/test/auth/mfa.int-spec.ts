@@ -92,7 +92,10 @@ describe("enrolling", () => {
     const owner = picker("owner")
     expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, recoveryCodesRemaining: 0 })
     expect((await owner.get("/auth/identity")).body.mfa).toEqual({ enrolled: false })
-    const enrol = await owner.post("/auth/mfa/enrol")
+    // The password, not the cookie alone, sets the factor (M9 review).
+    expect((await owner.post("/auth/mfa/enrol", { password: "nope-nope-nope" })).status).toBe(400)
+    expect((await owner.post("/auth/mfa/enrol")).status).toBe(400)
+    const enrol = await owner.post("/auth/mfa/enrol", { password: PASSWORD })
     expect(enrol.status).toBe(200)
     expect(enrol.body.otpauthUri).toMatch(/^otpauth:\/\/totp\/Patchgrid:/)
     secret = enrol.body.secret as string
@@ -103,7 +106,7 @@ describe("enrolling", () => {
     expect(recovery).toHaveLength(10)
     expect((await owner.get("/auth/mfa")).body).toMatchObject({ enrolled: true, recoveryCodesRemaining: 10 })
     expect((await owner.get("/auth/identity")).body.mfa).toEqual({ enrolled: true })
-    expect((await owner.post("/auth/mfa/enrol")).status).toBe(409)
+    expect((await owner.post("/auth/mfa/enrol", { password: PASSWORD })).status).toBe(409)
     const stored = await db.userMfaFactor.findFirstOrThrow({ where: { userId: ws.people.owner.userId } })
     expect(stored.secretEncrypted).not.toContain(secret)
     expect(await mailTo("owner")).toEqual([expect.stringMatching(/Two-factor authentication is on/)])
@@ -236,7 +239,7 @@ describe("a workspace that requires a factor", () => {
 
   it("lets the agent in once they enrol, and back out once they turn it off — never by the password alone", async () => {
     const agent = picker("agent")
-    const enrol = await agent.post("/auth/mfa/enrol")
+    const enrol = await agent.post("/auth/mfa/enrol", { password: PASSWORD })
     const agentSecret = enrol.body.secret as string
     const confirm = await agent.post("/auth/mfa/confirm", { code: codeAt(agentSecret, new Date()) })
     expect(confirm.status).toBe(200)

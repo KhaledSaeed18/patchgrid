@@ -225,8 +225,10 @@ describe("replies", () => {
     expect(await db.comment.count({ where: { orgId: ws.orgId, ticketId: ritasTicket } })).toBe(commentsBefore)
     // Rosa cannot see Rita's ticket; the agent sees the two related.
     expect((await as("rosa").get(`/tickets/${ritasTicket}`)).status).toBe(404)
+    // Nothing is attached to Rita's ticket on the sender's behalf: a requester who cannot see it
+    // could not link it through the API either, and mail buys no more (M9 review).
     const links = await as("agent").get(`/tickets/${row.ticketId ?? ""}/links`)
-    expect(links.body).toEqual([expect.objectContaining({ kind: "RELATES_TO", ticket: expect.objectContaining({ id: ritasTicket }) })])
+    expect(links.body).toEqual([])
   })
 })
 
