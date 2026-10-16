@@ -45,6 +45,9 @@ import { activeTraceId } from "./telemetry/metrics"
 import { TenancyModule } from "./tenancy/tenancy.module"
 import { ThrottlingModule } from "./throttling/throttling.module"
 
+/** What a proxy's request id looks like; anything else is replaced, never echoed. */
+const REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/
+
 @Module({
   imports: [
     ConfigModule,
@@ -70,7 +73,8 @@ import { ThrottlingModule } from "./throttling/throttling.module"
           genReqId: (req: IncomingMessage, res: ServerResponse): string => {
             // The trace id, when a trace is running (ADR-0030): the correlation id on a 5xx opens the waterfall.
             const forwarded = req.headers["x-request-id"]
-            const id = typeof forwarded === "string" && forwarded !== "" ? forwarded : (activeTraceId() ?? randomUUID())
+            // Honoured only in a shape a proxy would send: a 5xx echoes it, and the logs key on it.
+            const id = typeof forwarded === "string" && REQUEST_ID.test(forwarded) ? forwarded : (activeTraceId() ?? randomUUID())
             res.setHeader("x-request-id", id)
             return id
           },
@@ -99,10 +103,11 @@ import { ThrottlingModule } from "./throttling/throttling.module"
           },
 
           serializers: {
+            // The path only: a query string carries tokens and search text (M9 review).
             req: (req: { id: string; method: string; url: string }) => ({
               id: req.id,
               method: req.method,
-              url: req.url,
+              url: req.url.split("?")[0] ?? req.url,
             }),
             res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
           },

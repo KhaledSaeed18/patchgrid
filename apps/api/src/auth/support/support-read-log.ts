@@ -65,7 +65,7 @@ export class SupportReadLog {
               action: "SUPPORT_READ",
               entityType: "SupportSession",
               entityId: actor.sessionId,
-              diff: { endpoint: `${request.method} ${route}`, status, ...(aborted ? { aborted: true } : {}), entityIds: ids.slice(0, MAX_IDS), resultCount: ids.length, filters: request.query },
+              diff: { endpoint: `${request.method} ${route}`, status, ...(aborted ? { aborted: true } : {}), entityIds: ids.slice(0, MAX_IDS), resultCount: ids.length, filters: request.query, params: request.params },
               actorKind: "PLATFORM",
               actorMembershipId: null,
               actorPlatformAdminId: actor.platformAdminId,
