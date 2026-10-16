@@ -1,3 +1,4 @@
+import createMDX from "@next/mdx"
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
@@ -14,4 +15,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["lvh.me"],
 }
 
-export default nextConfig
+// The docs and the blog are MDX in the repository (ADR-0016). Plugins are named
+// as strings: Turbopack cannot take functions across into Rust.
+const withMDX = createMDX({ options: { remarkPlugins: ["remark-gfm"] } })
+
+export default withMDX(nextConfig)

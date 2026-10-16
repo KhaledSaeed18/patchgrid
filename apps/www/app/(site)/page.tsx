@@ -1,6 +1,17 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 
+import { JsonLd } from "@/components/json-ld"
 import { PriorityMatrix } from "@/components/priority-matrix"
+import { REPO_URL } from "@/lib/config"
+import { POSTS, formatDate } from "@/lib/content"
+import { pageMetadata } from "@/lib/metadata"
+import { softwareApplication } from "@/lib/structured-data"
+
+const DESCRIPTION =
+  "A multi-tenant ITSM platform: incidents, service requests, problems and changes, with SLAs that mean something."
+
+export const metadata: Metadata = pageMetadata({ description: DESCRIPTION, path: "/" })
 
 /** The four kinds of work: a set, each with its own lifecycle — not a sequence. */
 const WORK = [
@@ -25,6 +36,7 @@ const WORK = [
 export default function Home() {
   return (
     <main>
+      <JsonLd data={softwareApplication(DESCRIPTION)} />
       <section className="mx-auto grid max-w-6xl items-center gap-14 px-6 pt-12 pb-24 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:pt-20">
         <div className="max-w-xl">
           <h1 className="font-serif text-4xl leading-[1.1] tracking-tight text-balance sm:text-5xl">
@@ -94,6 +106,43 @@ export default function Home() {
             <p>globex.patchgrid.xyz</p>
             <p className="text-muted-foreground">your-team.patchgrid.xyz</p>
           </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border bg-muted/40">
+        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <div>
+            <h2 className="font-serif text-3xl tracking-tight text-balance">
+              Built in the open.
+            </h2>
+            <p className="mt-3 max-w-md leading-relaxed text-muted-foreground">
+              The code is public, and so is the reasoning: every decision
+              that shaped Patchgrid is written down, with the alternatives it
+              beat.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <a href={`${REPO_URL}/tree/main/docs/decisions`} className="underline underline-offset-4">
+                Read the decision records
+              </a>
+              <Link href="/docs" className="underline underline-offset-4">
+                Read the documentation
+              </Link>
+            </div>
+          </div>
+          <ol className="divide-y divide-border border-y border-border">
+            {POSTS.slice(0, 3).map((post) => (
+              <li key={post.slug}>
+                <Link href={`/blog/${post.slug}`} prefetch className="group block py-5">
+                  <time dateTime={post.date} className="text-sm text-muted-foreground">
+                    {formatDate(post.date)}
+                  </time>
+                  <h3 className="mt-1 font-serif text-xl tracking-tight group-hover:underline group-hover:underline-offset-4">
+                    {post.title}
+                  </h3>
+                </Link>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
     </main>
