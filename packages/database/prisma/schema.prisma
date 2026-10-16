@@ -788,6 +788,10 @@ model Ticket {
   @@index([orgId, status, createdAt(sort: Desc)])
   @@index([orgId, assigneeMembershipId, status])
   @@index([orgId, teamId, status])
+  /// The `assigned` and `teams` list branches, keyset-paged on (createdAt, id): without the sort
+  /// column, Postgres sorted every row of a busy assignee or team per page (M9 load check).
+  @@index([orgId, assigneeMembershipId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([orgId, teamId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([orgId, requesterMembershipId, createdAt(sort: Desc)])
   @@index([orgId, categoryId])
   @@index([searchVector], type: Gin)
