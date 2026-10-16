@@ -372,6 +372,27 @@ exist:
 - `pnpm test:authz` — the permission matrix and route-coverage test (M1)
 - Playwright E2E, on `main` only (M9)
 
+**The load check (M9, 2026-10-16).** `pnpm --filter @patchgrid/database run load:tickets -- --slug acme
+--count 100000` puts a hundred thousand incidents into one workspace in about twenty seconds (`--remove`
+takes them out). Against it, eight requests each, warm, on a laptop:
+
+| Request | p50 | max |
+| --- | --- | --- |
+| owner, `view=all` (no scope) | 9 ms | 21 ms |
+| owner, `view=open` | 10 ms | 11 ms |
+| agent under `OWN_TEAM_ONLY`, `view=open` — the `UNION ALL` branches | 14 ms | 16 ms |
+| agent, `view=teams` | 43 → 22 ms | 57 → 24 ms |
+| agent, `view=assigned` | 42 → 22 ms | 46 → 44 ms |
+| requester, `view=mine` | 9 ms | 9 ms |
+| owner, search `q=load` | 22 ms | 31 ms |
+| owner, page 41 by cursor (2,000 rows in) | 10 ms | 12 ms |
+| agent branches, page 41 by cursor | 16 ms | 18 ms |
+
+The keyset cursors cost the same at page 41 as at page one, which is what they are for. The two slow
+rows were the `assigned` and `teams` branches: their indexes carried `status` but not the sort, so a busy
+assignee's page sorted ten thousand rows. Two indexes on `(orgId, assignee|team, createdAt desc, id desc)`
+halved them (the arrows). Transactions per request stayed at one per branch.
+
 Node version comes from `.nvmrc`; pnpm from the `packageManager` field, so the
 lockfile and CI cannot disagree about which pnpm produced them.
 

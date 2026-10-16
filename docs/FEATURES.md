@@ -380,9 +380,12 @@ browser, including the negative cases; observability answers "which tenant is sl
       findings fixed with tests, the rest recorded with reasons. Covered: headers, rate limits, dependency audit, attachment
       handling, inbound mail, cookie tossing, token leakage (prompt injection is reviewed with M7, which
       brings the models)
-- [ ] OpenAPI polished (tags, examples) at `/api/docs`
-- [ ] Load sanity check: one tenant with 100k tickets, confirming the scope-filter `UNION ALL` and the
-      keyset cursors hold up
+- [x] OpenAPI at `/api/docs` (`apps/api/src/openapi.ts`): built from the Zod DTOs, tagged by path,
+      session and token security schemes, the first-integration requests as examples. Done 2026-10-16
+- [x] Load sanity check (`pnpm --filter @patchgrid/database run load:tickets`, results in
+      `ENGINEERING.md` §Testing): one tenant with 100k tickets; every list under 25 ms at p50, deep
+      cursors no dearer than page one; found and fixed the two branches whose index lacked the sort
+      column. Done 2026-10-16
 
 ## M10 — Ship
 
