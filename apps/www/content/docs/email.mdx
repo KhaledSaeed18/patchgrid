@@ -1,0 +1,94 @@
+Members can raise tickets and reply to them by email as well as in the portal. Every workspace also sends notification email that can be answered directly. This page covers both directions, and the checks that stop anyone from posting in your name.
+
+## Your inbound address
+
+Each workspace has one address for incoming mail:
+
+```text
+<slug>@inbound.patchgrid.xyz
+```
+
+For a workspace at `acme.patchgrid.xyz`, that is `acme@inbound.patchgrid.xyz`. Admins can find it under **Settings**. If an owner changes the workspace's address, mail to the old inbound address is still accepted for the 30 days the old address keeps redirecting.
+
+## Who can send
+
+Mail is accepted only when both of these hold:
+
+1. **The sender is authenticated.** The message must pass DMARC, aligned with the domain in its `From:` address. A message that fails, or that carries no DMARC result, is recorded and goes no further. It is not answered either, because replying to a forged sender would send mail to an innocent third party.
+2. **The sender is an active member of the workspace.** The authenticated address must belong to an active member: a requester, agent, admin or owner. Mail from anyone else is recorded and dropped.
+
+Both checks are needed. DMARC proves that the mail really came from the domain it claims. Membership proves that the person belongs to your workspace.
+
+If your company's mail domain has no DMARC policy, or a broken one, your members' mail will be refused. That is deliberate. Patchgrid attributes tickets to named people, and will not guess.
+
+**Mail from people outside the workspace is not accepted yet.** To take tickets by email from someone, invite them as a requester first.
+
+## Raising a ticket by email
+
+A message that does not refer to a ticket the sender takes part in opens a new **Incident**:
+
+- the sender is its requester, and the ticket is marked as raised by email;
+- the title is the subject, without any `Re:` or `Fwd:` prefixes or ticket-number tag;
+- the description is the message text;
+- impact is set to Low and urgency to Medium, so the priority is Low. An agent re-triages it like any other ticket.
+
+## Replying by email
+
+A reply is added to an existing ticket when Patchgrid can tell which ticket it answers, and the sender is allowed to reply on it.
+
+**Finding the ticket.** Patchgrid looks for the ticket in two places:
+
+- the message's `In-Reply-To` and `References` headers, which mail clients fill in when you press reply;
+- a ticket number in square brackets in the subject, such as `[INC-000042]` or `[SR-000007]`.
+
+**Checking the sender.** Knowing a ticket number is not enough to post on it. The sender must be able to read the ticket and reply on it: its requester, a watcher, its assignee, or an agent who can see it. If they cannot, or if the ticket was cancelled, the message opens a new ticket instead. The new ticket is linked to the one it named only when the sender could have linked the two themselves.
+
+**What is added.** An emailed reply is always a **public** comment, even from an agent; email never writes an internal note. Quoted text below the reply is trimmed: everything under Patchgrid's "Reply above this line" marker, an "On … wrote:" line, Outlook's separator or a signature delimiter. A requester's emailed reply to a ticket that is waiting on them resumes it, just as a reply in the portal does.
+
+## Attachments
+
+Files attached to inbound mail follow the same rules as uploads. That means the same accepted file types, the 10 MB per-file limit and the plan's storage allowance, and each file is checked by its content. At most ten files are taken from one message. Anything left out is listed against the message in the inbound log, with the reason. Nothing is dropped silently.
+
+## Limits and loop protection
+
+- A message can be up to 25 MB.
+- Each sender can send at most 20 messages an hour to a workspace.
+- Bounces, out-of-office replies and mailing-list mail are recognised and never become tickets.
+- Each message is processed once, however many times it is delivered.
+- Every message Patchgrid sends is marked as automatically generated. Automatic mail is never taken in, so a desk cannot email itself into a loop.
+
+## The inbound log
+
+Admins can see every message that reached the workspace under **Settings → Inbound email**. Each entry shows the sender, the subject, the DMARC verdict, the files left out and the outcome:
+
+| Outcome | Meaning |
+| --- | --- |
+| Created | A new ticket |
+| Threaded | A reply on an existing ticket |
+| Unauthenticated | DMARC did not pass |
+| Unknown sender | Authenticated, but not an active member |
+| Auto-reply | A bounce, out-of-office or list message |
+| Rate limited | Too many messages from this sender in an hour |
+| Failed | Unreadable, or failed while being processed |
+
+The raw message is kept for 30 days. The ticket or comment it produced is kept with the rest of the workspace.
+
+## Notification email
+
+Patchgrid notifies people in the app and by email. Events include:
+
+- a ticket being raised for you or assigned to you;
+- public comments, and internal notes for the assignee;
+- a ticket becoming pending, resolved or closed, or being reopened;
+- being added as a watcher;
+- SLA warnings and breaches;
+- changes awaiting your approval, and decisions on changes you raised.
+
+Each email shows your workspace's name as the sender, while the address it is sent from belongs to Patchgrid. The subject carries the ticket number in brackets. Replies go to your workspace's inbound address, so **answering a notification adds your reply to the ticket**, subject to the checks above.
+
+A few rules keep the volume down:
+
+- If several updates arrive on a ticket before you read the first one, you get a single email rather than one for each.
+- You are never told about a ticket you could not open, nor about an internal note you could not read.
+- Each member chooses which emails to receive, separately in each workspace, under **Notifications → Preferences**. In-app notifications always arrive.
+- Admins can switch off notification email for the whole workspace in **Settings**.

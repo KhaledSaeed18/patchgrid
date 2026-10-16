@@ -1,0 +1,158 @@
+Everything the Patchgrid app does goes through the same REST API, and your integrations can use it too: a monitoring system raising incidents, a script reading queues, an HR tool filing access requests. Requests are JSON over HTTPS.
+
+```text
+https://api.patchgrid.xyz/api/v1
+```
+
+## Authentication
+
+Integrations authenticate with an **API token**, sent as a bearer token:
+
+```http
+Authorization: Bearer pg_<prefix>_<secret>
+```
+
+The prefix is 12 characters. It identifies the token, and it is safe to log. The secret is shown once, when the token is created, and is stored only as a hash. If you lose it, create a new token.
+
+### Your workspace comes from the token
+
+The API has a single address for every workspace, so the workspace is not part of the URL. Each token belongs to exactly one workspace, and every request made with it acts in that workspace. No endpoint accepts a workspace id as a parameter. A token cannot reach another workspace. Presented with another workspace's origin, it gets `403`.
+
+### Tokens are service accounts
+
+Creating a token creates a **service account** for it, which appears in the member list, marked as such. It never holds a seat, and it can never be an assignee, a team member or a watcher. Tickets it creates are marked as raised through the API, and the audit log records its actions as a service, never as a colleague.
+
+Admins and owners create tokens under **Settings → API tokens**. Because a token outlives the session that made it, Patchgrid asks you to confirm your identity first (see [roles and permissions](/docs/roles-and-permissions)). You choose:
+
+- **a name**, which appears in the member list and the audit log;
+- **a role**, Agent or Requester, which is fixed once the token exists;
+- **one or more scopes**, which are also fixed; to change them, create a new token and revoke the old one;
+- **an expiry** of 30, 90 or 365 days, or none.
+
+Seven days before a token expires, whoever created it gets an email. If they are no longer an admin, the owners get it instead. Revoking a token takes effect on its next request. The settings page shows when each token was last used.
+
+### Scopes
+
+A token can do what **both** its role and its scopes allow. Scopes only ever narrow the role. They never widen it.
+
+| Scope | Allows |
+| --- | --- |
+| `tickets:read` | Read tickets, their audit trails, attachments and categories |
+| `tickets:write` | Create, edit, assign, transition, link and watch tickets; post public comments; upload attachments |
+| `comments:internal` | Read and write internal notes. Never implied by any other scope |
+| `assets:read` | Read the asset register |
+| `assets:write` | Create and edit assets |
+| `kb:read` | Read published articles, and internal ones on an Agent-role token |
+
+Whatever its scopes, no token can manage members, workspace settings, other tokens or support access. A token without `comments:internal` cannot read internal notes, so a leaked monitoring token cannot read them, invite anyone or create more tokens.
+
+## Making requests
+
+Raise an incident:
+
+```bash
+curl https://api.patchgrid.xyz/api/v1/tickets \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: zabbix-alert-48213" \
+  -d '{
+    "type": "INCIDENT",
+    "title": "VPN drops every hour",
+    "description": "Since this morning the tunnel resets on the hour.",
+    "impact": "MEDIUM",
+    "urgency": "HIGH"
+  }'
+```
+
+Read the open queue:
+
+```bash
+curl "https://api.patchgrid.xyz/api/v1/tickets?view=open&limit=50" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Never send `priority`.** It is computed from impact and urgency (see [priority and SLAs](/docs/priority-and-slas)), and a request that includes it, or any other unexpected field, is refused with `400`.
+
+Ids are UUIDs, and every route uses them. Ticket numbers such as `INC-000042` are for people. Timestamps are ISO 8601 in UTC, ending in `Z`, and timestamps you send must be too.
+
+## Changing status
+
+Status cannot be edited directly. Every move is an action posted to the ticket's transitions:
+
+```http
+POST /api/v1/tickets/{id}/transitions
+Content-Type: application/json
+
+{
+  "action": "resolve",
+  "version": 3,
+  "comment": { "body": "Replaced the concentrator's certificate.", "visibility": "PUBLIC" }
+}
+```
+
+`GET /tickets/{id}` returns `availableActions`, the actions this caller may take right now, and `capabilities`, what else they may do to the ticket. Offer those; do not work them out yourself. The actions and what each requires are listed under [tickets](/docs/tickets).
+
+Starting a change more than an hour before its planned start returns `409` with type `change-window-early`. Repeat the request with `"confirm": true` to go ahead.
+
+## Concurrent edits
+
+Tickets and knowledge-base articles carry a `version`. Every edit and transition sends the version it was based on. If someone else has changed the record since, the request fails with `409` and type `stale-write`. Fetch the record again, then retry.
+
+## Retries and `Idempotency-Key`
+
+Requests that create something accept an `Idempotency-Key` header: creating a ticket, a link, an article, an asset, a category, a team, an invitation or an attachment. Use a value of 8 to 128 letters, digits, `-` or `_`.
+
+- A repeat with the same key and the same body, within 24 hours, returns the first response again with `Idempotent-Replayed: true`. Nothing new is created.
+- The same key with a different body, or while the first request is still running, is `409`.
+- A request that failed releases its key, so you can retry it.
+
+Creating an API token is the one exception. Its response contains the secret, so it is never stored for replay.
+
+## Errors
+
+Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details, served as `application/problem+json`:
+
+```json
+{
+  "type": "https://patchgrid.xyz/problems/stale-write",
+  "title": "Stale write",
+  "status": 409,
+  "instance": "/api/v1/tickets/0192a4c1-7d3e-7b2a-9f10-3c5e8d2a6b41"
+}
+```
+
+Each `type` is a page that explains it; the full list is at [/problems](/problems). Validation failures add an `errors` array of `{ path, message, code }`. Every `5xx` carries a `correlationId` to quote when reporting it.
+
+| Status | Means |
+| --- | --- |
+| `400` | The request did not match its schema |
+| `401` | No valid credential, or it has been revoked |
+| `402` | A plan limit was reached, and nothing else. See [pricing](/pricing) |
+| `403` | Not permitted, the wrong workspace, a suspended workspace, or an action that needs a fresh identity check |
+| `404` | Not found, including anything this caller is not allowed to see |
+| `409` | An invalid transition, a conflict, or a stale `version` |
+| `429` | Rate limited. Wait for the time in `Retry-After` |
+
+A `404` for something that exists is deliberate. A caller who may not see a record cannot learn whether it exists. A `403` means the caller can see the record but may not take that action.
+
+## Pagination
+
+Lists return a page of items and a cursor:
+
+```json
+{ "items": [], "nextCursor": "WyIyMDI2LTEwLTE2VDA5OjAwOjAwLjAwMFoiLCIwMTky…" }
+```
+
+Pass `nextCursor` back as `?cursor=` to get the next page. It is `null` on the last page. `limit` defaults to 25, and the maximum is 100. Treat cursors as opaque. Ticket lists sort by creation time, `sort=newest` (the default) or `sort=oldest`.
+
+Search is the exception. `GET /tickets/search?q=` returns at most 100 results ranked by relevance, with no cursor. Searching for a ticket number goes straight to that ticket.
+
+## Rate limits
+
+Each token can make 300 requests a minute from any one network address. Limits also apply per workspace and per network address. Over a limit, you get `429` with a `Retry-After` header.
+
+## OpenAPI
+
+The full reference, generated from the same schemas that validate requests, is at [api.patchgrid.xyz/api/docs](https://api.patchgrid.xyz/api/docs). The raw document is at `https://api.patchgrid.xyz/api/docs/openapi.json`.
+
+There are no outbound webhooks yet.

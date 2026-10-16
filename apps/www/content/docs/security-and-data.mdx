@@ -1,0 +1,85 @@
+Many companies share one Patchgrid deployment, and each holds sensitive incident data. This page explains how one workspace is kept apart from another, what Patchgrid staff can and cannot see, and how you export, erase and delete your data.
+
+## How workspaces are kept apart
+
+Several independent safeguards stand between your workspace and every other one. No single mistake is enough to expose another company's data.
+
+### The workspace comes from your credential
+
+Each workspace has its own address, such as `acme.patchgrid.xyz`, but the address is not what decides whose data you reach. Every session cookie and API token is bound to exactly one workspace, and the API takes the workspace from that credential. The page's origin is then checked against it, and a mismatch is refused. No request can name a different workspace, because no endpoint accepts a workspace id.
+
+Each workspace also has its own session. A session for one workspace is never accepted by another, even in the same browser; switching from the workspace picker opens a separate session, and only for a workspace you belong to.
+
+### The database enforces it
+
+- **Row-level security.** Every table that holds workspace data carries the workspace's id, and PostgreSQL row-level security filters every read and write to the workspace of the current request. The application's database role cannot bypass it. A query that somehow forgot its filter would return nothing, not someone else's rows.
+- **A cross-workspace reference cannot be stored.** Every link between two records, such as a comment and its ticket or a ticket and its assignee, includes the workspace id in its key. A record in one workspace cannot point at a record in another, because the database rejects the reference itself.
+- **People are referenced by membership.** Tickets refer to someone's membership in your workspace, never to their account. "The assignee is a member of this workspace" is therefore a rule the database enforces.
+
+### Everything else follows the same rule
+
+Background work, such as SLA checks, auto-close, exports and inbound mail, runs one workspace at a time under the same database rules as a request. Live updates and notifications go only to people who could open the ticket concerned. Attachments are stored under the workspace's own prefix and served from a separate domain, so an uploaded file can never run inside the app.
+
+The isolation rules are tested automatically on every change to Patchgrid, and a failing test stops the change. The full analysis is in the [threat model](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/THREAT-MODEL.md), and the reasoning in [ADR-0015](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0015-tenant-isolation-rls.md) and [ADR-0023](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md).
+
+## What Patchgrid staff can see
+
+Patchgrid's operators manage the platform, not your content. They can see each workspace's name, address, plan, status, record counts and creation date. They can suspend a workspace, set its plan and restore one that is pending deletion. They cannot read tickets, comments, attachments, articles or member details, and there is no way for them to act as one of your users.
+
+### Support access, with your consent
+
+When an operator needs to look inside your workspace to help you, the request comes to you:
+
+1. The operator asks for access, giving a reason. Admins and owners can see the request in **Settings → Support**.
+2. An owner grants it for between 1 and 72 hours, or declines it. The consent screen states what access allows, including internal notes and the audit log.
+3. The operator reads your workspace through the same screens and permissions as an admin, but **read-only**. Every change is refused. API tokens and credentials are never visible.
+4. **Every request is recorded in your own audit log**: what was opened, which records, and what filters were used. If that record cannot be written, the session ends there and then.
+5. While a session is active, admins and owners see a banner. Owners get an email when it is granted, when it is first used and when it ends.
+6. Any owner can revoke it at any time, and the revocation applies to the operator's next request.
+
+Granting access requires a fresh identity check, as described in [roles and permissions](/docs/roles-and-permissions). It cannot be granted for a workspace that is pending deletion.
+
+## The audit log
+
+Patchgrid records every change to a ticket as it happens, in the same transaction as the change. That covers field changes, transitions, comments, attachments, links, watchers, approvals, and SLA warnings and breaches. It also records changes to members, roles, invitations, teams, settings, SLA policies, API tokens, support access and the workspace itself.
+
+Each entry says what kind of actor made the change: a member, an API token, Patchgrid itself (such as an automatic close), or a Patchgrid operator. Admins and owners read the log under **Settings → Audit**, filtered by person, action and date. Agents see each ticket's own trail. Requesters never see audit entries.
+
+## Exporting your data
+
+An owner can export the whole workspace from **Settings**. The export is built in the background, as a zip containing:
+
+- a manifest;
+- one file of JSON lines per kind of record: members, teams, categories, SLA policies, tickets, comments (internal notes included), links, watchers, approvals, assets, articles, attachments, inbound mail details, the audit log, API tokens and support sessions;
+- every attachment, with its checksum.
+
+Secrets such as token hashes are never included. Neither are personal notifications or usage counters. When the export is ready, the owner who asked gets an email pointing to **Settings**, where it can be downloaded for 24 hours. A workspace can export once every 24 hours.
+
+## Erasing your account
+
+You can erase your own account from **Account** in the workspace picker, by entering your password. In each workspace you belonged to, your name becomes "Former member" and your membership is removed. Your email address is replaced with a placeholder, and your password and second factor are deleted. Tickets, comments and audit entries stay, because they belong to the organisation, but they no longer identify you.
+
+You cannot erase your account while you are the only owner of a workspace that is not being deleted. Make someone else an owner, or delete the workspace, first.
+
+## Deleting a workspace
+
+An owner deletes a workspace from **Settings** by typing its address and confirming their identity.
+
+- **Immediately**, the workspace stops working: every session ends, API tokens stop working, scheduled work stops and inbound mail is dropped. Owners and admins get an email with the purge date.
+- **For 30 days**, nothing is lost. Any owner can cancel from the workspace picker, where the workspace stays listed with its purge date, and a Patchgrid operator can restore it on request. It comes back exactly as it was. Members sign in again.
+- **After 30 days**, every record and every stored file is permanently purged. All that remains is a record that a workspace with that id and address existed, and when it was deleted. The address is never reused.
+
+People's accounts are not deleted with the workspace. They keep their other workspaces.
+
+## Retention
+
+| Data | Kept |
+| --- | --- |
+| Notifications | 90 days |
+| Raw inbound email | 30 days. The ticket it produced is kept |
+| Exports | 24 hours |
+| A deleted workspace | 30 days, then purged |
+
+## Two-factor authentication
+
+Members can protect their accounts with an authenticator app, and owners can require it of everyone. The four irreversible actions always need a fresh identity check. See [roles and permissions](/docs/roles-and-permissions).

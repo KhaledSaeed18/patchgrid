@@ -1,0 +1,77 @@
+A workspace is your organisation's own Patchgrid, at its own address, with its own members, tickets and settings. This page covers creating one, bringing people into it, signing in, and working across more than one.
+
+## Create a workspace
+
+### Sign up
+
+Start at [patchgrid.xyz/signup](/signup). You give your name, your work email, a password, a workspace name and the address you want.
+
+- **Passwords** are 12 to 128 characters. There are no rules about symbols or capitals; a short sentence works well.
+- **The address** is checked as you type, so you know before you submit whether it is free.
+
+Signup answers the same way whether or not your email already has an account. What differs goes to your inbox: either a verification link, or a note that you already have an account and can sign in or reset your password. Patchgrid never tells a stranger whether an address is registered.
+
+### Verify your email
+
+The verification link is valid for 24 hours. Following it completes signup and signs you in, then takes you to workspace creation with the name and address you chose already filled in. If the link has lapsed, request a new one; the newest link replaces the old one.
+
+Nothing is reserved until you verify. If someone else claims your address in the meantime, choose another.
+
+### Choose your address
+
+Your workspace lives at `https://<slug>.patchgrid.xyz`. The slug:
+
+- is 3 to 30 characters of lowercase letters and digits, with single hyphens between them;
+- cannot start or end with a hyphen, or contain two in a row;
+- cannot be a reserved name, such as one Patchgrid uses for its own hosts.
+
+Once a slug has been used, it is never given to anyone else. An owner can change the workspace's slug at most once every 30 days. The old address redirects to the new one for 30 days, and after that it simply stops working. It is never reassigned, so old bookmarks and emailed links can never lead to another company.
+
+You can also record your company's email domain. Today it is stored and nothing more: everyone joins by invitation.
+
+### What you start with
+
+The new workspace is ready the moment it is created, and you are its **Owner**. It starts on the Free plan; see [pricing](/pricing) for what each plan includes.
+
+| Provisioned | Details |
+| --- | --- |
+| Teams | IT Support, Network, Security |
+| Categories | Hardware (Laptop, Printer, Phone, Other) and Software (Email, Access request, Installation, Other), both routed to IT Support; Network (VPN, Wi-Fi, Other), routed to Network; Security (Phishing, Lost or stolen device, Other), routed to Security |
+| SLA policies | Eight: one per priority for Incidents and one per priority for Service Requests, with the [default targets](/docs/priority-and-slas) |
+
+Admins can rename, extend or deactivate any of it. Categories go up to three levels deep. A ticket in a category goes to that category's team, or to the nearest parent category that has one.
+
+## Invite people
+
+Admins and owners invite people from **Settings → Members** by email address. Each invitation names a role (see [roles and permissions](/docs/roles-and-permissions)) and, optionally, a team.
+
+- Only an owner can invite someone as an Admin or Owner. Inviting an Owner adds another owner, so Patchgrid asks you to confirm your identity again first.
+- An invitation lasts 7 days and can be used once.
+- An invitation only works for the address it was sent to. Whoever accepts it must sign in with an account at exactly that email. If you mistyped the address, revoke the invitation and send a new one.
+- If the invitee already has a Patchgrid account, accepting adds your workspace to it. If not, they create an account through the link, and their email counts as verified because the link reached their inbox.
+
+Agents, admins and owners each take a seat. Requesters never do, and neither do API tokens. The Free plan has 3 seats and Pro has 25.
+
+There is no open self-join. The only way into a workspace is an invitation.
+
+## Sign in
+
+Sign in at `app.patchgrid.xyz` with your email and password. If you have turned on [two-factor authentication](/docs/roles-and-permissions), you then enter a code from your authenticator app.
+
+A wrong email and a wrong password get the same answer: "invalid email or password". If you have forgotten your password, request a reset. The link is valid for 30 minutes. Completing the reset signs you out everywhere.
+
+## Belong to several workspaces
+
+You have one account, and it can belong to as many workspaces as invite you, with a different role in each. You might be an Admin at your employer and a Requester at a client.
+
+- **The workspace picker** at `app.patchgrid.xyz` lists every workspace you belong to. Choose one to open it at its own address. You can also create another workspace from there.
+- **Each workspace has its own session.** You can have two workspaces open in two tabs at once, and acting in one never touches the other.
+- **Signing out of one workspace** leaves the others signed in. "Sign out everywhere" in the picker ends every session on every device.
+- **Notification preferences are per workspace.** You can turn off email for one workspace and keep it on for another.
+- **Being disabled or removed in one workspace** ends your access there only. Your account and your other workspaces are unaffected.
+
+## Next steps
+
+- [Tickets](/docs/tickets): the four record types and their lifecycles.
+- [Priority and SLAs](/docs/priority-and-slas): how priority is computed and how the clocks run.
+- [Email](/docs/email): your workspace's inbound address.

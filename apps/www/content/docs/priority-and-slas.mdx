@@ -1,0 +1,86 @@
+In Patchgrid, nobody picks a priority from a dropdown. You describe the situation with two answers, impact and urgency, and the priority follows from them. The priority then sets the SLA targets for Incidents and Service Requests.
+
+## Impact and urgency
+
+- **Impact** is how much is affected: how many people, or how critical the system is. Low, Medium or High.
+- **Urgency** is how time-sensitive it is. Low, Medium or High.
+
+Together they give one of four priorities:
+
+| Impact ↓ · Urgency → | Low | Medium | High |
+| --- | --- | --- | --- |
+| **High** | Medium | High | Critical |
+| **Medium** | Low | Medium | High |
+| **Low** | Low | Low | Medium |
+
+The same matrix applies to all four record types. It is a useful sort order for Problems and Changes too, but only Incidents and Service Requests have SLA clocks.
+
+## Why priority cannot be typed in
+
+A typed priority is whatever the loudest person chose. Computing it means two people describing the same situation get the same answer, and the SLA that follows is the same for everyone.
+
+- Requesters set impact and urgency when they raise a ticket.
+- Agents can change either at any time. The priority and the SLA targets are recalculated straight away.
+- The API refuses any request that includes `priority`, with a `400`. See the [API reference](/docs/api).
+
+## SLA targets
+
+Each Incident and Service Request has two targets:
+
+- **Response:** the time until the first public reply from an agent.
+- **Resolution:** the time until the ticket is resolved.
+
+Each target also has a **warning** threshold, measured backwards from the deadline. They are separate settings because one threshold cannot suit both a 15-minute response and a 4-hour resolution.
+
+### Default targets
+
+Every workspace starts with these, for both Incidents and Service Requests:
+
+| Priority | Response | Warn before | Resolution | Warn before |
+| --- | --- | --- | --- | --- |
+| Critical | 15 min | 5 min | 4 h | 45 min |
+| High | 30 min | 10 min | 8 h | 1 h |
+| Medium | 1 h | 15 min | 24 h | 2 h |
+| Low | 4 h | 1 h | 72 h | 4 h |
+
+There are eight policies, one for each priority of each type, so an admin can relax Service Request targets without touching Incidents. Admins edit them under **Settings → SLA policies**. A warning must be shorter than its target.
+
+Editing a policy does not move the deadlines of tickets that already have them. The new targets apply whenever a deadline is next calculated: for tickets created after the change, and when an existing ticket is re-prioritised, resumed from pending or reopened. The change is recorded in the audit log.
+
+## How the clocks run
+
+### Around the clock
+
+Clocks run 24 hours a day, seven days a week. Business-hours calendars and holiday schedules are not supported. Deadlines are stored as absolute times and shown in your own time zone.
+
+### The response clock
+
+The response clock starts when the ticket is created. It stops at the first public comment by an agent or admin, or when the ticket is resolved, whichever comes first. It never pauses, and reopening a ticket does not restart it.
+
+### The resolution clock
+
+The resolution clock also starts at creation, and stops when the ticket is resolved.
+
+**It pauses while the ticket is pending on the requester.** Putting a ticket into `PENDING` needs a public comment saying what the requester must do. From then until the ticket resumes, the clock is paused, and the deadline moves later by exactly the time spent waiting. The ticket resumes when an agent resumes it, or automatically when the requester replies publicly.
+
+**Reopening starts a fresh resolution clock.** A reopened ticket gets a new resolution deadline from the moment it was reopened, with its pause time and breach cleared. Its response record stands.
+
+**A priority change recalculates both deadlines** from when each clock started, keeping any time already paused. A ticket that has already been answered keeps its response result.
+
+**Cancelling stops both clocks.** A cancelled ticket is never counted as breached.
+
+## Warnings and breaches
+
+Patchgrid checks every workspace's open Incidents and Service Requests about once a minute.
+
+| Event | When | Who is told |
+| --- | --- | --- |
+| Warning | The deadline is within the warning threshold | The assignee and the lead of the ticket's team, in the app and by email |
+| Breach | The deadline has passed | The assignee, the team lead and every admin |
+
+- Each warning and breach fires once per clock and is recorded in the ticket's audit trail.
+- A warning never fires if its threshold would fall before the clock started. A Critical incident is not warned the instant it is raised.
+- If a deadline is already past when it is first checked, you get the breach and no warning.
+- The console shows each ticket's next deadline as a countdown, and breached tickets carry a badge.
+
+Email follows each member's [notification preferences](/docs/email).
