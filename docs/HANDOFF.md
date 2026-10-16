@@ -1,6 +1,6 @@
-# Handoff — M8 complete, M9 next
+# Handoff — M9 complete, M10 next
 
-Written 2026-10-15, at the M8 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
+Written 2026-10-16, at the M9 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
 whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
 an ADR, they are right and this is stale.
 
@@ -31,133 +31,124 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6** are complete (M6, email intake, on 2026-10-15). **The build order is M0–M6, then M8 → M9 →
-M10, and M7 last**: M7 is the one milestone that needs local models (Ollama, embeddings, the phishing
-service), so it lands on a running system. Milestone numbers did not change; `FEATURES.md` lists M7 last.
+**M0–M6 and M8 are complete.** **The build order is M0–M6, then M8 → M9 → M10, and M7 last**: M7 is the
+one milestone that needs local models (Ollama, embeddings, the phishing service), so it lands on a
+running system. Milestone numbers did not change; `FEATURES.md` lists M7 last.
 
-**M8 (Platform layer): complete 2026-10-15.** Every item is checked. The exit criterion holds, and each
-part was walked in headless Chromium against the running stack:
+**M9 (Hardening): complete 2026-10-16.** Every item is checked and the exit criterion holds: the security
+review has no open findings, the browser suite covers the core flows across two tenants with the negative
+cases, and one dashboard answers "which tenant is slow". Each part landed as its own PR (#29, #30, #32,
+#33), reviewed by CI, merged in order:
 
-- An operator signs in at `admin.` with a password and a TOTP factor, lists workspaces, suspends,
-  restores and re-plans them, and sees counts, never content.
-- An owner grants that operator a few hours of read-only access. The operator opens the workspace and
-  reads tickets, internal notes included, while every page they open lands in the workspace's own audit
-  log. Writes are refused. The owner ends it, and the operator's next request is refused.
-- An admin mints a scoped token; `curl` with it raised an incident marked `API`, attributed to the
-  token's service account, and was refused `/members` and refused again the moment it was revoked.
+- **A second factor for members** (ADR-0045). Login stops at the password when a factor is confirmed;
+  the account page sets one up, replaces its recovery codes and turns it off; an owner can require it of
+  every member, which gates the next sign-in and never an open session; and the four irreversible
+  actions — deleting the workspace, making a second owner (by promotion **or** invitation), granting
+  support access, minting a token — ask for a fresh proof carried on the access token.
+- **The browser suite** (`apps/app/e2e`, eight scenarios): signup → verification → a provisioned
+  workspace → an invited agent → an incident worked and closed; an SLA breach on a two-minute target; a
+  change from draft to closed with an approver who did not raise it; and the three negatives — a session
+  for Acme reaching nothing of Globex, an agent refused every escalation, one person in two workspaces in
+  two tabs. It runs on `main` only, against the built API and app.
+- **Observability** (ADR-0046). The SDK starts before the application loads and only when an endpoint
+  is named; every span carries the tenant; the request id is the trace id; the multi-tenant metrics with
+  `org` bounded to the top-25 tenants; the compose profile with the dashboard.
+- **The security review** (`THREAT-MODEL.md` §7). Three independent read-only reviews of every trust
+  boundary; sixteen confirmed findings fixed with tests in one PR. The themes: budgets strangers could
+  spend (the per-org throttle counted before the credential was verified; a token prefix spent its
+  integration's budget), bearer capabilities in the wrong channel (a 24-hour export link in an inbox,
+  invitation tokens in logs and spans), and two gaps in the step-up rule (a bare `pg_id` could enrol a
+  factor; inviting an owner skipped the proof). Both HANDOFF items from M8 — the token prefix and the
+  stale summary after a deletion request — closed here.
+- **OpenAPI at `/api/docs`**, built from the Zod DTOs, tagged by path, with the two security schemes and
+  examples; the smoke job asserts it is served.
+- **The load check**: a hundred thousand tickets in one workspace, every list under 25 ms at p50, deep
+  cursors no dearer than page one — and two branches whose index lacked the sort column, fixed. Results
+  in `ENGINEERING.md` §Testing.
 
-**An adversarial review of all of M8 ran before it was called done** (three read-only reviewers: platform
-credential and support; tokens and deletion; data protection). Everything they confirmed is fixed, with
-tests:
-
-- A per-person TOTP lockout. Five wrong codes in 15 minutes lock the factor for an hour; the lock is
-  audited and the operator is emailed. A recovery code ends the operator's other sessions and is
-  emailed too.
-- A support session dies with the operator's sign-out and with a re-grant (`PlatformAdmin.grantedAt`).
-- A support read is recorded even if the operator hangs up mid-response.
-- A token without `comments:internal` reading a ticket's audit trail gets internal notes' words and
-  filenames redacted. Comment and attachment entries now record `internal`.
-- The export streams through `yazl` (ZIP64, piped backpressure). The `fflate` writer could hang on a
-  failed upload part and corrupted archives past 4 GiB.
-- Erasure tombstones as `deleted+<userId>@invalid` (ADR-0028 erratum: the email hash was reversible).
-  It retries cleanly, renames invitations to the address, and never leaves a workspace ownerless,
-  even through a restore.
-- The purge records itself inside the tombstone's transaction. A non-owner's cancel is the same 404
-  whatever the window.
-
-**CI is green on `main`.**
+**CI is green on `main`**, the browser suite included once the per-IP throttle was switched off for the
+runner (one address for the browser and the Next server alike).
 
 ---
 
-## What M8 built — ADR-0040 to ADR-0044
+## What M9 built — ADR-0045, ADR-0046, THREAT-MODEL §7
 
-### The platform credential and the back-office — ADR-0040
+### Member MFA — ADR-0029, ADR-0045
 
-- Its own login under `/api/v1/platform/auth`: password → a five-minute challenge cookie → TOTP enrolment
-  (QR, ten recovery codes shown once) or verification → a one-hour session in `pg_pa`, path-scoped to
-  `/api/v1/platform`. No refresh.
-- `@PlatformRoute` routes take only `pg_pa`, only from the `admin.` origin (or `X-Patchgrid-Surface: admin`
-  server-side), and check the epoch `platform:<id>`, the admin row and its `grantedAt` on every request.
-- MFA: AES-256-GCM secrets under `MFA_ENCRYPTION_KEY`, ±1 step, the last step stored so a code works once,
-  Argon2id recovery codes, and the Redis lockout above (it fails closed if Redis is down).
-- `pnpm platform:grant|revoke <email>` is the only way in. `PlatformAuditLog` records every grant, sign-in,
-  lock and purge.
-- **Back-office** (`apps/app`, `admin.` host rewritten to `/backoffice/*`, client-rendered because `pg_pa`
-  never reaches the Next server): org list and detail with counts, suspend (every member's epoch bumped),
-  unsuspend, plan, restore a pending deletion, request and enter support. Each action lands in both
-  logs.
+- `POST /auth/login` with a confirmed factor answers `{ status: "mfa-required" }` and a five-minute
+  `pg_mc` challenge, path-scoped to `/api/v1/auth`; `POST /auth/mfa` with a code or a recovery code
+  completes it. A challenge completes once (its `jti` is spent in Redis). A wrong password is the same
+  `401` as before.
+- Self-service under `/auth/mfa` on `pg_id`: enrol **against the password** (the M9 review's erratum to
+  ADR-0045), confirm (recovery codes shown once), replace the codes against a code, turn off against a
+  code or a recovery code — never the password. Every change is mailed (`account-security`).
+- `Organization.requireMfa` (owner-only `org:require_mfa`, audited `ORG_MFA_REQUIREMENT_CHANGED`) is
+  checked at open, at login's mint and at refresh — a session already open is never ended by it. The
+  picker sends a refused member to `/account/security?required=<slug>`.
+- Step-up: `POST /auth/step-up` names the workspace and takes the factor — or the password only when no
+  factor exists — and re-issues the pair with `sua` on the access token. `StepUpService.assert` runs
+  after the permission in `OrgDeletionService.request`, `SupportService.grant`, `ApiTokensService.create`,
+  `MembersService.changeRole` to `OWNER` and `InvitationsService.create` for `OWNER`. A refresh re-mints
+  without the claim. The app has one `useStepUp()` dialog that re-proves and retries.
+- A recovery code revokes everywhere with `{ before: true }`, so the session it earns survives.
 
-### Support access — ADR-0020, ADR-0041
+### Observability — ADR-0030, ADR-0046
 
-- `SupportSession` (tenant-owned): an operator asks with a reason; an owner grants (≤ 72 h, on a consent
-  screen naming internal notes and the audit log), declines or revokes. Owners are emailed at each turn
-  and on first use. `support-sweep` ends expired sessions every five minutes.
-- Entering mints a support JWT into `pg_st_<slug>`; the credential locator prefers it. The actor is
-  `{ kind: "support", role: "ADMIN" }` narrowed to `SUPPORT_READ_PERMISSIONS`, with the session id as its
-  `membershipId` so no "own"/"assignee"/"watcher" relation can hold. Non-GET is refused at the guard.
-- One `SUPPORT_READ` row per request, written on the response's `close`; a failed write ends the session
-  (`AUDIT_FAILED`).
-- `/me.support` drives the banners: the operator's ("read-only, everything recorded") and the admins'
-  ("Dana from Patchgrid support can read this workspace until …"). The operator lands on Queues (all
-  open), sees read-navigation (`NavItem.reads`), and is offered no ticket actions.
+- `main.ts` is three lines: read `.env`, `startTelemetry()`, `require("./bootstrap")`. Off unless
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Not the Express or Nest instrumentations: they re-wrap every
+  middleware and guard in their own async context and lost the request store the tenant resolver fills.
+- `src/telemetry/metrics.ts`: plain functions over the global meter, instruments made on first use (the
+  metrics API has no proxy provider). `org` is `TenantLabels` — top-25 by volume, ranked on the count
+  before the observation, ties by id, halved past a window — then `other`, `none`.
+- The HTTP span gets `org.id`, `membership.id`, `actor.kind` from `TelemetryMiddleware` on `finish`;
+  jobs from `runJob`; every permission decision is an `authorization` span event. `genReqId` prefers the
+  trace id. Query strings are dropped from request logs and `token`, `q`, `cursor` redacted from spans;
+  Redis spans carry the command only.
+- Pool saturation comes from the `pg` pool `createPrismaClient` now builds and hands to a callback.
+- `docker/observability/`: collector → Tempo (traces) and Prometheus (metrics, which appends
+  `_milliseconds`, `_ratio`, `_total`), Grafana provisioned with both and `patchgrid-tenants.json`.
 
-### Scoped API tokens — ADR-0021, ADR-0042
+### The security review — THREAT-MODEL §7
 
-- `ApiToken` (tenant-owned) beside `ApiTokenIndex`, one `SERVICE_ACCOUNT` membership per token,
-  `pg_<12 [a-z0-9]>_<43 base64url>`, Argon2id with a five-minute digest cache; the row is read every
-  request, so revocation holds on the next one.
-- Effective permission is role ∩ `SCOPE_GRANTS`; `webhooks:write` is not offered. A per-token throttler
-  (300/min, keyed by prefix) runs before verification. `lastUsedAt` is written at most once a minute.
-- Service accounts appear in Members marked "API token" and can't be re-roled, disabled, removed, put in a
-  team, assigned or made watchers. Creation is deliberately not `@Idempotent` (the answer is the
-  secret).
-- Settings → API tokens: create (secret shown once), list with last-used and expiry, revoke. The
-  `api-token-sweep` warns a token's creator (or the owners) a week before it lapses.
+Sixteen findings, each with its resolution, in the threat model. The ones that changed a rule:
 
-### Deleting a workspace — ADR-0043
-
-- An owner types the slug in Settings → Workspace. Everyone is signed out; the subdomain, the bearer path,
-  support, session open and invitations all answer 404.
-- The picker shows owners "Deleting on …" and "Keep it"; an operator can restore from the back-office.
-  Both are refused from the purge date on, and a restore is refused if no owner is left.
-- `org-purge` (daily, dispatched only for orgs due + 1 h grace) runs inside the tenant: objects under
-  `org/<id>/` and `staging/org/<id>/`, then every tenant table child-first (a test holds the list to the
-  schema), then a `DELETED` tombstone that keeps the slug forever.
-
-### Data protection — ADR-0028, ADR-0044
-
-- **Export**: `POST /org/exports` (owner, one a day, `429` with `Retry-After`) → `org-export` job → a zip
-  of NDJSON per entity plus every file with its SHA-256, streamed into storage; the requester (if still
-  an owner) is mailed a 24-hour link, Settings mints fresh short links. Secrets and notifications are
-  left out.
-- **Erasure**: `POST /auth/account/erase` from the picker's "Your account", password again. In each
-  workspace the membership becomes a nameless `REMOVED` "Former member"; the account becomes a tombstone.
-  Removed memberships now keep a hidden `UserOrgIndex` row so erasure can find them.
-- **Retention**: `retention-sweep` (per tenant, daily) drops notifications past 90 days and lapsed
-  exports; `credential-retention` (platform, daily) drops tokens 30 days past expiry.
+- The org throttler is registered in `AuthModule` **after** `AuthGuard`; the token throttler is keyed on
+  prefix **and** address and runs before resolution; the verifier remembers rejected secrets per prefix.
+- `OrganizationLookupService.invalidate` leaves a `:stale` marker for one TTL that `store` honours; API
+  tokens are refused on `orgEpochKey(orgId)` from a deletion request until a cancel or restore
+  (`RevocationEpochService.clear`).
+- `SUPPORT_READ` records `params`; the export mail links to Settings; erasure tombstones
+  `InboundEmail.fromAddress`; an inbound reference attaches a link only when the sender could have
+  made it through the API; `/session/refresh` uses `parseNext`.
+- Actions pinned to commits, mutable images to digests, Dependabot moves both; the browser suite's hosts
+  are in the runner's hosts file; the webhook has its own per-address limit; `X-Request-Id` is honoured
+  only in a proxy's shape.
 
 ### Tests at the boundary
 
 | Suite | Count |
 | --- | --- |
-| `apps/api` unit | 966 |
-| `apps/api` integration | 194 |
+| `apps/api` unit | 1007 |
+| `apps/api` integration | 204 |
 | `pnpm test:tenancy` | 13 catalog + 37 (3 pointers skipped) |
-| `pnpm test:authz` | 380 |
-| `packages/database` unit / catalog / integration | 8 / 13 / 23 |
-| `packages/contracts` | 188 |
-| `apps/app` | 57 |
+| `pnpm test:authz` | 384 |
+| `packages/database` unit / catalog | 8 / 13 |
+| `packages/contracts` | 194 |
+| `apps/app` unit | 59 |
+| `apps/app` browser suite | 8 scenarios |
 
-Browser walkthroughs live in the git-ignored `apps/app/node_modules/.cache/shots/` (`support.mjs`,
-`tokens.mjs`, `deletion.mjs`, `export.mjs`, `backoffice.mjs`, and the M5/M6 ones), run with `node` from
-`apps/app` against `pnpm dev`. The back-office scripts enrol Dana's factor; clear her `UserMfaFactor` and
-`UserMfaRecovery` rows (`reset-support.sh` does) before running them again. `deletion.mjs` leaves a
-`doomed-*` workspace owned by Alice each run.
+Browser walkthroughs live in the git-ignored `node_modules/.cache/shots/` at the repository root
+(`mfa.mjs`, `review-ui.mjs`, `grafana.mjs`, `reset-alice.mjs`), run with `node` from the root against
+`pnpm dev`; see the `browser-walkthrough-scripts` memory for the resolution and selector lessons. The
+M8 scripts under `apps/app/node_modules/.cache/shots/` were lost with a `node_modules` wipe.
 
 ---
 
 ## Earlier milestones, in brief
 
+- **M8** gave the platform layer: the operators' own credential and back-office, owner-granted
+  read-only support sessions, scoped API tokens, workspace deletion with a 30-day window, streamed
+  exports, self-service erasure and retention sweeps.
 - **M6** gave email intake: signed raw MIME, the DMARC verdict, explicit-actor `createAs`/`addAs`, threading
   by our Message-ID or `[INC-…]`, and the inbound log.
 - **M5** gave attachments through staging and byte sniffing on their own domain, the asset register and
@@ -167,36 +158,38 @@ Browser walkthroughs live in the git-ignored `apps/app/node_modules/.cache/shots
 
 The detail is in the git history of this file, at those boundaries.
 
-## Decisions made in M8
+## Decisions made in M9
 
 | Decision | Where |
 | --- | --- |
-| The platform actor comes from its own credential, minted only after a second factor; platform MFA arrives now | ADR-0040 (resolves TM-2) |
-| A support session reads through the tenant's own routes as a read-only support actor | ADR-0041 |
-| One token, one service account; the row decides every request; creation is not replayable | ADR-0042 |
-| A deleted workspace becomes a tombstone; time, not a race, decides between restore and purge | ADR-0043 |
-| Exports stream; erasure is self-service and pseudonymous; retention runs per tenant (credentials on the platform) | ADR-0044 |
-| Removed memberships keep a hidden picker row, for erasure to find | ADR-0044 erratum |
-| The erasure tombstone names the account id, not a hash of the address | ADR-0028 erratum |
-| Every `RateLimitedProblem` carries `Retry-After` | problem filter |
+| Login stops at the password; the policy gates the next authentication; step-up is a `sua` claim on the access token | ADR-0045 |
+| Enrolling a factor takes the password | ADR-0045 erratum |
+| The SDK starts before the app; instruments are lazy; `org` is top-25 and `other`; the trace id is the request id | ADR-0046 |
+| Inviting an owner is the transfer of ownership, step-up included | THREAT-MODEL §7 (4) |
+| Per-org limits count verified requests only | THREAT-MODEL §7 (1) |
+| The export mail links to Settings, never to the archive | THREAT-MODEL §7 (7) |
+| The browser suite runs on `main` only, without the per-IP throttle, hosts pinned locally | `ci.yml` |
 
 ---
 
-## Recommended next steps — M9
+## Recommended next steps — M10
 
-`FEATURES.md` §M9, hardening. Its exit: the security review has no open findings; E2E covers the core
-flows across two tenants in a real browser, including the negative cases; observability answers "which
-tenant is slow" without grepping. In order:
+`FEATURES.md` §M10, ship. Its exit: a stranger clones the repo, runs three commands, signs up and uses a
+realistic system; the public demo is live; the README explains the decisions. In order:
 
-1. **MFA for members** (ADR-0029). The tables, TOTP, recovery codes and lockout already exist for
-   operators (`auth/mfa/`). Add per-org `requireMfa`, member enrolment, and step-up re-authentication for
-   `org:delete`, `org:transfer_ownership`, `support:grant_access` and `token:create`.
-2. **Playwright E2E**: signup → provision → invite → incident lifecycle; an SLA breach on a one-minute
-   policy; change approval; the cross-tenant, role-escalation and two-tabs-two-tenants negatives. The
-   `.cache/shots` scripts are a head start on selectors.
-3. **Observability** (ADR-0030): OpenTelemetry for the no-op `Tracer`, per-tenant metrics, the collector
-   and Grafana behind a Compose profile.
-4. **The security review** against the threat model, then OpenAPI polish and the 100k-ticket load check.
+1. **The demo seed**: two tenants across every type, age and status, KB, assets, inbound mail; an
+   idempotent `db:reset`. `load:tickets` exists for volume.
+2. **`apps/www` finished**: docs, pricing, blog, `/problems/*`, OG images, sitemap, robots, Lighthouse.
+3. **Dockerfiles** (multi-stage `turbo prune`) for the three apps and `docker-compose.prod.yml`. The
+   API's `main.ts` starts telemetry before the app; keep that order in the image's entrypoint.
+4. **DNS and TLS** (ADR-0026, ADR-0027): wildcard, DNS-01 via the delegated zone, CAA, SPF/DKIM/DMARC,
+   MX for `inbound.`.
+5. **Deploy** on Coolify/Hetzner with managed Postgres, Redis and MinIO, migrations in a post-deploy
+   hook, the nightly demo reset. **Set `trust proxy` to the real hop count** (THREAT-MODEL §7) and keep
+   `MFA_ENCRYPTION_KEY` apart from the database.
+6. **README**: diagram, screenshots, "why these decisions", run instructions.
+
+Then M7, last, on the running system.
 
 ---
 
@@ -207,22 +200,24 @@ tenant is slow" without grepping. In order:
 | **External requesters** (`allowExternalRequesters`) | when asked for | Deferred by ADR-0039 |
 | **A production inbound adapter** | deploy | Verify the provider's signature, re-sign in ADR-0039's shape |
 | `MFA_ENCRYPTION_KEY` kept apart from the database | deploy | A dump without it yields no second factors (ADR-0040) |
-| A known token prefix can spend the token's 300/min | M9 review | Prefixes are public; the limit also caps Argon2 work. Consider an IP component |
+| `trust proxy` must match the deployment's hop count | deploy | With two hops every per-IP limit is attacker-chosen (THREAT-MODEL §7) |
+| `org:manage_plan` has no tenant route yet; it gets the step-up when it gets the route | spec decision | ADR-0045 |
 | Tokens are unlimited per plan; service accounts hold no seat | spec decision | A plan-limit question, not isolation |
-| A deletion request can leave a cached `ACTIVE` summary for up to 60 s | M9 review | An in-flight resolution can re-write the lookup cache after `invalidate`; bearer tokens have no epoch |
+| A `complete` racing the attachment sweep can orphan a final object | any time | Suspected in the review; a leak, not a bypass |
+| Raw SQL outside `prisma.transaction()` runs with no GUC (fail-closed) | any time | A lint when a second site appears |
+| `db_transactions_per_request` counts interactive transactions only | docs | Every statement is in `db_client_operation_duration` |
+| The SLA browser scenario waits up to four minutes for a real breach | any time | Passes on retry when the sweep lands late; a test clock would make it instant |
 | The export lists every file's row before streaming | load check | Rows, not bytes; fine to tens of thousands |
 | The back-office "Restore workspace" button was not walked in a browser | any time | Unit- and integration-tested |
 | Plan-limit-reached notification (`DOMAIN.md` §8) | any time | Needs its own event, type and dedupe key |
 | A usage-counter reconcile | any time | Nothing recomputes `KB_ARTICLES` or `STORAGE_BYTES` after a bug |
 | Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | deploy | Local MinIO sets the rule in `docker/minio/init.sh` |
-| The inbound webhook is under the global throttler | deploy | Give the route its own limit or exempt it |
 | CLAUDE.md says no raw SQL outside `packages/database`, but the lint allows `src/**/repositories/**` | docs | Align the rule with the lint |
 | Requester receipt can repeat if a notify job stalls after commit | any time | Email-only, so there is no row to fold against |
 | `ProjectionRepository` duplicates part of `UserOrgIndexRepository` | any time | Merge them |
 | `pg` "client.query() while executing" deprecation warning in integration runs | any time | Present since M2 |
 | Rule 3 can be engineered: an owner may assign their change to the only other admin | spec decision | What DOMAIN.md §2.3 says today |
 | Per-member capabilities in the admin UI | any time | Member actions are offered by role |
-| `next-themes` inline-script warning under React 19 | any time | Dev-only |
 | Doc formatting drift | any time | Docs and API code are not Prettier-clean at 80 cols; commits skip the format hook |
 
 ## Running it
@@ -239,8 +234,14 @@ pnpm test:tenancy
 pnpm test:authz
 pnpm --filter @patchgrid/api run test:integration      # on Redis db 1, beside a dev API
 pnpm --filter @patchgrid/database run test:integration
+pnpm --filter @patchgrid/app exec playwright install chromium
 pnpm dev                         # www :3000, app :3001, api :4000; Mailpit UI :8025
+pnpm --filter @patchgrid/app test:e2e                  # the browser suite, against the running stack
+docker compose --profile observability up -d           # collector, Tempo, Prometheus, Grafana :3100
 ```
+
+To see traces and the tenant dashboard, set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` in
+`.env` and restart `pnpm dev`. The OpenAPI document is at `http://api.lvh.me:4000/api/docs`.
 
 Sign in at `http://app.lvh.me:3001` as `dana@patchgrid.test` to see two workspaces; Dana is also the
 seeded operator at `http://admin.lvh.me:3001` (she enrols a TOTP factor on first sign-in). `rita@` is a
@@ -249,6 +250,33 @@ files are served by MinIO at `http://localhost:9000`, a different site from `lvh
 
 Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session cookies are scoped to
 `.lvh.me`, so a `localhost` cookie jar stays empty and every call is a `401`.
+
+## Gotchas paid for in M9
+
+- **Importing a module for one provider imports its global guards too.** `TelemetryModule` importing
+  `AuthModule` registered `AuthGuard` ahead of tenant resolution and 500'd every tenant route. Provide
+  the stateless service again instead.
+- **The OpenTelemetry Express and Nest instrumentations lose `nestjs-cls`'s store** between the
+  resolver and the guard. The HTTP instrumentation alone is enough; the route lands on the span from
+  the middleware.
+- **The metrics API has no proxy provider.** An instrument created before the SDK's meter is installed
+  is a no-op forever; create them on first use.
+- **The Prometheus exporter appends the unit to the name** (`_milliseconds`, `_ratio`) and `_total` to
+  counters. Name instruments without a unit and query the suffixed names.
+- **A tenant label that ranks after counting the current observation churns on ties.** Rank on the count
+  before, break ties by id.
+- **`page.check()` fails on a controlled checkbox that saves on change**: Playwright re-verifies before the
+  server answers. Click with `noWaitAfter` and wait for the toast.
+- **A TOTP code is spent per 30-second step.** Two verifications of one secret inside a step need the
+  next step, or `lastUsedStep` reset in a test.
+- **A runner is one address.** The per-IP throttle rationed the whole browser suite to 429s; off for
+  that job, as for the integration specs.
+- **A PR whose base branch is deleted is closed, not retargeted.** Stack on `main` or merge bottom-up
+  and re-open.
+- **Bind mounts can go stale under Docker Desktop** when a mounted file is replaced; restart the
+  container.
+- **commitlint's 100-character header rejects the commit but leaves the files staged**, and the next
+  commit sweeps them in. Check `git log --stat` before pushing a series.
 
 ## Gotchas paid for in M8
 
