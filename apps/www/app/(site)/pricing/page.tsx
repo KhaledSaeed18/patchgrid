@@ -6,9 +6,13 @@ import Link from "next/link"
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Patchgrid's Free and Pro plans: agent seats, tickets, storage and automation, side by side.",
+    "Patchgrid's Free and Pro plans: agent seats, tickets, storage and knowledge articles, side by side.",
 }
 
+/**
+ * `AUTOMATION_RULES` has a limit in contracts but no feature behind it until
+ * M7; it joins the table when rules can be written.
+ */
 const ROWS: {
   metric: UsageMetric
   label: string
@@ -28,11 +32,6 @@ const ROWS: {
     metric: "STORAGE_BYTES",
     label: "Attachment storage",
     unit: (n) => `${n / 1024 ** 3} GB`,
-  },
-  {
-    metric: "AUTOMATION_RULES",
-    label: "Automation rules",
-    unit: (n) => `${n}`,
   },
   {
     metric: "KB_ARTICLES",

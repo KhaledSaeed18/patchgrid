@@ -38,7 +38,7 @@ const PROBLEM_COPY: Record<ProblemTypeSlug, ProblemCopy> = {
   },
   "plan-limit-reached": {
     detail:
-      "The organization is at a limit for its plan — agent seats, monthly tickets, attachment storage, automation rules or knowledge articles.",
+      "The organization is at a limit for its plan — agent seats, monthly tickets, attachment storage or knowledge articles.",
     resolution:
       "Remove something, or ask an owner to change the plan. 402 is only ever a plan limit; it never means a permission problem.",
   },
