@@ -1,0 +1,136 @@
+# Production, on one host (ARCHITECTURE.md §Deployment). Not for development:
+# `docker-compose.yml` is the local stack, and runs none of these.
+#
+# The platform in front (Coolify's proxy on Hetzner, ADR-0026) terminates TLS
+# for the wildcard and routes by host:
+#
+#   patchgrid.xyz                               → www:3000
+#   app. / admin. / <slug>.patchgrid.xyz        → app:3000
+#   api.patchgrid.xyz                           → api:4000
+#
+# Postgres, Redis and object storage are managed services, named by the
+# variables below; nothing stateful runs here. Every `${VAR:?}` must be set —
+# compose refuses to start without it — and the API's own schema rejects a bad
+# value at boot.
+#
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml run --rm tools pnpm run seed   # once, for the demo
+
+# Its own project name: `patchgrid` is the development stack, and sharing it would
+# make that stack orphans of this one.
+name: patchgrid-prod
+
+x-api-build: &api-build
+  context: .
+  dockerfile: apps/api/Dockerfile
+
+# What the API and the worker share. They are one image; WORKER_MODE decides
+# which half runs, so the two scale and restart apart.
+x-api-env: &api-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  ROOT_DOMAIN: ${ROOT_DOMAIN:-patchgrid.xyz}
+  # Origins carry no port behind TLS; the schema insists.
+  WEB_ORIGIN_PORTS: ""
+  COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.patchgrid.xyz}
+  # The application role, which holds neither BYPASSRLS nor CREATE (ADR-0022).
+  DATABASE_URL: ${DATABASE_URL:?the application role's connection string}
+  # Present so the API can refuse to start when both name the same role (ADR-0015).
+  DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?the migration owner's connection string}
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  REDIS_URL: ${REDIS_URL:?}
+  JWT_SECRET: ${JWT_SECRET:?32 bytes or more}
+  S3_ENDPOINT: ${S3_ENDPOINT:?}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:?}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?}
+  # Its own registrable domain, never under ROOT_DOMAIN (ADR-0037).
+  FILES_PUBLIC_ORIGIN: ${FILES_PUBLIC_ORIGIN:?}
+  SMTP_HOST: ${SMTP_HOST:?}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  MAIL_FROM: ${MAIL_FROM:-Patchgrid <notifications@patchgrid.xyz>}
+  INBOUND_WEBHOOK_SECRET: ${INBOUND_WEBHOOK_SECRET:?whsec_ and base64 of 24+ bytes}
+  INBOUND_AUTHSERV_ID: ${INBOUND_AUTHSERV_ID:?the receiving MTA's authserv-id}
+  # Kept apart from the database: a dump without it yields no second factors (ADR-0040).
+  MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?base64 of exactly 32 bytes}
+  # One for the platform's proxy; one more per CDN or balancer in front (THREAT-MODEL.md §7).
+  TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+
+# Inlined into the frontends at build time: an image is built for one environment.
+x-next-args: &next-args
+  NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN:-patchgrid.xyz}
+  NEXT_PUBLIC_PROTOCOL: https
+  NEXT_PUBLIC_API_URL: https://api.${ROOT_DOMAIN:-patchgrid.xyz}/api/v1
+  NEXT_PUBLIC_APP_PORT: ""
+  NEXT_PUBLIC_MARKETING_PORT: ""
+
+services:
+  # Runs to completion before the API starts: `prisma migrate deploy` as the
+  # owner role. Every migration is additive in the release that adds it
+  # (ENGINEERING.md §Migrations), so the old release keeps working meanwhile.
+  migrate:
+    build: { <<: *api-build, target: tools }
+    image: patchgrid/tools
+    environment:
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?}
+    command: ["pnpm", "run", "migrate:deploy"]
+    restart: "no"
+
+  api:
+    build: { <<: *api-build, target: runtime }
+    image: patchgrid/api
+    environment:
+      <<: *api-env
+      WORKER_MODE: api
+      OTEL_SERVICE_NAME: patchgrid-api
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    expose: ["4000"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  worker:
+    image: patchgrid/api
+    environment:
+      <<: *api-env
+      WORKER_MODE: worker
+      OTEL_SERVICE_NAME: patchgrid-worker
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      # Same image: let the api service build it.
+      api: { condition: service_started }
+    restart: unless-stopped
+    # A job in flight finishes before the process exits (BullMQ's graceful close).
+    stop_grace_period: 60s
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/next.Dockerfile
+      args: { APP: app, <<: *next-args }
+    image: patchgrid/app
+    expose: ["3000"]
+    restart: unless-stopped
+
+  www:
+    build:
+      context: .
+      dockerfile: docker/next.Dockerfile
+      args: { APP: www, <<: *next-args }
+    image: patchgrid/www
+    expose: ["3000"]
+    restart: unless-stopped
+
+  # One-off operator commands, never started by `up`: the seed, operator
+  # grants, a manual migration.
+  #   docker compose -f docker-compose.prod.yml run --rm tools pnpm run platform grant <email>
+  tools:
+    image: patchgrid/tools
+    profiles: ["tools"]
+    environment:
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?}
+      DATABASE_URL: ${DATABASE_URL:?}
+    restart: "no"
