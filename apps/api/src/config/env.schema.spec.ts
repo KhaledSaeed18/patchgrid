@@ -29,6 +29,13 @@ describe("envSchema", () => {
     expect(parsed.COOKIE_DOMAIN).toBe(".lvh.me")
   })
 
+  it("trusts one proxy hop unless told otherwise, and never an unbounded chain", () => {
+    expect(envSchema.parse(valid).TRUST_PROXY_HOPS).toBe(1)
+    expect(envSchema.parse({ ...valid, TRUST_PROXY_HOPS: "2" }).TRUST_PROXY_HOPS).toBe(2)
+    expect(issues({ TRUST_PROXY_HOPS: "-1" })).toContain("TRUST_PROXY_HOPS")
+    expect(issues({ TRUST_PROXY_HOPS: "true" })).toContain("TRUST_PROXY_HOPS")
+  })
+
   it("refuses to run the application as the migration role", () => {
     expect(issues({ DATABASE_MIGRATION_URL: valid.DATABASE_URL })).toContain("DATABASE_URL")
   })
