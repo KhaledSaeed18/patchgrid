@@ -3,6 +3,12 @@
 - **Status:** Accepted
 - **Date:** 2026-09-22
 
+> **Erratum (2026-10-17).** A priority change does not recompute targets from `createdAt` plus the
+> accumulated pause. Each clock has a stored origin — `responseClockStartedAt` and
+> `resolutionClockStartedAt`, both `createdAt` until a reopen moves the resolution one forward — and a
+> priority change recomputes from that origin, so it cannot silently undo a reopen. `DOMAIN.md` §4.2 is
+> the rule; `apps/api/src/tickets/domain/sla.ts` implements it.
+
 ## Context
 
 SLA targets need a clock model. Real ITSM tools offer business-hours calendars (Mon–Fri 09:00–17:00, holidays) and pause the clock while waiting on the requester. Business-hours math is a large feature (calendars, time zones, holiday tables, "add 4 business hours to Friday 16:00") and every other feature — worker, UI countdown, reports — depends on the clock model, so it must be fixed early.
