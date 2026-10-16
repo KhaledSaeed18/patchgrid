@@ -56,7 +56,7 @@ services:
     # healthcheck and the init script use. It runs as a non-root user, which is
     # why the volume was renamed: one created by the old root image is not
     # writable by it.
-    image: cgr.dev/chainguard/minio:latest-dev@sha256:642552b21636e4c2a50bb0d805736b52231e76b67bac8f69443c7b3c7a849ac3
+    image: cgr.dev/chainguard/minio:latest-dev@sha256:8534c7e8768711491b353aec5c88d89a7de97d3592e055f551e0975529b87ec0
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -81,7 +81,7 @@ services:
   # One-shot: create the bucket and set CORS so the browser can PUT directly to
   # storage with a presigned URL (ADR-0005). Exits 0 and stays exited.
   minio-init:
-    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:cd7f5d19d115615d809f27343b1e5cfbdc84f38e1c9a29475535b74ec5bade50
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:8d736271bb105639f2348d04186e748bbed63c5392e4ce86641453c11b53f3c8
     depends_on:
       minio:
         condition: service_healthy
@@ -115,7 +115,7 @@ services:
   # Prometheus; Grafana is provisioned with both and the tenant dashboard.
   # Off by default so the everyday stack stays light.
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.120.0
+    image: otel/opentelemetry-collector-contrib:0.162.0-386
     profiles: ["observability"]
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yaml"]
@@ -128,7 +128,7 @@ services:
       - tempo
 
   tempo:
-    image: grafana/tempo:2.7.1
+    image: grafana/tempo:2.10.8
     profiles: ["observability"]
     restart: unless-stopped
     command: ["-config.file=/etc/tempo.yaml"]
@@ -137,7 +137,7 @@ services:
       - tempo-data:/var/tempo
 
   prometheus:
-    image: prom/prometheus:v3.2.1
+    image: prom/prometheus:v3.15.0
     profiles: ["observability"]
     restart: unless-stopped
     volumes:
@@ -147,7 +147,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
 
   grafana:
-    image: grafana/grafana:11.5.2
+    image: grafana/grafana:11.6.16
     profiles: ["observability"]
     restart: unless-stopped
     environment:
