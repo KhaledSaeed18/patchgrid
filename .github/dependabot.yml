@@ -71,13 +71,23 @@ updates:
       actions:
         patterns: ["*"]
 
-  # The compose images and the gitleaks image are pinned by digest (M9 review);
-  # this is what moves the digests.
+  # The production images' base, pinned by digest.
   - package-ecosystem: docker
-    directory: /
+    directories: ["/apps/api", "/docker"]
     schedule:
       interval: weekly
       day: monday
     groups:
       images:
+        patterns: ["*"]
+
+  # The compose files' images, pinned by digest (M9 review). The `docker`
+  # ecosystem reads Dockerfiles only; compose files are their own.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      compose-images:
         patterns: ["*"]

@@ -357,3 +357,36 @@ jobs:
       - name: Migrations match schema.prisma
         run: pnpm --filter @patchgrid/database run migrations:drift
 
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # The production images (apps/api/Dockerfile, docker/next.Dockerfile) build
+  # from a clean checkout. Nothing is pushed: this is the guard that a
+  # dependency, a new workspace package or a config change has not broken the
+  # deployable while every other job stayed green. The API image is also booted
+  # far enough to prove the pruned workspace resolves: it must reach its own
+  # configuration check, which refuses the empty environment by name.
+  # ───────────────────────────────────────────────────────────────────────────
+  images:
+    name: Image (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, app, www]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build
+        run: |
+          if [ "${{ matrix.image }}" = api ]; then
+            docker build -f apps/api/Dockerfile -t patchgrid/api .
+          else
+            docker build -f docker/next.Dockerfile --build-arg APP=${{ matrix.image }} -t patchgrid/${{ matrix.image }} .
+          fi
+      - name: The API image loads its whole module graph
+        if: matrix.image == 'api'
+        run: |
+          set +e
+          out=$(docker run --rm -e NODE_ENV=production patchgrid/api 2>&1)
+          echo "$out" | tail -20
+          echo "$out" | grep -q "Invalid environment configuration"
