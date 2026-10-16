@@ -3,6 +3,8 @@ import type { CreateInvitationRequest, MembershipStatus, Role } from "@patchgrid
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ActorService, MemberActor } from "../../auth/actor"
+import { StepUpService } from "../../auth/mfa/step-up.service"
+import { StepUpRequiredProblem } from "../../common/problems/problem.exception"
 import { hash } from "../../auth/sessions/session.service"
 import type { AuditEntry, AuditService } from "../../audit/audit.service"
 import { PermissionService } from "../../authz/permission.service"
@@ -37,6 +39,8 @@ type Options = {
   mailFails?: boolean
   revokes?: boolean
   seatsFull?: boolean
+  /** `false` for an owner whose session has not re-proved itself. */
+  proved?: boolean
 }
 
 function harness(options: Options = {}) {
@@ -74,6 +78,7 @@ function harness(options: Options = {}) {
     role: options.role ?? "ADMIN",
     teamIds: [],
     leadOfTeamIds: [],
+    ...(options.proved === false ? {} : { stepUpAt: Math.floor(NOW.getTime() / 1000) }),
   }
   const service = new InvitationsService(
     invitations as unknown as InvitationRepository,
@@ -100,6 +105,7 @@ function harness(options: Options = {}) {
     } as unknown as MailService,
     { app: (path: string) => `http://app.lvh.me:3001${path}` } as unknown as PublicUrls,
     { hasRoom: async () => options.seatsFull !== true } as unknown as QuotaService,
+    new StepUpService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, new FixedClock(NOW)),
     new FixedClock(NOW),
   )
   return { service, events, audit, created, mail, invitations }
@@ -136,6 +142,13 @@ describe("InvitationsService.create", () => {
     await expect(harness({ role: "ADMIN" }).service.create(request({ role: "ADMIN" }))).rejects.toBeInstanceOf(NotPermittedProblem)
     await expect(harness({ role: "ADMIN" }).service.create(request({ role: "OWNER" }))).rejects.toBeInstanceOf(NotPermittedProblem)
     await expect(harness({ role: "OWNER" }).service.create(request({ role: "ADMIN" }))).resolves.toMatchObject({ role: "ADMIN" })
+  })
+
+  it("treats inviting an owner as the transfer of ownership: a fresh proof, whichever door (ADR-0029)", async () => {
+    await expect(harness({ role: "OWNER", proved: false }).service.create(request({ role: "OWNER" }))).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    await expect(harness({ role: "OWNER" }).service.create(request({ role: "OWNER" }))).resolves.toMatchObject({ role: "OWNER" })
+    // Below owner, no proof is asked for.
+    await expect(harness({ role: "OWNER", proved: false }).service.create(request({ role: "ADMIN" }))).resolves.toMatchObject({ role: "ADMIN" })
   })
 
   it("is not an agent's to do", async () => {
