@@ -293,9 +293,9 @@ in order of preference:
    and set `COOKIE_DOMAIN=.patchgrid.test`. `.test` is reserved by RFC 6761 for exactly this, which is why
    it is used rather than `.local` (which collides with mDNS).
 
-**Seeded data** (dev only, passwords printed by the seed script): two organizations, `acme` and `globex`, with deliberately similar tickets, teams and categories; `owner@acme.test`, `admin@acme.test`, `agent@acme.test`, `lead@acme.test`, `user@acme.test`, the equivalents for `globex`, and `both@acme.test` who is an Admin in `acme` and a Requester in `globex`. That last account is how org switching and isolation get exercised by hand.
+**Seeded data** (dev only, password printed by the seed script): two organizations, `acme` and `globex`, with deliberately similar teams and categories, and in each one thirty incidents, nineteen service requests, five problems, ten changes, twenty assets, fifteen articles and an inbound log, of every status and age. The people are `alice` (owner), `sam` (agent, Network lead) and `rita` (requester) at Acme; `gus`, `tina` and `rosa` at Globex; and `dana`, an admin at Acme, an agent at Globex and a platform operator, all `@patchgrid.test`. Dana is how org switching and isolation get exercised by hand.
 
-`pnpm db:reset` drops, re-migrates (including RLS policies) and re-seeds. The seed is idempotent and is the same script that will reset the public demo nightly later.
+`pnpm db:reset` drops, re-migrates (including RLS policies) and re-seeds; run twice, it leaves the same data. `pnpm db:seed -- --reset` replaces only the two demo workspaces, and refuses when a demo person has since joined another one — that is a `db:reset`. The seed is the script that will reset the public demo nightly later.
 
 The database init script creates two roles: the migration owner (which **does** hold `BYPASSRLS`, so
 data migrations and the test harness can operate — `FORCE ROW LEVEL SECURITY` means ownership alone does
