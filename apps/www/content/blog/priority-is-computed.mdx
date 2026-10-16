@@ -1,0 +1,121 @@
+In Patchgrid you can't set a ticket's priority. You give an impact and an urgency, and the server works out the priority from a fixed three-by-three matrix. A request that includes a `priority` field is rejected with `400`. Every SLA deadline follows from that computed priority, so the rule decides how quickly the service desk is expected to respond. This post covers why priority is derived rather than chosen, how deadlines follow from it, and why the clock pauses while a ticket waits on the requester.
+
+## Two questions instead of one
+
+Patchgrid's domain follows ITIL, which splits "how bad is this?" into two narrower questions: **impact** (how much of the business is affected) and **urgency** (how quickly it gets worse). Patchgrid asks for both and combines them with one matrix, defined once in `@patchgrid/contracts`:
+
+| Impact \ Urgency | Low | Medium | High |
+| --- | --- | --- | --- |
+| **High** | Medium | High | Critical |
+| **Medium** | Low | Medium | High |
+| **Low** | Low | Low | Medium |
+
+```ts
+/** Rows are impact, columns urgency. */
+export const PRIORITY_MATRIX = {
+  HIGH: { LOW: "MEDIUM", MEDIUM: "HIGH", HIGH: "CRITICAL" },
+  MEDIUM: { LOW: "LOW", MEDIUM: "MEDIUM", HIGH: "HIGH" },
+  LOW: { LOW: "LOW", MEDIUM: "LOW", HIGH: "MEDIUM" },
+} as const satisfies Record<Impact, Record<Urgency, Priority>>
+
+export function computePriority(impact: Impact, urgency: Urgency): Priority {
+  return PRIORITY_MATRIX[impact][urgency]
+}
+```
+
+The `satisfies` clause makes the compiler check every cell. Remove one, or misspell a priority, and the build fails. A test also checks the matrix against `DOMAIN.md`, so the spec and the code cannot quietly drift apart.
+
+## Why a client never sends it
+
+Priority is the key that selects an SLA policy, and the policy sets the deadline. If clients could send a priority, every caller could pick its own deadline. If they could send one only "sometimes", there would be two sources of truth for the same field and no rule about which one wins. We wanted one source, so the matrix is it, enforced in three places.
+
+**At the edge.** Ticket request schemas are strict Zod objects. `createTicketRequestSchema` accepts `impact` and `urgency` and has no `priority` key, so an unexpected field is a validation error, which becomes a `400`, rather than being silently dropped. The contract tests state the intent outright:
+
+```ts
+it("refuse a priority from the client — it is computed (DOMAIN.md §3)", () => {
+  expect(createTicketRequestSchema.safeParse({ ...base, priority: "CRITICAL" }).success).toBe(false)
+  expect(updateTicketRequestSchema.safeParse({ version: 1, priority: "LOW" }).success).toBe(false)
+})
+```
+
+**In the service.** The ticket service calls `computePriority` on create and again whenever an edit changes `impact` or `urgency`. If the result differs from the stored priority, it loads the matching policy and recomputes the deadlines in the same transaction.
+
+**In the database.** The `Ticket` table carries a `CHECK` that restates the matrix, so a bug in the service becomes a constraint violation instead of a row that contradicts itself:
+
+```sql
+ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_priority_matrix_check" CHECK (
+  "priority" = CASE
+    WHEN "impact" = 'HIGH' AND "urgency" = 'HIGH' THEN 'CRITICAL'::"Priority"
+    WHEN "impact" = 'HIGH' AND "urgency" = 'MEDIUM' THEN 'HIGH'::"Priority"
+    WHEN "impact" = 'MEDIUM' AND "urgency" = 'HIGH' THEN 'HIGH'::"Priority"
+    WHEN "impact" = 'LOW' AND "urgency" IN ('LOW', 'MEDIUM') THEN 'LOW'::"Priority"
+    WHEN "impact" = 'MEDIUM' AND "urgency" = 'LOW' THEN 'LOW'::"Priority"
+    ELSE 'MEDIUM'::"Priority"
+  END
+);
+```
+
+The planned triage assistant follows the same rule. `DOMAIN.md` specifies that it produces a `suggestedImpact` and a `suggestedUrgency`, never a priority, so even a model's opinion has to go through the matrix.
+
+Priority applies to all four ticket types, since it is a useful sort key for Problems and Changes too. SLA policies, though, attach only to Incidents and Service Requests.
+
+## From priority to deadlines
+
+Each workspace gets eight SLA policies when it is provisioned: one per `(ticketType, priority)` for Incidents and Service Requests. They start out identical, so an admin can relax Service Request targets without touching Incidents. The defaults:
+
+| Priority | Response | Warn before | Resolution | Warn before |
+| --- | --- | --- | --- | --- |
+| Critical | 15 min | 5 min | 4 h | 45 min |
+| High | 30 min | 10 min | 8 h | 1 h |
+| Medium | 1 h | 15 min | 24 h | 2 h |
+| Low | 4 h | 1 h | 72 h | 4 h |
+
+There are two warning thresholds on purpose. One threshold cannot serve a 15-minute response target and a 4-hour resolution target at the same time. Set it to 15 minutes for both and a Critical incident would raise a response warning the moment it was created.
+
+Deadlines are stored as absolute timestamps, `respondBy` and `resolveBy`, not derived each time they are read. That choice has a consequence we wanted: editing a policy does not retarget tickets that are already open. Their stored deadlines stand until something recalculates them (a priority change, a resume from `PENDING` or a reopen), the edit is audited, and history stays readable.
+
+Both deadlines come from two formulas, and each clock's starting point is its own column:
+
+```
+respondBy = responseClockStartedAt   + responseTargetMinutes
+resolveBy = resolutionClockStartedAt + resolutionTargetMinutes + pausedMinutes
+```
+
+Storing the start points as columns resolves a conflict between two rules. ADR-0003 first said a priority change recomputes targets from `createdAt`. But reopening a ticket starts a fresh resolution clock, and a later priority change must not silently move that clock's start back to creation. `DOMAIN.md` therefore refines the rule: priority changes recompute from the *stored* start, which a reopen has moved forward.
+
+## The pause while pending
+
+ADR-0003 compared three clock models. Running 24×7 with no pausing is simple, but a ticket that waits a week for the requester breaches through no fault of the desk, and breach figures stop meaning anything. Business-hours calendars are the most realistic, but they multiply the work in every feature built on the clock. We chose the middle option: **24×7, paused in `PENDING`**.
+
+Only the resolution clock pauses. A ticket can enter `PENDING` only through a public agent comment explaining what the requester needs to do, and that comment already counts as the response. The response clock has therefore stopped by the time any pause begins. `DOMAIN.md` notes that the earlier rule ("the response clock is not affected") described a state that could never be reached, and replaces it.
+
+Entering `PENDING` records `pausedAt`. Leaving it adds the elapsed time to `pausedMinutes` and moves `resolveBy` out by the same amount:
+
+```ts
+export function onResume(state: SlaState, now: Date, policy: SlaPolicyTargets | null): Partial<SlaState> {
+  if (state.pausedAt === null) return {}
+  const pausedMinutes = state.pausedMinutes + Math.floor((now.getTime() - state.pausedAt.getTime()) / MINUTE)
+  return { pausedAt: null, pausedMinutes, resolveBy: deadlines({ ...state, pausedMinutes }, policy).resolveBy }
+}
+```
+
+The rounding is down, which in the code's own words is "the stricter reading, never in the ticket's favour". A ticket resumes when an agent resumes it, or automatically when its requester posts a public comment. The transition table also refuses `PENDING → RESOLVED` outright, so the ticket has to be resumed first. That way the pause arithmetic always closes before the resolution clock stops.
+
+## Why 24×7, and what changes if it stops being
+
+Business-hours SLAs are real and common. Supporting them properly means calendars, time zones, holiday tables and arithmetic like "add four business hours to Friday at 16:00". The worker, the countdown in the UI and the reports all depend on the clock model, so it had to be fixed early. Building calendars first would have delayed the first usable milestone considerably.
+
+Because deadlines are stored as absolute timestamps, the extension path is narrow. A `BusinessCalendar` entity plus a clock strategy that turns "N business minutes from T" into a timestamp would change only how deadlines are *computed*. Storage and the scanner would stay the same.
+
+## The scanner, and keeping it honest
+
+A repeatable job dispatches one `sla-scan` per tenant every 60 seconds. For each open Incident or Service Request with a running clock, it raises a warning once the warning window opens, and a breach once the deadline passes. Each flag is set only once: the write is conditional on the flag still being unset, so two scans racing each other produce a single flag. A breach found before its warning skips the warning. Setting a flag is not a versioned write, so an agent halfway through an edit does not get a `409` just because a warning fired.
+
+The SLA logic is a set of pure functions over stored start times, the policy, paused minutes and `now`. There are no database reads and no clock reads; time is injected. That is why the warning, breach and reopen rules can each have a unit test that never waits for time to pass.
+
+## Further reading
+
+- [ADR-0003: SLA clocks run 24×7 and pause in `PENDING`](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0003-sla-24x7-with-pending-pause.md)
+- [ADR-0006: State changes through an explicit transitions endpoint](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0006-explicit-transition-endpoint.md)
+- [ADR-0018: Tenant-aware background jobs and events](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0018-tenant-aware-jobs-and-events.md)
+- [DOMAIN.md: §3 Priority matrix and §4 SLA rules](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/DOMAIN.md)

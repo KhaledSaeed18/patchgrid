@@ -1,0 +1,126 @@
+Row-level security looks at rows one at a time. A foreign key is a relationship between two rows, and PostgreSQL checks it with row security switched off. In a shared-schema multi-tenant database, that means a row can be correctly tenanted and still point at another tenant's data. This post covers how we found the gap in Patchgrid's isolation design, the options we considered, and the schema change that makes the bad reference impossible to write at all.
+
+## The design we started with
+
+Patchgrid keeps every tenant in one PostgreSQL schema. Each tenant-owned table carries an `orgId` column, and ADR-0015 wraps that in four independent layers so that no single mistake is enough to leak data:
+
+1. **Request context.** The tenant is resolved once per request and held in `AsyncLocalStorage`.
+2. **Repository arguments.** Every repository method takes an explicit `orgId` and filters on it.
+3. **A Prisma client extension.** It wraps every query in a transaction that first sets `app.current_org_id`, and it throws if a tenant-owned model is queried with no tenant set.
+4. **Row-Level Security.** Every tenant-owned table has `ENABLE` and `FORCE ROW LEVEL SECURITY` and one policy, generated from a single template in `packages/database`:
+
+```sql
+ALTER TABLE "Comment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Comment" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "Comment"
+  USING      ("orgId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid)
+  WITH CHECK ("orgId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid);
+```
+
+`USING` filters reads, updates and deletes. `WITH CHECK` refuses to write a row into another tenant. The application connects as `patchgrid_app`, a role without `BYPASSRLS`, and the API refuses to start if that ever stops being true.
+
+On paper that covers both reads and writes. While tracing how a comment gets attached to a ticket, though, we noticed that all four layers have one thing in common: each of them checks a row in isolation.
+
+## Where the hole is
+
+PostgreSQL runs referential-integrity checks with the privileges of the referenced table's owner and with row security *disabled*. This is documented and deliberate: a policy should not be able to quietly break a constraint. But in a shared-schema design it has a nasty side effect. Take a connection as the application role, scoped to org B:
+
+```sql
+-- connected as patchgrid_app, with app.current_org_id = <org B>
+INSERT INTO "Comment" ("orgId", "ticketId", "authorId", body, visibility)
+VALUES ('<org B>', '<a ticket id belonging to org A>', '<me>', 'hello', 'PUBLIC');
+```
+
+With a single-column foreign key on `ticketId`, the check on `ticketId → Ticket(id)` passes, because the integrity check ignores RLS. `WITH CHECK` on `Comment` passes as well, because the new row's own `orgId` is org B's. So the row is written. Each row is correctly tenanted, but no policy ever looks at the relationship between them.
+
+You end up with a comment in one tenant attached to another tenant's ticket. In the UI it is an orphan. Any join written in raw SQL can leak through it. It is also an existence oracle: whether the foreign key succeeds or fails tells the caller which ticket ids exist in other tenants.
+
+We didn't want to rely on reasoning alone, so a throwaway spike against PostgreSQL 17 and Prisma 7.10.0 reproduced it. With a single-column foreign key, the insert above *succeeded*: a row carrying org B's `orgId` was written pointing at org A's ticket, past `WITH CHECK` and past RLS.
+
+The same review turned up a related hole in how rows refer to people. Assignees, requesters and authors were referenced by `User.id`. `User` is a platform-class table with no `orgId` and no policy, so nothing stopped `Ticket.assigneeId` from naming an employee of a different company. "The assignee is a member of this org" was something the application hoped was true. Nothing enforced it.
+
+## Options we considered
+
+ADR-0023 compares three ways to close the gap.
+
+**Application-layer validation.** Before every insert, load the parent and compare its `orgId`. This is correct where someone remembers to write it and missing where they don't. In code review a missing check looks like nothing at all, so it is easy to miss.
+
+**Triggers.** A `BEFORE INSERT` trigger on each child table could compare the child's `orgId` with the parent's. It works, but it means hand-written PL/pgSQL for every relationship and a lookup on every write. If a later migration drops a trigger, nothing fails loudly.
+
+**Composite foreign keys on `(orgId, id)`.** Make the tenant part of the reference itself. Then a cross-tenant reference isn't caught and rejected: it simply can't be expressed. The only runtime cost is a wider index. There is no code to maintain and no check to forget.
+
+We chose the third.
+
+## The shape of the fix
+
+Every tenant-owned parent declares `@@unique([orgId, id])`, which makes the pair a legal target for a foreign key. Every child references the pair, not the bare id. This is the real `Comment` model, trimmed:
+
+```prisma
+model Comment {
+  id                 String  @id @default(uuid(7)) @db.Uuid
+  orgId              String  @db.Uuid
+  ticketId           String  @db.Uuid
+  authorMembershipId String? @db.Uuid
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id])
+  author       Membership?  @relation("CommentAuthor", fields: [orgId, authorMembershipId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, id])
+  @@index([orgId, ticketId, createdAt])
+}
+```
+
+Prisma generates exactly the constraint we want:
+
+```sql
+ALTER TABLE "Comment" ADD CONSTRAINT "Comment_orgId_ticketId_fkey"
+  FOREIGN KEY ("orgId", "ticketId") REFERENCES "Ticket"("orgId", "id")
+  ON DELETE RESTRICT ON UPDATE CASCADE;
+```
+
+Each check now covers part of the job. `WITH CHECK` fixes the comment's `orgId` to the current tenant. The composite foreign key then requires a ticket with that *same* `orgId` and the given id. The integrity check still runs without row security, but it no longer needs it, because the tenant is part of the key it is checking. In the spike, the insert that succeeded before was now rejected with `P2003` on `Comment_orgId_ticketId_fkey`, while a same-tenant insert still went through.
+
+The rule covers every relationship where both ends are tenant-owned. ADR-0023 lists them: comments, attachments, both ends of a ticket link, watchers, problem and change details, approvals, a category's parent and default team, a ticket's category, team and SLA policy, team memberships, API tokens, and every later table keyed by `ticketId`.
+
+## People are memberships
+
+The fix for people uses the same idea. Rows reference `Membership`, which is tenant-owned and can therefore be the target of a composite key, not `User`. `Ticket.assigneeId` became `assigneeMembershipId`, `Comment.authorId` became `authorMembershipId` alongside an `authorKind`, and so on through watchers, approvers, asset owners and article authors. Membership in the org is now part of the key, so the application no longer has to check it.
+
+The one deliberate exception is `Notification.userId`. A notification is delivered to a person, so it keeps `userId` and also gains a `membershipId` that ties it to the org.
+
+To render names on hot list queries without joining `User`, `Membership` carries a denormalised `displayName` and `avatarUrl`. `User` is the one table where a forgotten `where` clause would expose every customer's employees, so keeping it out of those joins is deliberate. It also means departed members have a stable display without a nullable join.
+
+## Holding the line in CI
+
+A rule that lives only in a document gets broken. The schema test in `packages/database` reads the catalog directly. It lists every foreign key from `pg_constraint`, keeps those whose two ends are both tenant-owned, and fails if any of them is not composite with `orgId` paired to `orgId`:
+
+```ts
+const bad = (await foreignKeys())
+  .filter((fk) => isTenantOwned(fk.from) && isTenantOwned(fk.to))
+  .filter((fk) => {
+    const i = fk.fromCols.indexOf("orgId")
+    return fk.fromCols.length < 2 || i === -1 || fk.toCols[i] !== "orgId"
+  })
+expect(bad).toEqual([])
+```
+
+Two more assertions sit alongside it. One checks that every tenant-owned table references its `Organization`. The other checks that every tenant-owned table with an `id` has a unique `(orgId, id)` and so can be referenced. There is also a behavioural test: creating a ticket in one tenant with a category from the other is rejected by the foreign key, which the test names "the composite key cannot express it".
+
+The second assertion has one documented exception. A partitioned table's unique keys must include its partition key, so the partitioned audit log cannot carry a unique `(orgId, id)`. That is safe only because nothing may reference it, and a separate test enforces that.
+
+## What it cost
+
+- **Wider indexes.** `(orgId, id)` replaces `(id)`. On a workload where every query is filtered by tenant, `orgId` already leads every index for the same reason, so this is neutral or better.
+- **More verbose relations.** Every relation spells out both columns. We accepted that: the extra words are the constraint, written where you can see it.
+- **A denormalised name that can go stale.** `Membership.displayName` is copied from the user's name when they join. There is no profile editing yet; when there is, a rename will have to refresh every one of that user's memberships.
+- **Writing a child needs the parent's `orgId`.** Every repository method already takes an explicit `orgId`, so this costs nothing in practice.
+
+If we ever wanted to go back, dropping to single-column keys would be a mechanical, non-destructive migration. ADR-0023 calls this layer 0, because it runs before any of the other four get a chance to be wrong. Two classes of bug, cross-tenant references and non-member assignees, are now rejected by the database instead of depending on someone having written a test.
+
+## Further reading
+
+- [ADR-0023: Identity keys, timestamps, and tenant-safe foreign keys](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md)
+- [ADR-0015: Tenant isolation via shared schema, `orgId` and Postgres RLS](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0015-tenant-isolation-rls.md)
+- [ADR-0022: Platform-scope access under RLS](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0022-platform-scope-access-under-rls.md)
+- [TENANCY.md: the tenancy model, §7 Isolation](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/TENANCY.md)
