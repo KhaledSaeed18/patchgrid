@@ -6,6 +6,7 @@ import {
   type Role,
 } from "@patchgrid/contracts"
 
+import { StepUpService } from "../../auth/mfa/step-up.service"
 import { ActorService } from "../../auth/actor"
 import { hash } from "../../auth/sessions/session.service"
 import { AuditService } from "../../audit/audit.service"
@@ -56,6 +57,7 @@ export class InvitationsService {
     private readonly mail: MailService,
     private readonly urls: PublicUrls,
     private readonly quota: QuotaService,
+    private readonly stepUp: StepUpService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -70,6 +72,12 @@ export class InvitationsService {
     this.permissions.assert(actor, "member:invite")
     // An admin cannot mint a peer through the invitation side door (ADR-0033).
     if (PRIVILEGED.has(request.role)) this.permissions.assert(actor, "member:promote_admin")
+    // Nor an owner's live session mint a second owner without a fresh proof: the same
+    // step-up as promoting one, whichever door it comes through (ADR-0029, THREAT-MODEL §7).
+    if (request.role === "OWNER") {
+      this.permissions.assert(actor, "org:transfer_ownership")
+      this.stepUp.assert(actor)
+    }
 
     const orgId = this.tenant.requireOrgId()
     const now = this.clock.now()
