@@ -399,7 +399,10 @@ demo is live; the README explains the decisions._
       Components) with the session check streamed in; canonical metadata, build-time OG cards, sitemap,
       robots, JSON-LD. Lighthouse (mobile, local): performance 90–98, accessibility and SEO 100,
       best practices 100 but for the two HTTPS audits a local run cannot pass
-- [ ] Dockerfiles (multi-stage `turbo prune`) for `www`, `app`, `api`; `docker-compose.prod.yml`
+- [x] Dockerfiles (multi-stage `turbo prune`) for `www`, `app`, `api`; `docker-compose.prod.yml`.
+      `apps/api/Dockerfile` (`runtime`, `tools`) and `docker/next.Dockerfile` (standalone); the compose
+      file runs migrate → api, worker, app, www against managed state. Smoke-tested locally against the
+      dev stack's Postgres, Redis and MinIO; CI builds all three. `TRUST_PROXY_HOPS` replaces the fixed hop count
 - [ ] **DNS and TLS** (ADR-0026, ADR-0027): wildcard `*.patchgrid.xyz`, DNS-01 via delegated
       `_acme-challenge`, CAA records, SPF/DKIM/DMARC progression, MX for `inbound.`
 - [ ] Deploy: Coolify on Hetzner, managed Postgres/Redis/MinIO, migrations in a post-deploy hook, nightly
