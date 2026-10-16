@@ -36,9 +36,11 @@ export const THROTTLERS: ThrottlerOptions[] = [
     name: TOKEN_THROTTLER,
     limit: 300,
     ttl: MINUTE,
-    // Keyed by the public prefix, so a known prefix cannot buy unlimited Argon2id work.
+    // Keyed by the public prefix AND the address: a known prefix cannot buy
+    // unlimited Argon2id work, and a stranger who knows it cannot spend the
+    // integration's own budget from elsewhere (M9 review, THREAT-MODEL §7).
     skipIf: (context: ExecutionContext) => tokenPrefixIn(context) === undefined,
-    getTracker: (_req, context) => `token:${tokenPrefixIn(context) ?? ""}`,
+    getTracker: (req, context) => `token:${tokenPrefixIn(context) ?? ""}:${req.ip ?? ""}`,
   },
 ]
 
@@ -50,8 +52,14 @@ export const SkipAllThrottling = (): MethodDecorator & ClassDecorator =>
   SkipThrottle({ [IP_THROTTLER]: true, [EMAIL_THROTTLER]: true, [ORG_THROTTLER]: true, [TOKEN_THROTTLER]: true })
 
 /** Steps 3 and 6 are two guards in two places; each takes its share of the list. */
-export const BEFORE_RESOLUTION: ReadonlySet<string> = new Set([IP_THROTTLER, EMAIL_THROTTLER])
-export const AFTER_RESOLUTION: ReadonlySet<string> = new Set([ORG_THROTTLER, TOKEN_THROTTLER])
+/** Counted before the tenant is known: by address, by address named, by token prefix and address. */
+export const BEFORE_RESOLUTION: ReadonlySet<string> = new Set([IP_THROTTLER, EMAIL_THROTTLER, TOKEN_THROTTLER])
+/**
+ * Counted only once the credential is VERIFIED. Resolution admits an org on an
+ * unverified cookie claim; counting there would let anyone who knows an org's
+ * id exhaust its budget and lock its members out (M9 review, THREAT-MODEL §7).
+ */
+export const AFTER_RESOLUTION: ReadonlySet<string> = new Set([ORG_THROTTLER])
 
 function emailIn(context: ExecutionContext): string | undefined {
   const body: unknown = context.switchToHttp().getRequest<Request>().body
