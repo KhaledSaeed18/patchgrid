@@ -70,3 +70,14 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+
+  # The compose images and the gitleaks image are pinned by digest (M9 review);
+  # this is what moves the digests.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      images:
+        patterns: ["*"]

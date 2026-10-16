@@ -56,7 +56,7 @@ services:
     # healthcheck and the init script use. It runs as a non-root user, which is
     # why the volume was renamed: one created by the old root image is not
     # writable by it.
-    image: cgr.dev/chainguard/minio:latest-dev
+    image: cgr.dev/chainguard/minio:latest-dev@sha256:642552b21636e4c2a50bb0d805736b52231e76b67bac8f69443c7b3c7a849ac3
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -81,7 +81,7 @@ services:
   # One-shot: create the bucket and set CORS so the browser can PUT directly to
   # storage with a presigned URL (ADR-0005). Exits 0 and stays exited.
   minio-init:
-    image: cgr.dev/chainguard/minio-client:latest-dev
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:cd7f5d19d115615d809f27343b1e5cfbdc84f38e1c9a29475535b74ec5bade50
     depends_on:
       minio:
         condition: service_healthy
@@ -94,7 +94,7 @@ services:
     entrypoint: ["/bin/sh", "/opt/patchgrid/minio/init.sh"]
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:latest@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
     restart: unless-stopped
     environment:
       MP_MAX_MESSAGES: 5000

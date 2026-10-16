@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       - run: pnpm turbo lint typecheck test build
       # Also inside `test`; named here so the gate RBAC.md §13 promises is
@@ -76,7 +76,7 @@ jobs:
       POSTGRES_DB: patchgrid
       POSTGRES_TEST_DB: patchgrid_test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       - run: pnpm db:bootstrap
       - run: pnpm db:generate
@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
 
       - name: Use the documented example environment
@@ -163,7 +163,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
 
       - name: Use the documented example environment
@@ -186,6 +186,13 @@ jobs:
       # suite — and the Next server's own fetches — to 300 requests a minute.
       # Off here as it is for the integration specs; the throttles have their
       # own tests.
+      # The suite addresses the stack by name; names a public zone resolves to
+      # loopback today. Pinned in the hosts file so the run never depends on it.
+      - name: Resolve the test hosts locally
+        run: |
+          echo "127.0.0.1 lvh.me api.lvh.me app.lvh.me admin.lvh.me acme.lvh.me globex.lvh.me" | sudo tee -a /etc/hosts
+          grep -c lvh.me /etc/hosts
+
       - name: Boot the API and the app
         env:
           THROTTLE_ENABLED: "false"
@@ -205,7 +212,7 @@ jobs:
 
       - name: Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-report
           path: apps/app/playwright-report
@@ -227,7 +234,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # gitleaks scans history, not just the working tree: a secret that was
           # committed and then "removed" is still in the repository.
@@ -235,7 +242,7 @@ jobs:
 
       - name: Secret scan
         run: |
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
             detect --source=/repo --redact --no-banner --verbose
 
       - uses: ./.github/actions/setup
@@ -297,7 +304,7 @@ jobs:
       POSTGRES_TEST_DB: patchgrid_test
       POSTGRES_SHADOW_DB: patchgrid_shadow
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       - run: pnpm db:bootstrap
       - run: pnpm db:generate
