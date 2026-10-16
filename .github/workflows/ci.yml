@@ -137,6 +137,9 @@ jobs:
           echo "$body"
           echo "$body" | grep -q '"status":"ok"' || { echo "readiness is not ok"; exit 1; }
 
+          echo "--- openapi ---"
+          curl -fsS http://localhost:4000/api/docs/openapi.json | grep -q '"openapi"' || { echo "no OpenAPI document"; exit 1; }
+
       - name: API log
         if: always()
         run: cat /tmp/api.log || true

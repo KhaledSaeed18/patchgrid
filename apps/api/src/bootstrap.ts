@@ -9,6 +9,7 @@ import { AppModule } from "./app.module"
 import { INBOUND_WEBHOOK_PATH, inboundBodyParser } from "./inbound/inbound.controller"
 import { corsOriginCallback, originPolicyFrom } from "./common/http/origin-policy"
 import { APP_CONFIG, type AppConfig } from "./config/app-config"
+import { serveOpenApi } from "./openapi"
 
 /**
  * The order below is the request pipeline from `ARCHITECTURE.md`, and it is
@@ -62,6 +63,9 @@ export async function bootstrap(): Promise<void> {
     // limiting keyed on the proxy's own address would be worse than none at all.
     app.set("trust proxy", 1)
   }
+
+  // The reference, generated from the same Zod contracts the pipes enforce (ENGINEERING.md §API conventions).
+  serveOpenApi(app, config)
 
   // Lets Prisma and Redis close their connections on SIGTERM rather than having
   // them severed mid-query.
