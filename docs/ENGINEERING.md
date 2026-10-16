@@ -247,6 +247,9 @@ Non-negotiable, and the most valuable tests in the repo. Two organizations (`acm
 
 ## Local development
 
+`pnpm install && pnpm local:up && pnpm dev` does all of this, and is safe to repeat. The steps it
+takes, for when one needs doing on its own:
+
 ```bash
 cp .env.example .env            # ports are overridable; 5432 is often already taken
 pnpm install

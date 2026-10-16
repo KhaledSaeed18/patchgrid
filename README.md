@@ -19,6 +19,45 @@ patchgrid.xyz           marketing            apps/www    Next.js
 api.patchgrid.xyz       everything else      apps/api    NestJS
 ```
 
+## Architecture
+
+```mermaid
+flowchart LR
+  browser([Browser])
+  mta[Receiving MTA]
+  www["apps/www<br/>Next.js, prerendered"]
+  app["apps/app<br/>Next.js"]
+  subgraph backend ["apps/api — one image"]
+    api["api<br/>WORKER_MODE=api"]
+    worker["worker<br/>WORKER_MODE=worker"]
+  end
+  pg[("Postgres 17<br/>RLS on every tenant table")]
+  redis[("Redis<br/>queues, throttles, caches")]
+  s3[("Object storage<br/>its own registrable domain")]
+  smtp[SMTP]
+
+  browser -->|patchgrid.xyz| www
+  browser -->|"slug. · app. · admin."| app
+  browser -->|"api. — tenant from the credential"| api
+  browser -->|presigned upload and download| s3
+  www -.->|signup, slug check| api
+  app -->|server components| api
+  mta -->|signed webhook| api
+  backend --> pg
+  backend --> redis
+  api -->|presigns| s3
+  worker -->|mail| smtp
+```
+
+The application connects as `patchgrid_app`, a role with no `BYPASSRLS`, and sets the tenant with a
+transaction-local `set_config` before every query. Jobs carry their `orgId` and run inside that tenant.
+Images and the production topology: [`ARCHITECTURE.md`](docs/ARCHITECTURE.md#production-images-and-the-deployment-shape).
+
+| | |
+| --- | --- |
+| ![The marketing site](docs/images/www.png) | ![An agent's queue, with deadlines counting down and the overdue ones marked](docs/images/queue.png) |
+| ![A change awaiting the team lead's approval, with its plan and rollback](docs/images/change.png) | ![The knowledge base: published answers, internal runbooks and drafts](docs/images/knowledge.png) |
+
 ## Isolation, in five layers
 
 The thing this project is actually about:
@@ -92,17 +131,60 @@ members who could open that ticket — a CI test holds that decision equal to th
   - a workspace export streamed as a zip, self-service account erasure that keeps what
     you wrote under "Former member", and retention sweeps.
 
+## Why it is built this way
+
+Every choice here has a decision record with the alternatives it beat. The ones that shape the most:
+
+- **Shared schema, row-level security, and composite foreign keys** — not a schema or database per
+  tenant, and not RLS alone: PostgreSQL checks foreign keys with row security off, so `(orgId, id)` keys
+  make a cross-tenant reference impossible to write.
+  [ADR-0015](docs/decisions/0015-tenant-isolation-rls.md) ·
+  [ADR-0023](docs/decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md) ·
+  [post](apps/www/content/blog/foreign-keys-that-leak.mdx)
+- **The tenant comes from the credential**, never from the `Host` or a request field; the origin is a
+  cross-check. [ADR-0024](docs/decisions/0024-per-tenant-cookies-and-api-tenant-resolution.md) ·
+  [post](apps/www/content/blog/the-tenant-comes-from-the-credential.mdx)
+- **Priority is computed** from impact and urgency, and a client that sends one gets a `400`; SLA clocks
+  run 24×7 and pause only while waiting on the requester.
+  [ADR-0003](docs/decisions/0003-sla-24x7-with-pending-pause.md) · [post](apps/www/content/blog/priority-is-computed.mdx)
+- **Four lifecycles, one transition endpoint** — per-type state machines and extension tables, and
+  status changes only through `POST /tickets/:id/transitions`.
+  [ADR-0002](docs/decisions/0002-per-type-state-machines-and-extension-tables.md) ·
+  [ADR-0006](docs/decisions/0006-explicit-transition-endpoint.md)
+- **Authorization in the service, on a resolved subject**, deny by default, with visibility as a list
+  of query branches rather than one `where`. Reads you may not see are `404`, actions you may not take
+  `403`. [ADR-0019](docs/decisions/0019-rbac-model-and-enforcement.md)
+- **Background work is per tenant** — a dispatcher fans out one job per workspace, never one global
+  scan. [ADR-0018](docs/decisions/0018-tenant-aware-jobs-and-events.md)
+- **API tokens are actors, not bypasses**: each is a service account whose scopes intersect its role.
+  [ADR-0021](docs/decisions/0021-api-tokens-as-service-accounts.md)
+- **No impersonation**: operators read a workspace only in an owner-granted, read-only, audited support
+  session. [ADR-0020](docs/decisions/0020-consent-based-support-access.md)
+- **Files never share a site with the app** — served from their own registrable domain, landing in a
+  staging prefix until they are confirmed.
+  [ADR-0037](docs/decisions/0037-attachments-on-their-own-registrable-domain.md) ·
+  [ADR-0038](docs/decisions/0038-uploads-land-in-staging.md)
+- **Mail is trusted on its verdict**, not its `From:` line: only DMARC-passing members raise tickets.
+  [ADR-0039](docs/decisions/0039-inbound-mail-feed-and-verdict.md)
+- **Step-up before the irreversible** — a fresh second-factor proof to delete a workspace, make an owner,
+  grant support access or mint a token. [ADR-0045](docs/decisions/0045-member-mfa-as-built.md)
+- **Traces that know the tenant**, with the metrics label bounded so one noisy workspace cannot blow
+  up the series count. [ADR-0046](docs/decisions/0046-observability-as-built.md)
+
+The [threat model](docs/THREAT-MODEL.md) records what a three-way security review found and how each
+finding was fixed ([post](apps/www/content/blog/what-a-security-review-found.mdx)).
+
 ## Running it
 
+You need Node 24, pnpm 10 and Docker. From a fresh clone:
+
 ```bash
-cp .env.example .env
 pnpm install
-docker compose up -d && docker compose up minio-init
-pnpm db:bootstrap && pnpm db:migrate && pnpm db:generate
-pnpm db:doctor        # asserts the isolation invariants actually hold — expect 6/6
-pnpm db:seed          # two lookalike workspaces, acme and globex
+pnpm local:up   # .env, containers, roles, migrations, the isolation checks (6/6), the demo seed
 pnpm dev
 ```
+
+`pnpm local:up` is safe to run again; `pnpm db:reset` starts the database over.
 
 `www` on `lvh.me:3000`, `app` on `<slug>.lvh.me:3001`, `api` on `api.lvh.me:4000`.
 Outgoing mail lands in Mailpit at `localhost:8025`. To mail a ticket in, run
@@ -167,10 +249,9 @@ The docs are the specification, not a description written afterwards.
   Grafana dashboard, a security review of every trust boundary (`docs/THREAT-MODEL.md` §7), OpenAPI
   at `/api/docs`, and a load check at a hundred thousand tickets.
 
-Next is M10, ship: the demo seed, the marketing site, Dockerfiles, DNS and TLS, and the public
-deployment. M7 comes last because it needs local models: LLM triage, phishing scoring, duplicate
-detection and automation rules.
-`docs/HANDOFF.md` has the detail. Screenshots, an architecture
-diagram and a public demo arrive with the final milestone.
+**M10, ship, is under way.** Done: the demo seed across every type and status, the marketing site with
+its docs and blog, production images and `docker-compose.prod.yml`, and this README. Left: DNS and TLS,
+and the public deployment. M7 comes last because it needs local models: LLM triage, phishing scoring,
+duplicate detection and automation rules. `docs/HANDOFF.md` has the detail.
 
 MIT licensed — the value of this repository is that people read it.
