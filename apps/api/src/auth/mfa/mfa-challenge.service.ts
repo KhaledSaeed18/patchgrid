@@ -12,9 +12,9 @@ const AUDIENCE = "patchgrid-mfa-challenge"
 /** The password step's proof, good for the second factor that must follow it (ADR-0045). */
 export const MFA_CHALLENGE_TTL_SECONDS = 5 * 60
 
-const schema = z.object({ sub: z.uuid(), slug: z.string().optional(), iat: z.int(), exp: z.int() })
+const schema = z.object({ sub: z.uuid(), slug: z.string().optional(), jti: z.uuid(), iat: z.int(), exp: z.int() })
 
-export type MfaChallenge = { userId: string; slug: string | undefined }
+export type MfaChallenge = { userId: string; slug: string | undefined; jti: string }
 
 /**
  * The member's half-signed-in state (ADR-0029: "an `mfa_pending` token good
@@ -49,7 +49,7 @@ export class MfaChallengeService {
     try {
       const { payload } = await jwtVerify(token, this.key, { algorithms: ["HS256"], issuer: ISSUER, audience: AUDIENCE, currentDate: this.clock.now() })
       const parsed = schema.safeParse(payload)
-      return parsed.success ? { userId: parsed.data.sub, slug: parsed.data.slug } : null
+      return parsed.success ? { userId: parsed.data.sub, slug: parsed.data.slug, jti: parsed.data.jti } : null
     } catch {
       return null
     }

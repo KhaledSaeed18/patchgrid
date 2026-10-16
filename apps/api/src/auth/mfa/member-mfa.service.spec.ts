@@ -5,6 +5,7 @@ import { FixedClock } from "../../common/clock/clock"
 import { ConflictProblem, NotAuthenticatedProblem, RateLimitedProblem, ValidationProblem } from "../../common/problems/problem.exception"
 import type { AppConfig } from "../../config/app-config"
 import type { MailService } from "../../mail/mail.service"
+import type { RedisService } from "../../redis/redis.service"
 import type { FactorRecord, MfaRepository } from "../../platform/repositories/mfa.repository"
 import type { AccountRecord, UserRepository } from "../../platform/repositories/user.repository"
 import { CookieService } from "../cookies"
@@ -22,7 +23,7 @@ const config = { JWT_SECRET: "local-development-secret-that-is-at-least-32-chars
 const NOW = new Date("2026-10-16T09:00:00Z")
 const client = { userAgent: "vitest", ip: "127.0.0.1" }
 
-const ada: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "ada@acme.test", name: "Ada", passwordHash: "$argon2id$ada", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
+const ada: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "ada@acme.test", name: "Ada", passwordHash: "h:correct", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
 
 /** An in-memory `MfaRepository` with the same conditional-update semantics as the real one. */
 function harness(options: { secret?: string; pendingSecret?: string; recovery?: string[]; locked?: boolean } = {}) {
@@ -89,6 +90,8 @@ function harness(options: { secret?: string; pendingSecret?: string; recovery?: 
   }
   const passwords = { hash: vi.fn(async (plain: string) => `h:${plain}`), verify: vi.fn(async (stored: string | null, plain: string) => stored === `h:${plain}`) }
   const challenges = new MfaChallengeService(config, clock)
+  const spent = new Set<string>()
+  const redis = { client: { set: vi.fn(async (key: string) => (spent.has(key) ? null : (spent.add(key), "OK"))) } }
   const service = new MemberMfaService(
     { findById: async (id: string) => (id === ada.id ? ada : null) } as unknown as UserRepository,
     mfa as unknown as MfaRepository,
@@ -98,6 +101,7 @@ function harness(options: { secret?: string; pendingSecret?: string; recovery?: 
     sessions as unknown as SessionService,
     new CookieService(config),
     mail as unknown as MailService,
+    redis as unknown as RedisService,
     config,
     clock,
   )
@@ -130,6 +134,15 @@ describe("MemberMfaService.completeLogin", () => {
     h.clock.set(new Date(NOW.getTime() + 6 * 60_000))
     await expect(h.service.completeLogin(token, { code: codeAt(SECRET, h.clock.now()) }, client)).rejects.toBeInstanceOf(NotAuthenticatedProblem)
     expect(h.lockout.assertOpen).not.toHaveBeenCalled()
+  })
+
+  it("completes a challenge once: the same cookie replayed with a fresh code earns no second session", async () => {
+    const h = harness({ secret: SECRET })
+    const token = await h.challenges.issue(ada.id, undefined)
+    await h.service.completeLogin(token, { code: codeAt(SECRET, NOW) }, client)
+    h.clock.set(new Date(NOW.getTime() + 31_000))
+    await expect(h.service.completeLogin(token, { code: codeAt(SECRET, h.clock.now()) }, client)).rejects.toBeInstanceOf(NotAuthenticatedProblem)
+    expect(h.sessions.startIdentity).toHaveBeenCalledTimes(1)
   })
 
   it("never accepts a code twice, even inside its thirty-second window", async () => {
@@ -166,7 +179,10 @@ describe("MemberMfaService self-service", () => {
   it("enrols, refuses a wrong code, then confirms with the right one and shows ten recovery codes once", async () => {
     const h = harness()
     expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, recoveryCodesRemaining: 0 })
-    const enrolment = await h.service.enrol(ada.id)
+    // The password first: a pg_id alone does not get to set the factor.
+    await expect(h.service.enrol(ada.id, "wrong")).rejects.toBeInstanceOf(ValidationProblem)
+    expect(h.lockout.fail).toHaveBeenCalledWith(ada.id)
+    const enrolment = await h.service.enrol(ada.id, "correct")
     expect(enrolment.otpauthUri).toContain(`otpauth://totp/Patchgrid:${encodeURIComponent(ada.email)}`)
     expect(h.factors[0]?.secretEncrypted).not.toContain(enrolment.secret)
     await expect(h.service.confirm(ada.id, "000000")).rejects.toBeInstanceOf(ValidationProblem)
@@ -181,7 +197,7 @@ describe("MemberMfaService self-service", () => {
 
   it("refuses to enrol while a factor is confirmed, and an unconfirmed factor older than an hour", async () => {
     const h = harness({ secret: SECRET })
-    await expect(h.service.enrol(ada.id)).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(h.service.enrol(ada.id, "correct")).rejects.toBeInstanceOf(ConflictProblem)
     const stale = harness({ pendingSecret: SECRET })
     stale.clock.set(new Date(NOW.getTime() + 61 * 60_000))
     await expect(stale.service.confirm(ada.id, codeAt(SECRET, stale.clock.now()))).rejects.toBeInstanceOf(ValidationProblem)

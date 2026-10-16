@@ -13,6 +13,15 @@ import { slugSchema } from "./slug.ts"
 /** The second step of a member's login: the challenge cookie plus a code or a recovery code. */
 export const mfaLoginRequestSchema = mfaVerifyRequestSchema
 
+/**
+ * Setting up a factor takes the password (ADR-0045 erratum, M9 review): a
+ * `pg_id` is a long-lived bearer, and whoever held one could otherwise enrol
+ * their own authenticator and lock the person out of every workspace that
+ * requires one.
+ */
+export const mfaEnrolRequestSchema = z.strictObject({ password: z.string().min(1).max(200) })
+export type MfaEnrolRequest = z.infer<typeof mfaEnrolRequestSchema>
+
 /** `GET /auth/mfa`: whether this account has a confirmed factor, and how many recovery codes are left. */
 export const mfaStatusSchema = z.object({
   enrolled: z.boolean(),

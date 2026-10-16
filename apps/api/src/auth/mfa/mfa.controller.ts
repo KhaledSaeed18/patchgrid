@@ -5,6 +5,7 @@ import {
   MFA_CHALLENGE_COOKIE,
   mfaConfirmRequestSchema,
   mfaDisableRequestSchema,
+  mfaEnrolRequestSchema,
   type MfaEnrolment,
   mfaLoginRequestSchema,
   mfaRegenerateRecoveryRequestSchema,
@@ -26,6 +27,7 @@ import { StepUpService } from "./step-up.service"
 class MfaLoginDto extends createZodDto(mfaLoginRequestSchema) {}
 class ConfirmDto extends createZodDto(mfaConfirmRequestSchema) {}
 class DisableDto extends createZodDto(mfaDisableRequestSchema) {}
+class EnrolDto extends createZodDto(mfaEnrolRequestSchema) {}
 class RegenerateDto extends createZodDto(mfaRegenerateRecoveryRequestSchema) {}
 class StepUpDto extends createZodDto(stepUpRequestSchema) {}
 
@@ -63,11 +65,12 @@ export class MfaController {
     return this.factors.status(this.actors.requireIdentity().userId)
   }
 
+  /** Proved by the password: a `pg_id` alone must not be able to set the factor (THREAT-MODEL §7). */
   @Post("mfa/enrol")
   @TenantOptional()
   @HttpCode(200)
-  enrol(): Promise<MfaEnrolment> {
-    return this.factors.enrol(this.actors.requireIdentity().userId)
+  enrol(@Body() body: EnrolDto): Promise<MfaEnrolment> {
+    return this.factors.enrol(this.actors.requireIdentity().userId, body.password)
   }
 
   @Post("mfa/confirm")

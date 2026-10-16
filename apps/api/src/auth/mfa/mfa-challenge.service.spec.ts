@@ -14,8 +14,10 @@ describe("MfaChallengeService", () => {
     const clock = new FixedClock(NOW)
     const service = new MfaChallengeService(config, clock)
     const token = await service.issue(USER, "acme")
-    expect(await service.verify(token)).toEqual({ userId: USER, slug: "acme" })
-    expect(await service.verify(await service.issue(USER, undefined))).toEqual({ userId: USER, slug: undefined })
+    expect(await service.verify(token)).toMatchObject({ userId: USER, slug: "acme", jti: expect.stringMatching(/^[0-9a-f-]{36}$/) })
+    expect(await service.verify(await service.issue(USER, undefined))).toMatchObject({ userId: USER, slug: undefined })
+    // Each challenge is its own: two issues, two ids, so one can be spent without the other.
+    expect((await service.verify(await service.issue(USER, "acme")))?.jti).not.toBe((await service.verify(token))?.jti)
     clock.set(new Date(NOW.getTime() + (MFA_CHALLENGE_TTL_SECONDS + 1) * 1000))
     expect(await service.verify(token)).toBeNull()
   })
