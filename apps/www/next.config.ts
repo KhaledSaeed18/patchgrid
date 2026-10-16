@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
   // request, and they stream in behind it.
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    // Most visitors arrive once, from a search or a link: the stylesheet in the
+    // first response saves a render-blocking round trip, and later pages are
+    // client navigations that never fetch it again.
+    inlineCss: true,
+  },
   // The repository's CLAUDE.md already says to read node_modules/next/dist/docs;
   // a generated copy per app would only drift from it.
   agentRules: false,
