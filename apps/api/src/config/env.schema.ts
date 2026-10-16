@@ -138,6 +138,15 @@ export const envSchema = z
       .default("true")
       .transform((value) => value === "true"),
     /**
+     * How many proxies stand between the internet and this process, counted
+     * from it — Express's `trust proxy` hop count, applied in production only.
+     * Too low and every client shares the proxy's address; too high and the
+     * client chooses its own, so every per-IP limit is spent or dodged at will
+     * (THREAT-MODEL.md §7). One for a single ingress; one more for each CDN or
+     * load balancer in front of it.
+     */
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
+    /**
      * The port `apps/app` is served on in development, for links in outbound
      * mail. Ignored in production, where links carry no port.
      */

@@ -60,8 +60,9 @@ export async function bootstrap(): Promise<void> {
 
   if (config.isProduction) {
     // Behind a reverse proxy the client IP arrives in X-Forwarded-For. Rate
-    // limiting keyed on the proxy's own address would be worse than none at all.
-    app.set("trust proxy", 1)
+    // limiting keyed on the proxy's own address would be worse than none at all,
+    // and trusting one hop too many lets the client write its own.
+    app.set("trust proxy", config.TRUST_PROXY_HOPS)
   }
 
   // The reference, generated from the same Zod contracts the pipes enforce (ENGINEERING.md §API conventions).
