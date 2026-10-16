@@ -1,0 +1,91 @@
+Before closing M9, the hardening milestone, we ran three independent, read-only reviews of every trust boundary in Patchgrid's threat model, against the code as built. They confirmed sixteen findings. None of them crossed a tenant boundary, but several were real weaknesses, and every one was fixed in the same change set, with a test wherever a test could hold the fix. This is the write-up: what was wrong, why, and what changed.
+
+## How the review was run
+
+Patchgrid's threat model was written on 2026-09-23, at the start of M1 and before the schema existed. It was meant to shape the design, not to certify it afterwards. It lists the assets, the actors and ten trust boundaries, from the open internet to the CI pipeline, and applies STRIDE to each boundary. Every threat names its mitigation and *where that mitigation is proven*, whether a test, a lint rule or a boot assertion, because a mitigation nothing checks is just a hope.
+
+The M9 review worked through those boundaries against the real code. Each reviewer worked independently. Where a reviewer only suspected a problem, we checked it and either fixed it or recorded it in the threat model with a reason. The sixteen confirmed findings are listed in full in §7 of `THREAT-MODEL.md`. They grouped into three themes: budgets that strangers could spend, bearer capabilities sent through the wrong channel, and gaps in the step-up rule.
+
+## Budgets strangers could spend
+
+Rate limits protect shared resources, but a limit counted on something an attacker can name gives that attacker a way to use it up for someone else. Two of the most significant findings were this kind of mistake.
+
+**Finding 1: the per-org throttle counted unverified requests.** Patchgrid resolves the tenant from the credential (ADR-0024). At the resolution step, the access cookie's claim has been read but not yet verified; verification happens once, later in the pipeline. That ordering is safe for choosing *which* tenant a request runs as, because a forged claim gets no further than an anonymous slug probe would. But the org-wide throttle was counted at resolution. Anyone who knew an org's id could therefore make requests carrying a forged claim, use up the org's budget, and lock its real members out.
+
+The fix moves the org throttler to run after the auth guard, so it counts verified requests only. The per-IP limit still runs before resolution:
+
+```ts
+/** Counted before the tenant is known: by address, by address named, by token prefix and address. */
+export const BEFORE_RESOLUTION: ReadonlySet<string> = new Set([IP_THROTTLER, EMAIL_THROTTLER, TOKEN_THROTTLER])
+/**
+ * Counted only once the credential is VERIFIED. Resolution admits an org on an
+ * unverified cookie claim; counting there would let anyone who knows an org's
+ * id exhaust its budget and lock its members out (M9 review, THREAT-MODEL §7).
+ */
+export const AFTER_RESOLUTION: ReadonlySet<string> = new Set([ORG_THROTTLER])
+```
+
+**Finding 2: an API-token prefix was a budget handle.** API tokens have a public prefix and a secret. The token throttle was keyed on the prefix alone, so anyone who knew a prefix could spend that integration's 300 requests a minute from anywhere. Every wrong secret also cost a full Argon2id verification. This was already listed as an open item from M8, and the review closed it. The throttle is now keyed on prefix *and* address. The verifier also remembers rejected secrets for each prefix, so replaying a wrong guess costs a hash lookup instead of a key-derivation run.
+
+```ts
+getTracker: (req, context) => `token:${tokenPrefixIn(context) ?? ""}:${req.ip ?? ""}`,
+```
+
+Two smaller findings fit the same theme. The inbound mail webhook had only the generous default per-IP limit and now has its own limit of 60 a minute per address (finding 15). A client-supplied `X-Request-Id` was accepted at any length; it is now honoured only in the form a proxy would send, 1 to 128 characters of `[A-Za-z0-9._-]` (finding 13).
+
+## Bearer capabilities in the wrong channel
+
+A bearer capability is anything that grants access to whoever holds it: a presigned link, an invitation token, a session challenge. Each one is only as safe as every place it passes through.
+
+**Finding 7: a 24-hour link to the whole workspace, in an inbox.** When an owner exported their workspace, the notification email contained a presigned download link valid for 24 hours. Mail gets forwarded, archived and indexed, so a link that opens the entire workspace for a day should not be in it. The email now links to Settings instead. Settings signs the owner in and issues a 15-minute link when they click.
+
+**Finding 5: tokens and search text in query strings.** Invitation tokens and search queries travelled in query strings. Query strings end up in request logs and, with OpenTelemetry enabled, in trace spans. We now drop query strings from request logs, redact `token`, `q` and `cursor` from HTTP spans, and record only the command in Redis spans.
+
+**Finding 11: a reusable MFA challenge.** Logging in with a second factor issues a five-minute challenge, which a valid code then completes. A completed challenge could be replayed within that window. Each challenge's `jti` is now spent once in Redis, the same way a used TOTP code is.
+
+**Finding 10: an open redirect.** `/session/refresh?next=/\evil` used the backslash form to redirect off-site. The refresh page now uses the same `parseNext` as the login page, and one parser covers both.
+
+## Gaps in the step-up rule
+
+ADR-0029 and ADR-0045 require a fresh proof of identity, called step-up, before the actions whose damage cannot be undone. Those are deleting the workspace, making another person an owner, granting support access and minting an API token. The review found two places where the requirement could be avoided.
+
+**Finding 3: a bare `pg_id` could enrol a second factor.** `pg_id` is the long-lived identity cookie that lists your workspaces. Managing your own second factor was originally allowed on `pg_id` alone. Whoever held that cookie could therefore enrol an authenticator of their own and lock the real person out of every workspace that requires one. Enrolment now takes the password, counted against the same lockout as a wrong code. ADR-0045 carries a dated erratum recording the change.
+
+**Finding 4: inviting an owner skipped the proof.** Promoting a member to `OWNER` required step-up and the `org:transfer_ownership` permission. Inviting someone directly as an owner reached the same end state with neither. The invitation path now asserts both for `OWNER`. We recorded the principle as a decision: inviting an owner *is* a transfer of ownership, and it is checked like one. Whenever two paths lead to the same state, each path needs its own check.
+
+## The rest
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 6 | A support session's attachment download was audited without the attachment id | `SUPPORT_READ` records route parameters as well as the query |
+| 8 | Erasing a person left their address on inbound mail rows | `InboundEmail.fromAddress` is tombstoned with the rest |
+| 9 | A verified email sender could attach a `RELATES_TO` link to a ticket they could not see | The link is made only if the sender could have made it through the API |
+| 12 | After a deletion request, a cached `ACTIVE` summary could keep a token working for up to 60 s | Invalidation leaves a marker that blocks re-caching for one TTL; API tokens are refused on an org-level epoch until a restore |
+| 14 | gitleaks and three compose images ran from `latest`; CI actions were pinned by tag | Images pinned by digest, actions by commit, Dependabot moves both |
+| 16 | The browser suite resolved `*.lvh.me` through public DNS | Pinned in the CI runner's hosts file |
+
+Finding 12 was the second open item carried over from M8. Finding 9, the closest to the tenancy model, stayed inside one tenant, but it shows that every write path must apply the same visibility check the API does.
+
+## What we left, and why
+
+Not every suspected item became a change. The threat model records four of them with their reasons.
+
+- **`trust proxy` is set for exactly one proxy hop.** That is correct for one hop. A deployment with a different number of hops must change it, or every per-IP limit becomes something the client controls. This is listed as a deployment task for M10.
+- **A race between completing an upload and the attachment sweep** could orphan a final object. It is bounded by quota and a stale presign, so it is a leak, not a bypass.
+- **Raw SQL run outside a transaction** sees no tenant setting, so it returns nothing. That is the correct failure direction. Every current call site reads inside a transaction, and a lint rule is the right fix once a second call site appears.
+- **R-1, cookie tossing, still stands.** A `pg_id` in the wrong hands still opens workspaces. Finding 3 narrows what it can change, and a password reset deliberately leaves the second factor in place: having access to someone's email should not be enough to remove it.
+
+## What we took from it
+
+Nothing crossed a tenant boundary, which we attribute to tenancy being enforced in independent layers: the schema shape, explicit repository arguments, a client extension and row-level security. The findings clustered at the edges instead.
+
+Three lessons are worth keeping. Key a limit on something the caller has proved, not something they can name. Assume anything placed in a URL will end up in a log. When a rule protects an outcome, apply it to every path that reaches that outcome. M9's exit criterion was a review with no open findings, and it closed on 2026-10-16 with none.
+
+## Further reading
+
+- [THREAT-MODEL.md: §7 The M9 security review](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/THREAT-MODEL.md)
+- [HANDOFF.md: the state of play at the M9 boundary](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/HANDOFF.md)
+- [ADR-0045: Member MFA as built, with the enrolment erratum](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0045-member-mfa-as-built.md)
+- [ADR-0029: MFA and step-up authentication](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0029-mfa-and-step-up-authentication.md)
+- [ADR-0042: API tokens as built](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0042-api-tokens-as-built.md)
+- [ADR-0024: Per-tenant session cookies and API tenant resolution](https://github.com/KhaledSaeed18/patchgrid/blob/main/docs/decisions/0024-per-tenant-cookies-and-api-tenant-resolution.md)
