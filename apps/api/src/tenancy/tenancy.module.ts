@@ -5,7 +5,6 @@ import type { IncomingMessage } from "node:http"
 import { ClsModule } from "nestjs-cls"
 
 import { PlatformModule } from "../platform/platform.module"
-import { OrgThrottlerGuard } from "../throttling/throttler.guards"
 import { ORGANIZATION_LOOKUP } from "./organization-lookup"
 import { OrganizationLookupService } from "./organization-lookup.service"
 import { TenantContextService } from "./tenant-context.service"
@@ -51,7 +50,6 @@ import { TenantsController } from "./tenants.controller"
     { provide: ORGANIZATION_LOOKUP, useExisting: OrganizationLookupService },
     TenantResolver,
     { provide: APP_GUARD, useClass: TenantResolutionGuard },
-    { provide: APP_GUARD, useClass: OrgThrottlerGuard },
   ],
   exports: [TenantContextService, OrganizationLookupService, ORGANIZATION_LOOKUP],
 })

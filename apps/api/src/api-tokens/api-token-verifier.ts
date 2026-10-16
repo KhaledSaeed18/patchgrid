@@ -9,6 +9,8 @@ import { ApiTokenRepository } from "./repositories/api-token.repository"
 
 const CACHE_MS = 5 * 60_000
 const CACHE_LIMIT = 1_000
+/** Wrong secrets remembered per prefix, so a replayed guess costs a hash lookup, not Argon2id. */
+const REJECTED_PER_PREFIX = 64
 const LAST_USED_EVERY_MS = 60_000
 
 /**
@@ -22,6 +24,7 @@ const LAST_USED_EVERY_MS = 60_000
 @Injectable()
 export class ApiTokenVerifier {
   private readonly verified = new Map<string, { digest: Buffer; until: number }>()
+  private readonly rejected = new Map<string, Set<string>>()
 
   constructor(
     private readonly tokens: ApiTokenRepository,
@@ -50,12 +53,33 @@ export class ApiTokenVerifier {
     const digest = createHash("sha256").update(secret).digest()
     const known = this.verified.get(prefix)
     if (known !== undefined && known.until > now && timingSafeEqual(known.digest, digest)) return true
-    if (!(await this.passwords.verify(hash, secret))) return false
+    const seen = this.rejected.get(prefix)
+    const hex = digest.toString("hex")
+    if (seen?.has(hex) === true) return false
+    if (!(await this.passwords.verify(hash, secret))) {
+      this.rememberRejected(prefix, hex)
+      return false
+    }
     if (this.verified.size >= CACHE_LIMIT) {
       const oldest = this.verified.keys().next()
       if (oldest.done !== true) this.verified.delete(oldest.value)
     }
     this.verified.set(prefix, { digest, until: now + CACHE_MS })
+    this.rejected.delete(prefix)
     return true
+  }
+
+  private rememberRejected(prefix: string, hex: string): void {
+    if (this.rejected.size >= CACHE_LIMIT) {
+      const oldest = this.rejected.keys().next()
+      if (oldest.done !== true) this.rejected.delete(oldest.value)
+    }
+    const set = this.rejected.get(prefix) ?? new Set<string>()
+    if (set.size >= REJECTED_PER_PREFIX) {
+      const first = set.values().next()
+      if (first.done !== true) set.delete(first.value)
+    }
+    set.add(hex)
+    this.rejected.set(prefix, set)
   }
 }

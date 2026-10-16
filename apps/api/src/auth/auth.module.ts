@@ -35,6 +35,7 @@ import { RevocationEpochService } from "./revocation/revocation-epoch.service"
 import { SessionService } from "./sessions/session.service"
 import { StandingService } from "./sessions/standing.service"
 import { AccessTokenService } from "./tokens/access-token.service"
+import { OrgThrottlerGuard } from "../throttling/throttler.guards"
 
 /**
  * Pipeline step 7 and the session routes. The two guards register here, after
@@ -75,6 +76,8 @@ import { AccessTokenService } from "./tokens/access-token.service"
     CredentialRetentionProcessor,
     { provide: APP_GUARD, useClass: RequestedWithGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
+    // Per-org limits count verified requests only: after the credential, never on a bare claim (THREAT-MODEL §7).
+    { provide: APP_GUARD, useClass: OrgThrottlerGuard },
   ],
   exports: [ActorService, RevocationEpochService, SessionService, StandingService, CookieService, PasswordService, SupportTokenService, SupportReadLog, StepUpService],
 })
