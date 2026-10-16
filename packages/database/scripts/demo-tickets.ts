@@ -1,8 +1,9 @@
 /**
- * Demo volume for the seed (FEATURES.md M2): a fuller category tree and
- * about thirty incidents per workspace, of every status and age, with SLA
- * clocks that agree with their history — some met, some breached, some
- * counting down — so the queues and the deadline badges have something to say.
+ * Demo volume for the seed (FEATURES.md M2, M10): a fuller category tree,
+ * about thirty incidents and twenty service requests per workspace, of every
+ * status and age, with SLA clocks that agree with their history — some met,
+ * some breached, some counting down — so the queues and the deadline badges
+ * have something to say.
  *
  * Seed-only. The lookalike fixture the isolation suite shares stays small;
  * this file never runs in a test.
@@ -15,6 +16,7 @@ import type { PrismaClient } from "../src/index.ts"
 import type { SeededOrg } from "../src/lookalikes.ts"
 
 type Status = "NEW" | "ASSIGNED" | "IN_PROGRESS" | "PENDING" | "RESOLVED" | "CLOSED" | "CANCELLED"
+type DemoType = "INCIDENT" | "SERVICE_REQUEST"
 
 /** Title, details, and the category it belongs to (by name below). */
 const INCIDENTS: [string, string, CategoryKey][] = [
@@ -32,8 +34,8 @@ const INCIDENTS: [string, string, CategoryKey][] = [
   ["Guest Wi-Fi password not working", "Visitors get 'incorrect password' with today's code.", "wifi"],
   ["Locked out after password change", "Changed it this morning and now nothing accepts it.", "password"],
   ["MFA prompt never arrives", "The authenticator app shows nothing when I sign in.", "password"],
-  ["Need access to the finance share", "Starting in finance on Monday; my manager approved.", "access"],
-  ["Remove access for a leaver", "Jordan left on Friday; their accounts are still active.", "access"],
+  ["Shared calendar won't load", "The team calendar spins forever in Outlook; it's fine on the web.", "email"],
+  ["Can't open PDFs from email", "Clicking an attachment does nothing; saving it first works.", "software"],
   ["Excel crashes opening the budget file", "Only that file. Others open fine.", "software"],
   ["Teams calls have no audio", "I can see people but nobody hears me, or me them.", "software"],
   ["Browser blocks the expenses site", "Says the certificate isn't valid.", "software"],
@@ -45,8 +47,26 @@ const INCIDENTS: [string, string, CategoryKey][] = [
   ["Network drive mapped to the wrong letter", "Finance is on Z: but the macros expect F:.", "software"],
   ["Wi-Fi drops in the warehouse", "Scanners lose connection near the loading bay.", "wifi"],
   ["Email bounces to one client", "Anything to their domain comes back as rejected.", "email"],
-  ["New starter needs a laptop", "Starts on the 20th, needs the standard setup.", "laptop"],
+  ["Laptop fan is very loud", "Runs at full speed even with nothing open.", "laptop"],
   ["Password reset link expired", "The link in the email says it has already expired.", "password"],
+]
+
+/** Something asked for rather than something broken: the catalog a desk fulfils (DOMAIN.md §1). */
+const SERVICE_REQUESTS: [string, string, CategoryKey][] = [
+  ["Need access to the finance share", "Starting in finance on Monday; my manager approved.", "access"],
+  ["Remove access for a leaver", "Jordan left on Friday; their accounts are still active.", "access"],
+  ["New starter needs a laptop", "Starts on the 20th, needs the standard setup.", "laptop"],
+  ["Second monitor for my desk", "Desk 14 — the standard 27-inch would be great.", "hardware"],
+  ["Install Visio on my laptop", "Needed for the network diagrams project.", "software"],
+  ["Add me to the sales@ distribution list", "Joined the sales team this week.", "email"],
+  ["Shared mailbox for recruiting", "recruiting@, for the three of us on the hiring team.", "email"],
+  ["VPN access for a contractor", "Alex from Northwind starts on the 3rd, for six weeks.", "vpn"],
+  ["Replacement laptop charger", "Lost mine on a trip; it's the 65 W USB-C one.", "laptop"],
+  ["Guest Wi-Fi for a workshop", "Twenty visitors in the boardroom all day Thursday.", "wifi"],
+  ["Move my MFA to a new phone", "New phone, same number; the old one has been wiped.", "password"],
+  ["Headset for calls", "Mine only works in one ear now.", "hardware"],
+  ["Admin rights to install a printer driver", "The label printer in shipping needs its own driver.", "access"],
+  ["Move my desk phone to floor 2", "Changing desks next Monday.", "hardware"],
 ]
 
 type CategoryKey = "hardware" | "laptop" | "software" | "email" | "network" | "vpn" | "wifi" | "accessRoot" | "access" | "password"
@@ -61,6 +81,30 @@ const STATUSES: Status[] = [
   ...Array<Status>(5).fill("CLOSED"),
   ...Array<Status>(2).fill("CANCELLED"),
 ]
+
+/** What each type's queue is made of, and what its agents say along the way. */
+const KINDS: Record<DemoType, { items: [string, string, CategoryKey][]; statuses: Status[]; paused: string; done: string }> = {
+  INCIDENT: {
+    items: INCIDENTS,
+    statuses: STATUSES,
+    paused: "Could you tell me when this last worked, and send a screenshot of the error?",
+    done: "This should be sorted now — let me know if it comes back.",
+  },
+  SERVICE_REQUEST: {
+    items: SERVICE_REQUESTS,
+    statuses: [
+      ...Array<Status>(4).fill("NEW"),
+      ...Array<Status>(2).fill("ASSIGNED"),
+      ...Array<Status>(4).fill("IN_PROGRESS"),
+      ...Array<Status>(2).fill("PENDING"),
+      ...Array<Status>(2).fill("RESOLVED"),
+      ...Array<Status>(4).fill("CLOSED"),
+      "CANCELLED",
+    ],
+    paused: "Which day do you need this by, and where should it go?",
+    done: "All set up — shout if anything is missing.",
+  },
+}
 
 const MINUTE = 60_000
 const at = (base: Date, minutes: number) => new Date(base.getTime() + minutes * MINUTE)
@@ -78,23 +122,45 @@ function random(seed: number) {
   return { next, pick }
 }
 
+type People = { requesters: string[]; agents: string[] }
+type Categories = Awaited<ReturnType<typeof demoCategories>>
+
+/** The category tree, then each type's queue on it: incidents first, so their numbers match earlier seeds. */
 export async function seedDemoTickets(
   db: PrismaClient,
   org: SeededOrg,
-  people: { requesters: string[]; agents: string[] },
+  people: People,
   seed: number,
   now = new Date(),
-): Promise<number> {
-  const rng = random(seed)
+): Promise<{ incidents: number; requests: number }> {
   const categories = await demoCategories(db, org)
-  const policies = await db.sLAPolicy.findMany({ where: { orgId: org.id, ticketType: "INCIDENT" } })
-  const policyFor = (priority: Priority) => policies.find((p) => p.priority === priority)
-  const counter = await db.ticketCounter.findUniqueOrThrow({ where: { orgId_type: { orgId: org.id, type: "INCIDENT" } } })
+  return {
+    incidents: await seedQueue(db, org, "INCIDENT", categories, people, seed, now),
+    requests: await seedQueue(db, org, "SERVICE_REQUEST", categories, people, seed + 50, now),
+  }
+}
 
-  let number = counter.nextValue
+async function seedQueue(
+  db: PrismaClient,
+  org: SeededOrg,
+  type: DemoType,
+  categories: Categories,
+  people: People,
+  seed: number,
+  now: Date,
+): Promise<number> {
+  const kind = KINDS[type]
+  const rng = random(seed)
+  const policies = await db.sLAPolicy.findMany({ where: { orgId: org.id, ticketType: type } })
+  const policyFor = (priority: Priority) => policies.find((p) => p.priority === priority)
+  // The API makes a type's counter on its first ticket; the lookalikes only made the incidents'.
+  const counterKey = { orgId_type: { orgId: org.id, type } }
+  const counter = await db.ticketCounter.findUnique({ where: counterKey })
+
+  let number = counter?.nextValue ?? 1
   const levels: (Impact & Urgency)[] = ["LOW", "MEDIUM", "HIGH"]
-  for (const [index, status] of STATUSES.entries()) {
-    const [title, description, categoryKey] = INCIDENTS[index % INCIDENTS.length] ?? INCIDENTS[0] ?? ["", "", "hardware"]
+  for (const [index, status] of kind.statuses.entries()) {
+    const [title, description, categoryKey] = kind.items[index % kind.items.length] ?? kind.items[0] ?? ["", "", "hardware"]
     const category = categories[categoryKey]
     // Untouched work is minutes to hours old, worked tickets a day or two,
     // finished ones weeks — the ages a desk that keeps up actually has.
@@ -138,7 +204,7 @@ export async function seedDemoTickets(
       data: {
         orgId: org.id,
         number,
-        type: "INCIDENT",
+        type,
         title,
         description,
         status,
@@ -178,14 +244,14 @@ export async function seedDemoTickets(
       if (rng.next() < 0.4) await comment("Checked the logs; nothing obvious yet.", at(respondedAt, 3), assignee, "INTERNAL")
     }
     if (assignee !== null && pausedAt !== null) {
-      await comment("Could you tell me when this last worked, and send a screenshot of the error?", pausedAt, assignee)
+      await comment(kind.paused, pausedAt, assignee)
     }
     if (assignee !== null && resolvedAt !== null) {
-      await comment("This should be sorted now — let me know if it comes back.", resolvedAt, assignee)
+      await comment(kind.done, resolvedAt, assignee)
     }
   }
-  await db.ticketCounter.update({ where: { orgId_type: { orgId: org.id, type: "INCIDENT" } }, data: { nextValue: number } })
-  return STATUSES.length
+  await db.ticketCounter.upsert({ where: counterKey, create: { orgId: org.id, type, nextValue: number }, update: { nextValue: number } })
+  return kind.statuses.length
 }
 
 /** The lookalike tree (Hardware → Laptop) grown into one a real service desk would use. */
