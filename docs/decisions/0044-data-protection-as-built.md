@@ -10,6 +10,11 @@
 > The row now stays, marked `REMOVED`. The picker leaves it out, which keeps ADR-0033's promise, and
 > erasure reads every row, removed ones included.
 
+> **Erratum (2026-10-17).** The export mail no longer carries the 24-hour presigned link this record
+> describes. The M9 security review moved it out of the inbox: the mail links to Settings,
+> which signs the owner in and issues a 15-minute link on the click (`THREAT-MODEL.md` §7, finding 7).
+> The object itself still lapses after 24 hours.
+
 > **Erratum (2026-10-15, after review).** What building it got wrong:
 >
 > - **The export writer.** It streams through `yazl`, not `fflate`. `fflate` writes no ZIP64, so an

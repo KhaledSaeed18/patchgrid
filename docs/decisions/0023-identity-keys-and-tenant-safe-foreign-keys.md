@@ -3,6 +3,12 @@
 - **Status:** Accepted — **verified empirically 2026-09-22**
 - **Date:** 2026-09-22
 
+> **Erratum (2026-10-17).** `Membership.displayName` is copied from `User` when someone joins and is
+> not refreshed afterwards: there is no profile edit yet, and the nightly reconcile rebuilds only
+> `UserOrgIndex` and `ApiTokenIndex` (`apps/api/src/memberships/projections/projection-reconcile.ts`).
+> When a profile edit arrives it must refresh every membership's copy inside `runAsTenant`, as the
+> Consequences below say.
+
 > **Verified (2026-09-22)** by a throwaway isolation spike against PostgreSQL 17 and Prisma 7.10.0.
 > Recorded here because the Decision below left two things as instructions rather than facts.
 >
