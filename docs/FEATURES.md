@@ -394,7 +394,11 @@ demo is live; the README explains the decisions._
 
 - [x] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, inbound mail; idempotent
       `db:reset` (M7 adds its rules and phishing tickets to it)
-- [ ] `apps/www` finished: docs, pricing, blog, `/problems/*`, OG images, sitemap, robots, Lighthouse pass
+- [x] `apps/www` finished: docs, pricing, blog, `/problems/*`, OG images, sitemap, robots, Lighthouse pass.
+      Eight docs and four posts as MDX from one registry; every page a prerendered shell (Cache
+      Components) with the session check streamed in; canonical metadata, build-time OG cards, sitemap,
+      robots, JSON-LD. Lighthouse (mobile, local): performance 90–98, accessibility and SEO 100,
+      best practices 100 but for the two HTTPS audits a local run cannot pass
 - [ ] Dockerfiles (multi-stage `turbo prune`) for `www`, `app`, `api`; `docker-compose.prod.yml`
 - [ ] **DNS and TLS** (ADR-0026, ADR-0027): wildcard `*.patchgrid.xyz`, DNS-01 via delegated
       `_acme-challenge`, CAA records, SPF/DKIM/DMARC progression, MX for `inbound.`

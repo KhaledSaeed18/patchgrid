@@ -219,6 +219,16 @@ Then M7, last, on the running system.
 | Rule 3 can be engineered: an owner may assign their change to the only other admin | spec decision | What DOMAIN.md §2.3 says today |
 | Per-member capabilities in the admin UI | any time | Member actions are offered by role |
 | Doc formatting drift | any time | Docs and API code are not Prettier-clean at 80 cols; commits skip the format hook |
+| **The public demo shares one password** | deploy | Anyone can sign in as a seeded owner, enrol a factor, request deletion or accept invitations; needs a demo mode (an ADR) before it is public |
+| A new workspace gets no starter KB articles | any time | `TENANCY.md` §4, ADR-0017 and `PROJECT.md` promise them; provisioning creates none |
+| Joining by email domain is not built | spec decision | `TENANCY.md` §5 describes it; the domain is stored only |
+| Per-host cookie pairs are never pruned to five | any time | `TENANCY.md` §6 and ADR-0024 say they are; `auth/cookies.ts` keeps them all |
+| `POST /tickets/:id/comments` ignores `Idempotency-Key` | any time | Every other entity-creating `POST` honours it |
+| Audit-log retention per plan is not enforced | any time | ADR-0028's two and seven years; the sweep covers notifications and exports only |
+| `DOMAIN.md` §4.3 skips a warning against `createdAt`; the code uses the clock's own start | docs | The code is right; the doc needs the same correction ADR-0003 got |
+| `DOMAIN.md` §8 offers a reassigned agent to keep watching; nothing does | spec decision | They can watch by hand |
+| `TENANCY.md` §7 and ADR-0022 show `runAsTenant(orgId, fn)`; the code takes a `crossing` too | docs | `CLAUDE.md` has it right |
+| Marketing LCP is 3.3 s on Lighthouse's mobile profile | any time | Five font files contend on simulated 4G; dropping the mono preload is the cheap lever, in `@patchgrid/ui` for both apps |
 
 ## Running it
 
