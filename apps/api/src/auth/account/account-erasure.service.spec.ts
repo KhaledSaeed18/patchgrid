@@ -29,6 +29,7 @@ function harness(options: { password?: boolean; admin?: boolean; owners?: number
     anonymiseMembership: vi.fn(async () => undefined),
     forgetPresence: vi.fn(async () => undefined),
     forgetInvitations: vi.fn(async () => undefined),
+    forgetInboundSenders: vi.fn(async () => undefined),
     tombstoneAccount: vi.fn(async () => undefined),
   }
   const service = new AccountErasureService(

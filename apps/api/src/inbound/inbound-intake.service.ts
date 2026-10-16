@@ -7,6 +7,7 @@ import { v7 as uuidv7 } from "uuid"
 
 import { AttachmentsService } from "../attachments/attachments.service"
 import type { MemberActor } from "../auth/actor"
+import { PermissionService } from "../authz/permission.service"
 import { AuditService } from "../audit/audit.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { ConflictProblem, NotFoundProblem, NotPermittedProblem } from "../common/problems/problem.exception"
@@ -20,7 +21,7 @@ import { CommentsService } from "../tickets/comments.service"
 import { canonicalLink } from "../tickets/domain/links"
 import { LinkRepository } from "../tickets/repositories/link.repository"
 import { TicketRepository } from "../tickets/repositories/ticket.repository"
-import type { Acting } from "../tickets/ticket-access"
+import { type Acting, TicketAccess } from "../tickets/ticket-access"
 import { TicketsService } from "../tickets/tickets.service"
 import { automaticReason } from "./domain/auto-reply"
 import { replyText } from "./domain/reply-text"
@@ -65,6 +66,8 @@ export class InboundIntakeService {
     private readonly tickets: TicketRepository,
     private readonly links: LinkRepository,
     private readonly ticketsService: TicketsService,
+    private readonly access: TicketAccess,
+    private readonly permissions: PermissionService,
     private readonly comments: CommentsService,
     private readonly attachments: AttachmentsService,
     private readonly storage: StorageService,
@@ -198,7 +201,7 @@ export class InboundIntakeService {
     // From here the ticket exists and the row says so; what follows is best effort, never a reason to retry.
     // Naming a ticket the sender may not post on opens a new one beside it — never a reply on it (ADR-0027 §5).
     if (referenced !== null) {
-      await this.relate(orgId, member.id, ticketId, referenced).catch((error: unknown) =>
+      await this.relate(orgId, acting, ticketId, referenced).catch((error: unknown) =>
         this.logger.warn({ msg: "inbound relate failed", orgId, ticketId, error: String(error) }),
       )
     }
@@ -240,8 +243,16 @@ export class InboundIntakeService {
     }
   }
 
-  /** `RELATES_TO`, stored in its canonical order, by the sender and audited as theirs. */
-  private async relate(orgId: string, membershipId: string, ticketId: string, referenced: string): Promise<void> {
+  /**
+   * `RELATES_TO`, stored in its canonical order, by the sender and audited as
+   * theirs — only when the sender could have made the link through the API:
+   * a ticket they cannot see, or may not link, gets nothing attached (M9 review).
+   */
+  private async relate(orgId: string, acting: Acting, ticketId: string, referenced: string): Promise<void> {
+    const membershipId = acting.actor.membershipId
+    const visible = await this.access.loadVisible(orgId, [referenced], acting.actor, acting.visibility)
+    const target = visible[0]
+    if (target === undefined || !this.permissions.can(acting.actor, "ticket:link", target.subject)) return
     const [created, other] = await this.tickets.findManyById(orgId, [ticketId, referenced]).then((rows) => [
       rows.find((r) => r.id === ticketId),
       rows.find((r) => r.id === referenced),

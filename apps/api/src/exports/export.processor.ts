@@ -7,6 +7,7 @@ import { z } from "zod"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../config/app-config"
 import { runJob } from "../jobs/dispatcher/run-job"
+import { PublicUrls } from "../common/urls"
 import { MailService } from "../mail/mail.service"
 import { OrganizationRepository } from "../platform/repositories/organization.repository"
 import { PrismaService } from "../prisma/prisma.service"
@@ -34,6 +35,7 @@ export class ExportRunner {
     private readonly builder: ExportBuilder,
     private readonly organizations: OrganizationRepository,
     private readonly storage: StorageService,
+    private readonly urls: PublicUrls,
     private readonly mail: MailService,
     private readonly tenant: TenantContextService,
     private readonly prisma: PrismaService,
@@ -68,8 +70,12 @@ export class ExportRunner {
       if (row?.requestedBy.role !== "OWNER" || row.requestedBy.status !== "ACTIVE") return
       const to = row.requestedBy.user?.email
       if (to === undefined) return
-      const filename = `export-${exportId}.zip`
-      const downloadUrl = await this.storage.presignGet(built.storageKey, { filename, contentType: "application/zip", inline: false }, EXPORT_LINK_HOURS * 3600)
+      // The mail names where the export is, never the archive itself: a presigned link in an inbox
+      // is a bearer capability to the whole workspace for a day (M9 review). Settings signs the
+      // owner in and issues a short link on the click.
+      const slug = (await this.organizations.findProfileById(orgId))?.slug
+      if (slug === undefined) return
+      const downloadUrl = this.urls.workspace(slug, "/settings")
       await this.mail.enqueueAll([
         {
           entityId: `${exportId}.ready`,
