@@ -21,24 +21,23 @@ const primary =
  */
 export function SiteHeader() {
   return (
-    <header className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5">
+    <header className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-5">
       <Link href="/" className="text-sm font-semibold tracking-tight">
         Patchgrid
       </Link>
-      <nav aria-label="Main" className="flex items-center gap-5 text-sm">
+      {/* A row of its own on a phone, beside the account links from sm up. */}
+      <nav aria-label="Main" className="order-last flex w-full gap-5 text-sm sm:order-none sm:ml-auto sm:w-auto">
         {NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="hidden text-muted-foreground hover:text-foreground sm:inline"
-          >
+          <Link key={item.href} href={item.href} className="text-muted-foreground hover:text-foreground">
             {item.label}
           </Link>
         ))}
+      </nav>
+      <div className="flex items-center gap-5 text-sm">
         <Suspense fallback={<SignedOut />}>
           <AccountLinks />
         </Suspense>
-      </nav>
+      </div>
     </header>
   )
 }
