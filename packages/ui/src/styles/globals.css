@@ -1,10 +1,13 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
-@source "../../../apps/**/*.{ts,tsx}";
-@source "../../../components/**/*.{ts,tsx}";
+/*
+ * The shared components only, and no automatic detection: it starts from the
+ * monorepo root, so every app's classes ended up in every app's stylesheet.
+ * Each app names its own files in its app/globals.css.
+ */
 @source "../**/*.{ts,tsx}";
 
 /*
