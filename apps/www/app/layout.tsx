@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import "@patchgrid/ui/globals.css"
+import "./globals.css"
 import { fontVariables } from "@patchgrid/ui/lib/fonts"
 import { cn } from "@patchgrid/ui/lib/utils"
 

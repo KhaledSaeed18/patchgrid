@@ -1,0 +1,5 @@
+@import "@patchgrid/ui/globals.css";
+
+/* This site's own classes: its pages, components and the MDX element map. */
+@source "../{app,components,lib}/**/*.{ts,tsx}";
+@source "../mdx-components.tsx";

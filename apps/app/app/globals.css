@@ -1,0 +1,4 @@
+@import "@patchgrid/ui/globals.css";
+
+/* This app's own classes. */
+@source "../{app,components,hooks,lib}/**/*.{ts,tsx}";
