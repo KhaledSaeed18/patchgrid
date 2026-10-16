@@ -2,12 +2,14 @@ import { PLAN_LIMITS, type UsageMetric } from "@patchgrid/contracts"
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { pageMetadata } from "@/lib/metadata"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Pricing",
   description:
     "Patchgrid's Free and Pro plans: agent seats, tickets, storage and knowledge articles, side by side.",
-}
+  path: "/pricing",
+})
 
 /**
  * `AUTOMATION_RULES` has a limit in contracts but no feature behind it until

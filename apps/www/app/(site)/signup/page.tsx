@@ -1,13 +1,15 @@
 import type { Metadata } from "next"
 
+import { pageMetadata } from "@/lib/metadata"
 
 import { SignupForm } from "./signup-form"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Create a workspace",
   description:
     "Create your Patchgrid account and choose your workspace's address.",
-}
+  path: "/signup",
+})
 
 export default function SignupPage() {
   return (
