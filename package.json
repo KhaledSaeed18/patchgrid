@@ -17,7 +17,7 @@
     "db:migrate": "pnpm --filter @patchgrid/database run migrate",
     "db:seed": "pnpm --filter @patchgrid/database run seed",
     "db:studio": "pnpm --filter @patchgrid/database run studio",
-    "db:reset": "pnpm --filter @patchgrid/database exec prisma migrate reset --force --skip-seed && pnpm db:bootstrap && pnpm db:seed",
+    "db:reset": "pnpm --filter @patchgrid/database exec prisma migrate reset --force && pnpm db:bootstrap && pnpm db:seed",
     "db:doctor": "pnpm --filter @patchgrid/database run doctor",
     "platform:grant": "pnpm --filter @patchgrid/database run platform grant",
     "platform:revoke": "pnpm --filter @patchgrid/database run platform revoke"
