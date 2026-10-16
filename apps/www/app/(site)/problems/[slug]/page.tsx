@@ -1,7 +1,9 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { Suspense } from "react"
 import type { Metadata } from "next"
 
+import { pageMetadata } from "@/lib/metadata"
 import { PROBLEM_TYPES, findProblemType } from "@/lib/problems"
 
 type PageProps = { params: Promise<{ slug: string }> }
@@ -16,10 +18,23 @@ export async function generateMetadata({
   const { slug } = await params
   const problem = findProblemType(slug)
   if (!problem) return { title: "Unknown problem type" }
-  return { title: problem.title, description: problem.detail }
+  return pageMetadata({
+    title: problem.title,
+    description: problem.detail,
+    path: `/problems/${problem.slug}`,
+  })
 }
 
-export default async function ProblemTypePage({ params }: PageProps) {
+/** Behind a boundary like the docs and the blog: the slug is URL data. */
+export default function ProblemTypePage({ params }: PageProps) {
+  return (
+    <Suspense fallback={<main className="mx-auto min-h-svh max-w-2xl px-6 py-24" />}>
+      <ProblemType params={params} />
+    </Suspense>
+  )
+}
+
+async function ProblemType({ params }: PageProps) {
   const { slug } = await params
   const problem = findProblemType(slug)
   if (!problem) notFound()

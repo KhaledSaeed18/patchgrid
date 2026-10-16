@@ -1,13 +1,15 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 
+import { pageMetadata } from "@/lib/metadata"
 import { PROBLEM_TYPES } from "@/lib/problems"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "API problem types",
   description:
     "Every error the Patchgrid API returns carries a type URI. This is what each one means.",
-}
+  path: "/problems",
+})
 
 export default function ProblemsIndexPage() {
   return (
@@ -34,6 +36,7 @@ export default function ProblemsIndexPage() {
           <li key={problem.slug}>
             <Link
               href={`/problems/${problem.slug}`}
+              prefetch
               className="-mx-3 flex items-baseline gap-3 rounded-md px-3 py-2 hover:bg-muted/50"
             >
               <span className="w-8 shrink-0 font-mono text-xs text-muted-foreground">

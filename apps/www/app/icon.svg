@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The priority grid: urgency across, impact down, strongest where both are high. -->
+  <g fill="#cb4a24">
+    <rect x="2" y="2" width="8" height="8" rx="2" opacity=".3"/>
+    <rect x="12" y="2" width="8" height="8" rx="2" opacity=".55"/>
+    <rect x="22" y="2" width="8" height="8" rx="2" opacity=".8"/>
+    <rect x="2" y="12" width="8" height="8" rx="2" opacity=".55"/>
+    <rect x="12" y="12" width="8" height="8" rx="2" opacity=".8"/>
+    <rect x="22" y="12" width="8" height="8" rx="2" opacity=".9"/>
+    <rect x="2" y="22" width="8" height="8" rx="2" opacity=".8"/>
+    <rect x="12" y="22" width="8" height="8" rx="2" opacity=".9"/>
+    <rect x="22" y="22" width="8" height="8" rx="2"/>
+  </g>
+</svg>
