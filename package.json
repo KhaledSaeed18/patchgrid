@@ -19,6 +19,7 @@
     "db:studio": "pnpm --filter @patchgrid/database run studio",
     "db:reset": "pnpm --filter @patchgrid/database exec prisma migrate reset --force && pnpm db:bootstrap && pnpm db:seed",
     "db:doctor": "pnpm --filter @patchgrid/database run doctor",
+    "local:up": "node scripts/local-up.mjs",
     "platform:grant": "pnpm --filter @patchgrid/database run platform grant",
     "platform:revoke": "pnpm --filter @patchgrid/database run platform revoke"
   },
