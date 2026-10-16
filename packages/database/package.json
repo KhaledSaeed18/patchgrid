@@ -23,7 +23,8 @@
     "policy": "tsx scripts/policy.ts",
     "migrations:check": "tsx scripts/migration-safety.ts",
     "migrations:drift": "prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code",
-    "platform": "tsx scripts/platform-admin.ts"
+    "platform": "tsx scripts/platform-admin.ts",
+    "load:tickets": "prisma generate && tsx scripts/load-tickets.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
