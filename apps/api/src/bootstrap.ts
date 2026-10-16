@@ -30,10 +30,11 @@ export async function bootstrap(): Promise<void> {
 
   app.use(
     helmet({
-      // This process serves JSON, not documents. A content-security policy for
-      // HTML would be cargo cult; the headers that matter for an API are the
-      // rest of the set.
-      contentSecurityPolicy: false,
+      // This process serves JSON, not documents. The policy is the strictest
+      // one there is — nothing may load, nothing may frame it — so a response
+      // that is ever rendered as a document by mistake stays inert. The
+      // headers that matter for an API are the rest of the set.
+      contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
       // CORP would block the cross-origin reads that the tenant subdomains make
       // on purpose; CORS is the mechanism that governs those (below).
       crossOriginResourcePolicy: false,
