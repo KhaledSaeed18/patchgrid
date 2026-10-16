@@ -43,6 +43,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await operator?.cleanup()
   await db.platformAuditLog.deleteMany({ where: { targetOrgId: ws.orgId } })
+  await db.apiToken.deleteMany({ where: { orgId: ws.orgId } })
+  await db.apiTokenIndex.deleteMany({ where: { orgId: ws.orgId } })
   await ws?.cleanup()
   await jobs?.close()
   await app?.close()
@@ -72,8 +74,14 @@ describe("asking", () => {
     expect((await db.organization.findUniqueOrThrow({ where: { id: ws.orgId } })).status).toBe("ACTIVE")
   })
 
-  it("puts everyone out at once, and the subdomain answers as if it never existed", async () => {
+  it("puts everyone out at once — API tokens included — and the subdomain answers as if it never existed", async () => {
+    // A token has no membership epoch; the workspace's own epoch is what refuses it (M9 review).
+    const minted = await (await proved("admin")).post("/org/api-tokens", { name: "Zabbix", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
+    expect(minted.status).toBe(201)
+    const bearer = { Authorization: `Bearer ${String(minted.body.secret)}` }
+    expect((await request(app.getHttpServer()).get("/api/v1/tickets?view=open").set(bearer)).status).toBe(200)
     expect((await (await proved("owner")).post("/org/deletion", { confirmSlug: ws.slug })).status).toBe(202)
+    expect((await request(app.getHttpServer()).get("/api/v1/tickets?view=open").set(bearer)).status).not.toBe(200)
     expect((await as("agent").get("/me")).status).toBe(404)
     expect((await request(app.getHttpServer()).get(`/api/v1/tenants/${ws.slug}`)).status).toBe(404)
     expect((await picker("agent").open()).status).toBe(404)
