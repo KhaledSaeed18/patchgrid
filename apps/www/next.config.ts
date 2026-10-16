@@ -1,8 +1,14 @@
+import path from "node:path"
+
 import createMDX from "@next/mdx"
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@patchgrid/ui", "@patchgrid/contracts"],
+  // The production image runs the traced, self-contained server (docker/next.Dockerfile).
+  // Tracing starts at the monorepo root, or the workspace packages are left out.
+  output: "standalone",
+  outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   // Every page is a prerendered shell; only the header's account links read the
   // request, and they stream in behind it.
   cacheComponents: true,
