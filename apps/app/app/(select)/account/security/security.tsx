@@ -14,12 +14,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@patchgrid/ui/components/dialog"
+import { FieldGroup } from "@patchgrid/ui/components/field"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { FormAlert } from "@/components/form-alert"
+import { FormField } from "@/components/form-field"
 import {
   EnrolForm,
   FactorForm,
@@ -28,6 +30,7 @@ import {
 } from "@/components/mfa/factor-form"
 import { RecoveryCodes } from "@/components/mfa/recovery-codes"
 import { clientApi } from "@/lib/api/client"
+import { ApiError } from "@/lib/api/errors"
 import { ROOT_DOMAIN } from "@/lib/config"
 
 type Stage =
@@ -36,6 +39,7 @@ type Stage =
   | { kind: "recovery"; codes: string[] }
   | { kind: "regenerate" }
   | { kind: "disable" }
+  | { kind: "password" }
 
 /**
  * Set up, replace the recovery codes, or turn off (ADR-0029). Every change
@@ -60,13 +64,18 @@ export function Security({
       recoveryCodesRemaining: 0,
     },
   })
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["mfa-status"] })
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["mfa-status"] })
 
+  // The password first: a session alone must not be able to set the factor (ADR-0045).
   const enrol = useMutation({
-    mutationFn: () =>
-      clientApi("/auth/mfa/enrol", { method: "POST", schema: mfaEnrolmentSchema }),
+    mutationFn: (password: string) =>
+      clientApi("/auth/mfa/enrol", {
+        method: "POST",
+        body: { password },
+        schema: mfaEnrolmentSchema,
+      }),
     onSuccess: (enrolment) => setStage({ kind: "enrol", enrolment }),
-    onError: () => toast.error("Setting up didn't start. Try again in a moment."),
   })
   const confirm = useMutation({
     mutationFn: (code: string) =>
@@ -94,7 +103,11 @@ export function Security({
   })
   const disable = useMutation({
     mutationFn: (proof: FactorProof) =>
-      clientApi("/auth/mfa/disable", { method: "POST", body: proof, schema: null }),
+      clientApi("/auth/mfa/disable", {
+        method: "POST",
+        body: proof,
+        schema: null,
+      }),
     onSuccess: () => {
       setStage({ kind: "idle" })
       toast.success("Two-factor authentication is off.")
@@ -161,7 +174,10 @@ export function Security({
           >
             New recovery codes
           </Button>
-          <Button variant="outline" onClick={() => setStage({ kind: "disable" })}>
+          <Button
+            variant="outline"
+            onClick={() => setStage({ kind: "disable" })}
+          >
             Turn off
           </Button>
         </div>
@@ -169,13 +185,53 @@ export function Security({
         <Button
           size="lg"
           className="w-fit"
-          disabled={enrol.isPending}
-          onClick={() => enrol.mutate()}
+          onClick={() => setStage({ kind: "password" })}
         >
-          {enrol.isPending && <Spinner />}
           Set up an authenticator app
         </Button>
       )}
+
+      <Dialog
+        open={stage.kind === "password"}
+        onOpenChange={(open) => !open && setStage({ kind: "idle" })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm your password</DialogTitle>
+            <DialogDescription>
+              Setting up a second factor starts with the first one.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              enrol.mutate(
+                String(new FormData(event.currentTarget).get("password") ?? "")
+              )
+            }}
+          >
+            <FieldGroup>
+              {enrol.error !== null && (
+                <FormAlert>{passwordMessage(enrol.error)}</FormAlert>
+              )}
+              <FormField
+                id="enrol-password"
+                name="password"
+                type="password"
+                label="Your password"
+                autoComplete="current-password"
+                required
+                autoFocus
+              />
+              <Button type="submit" size="lg" disabled={enrol.isPending}>
+                {enrol.isPending && <Spinner />}
+                Continue
+              </Button>
+            </FieldGroup>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={stage.kind === "regenerate"}
@@ -224,4 +280,12 @@ export function Security({
       )}
     </div>
   )
+}
+
+function passwordMessage(error: Error): string {
+  if (error instanceof ApiError && error.type === "rate-limited")
+    return "Too many wrong attempts. Try again later."
+  if (error instanceof ApiError && error.status === 400)
+    return "That password didn't match."
+  return "Setting up didn't start. Try again in a moment."
 }

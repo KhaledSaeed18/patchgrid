@@ -2,18 +2,19 @@ import { Injectable, Logger } from "@nestjs/common"
 import type { LoginResponse, MfaEnrolment, MfaStatus, MfaVerifyRequest, RecoveryCodes } from "@patchgrid/contracts"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
-import { ConflictProblem, NotAuthenticatedProblem, ValidationProblem } from "../../common/problems/problem.exception"
+import { ConflictProblem, NotAuthenticatedProblem, ServiceUnavailableProblem, ValidationProblem } from "../../common/problems/problem.exception"
 import { InjectConfig, type AppConfig } from "../../config/app-config"
 import { MailService } from "../../mail/mail.service"
 import type { AccountSecurityEvent } from "../../mail/templates/account-security"
 import { MfaRepository } from "../../platform/repositories/mfa.repository"
+import { RedisService } from "../../redis/redis.service"
 import { UserRepository } from "../../platform/repositories/user.repository"
 import type { CookieName, CookieSpec } from "../cookies"
 import { CookieService } from "../cookies"
 import { PasswordService } from "../passwords/password.service"
 import { type ClientInfo, SessionService } from "../sessions/session.service"
 import { FactorLockout } from "./factor-lockout"
-import { MfaChallengeService } from "./mfa-challenge.service"
+import { MFA_CHALLENGE_TTL_SECONDS, MfaChallengeService } from "./mfa-challenge.service"
 import { newRecoveryCodes, normaliseRecoveryCode } from "./recovery-codes"
 import { SecretBox } from "./secret-box"
 import { acceptedStep, newTotpSecret, otpauthUri } from "./totp"
@@ -49,6 +50,7 @@ export class MemberMfaService {
     private readonly sessions: SessionService,
     private readonly cookies: CookieService,
     private readonly mail: MailService,
+    private readonly redis: RedisService,
     @InjectConfig() config: AppConfig,
     @InjectClock() private readonly clock: Clock,
   ) {
@@ -66,6 +68,8 @@ export class MemberMfaService {
     const account = await this.users.findById(challenge.userId)
     if (account === null || account.anonymisedAt !== null || account.emailVerifiedAt === null) throw new NotAuthenticatedProblem("Sign in again")
     await this.verify(challenge.userId, request)
+    // One session per challenge: a completed challenge cookie replayed inside its five minutes earns nothing more (M9 review).
+    if (!(await this.spendChallenge(challenge.jti))) throw new NotAuthenticatedProblem("Sign in again")
     const started = await this.sessions.startIdentity(account, client, challenge.slug)
     return { ...started, clear: [{ name: this.cookies.mfaChallenge("", 0).name, path: this.cookies.mfaChallenge("", 0).path }] }
   }
@@ -79,11 +83,21 @@ export class MemberMfaService {
     }
   }
 
-  /** A new, unconfirmed factor. Refused while one is confirmed: turn that off first, with a code. */
-  async enrol(userId: string): Promise<MfaEnrolment> {
+  /**
+   * A new, unconfirmed factor, against the password: a long-lived `pg_id` in
+   * the wrong hands must not be able to lock the person out by enrolling an
+   * authenticator of its own (M9 review). Refused while one is confirmed:
+   * turn that off first, with a code.
+   */
+  async enrol(userId: string, password: string): Promise<MfaEnrolment> {
     if ((await this.mfa.confirmed(userId)) !== null) throw new ConflictProblem("A second factor is already set up; turn it off before setting up another")
     const account = await this.users.findById(userId)
     if (account === null) throw new NotAuthenticatedProblem()
+    await this.lockout.assertOpen(userId)
+    if (!(await this.passwords.verify(account.passwordHash, password))) {
+      await this.lockout.fail(userId)
+      throw new ValidationProblem([{ path: "password", message: "does not match", code: "invalid_password" }])
+    }
     const secret = newTotpSecret()
     await this.mfa.startEnrolment(userId, this.box.seal(secret), "Authenticator app")
     return { secret, otpauthUri: otpauthUri(secret, account.email) }
@@ -154,6 +168,16 @@ export class MemberMfaService {
       }
     }
     throw await this.refused(userId)
+  }
+
+  /** `true` the first time a challenge completes; with Redis down the login waits, as the lockout does. */
+  private async spendChallenge(jti: string): Promise<boolean> {
+    try {
+      return (await this.redis.client.set(`mfa:challenge:${jti}`, "1", "EX", MFA_CHALLENGE_TTL_SECONDS, "NX")) === "OK"
+    } catch (error) {
+      this.logger.error({ msg: "challenge registry unavailable", error: String(error) })
+      throw new ServiceUnavailableProblem("Sign-in cannot be completed right now; retry shortly")
+    }
   }
 
   /** Counts a wrong proof against the person; the lock, when it comes, is on the record and in their inbox. */

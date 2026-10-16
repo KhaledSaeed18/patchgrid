@@ -4,6 +4,12 @@
 - **Date:** 2026-10-16
 - **Refines:** [0029](0029-mfa-and-step-up-authentication.md); builds on [0040](0040-platform-credential-and-the-admin-host.md)
 
+> **Erratum (2026-10-16).** "Self-service … all on `pg_id`" was one route too many: `pg_id` is a
+> long-lived bearer, and whoever held one could enrol an authenticator of their own and lock the
+> person out of every workspace that requires a factor. `POST /auth/mfa/enrol` now takes the
+> password, counted against the same lockout as a wrong code. Confirming, replacing the codes and
+> turning the factor off are proved by the factor, as the body says. (M9 security review, finding 3.)
+
 ## Context
 
 ADR-0029 decided TOTP for everyone, optional per person and enforceable per workspace, with step-up
