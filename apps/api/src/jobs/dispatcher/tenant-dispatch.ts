@@ -48,8 +48,10 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue("retention-sweep") retentionSweep: Queue,
     @InjectQueue("projection-reconcile") projectionReconcile: Queue,
     @InjectQueue("outbox-sweep") outboxSweep: Queue,
+    @InjectQueue("webhook-sweep") webhookSweep: Queue,
   ) {
     this.queues = {
+      "webhook-sweep": webhookSweep,
       "outbox-sweep": outboxSweep,
       "sla-scan": slaScan,
       "auto-close": autoClose,
