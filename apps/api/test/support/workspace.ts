@@ -77,6 +77,8 @@ export async function seedWorkspace<P extends string>(
     await db.team.deleteMany({ where: { orgId: org.id } })
     await db.userOrgIndex.deleteMany({ where: { orgId: org.id } })
     await db.usageCounter.deleteMany({ where: { orgId: org.id } })
+    await db.webhookDelivery.deleteMany({ where: { orgId: org.id } })
+    await db.webhookEndpoint.deleteMany({ where: { orgId: org.id } })
     await db.eventDeadLetter.deleteMany({ where: { orgId: org.id } })
     await db.eventConsumer.deleteMany({ where: { orgId: org.id } })
     await db.outboxEvent.deleteMany({ where: { orgId: org.id } })

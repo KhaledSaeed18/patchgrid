@@ -138,28 +138,30 @@ model Organization {
   auditLogs     AuditLog[]
   usageCounters UsageCounter[]
 
-  ticketCounters  TicketCounter[]
-  categories      Category[]
-  slaPolicies     SLAPolicy[]
-  tickets         Ticket[]
-  comments        Comment[]
-  watchers        TicketWatcher[]
-  notifications   Notification[]
-  problemDetails  ProblemDetails[]
-  changeDetails   ChangeDetails[]
-  changeApprovals ChangeApproval[]
-  ticketLinks     TicketLink[]
-  attachments     Attachment[]
-  assets          Asset[]
-  ticketAssets    TicketAsset[]
-  articles        KnowledgeArticle[]
-  inboundEmails   InboundEmail[]
-  supportSessions SupportSession[]
-  apiTokens       ApiToken[]
-  exports         OrgExport[]
-  outboxEvents    OutboxEvent[]
-  eventConsumers  EventConsumer[]
-  deadLetters     EventDeadLetter[]
+  ticketCounters    TicketCounter[]
+  categories        Category[]
+  slaPolicies       SLAPolicy[]
+  tickets           Ticket[]
+  comments          Comment[]
+  watchers          TicketWatcher[]
+  notifications     Notification[]
+  problemDetails    ProblemDetails[]
+  changeDetails     ChangeDetails[]
+  changeApprovals   ChangeApproval[]
+  ticketLinks       TicketLink[]
+  attachments       Attachment[]
+  assets            Asset[]
+  ticketAssets      TicketAsset[]
+  articles          KnowledgeArticle[]
+  inboundEmails     InboundEmail[]
+  supportSessions   SupportSession[]
+  apiTokens         ApiToken[]
+  exports           OrgExport[]
+  outboxEvents      OutboxEvent[]
+  eventConsumers    EventConsumer[]
+  deadLetters       EventDeadLetter[]
+  webhooks          WebhookEndpoint[]
+  webhookDeliveries WebhookDelivery[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -374,6 +376,7 @@ model Membership {
   inboundEmailsSent        InboundEmail[]
   supportDecisions         SupportSession[]   @relation("SupportDecidedBy")
   supportRevocations       SupportSession[]   @relation("SupportRevokedBy")
+  webhooksCreated          WebhookEndpoint[]  @relation("WebhookEndpointCreatedBy")
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -1208,8 +1211,9 @@ model OutboxEvent {
   payload    Json
   occurredAt DateTime @default(now()) @db.Timestamptz(3)
 
-  organization Organization     @relation(fields: [orgId], references: [id])
+  organization Organization      @relation(fields: [orgId], references: [id])
   deadLetters  EventDeadLetter[]
+  deliveries   WebhookDelivery[]
 
   @@unique([orgId, id])
   @@index([orgId, txn, id])
@@ -1251,6 +1255,79 @@ model EventDeadLetter {
   @@unique([orgId, id])
   @@unique([orgId, consumer, eventId])
   @@index([orgId, consumer, parkedAt(sort: Desc)])
+}
+
+enum WebhookEndpointStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  DEAD
+}
+
+/// A tenant's subscribed URL (ADR-0050). The signing secret is sealed under
+/// WEBHOOK_SECRETS_KEY, never hashed: we sign with it. A rotation keeps the
+/// previous secret signing until it lapses. The circuit is per endpoint.
+model WebhookEndpoint {
+  id                      String                @id @default(uuid(7)) @db.Uuid
+  orgId                   String                @db.Uuid
+  url                     String
+  description             String?
+  eventTypes              String[]
+  status                  WebhookEndpointStatus @default(ACTIVE)
+  disabledReason          String?
+  secretSealed            String
+  previousSecretSealed    String?
+  previousSecretExpiresAt DateTime?             @db.Timestamptz(3)
+  consecutiveFailures     Int                   @default(0)
+  circuitOpenUntil        DateTime?             @db.Timestamptz(3)
+  failingSince            DateTime?             @db.Timestamptz(3)
+  createdByMembershipId   String                @db.Uuid
+  createdAt               DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime              @updatedAt @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [orgId], references: [id])
+  createdBy    Membership        @relation("WebhookEndpointCreatedBy", fields: [orgId, createdByMembershipId], references: [orgId, id])
+  deliveries   WebhookDelivery[]
+
+  @@unique([orgId, id])
+  @@index([orgId, createdAt])
+}
+
+/// One event for one endpoint (ADR-0050): written exactly once, by the
+/// `webhooks` consumer in the transaction that moves its cursor; attempted at
+/// least once. Its id is the `webhook-id` receivers deduplicate on.
+model WebhookDelivery {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  orgId          String                @db.Uuid
+  endpointId     String                @db.Uuid
+  eventId        String                @db.Uuid
+  eventType      String
+  /// The body, fixed when the delivery is written: every attempt and replay sends the same bytes.
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  nextAttemptAt  DateTime?             @db.Timestamptz(3)
+  lastAttemptAt  DateTime?             @db.Timestamptz(3)
+  lastStatusCode Int?
+  lastError      String?
+  lastDurationMs Int?
+  deliveredAt    DateTime?             @db.Timestamptz(3)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+
+  organization Organization    @relation(fields: [orgId], references: [id])
+  endpoint     WebhookEndpoint @relation(fields: [orgId, endpointId], references: [orgId, id], onDelete: Cascade)
+  event        OutboxEvent     @relation(fields: [orgId, eventId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, endpointId, eventId])
+  /// The endpoint's log, newest first.
+  @@index([orgId, endpointId, createdAt(sort: Desc), id(sort: Desc)])
+  /// What the sweep re-queues: pending and due.
+  @@index([orgId, status, nextAttemptAt])
 }
 
 /// An API token (ADR-0021, ADR-0042): one per service-account membership,

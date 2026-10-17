@@ -36,6 +36,8 @@ export class OrgPurgeRepository {
     this.step("SupportSession", (orgId) => this.prisma.db.supportSession.deleteMany({ where: { orgId } })),
     this.step("ApiToken", (orgId) => this.prisma.db.apiToken.deleteMany({ where: { orgId } })),
     this.step("OrgExport", (orgId) => this.prisma.db.orgExport.deleteMany({ where: { orgId } })),
+    this.step("WebhookDelivery", (orgId) => this.prisma.db.webhookDelivery.deleteMany({ where: { orgId } })),
+    this.step("WebhookEndpoint", (orgId) => this.prisma.db.webhookEndpoint.deleteMany({ where: { orgId } })),
     this.step("EventDeadLetter", (orgId) => this.prisma.db.eventDeadLetter.deleteMany({ where: { orgId } })),
     this.step("EventConsumer", (orgId) => this.prisma.db.eventConsumer.deleteMany({ where: { orgId } })),
     this.step("OutboxEvent", (orgId) => this.prisma.db.outboxEvent.deleteMany({ where: { orgId } })),
