@@ -4,6 +4,13 @@
 - **Date:** 2026-10-17
 - **Builds on:** [0049](0049-transactional-outbox-as-a-tenant-log.md) (the log), [0021](0021-api-tokens-as-service-accounts.md) (the API a receiver calls back)
 
+> **Erratum (2026-10-17, the M11 review).** As first built, a circuit coming due let every waiting
+> delivery through at once and doubled per failure; one attempt now takes the probe and the rest wait
+> for it, as this ADR says. Also settled by the review: delivery errors name the kind of failure, never an
+> address; IPv6 is an allow-list of global unicast; audit rows keep a URL's origin and a fingerprint of its
+> path; a second rotation inside the 24-hour overlap is refused; replay needs the endpoint on; an endpoint
+> hears only of events after its creation (THREAT-MODEL §8).
+
 ## Context
 
 M11's last feature: a workspace subscribes an HTTPS endpoint to its events. Webhooks are where a

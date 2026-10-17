@@ -204,6 +204,17 @@ TM-1 was decided in M5 (ADR-0037) and TM-2 in M8 (ADR-0040).
 | **TM-4** | **Account enumeration is unaddressed**, and signup ("login if the email exists") is an explicit oracle.                                                                                                                                                                                                                                                                                    | Reset always returns `202`. Signup returns `202` and emails either "verify your address" or "you already have an account". Login says "invalid email or password". All three are throttled per IP and per email hash. Or accept it explicitly as R-10; either way, decide it.                                 | **Decided** — ADR-0031 |
 | **TM-5** | **`pg_id` is the most powerful cookie and is unspecified**: format, lifetime, rotation, storage, revocation. It can mint a session pair for every workspace the user belongs to.                                                                                                                                                                                                           | Treat it as a refresh token: opaque, rotating, hashed in `RefreshToken` with `orgId` null (the column is already optional), 7-day lifetime. Minting a tenant pair re-reads `Membership` inside `runAsTenant`, never `UserOrgIndex`, and checks the epoch. Password change and "log out everywhere" revoke it. | **Decided** — ADR-0031 |
 
+### TB11 · Tenant-chosen URL → the network (webhooks, M11)
+
+A tenant admin names the address the platform sends to, so the request can be aimed back at our own
+network. Only `https`, no credentials, no redirects, 10 seconds, 4 KB of the answer kept. Every address
+the host resolves to is checked **inside the connection's own `lookup`**, so the vetted address is the
+one dialled. IPv6 is an allow-list (global unicast, less its reserved blocks), and IPv4 inside IPv6 is
+judged as that IPv4. A refusal tells the tenant the kind of failure, never the address. Payloads carry
+ids and states only, so a leaked delivery log holds no ticket text. Secrets are sealed under a key the
+database never holds. No token manages webhooks. Per-tenant in-flight leases and a circuit per endpoint
+keep one tenant's dead receiver from becoming everyone's queue (ADR-0050, §8).
+
 ---
 
 ## 7. The M9 security review (2026-10-16)
@@ -243,3 +254,32 @@ Checked and left as they are, with the reason:
   Every site reads inside a transaction today; a lint is the right fix when a second site appears.
 - **R-1 stands**: a `pg_id` in the wrong hands still opens workspaces; finding 3 narrows what it can
   change, and password reset keeps the factor — email possession must not undo it.
+
+## 8. The M11 review (2026-10-17)
+
+Three independent read-only reviews before M11 closed: the outbox relay, webhook security and
+webhook delivery. Nothing crossed a tenant boundary, and nothing in signing, secret handling or
+authorization was found wanting. Every confirmed finding was fixed in one change set, with a test where
+one can hold it.
+
+| # | Area | Finding | Resolution |
+| --- | --- | --- | --- |
+| 1 | TB11 | The delivery log echoed resolver errors (`postgres resolves to 172.18.0.3`), so a tenant could map internal names to private addresses | The log says the kind of failure only; the address goes to the server's log |
+| 2 | TB11 | IPv4-compatible (`::7f00:1`), SIIT and local-use NAT64 forms, and the RFC 9637 documentation range, passed the IPv6 check | IPv6 is an allow-list of global unicast, less its reserved blocks |
+| 3 | TB9 | Audit rows held full webhook URLs, often credentials, readable in a support session that `webhook:manage` keeps out | The audit keeps the origin and a fingerprint of the path |
+| 4 | TB5 | A tenant at its in-flight cap sent jobs round every second through a transaction, and the sweep added a fresh copy of each per minute | The lease is taken before any query (plan cached); a turned-away job waits 0.5 s doubling to 30 s; job ids are the scheduled time, so duplicates collapse |
+| 5 | ADR-0050 | A circuit coming due released every waiting delivery at once, and doubled per failure, not per probe | One attempt takes the probe by moving the reopening time, conditionally; the rest wait for its answer |
+| 6 | ADR-0049 | A drain retried a failed event straight away, so three wakes in a second parked it, and a deadlock counted as the event's fault | The backoff lives on the cursor (2 s, 8 s, 32 s); deadlocks, serialization failures and timeouts are the job's, not the event's |
+| 7 | ADR-0049 | A failure could be recorded outside the consumer's lock, on a cursor already past the event | Recorded under the lock, and only while the cursor is before the event |
+| 8 | TB4 | The purge removed cursors before events, so a stray drain between could replay a deleted workspace's log | Events go first |
+| 9 | ADR-0050 | A new endpoint received events from before it existed when the consumer was behind | An endpoint hears only of events after its creation |
+| 10 | ADR-0050 | A second rotation inside the overlap cut off receivers on the first secret; a replay into a turned-off endpoint died at once; a secret that would not open looped forever; a claim missed by a clock a few ms behind waited for the sweep | Each is refused, refused, marked dead with its reason, and given a 2 s tolerance |
+
+Checked and left as they are, with the reason:
+
+- **Email after a drain is best effort.** ADR-0049's erratum says so; a `mail` consumer of the log is
+  the fix when it matters (HANDOFF).
+- **Parked events have no replay path** yet. They are on record with their error; replaying them is an
+  admin action to build with the dead-letter view.
+- **A pending flag can lapse behind a long queue**, costing a duplicate drain: fairness, not
+  correctness.
