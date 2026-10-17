@@ -1,4 +1,6 @@
 import {
+  type BulkProgressEvent,
+  bulkProgressEventSchema,
   type NotificationEvent,
   notificationEventSchema,
   type TicketUpdatedEvent,
@@ -16,12 +18,14 @@ import {
 export type LiveEvents = {
   notification: NotificationEvent
   "ticket-updated": TicketUpdatedEvent
+  "bulk-progress": BulkProgressEvent
 }
 export type LiveEventName = keyof LiveEvents
 
 export const LIVE_EVENT_NAMES: readonly LiveEventName[] = [
   "notification",
   "ticket-updated",
+  "bulk-progress",
 ]
 
 export type LiveFrame = {
@@ -43,6 +47,10 @@ export function parseFrame(name: string, raw: unknown): LiveFrame | null {
   }
   if (name === "ticket-updated") {
     const parsed = ticketUpdatedEventSchema.safeParse(json)
+    return parsed.success ? { name, data: parsed.data } : null
+  }
+  if (name === "bulk-progress") {
+    const parsed = bulkProgressEventSchema.safeParse(json)
     return parsed.success ? { name, data: parsed.data } : null
   }
   return null

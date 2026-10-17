@@ -1,5 +1,6 @@
 import {
   meSchema,
+  prioritySchema,
   ticketPageSchema,
   ticketSearchResultSchema,
   ticketSortSchema,
@@ -19,6 +20,7 @@ import { TicketTable } from "@/components/tickets/ticket-table"
 import { serverApi } from "@/lib/api/server"
 
 import { QueueFilters } from "./queue-filters"
+import { SavedViews } from "./saved-views"
 
 export const metadata: Metadata = { title: "Queues" }
 
@@ -66,6 +68,8 @@ export default async function QueuesPage({
     parsedType.success && view !== "approvals" ? parsedType.data : undefined
   const parsedStatus = ticketStatusSchema.safeParse(one("status"))
   const status = parsedStatus.success ? parsedStatus.data : undefined
+  const parsedPriority = prioritySchema.safeParse(one("priority"))
+  const priority = parsedPriority.success && view !== "approvals" ? parsedPriority.data : undefined
   const parsedSort = ticketSortSchema.safeParse(one("sort"))
   const sort = parsedSort.success ? parsedSort.data : "newest"
   const q = one("q")?.trim() ?? ""
@@ -73,6 +77,7 @@ export default async function QueuesPage({
   const query = new URLSearchParams({ view, limit: "25" })
   if (type !== undefined) query.set("type", type)
   if (status !== undefined) query.set("status", status)
+  if (priority !== undefined) query.set("priority", priority)
   if (sort !== "newest") query.set("sort", sort)
 
   return (
@@ -93,6 +98,8 @@ export default async function QueuesPage({
               href.set("type", type)
             if (status !== undefined && queue.view !== "approvals")
               href.set("status", status)
+            if (priority !== undefined && queue.view !== "approvals")
+              href.set("priority", priority)
             if (sort !== "newest") href.set("sort", sort)
             const current = q === "" && queue.view === view
             return (
@@ -116,9 +123,21 @@ export default async function QueuesPage({
           view={view}
           type={type}
           status={status}
+          priority={priority}
           sort={sort}
           q={q}
         />
+        {!operator && me.permissions.includes("view:manage") && view !== "approvals" && view !== "mine" && view !== "all" && (
+          <SavedViews
+            current={{
+              view,
+              sort,
+              ...(type === undefined ? {} : { type }),
+              ...(status === undefined ? {} : { status }),
+              ...(priority === undefined ? {} : { priority }),
+            }}
+          />
+        )}
         <div className="mt-4">
           {q === "" ? (
             <TicketFeed
@@ -128,6 +147,7 @@ export default async function QueuesPage({
               })}
               query={query.toString()}
               columns="console"
+              bulk={!operator && me.permissions.includes("ticket:bulk")}
               empty={
                 <p className="py-10 text-sm text-muted-foreground">
                   {view === "approvals"
