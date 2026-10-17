@@ -119,8 +119,8 @@ export class WebhookRepository {
   }
 
   /** The endpoints that should hear of new events: active ones, with what they listen for. */
-  activeEndpoints(orgId: string): Promise<{ id: string; eventTypes: string[] }[]> {
-    return this.prisma.db.webhookEndpoint.findMany({ where: { orgId, status: "ACTIVE" }, select: { id: true, eventTypes: true } })
+  activeEndpoints(orgId: string): Promise<{ id: string; eventTypes: string[]; createdAt: Date }[]> {
+    return this.prisma.db.webhookEndpoint.findMany({ where: { orgId, status: "ACTIVE" }, select: { id: true, eventTypes: true, createdAt: true } })
   }
 
   async updateEndpoint(orgId: string, id: string, changes: EndpointChanges): Promise<EndpointRow | null> {
@@ -158,9 +158,9 @@ export class WebhookRepository {
    * one delivery cannot both send it. `null` when someone else has it, or it
    * is not due, or it is finished.
    */
-  async claim(orgId: string, id: string, now: Date, leaseUntil: Date): Promise<DeliveryRow | null> {
+  async claim(orgId: string, id: string, dueBy: Date, leaseUntil: Date): Promise<DeliveryRow | null> {
     const { count } = await this.prisma.db.webhookDelivery.updateMany({
-      where: { orgId, id, status: "PENDING", nextAttemptAt: { lte: now } },
+      where: { orgId, id, status: "PENDING", nextAttemptAt: { lte: dueBy } },
       data: { nextAttemptAt: leaseUntil },
     })
     if (count === 0) return null
@@ -210,6 +210,19 @@ export class WebhookRepository {
       SELECT "status"::text AS "status", "consecutiveFailures", "circuitOpenUntil", "failingSince"
         FROM "WebhookEndpoint" WHERE "orgId" = ${orgId}::uuid AND "id" = ${id}::uuid FOR UPDATE`
     return rows[0] ?? null
+  }
+
+  /**
+   * Takes the probe of an endpoint whose circuit has come due: moves its
+   * reopening time to `lease`, only if it is still the time this attempt saw.
+   * One caller wins; the rest see a circuit open until the probe has answered.
+   */
+  async takeProbe(orgId: string, id: string, seen: Date, lease: Date): Promise<boolean> {
+    const { count } = await this.prisma.db.webhookEndpoint.updateMany({
+      where: { orgId, id, status: "ACTIVE", circuitOpenUntil: seen },
+      data: { circuitOpenUntil: lease },
+    })
+    return count === 1
   }
 
   /** The tenant's plan, which sets its in-flight cap. */
@@ -266,12 +279,12 @@ export class WebhookRepository {
   }
 
   /** Pending deliveries whose attempt is overdue: the sweep re-queues them in case their job was lost. */
-  overdue(orgId: string, before: Date, limit: number): Promise<{ id: string; attempts: number }[]> {
+  overdue(orgId: string, before: Date, limit: number): Promise<{ id: string; nextAttemptAt: Date | null }[]> {
     return this.prisma.db.webhookDelivery.findMany({
       where: { orgId, status: "PENDING", nextAttemptAt: { lte: before } },
       orderBy: { nextAttemptAt: "asc" },
       take: limit,
-      select: { id: true, attempts: true },
+      select: { id: true, nextAttemptAt: true },
     })
   }
 }

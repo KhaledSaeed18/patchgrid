@@ -28,10 +28,12 @@ export class WebhookSweepService {
     @InjectClock() private readonly clock: Clock,
   ) {}
 
-  async requeue(tick: number): Promise<number> {
+  /** A delivery's job is named for its scheduled time, so re-queueing one still waiting adds nothing. */
+  async requeue(): Promise<number> {
     const orgId = this.tenant.requireOrgId()
-    const overdue = await this.webhooks.overdue(orgId, new Date(this.clock.now().getTime() - GRACE_MS), BATCH)
-    await this.queue.addBulk(overdue.map((d) => deliveryJob(orgId, d.id, `a${String(d.attempts)}-s${String(tick)}`, 0)))
+    const now = this.clock.now()
+    const overdue = await this.webhooks.overdue(orgId, new Date(now.getTime() - GRACE_MS), BATCH)
+    await this.queue.addBulk(overdue.map((d) => deliveryJob(orgId, d.id, d.nextAttemptAt ?? now, now)))
     return overdue.length
   }
 }
@@ -50,7 +52,7 @@ export class WebhookSweepProcessor extends WorkerHost implements OnApplicationBo
   }
 
   async process(job: Job): Promise<number> {
-    const { orgId, tick } = readTenantSweep(job)
-    return runJob({ orgId }, "job:webhook-sweep", "re-queue overdue deliveries", () => this.service.requeue(tick))
+    const { orgId } = readTenantSweep(job)
+    return runJob({ orgId }, "job:webhook-sweep", "re-queue overdue deliveries", () => this.service.requeue())
   }
 }

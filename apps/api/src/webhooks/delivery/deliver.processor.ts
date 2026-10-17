@@ -14,13 +14,23 @@ export const IN_FLIGHT_CAP = { FREE: 2, PRO: 8 } as const
 /** Longer than an attempt can take, so a lease outlives its attempt and never its worker. */
 const LEASE_TTL_MS = 30_000
 
+/** How long a tenant's plan is trusted before it is read again. */
+const PLAN_TTL_MS = 60_000
+/** The longest a job at its tenant's cap waits before looking again. */
+const MAX_CAP_WAIT_MS = 30_000
+
 /**
- * An attempt, inside the tenant, within the tenant's in-flight cap. A tenant
- * at its cap does not wait in a worker slot: the job goes back to the delayed
- * set for a moment, spending no attempt, and the slot serves someone else.
+ * An attempt, within the tenant's in-flight cap. The lease is taken before
+ * anything touches the database (the plan is cached), so a tenant at its cap
+ * costs a Redis call, not a transaction. A job that finds no room goes back to
+ * the delayed set without spending an attempt, waiting longer each time it is
+ * turned away (0.5 s doubling to 30 s, jittered), so a tenant's backlog does
+ * not circle through the workers while its slow endpoint holds the slots.
  */
 @Processor(WEBHOOK_DELIVER_QUEUE, { autorun: false, concurrency: 16 })
 export class DeliverProcessor extends WorkerHost implements OnApplicationBootstrap {
+  private readonly plans = new Map<string, { plan: "FREE" | "PRO"; until: number }>()
+
   constructor(
     private readonly deliverer: WebhookDeliverer,
     private readonly webhooks: WebhookRepository,
@@ -38,27 +48,32 @@ export class DeliverProcessor extends WorkerHost implements OnApplicationBootstr
   async process(job: Job, token?: string): Promise<AttemptOutcome["kind"]> {
     const parsed = deliverJobSchema.safeParse(job.data)
     if (!parsed.success) throw new UnrecoverableError(`delivery job ${String(job.id)} is unreadable or names no tenant`)
-    const { orgId, deliveryId } = parsed.data
-    const outcome = await runJob({ orgId }, "job:webhook-deliver", "one attempt at one delivery", async () => {
-      const lease = await this.lease.acquire(orgId, IN_FLIGHT_CAP[await this.webhooks.plan(orgId)], LEASE_TTL_MS)
-      if (lease === null) return null
-      try {
-        return await this.deliverer.attempt(orgId, deliveryId)
-      } finally {
-        await lease.release()
-      }
-    })
-    if (outcome === null) {
-      // At the cap: back to the delayed set, jittered so a tenant's queue does not return in lockstep.
-      await job.moveToDelayed(Date.now() + 500 + Math.floor(Math.random() * 1_000), token)
+    const { orgId, deliveryId, turnedAway } = parsed.data
+    const lease = await this.lease.acquire(orgId, IN_FLIGHT_CAP[await this.plan(orgId)], LEASE_TTL_MS)
+    if (lease === null) {
+      const wait = Math.min(MAX_CAP_WAIT_MS, 500 * 2 ** turnedAway) * (0.5 + Math.random())
+      await job.updateData({ orgId, deliveryId, turnedAway: turnedAway + 1 })
+      await job.moveToDelayed(Date.now() + Math.round(wait), token)
       throw new DelayedError()
     }
-    if (outcome.kind === "retry") await this.queue.add(...spread(deliveryJob(orgId, deliveryId, `a${String(outcome.attempt)}`, outcome.delayMs)))
-    if (outcome.kind === "postponed") {
-      const wait = Math.max(0, outcome.until.getTime() - Date.now())
-      await this.queue.add(...spread(deliveryJob(orgId, deliveryId, `w${String(outcome.until.getTime())}`, wait)))
+    let outcome: AttemptOutcome
+    try {
+      outcome = await runJob({ orgId }, "job:webhook-deliver", "one attempt at one delivery", () => this.deliverer.attempt(orgId, deliveryId))
+    } finally {
+      await lease.release()
     }
+    const now = new Date()
+    if (outcome.kind === "retry") await this.queue.add(...spread(deliveryJob(orgId, deliveryId, outcome.at, now)))
+    if (outcome.kind === "postponed") await this.queue.add(...spread(deliveryJob(orgId, deliveryId, outcome.until, now)))
     return outcome.kind
+  }
+
+  private async plan(orgId: string): Promise<"FREE" | "PRO"> {
+    const cached = this.plans.get(orgId)
+    if (cached !== undefined && cached.until > Date.now()) return cached.plan
+    const plan = await runJob({ orgId }, "job:webhook-deliver", "read the tenant's plan for its cap", () => this.webhooks.plan(orgId))
+    this.plans.set(orgId, { plan, until: Date.now() + PLAN_TTL_MS })
+    return plan
   }
 }
 

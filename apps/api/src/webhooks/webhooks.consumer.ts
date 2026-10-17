@@ -43,7 +43,8 @@ export class WebhooksConsumer implements EventConsumer, OnModuleInit {
       if (!parsed.success) return []
       const type = publicTypeOf(parsed.data)
       if (type === null) return []
-      const listeners = endpoints.filter((e) => e.eventTypes.includes(type))
+      // An endpoint hears of what happened after it existed, however far behind the consumer is.
+      const listeners = endpoints.filter((e) => e.eventTypes.includes(type) && stored.occurredAt >= e.createdAt)
       return listeners.length === 0 ? [] : [{ stored, event: parsed.data, listeners }]
     })
     if (wanted.length === 0) return async () => undefined
@@ -66,7 +67,7 @@ export class WebhooksConsumer implements EventConsumer, OnModuleInit {
     })
     const created = await this.webhooks.createDeliveries(orgId, rows)
     return async () => {
-      await this.queue.addBulk(created.map((d) => deliveryJob(orgId, d.id, "a0", 0)))
+      await this.queue.addBulk(created.map((d) => deliveryJob(orgId, d.id, d.nextAttemptAt ?? now, now)))
     }
   }
 }
