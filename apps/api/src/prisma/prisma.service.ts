@@ -79,6 +79,22 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * The open transaction for the current tenant, or a thrown programming
+   * error. For raw SQL on tenant-owned tables: the extension never sees a raw
+   * query, so outside a transaction no tenant is set and RLS hides every row.
+   * The query does not fail, it answers "nothing", which is how a sweep came
+   * to see an empty outbox. Asking for this client turns that into an error.
+   */
+  get tx(): TenantTransactionClient {
+    const open = this.cls.isActive() ? this.cls.get("prismaTransaction") : undefined
+    const current = this.tenantContext.current()?.orgId ?? null
+    if (open === undefined || current === null || open.orgId !== current) {
+      throw new Error("raw SQL on a tenant-owned table runs inside prisma.transaction() for the current tenant")
+    }
+    return open.client
+  }
+
+  /**
    * Runs `fn` in one interactive transaction scoped to the current tenant
    * (ENGINEERING.md §Transactions and side effects): the mutation, its audit
    * rows and any counter increment commit or roll back together.
