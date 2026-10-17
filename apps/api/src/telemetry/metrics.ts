@@ -41,6 +41,14 @@ function instruments() {
     slaBreaches: meter.createCounter("sla_breaches_total", { description: "SLA breaches flagged, by tenant and priority" }),
     quotaRejections: meter.createCounter("quota_rejections_total", { description: "Writes refused by a plan limit, by tenant and metric" }),
     authorizationDecisions: meter.createCounter("authorization_decisions_total", { description: "Permission decisions by permission and outcome" }),
+    outboxEventAge: meter.createHistogram("outbox_event_age", {
+      description: "How long an event waited in the outbox before its consumer read it, by consumer and tenant (ADR-0049)",
+      unit: "ms",
+      // Delivery latency spans milliseconds to a stuck consumer's minutes; the default buckets stop at 10 s.
+      advice: { explicitBucketBoundaries: [5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 30_000, 60_000, 300_000, 900_000] },
+    }),
+    outboxDrains: meter.createCounter("outbox_drains_total", { description: "Drains by consumer and outcome: drained, idle, held back by the horizon, busy" }),
+    outboxParked: meter.createCounter("outbox_events_parked_total", { description: "Events a consumer gave up on, by consumer and tenant — any value needs a look" }),
   }
 }
 let made: ReturnType<typeof instruments> | undefined
@@ -77,6 +85,24 @@ export function recordSlaBreach(orgId: string, priority: string): void {
 
 export function recordQuotaRejection(orgId: string, metric: string): void {
   the().quotaRejections.add(1, { org: tenants.labelFor(orgId), metric })
+}
+
+/**
+ * What a drain read (ADR-0049): each event's age at the moment its consumer
+ * handled it. Per tenant, it is the fairness question — does one tenant's
+ * flood make another's events wait — and the horizon's cost, made visible.
+ */
+export function recordOutboxConsumed(input: { consumer: string; orgId: string; ages: readonly number[] }): void {
+  const attributes = { consumer: input.consumer, org: tenants.labelFor(input.orgId) }
+  for (const age of input.ages) the().outboxEventAge.record(Math.max(0, age), attributes)
+}
+
+export function recordOutboxDrain(consumer: string, outcome: "drained" | "idle" | "held-back" | "busy"): void {
+  the().outboxDrains.add(1, { consumer, outcome })
+}
+
+export function recordOutboxParked(consumer: string, orgId: string): void {
+  the().outboxParked.add(1, { consumer, org: tenants.labelFor(orgId) })
 }
 
 /**
