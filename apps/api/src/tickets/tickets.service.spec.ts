@@ -17,6 +17,7 @@ import {
 } from "../common/problems/problem.exception"
 import type { MembershipRepository } from "../memberships/repositories/membership.repository"
 import type { TicketPulse } from "../notifications/live/ticket-pulse"
+import type { Outbox } from "../events/outbox"
 import type { Notifier } from "../notifications/notify"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { QuotaService } from "../quota/quota.service"
@@ -134,6 +135,7 @@ function harness(
     notifyAll: vi.fn(async (_o: string, events: object[]) => void written.push(...events.map((event) => ({ event, inTransaction: open })))),
   }
   const pulse = { changed: vi.fn(async () => undefined) }
+  const outbox = { append: vi.fn(async (_o: string, events: object[]) => void written.push(...events.map((event) => ({ event, inTransaction: open })))) }
   const tickets = {
     nextNumber: vi.fn(async () => {
       calls.push("number")
@@ -200,6 +202,7 @@ function harness(
       },
     } as unknown as QuotaService,
     notifier as unknown as Notifier,
+    outbox as unknown as Outbox,
     pulse as unknown as TicketPulse,
     new FixedClock(NOW),
   )
@@ -300,6 +303,14 @@ describe("TicketsService notifications", () => {
     const created = harness("AGENT")
     await created.service.create(create)
     expect(created.written).toEqual([{ event: { kind: "ticket-created", ticketId: "t-new", actorMembershipId: "m-agent" }, inTransaction: true }])
+  })
+
+  it("tells nobody of an edit, but writes it to the log in its transaction, for reporting", async () => {
+    const h = harness("AGENT")
+    await h.service.update("t-1", { version: 3, title: "Renamed" })
+    expect(h.written).toEqual([{ event: { type: "ticket-changed", payload: { ticketId: "t-1" } }, inTransaction: true }])
+    expect(h.notifier.notifyAll).not.toHaveBeenCalled()
+    expect(h.notifier.notify).not.toHaveBeenCalled()
   })
 
   it("writes nothing when the change fails, so a stale write tells nobody", async () => {
