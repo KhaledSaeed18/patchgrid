@@ -283,3 +283,32 @@ Checked and left as they are, with the reason:
   admin action to build with the dead-letter view.
 - **A pending flag can lapse behind a long queue**, costing a duplicate drain: fairness, not
   correctness.
+
+## 9. The M12 review (2026-10-17)
+
+Two read-only reviews: the reporting read side, and saved views with bulk actions. Nothing crossed a
+tenant boundary, no view widened anyone's sight, and no bulk path did what the single route refuses.
+Every confirmed finding was fixed in one change set.
+
+| # | Area | Finding | Resolution |
+| --- | --- | --- | --- |
+| 1 | ADR-0051 | An assignment that moved only the team, or unassigned, wrote no event: the fact stayed stale until the reconcile | `ticket-changed` is appended whenever no `ticket-assigned` is |
+| 2 | ADR-0051 | A reconcile batch read before an SLA flag could land its older fact after the consumer's newer one, at the same version | The reconcile holds the consumer's lock while it writes |
+| 3 | ADR-0051 | Times to resolve and the resolved count included Changes and Problems, whose "resolution" is a lead time | Only tickets with a resolution clock |
+| 4 | ADR-0051 | Cancelling a ticket hid a response that had already breached | A cancelled ticket counts when its response breached |
+| 5 | TB3 | The CSV download ran a team's or a person's name as a spreadsheet formula | Cells starting with `=`, `+`, `-`, `@`, a tab or a return are defused |
+| 6 | ADR-0051 | Every ticket written in the minutes before the reconcile was logged as drift | Drift only past a five-minute grace; the fact is refreshed either way |
+| 7 | TB5 | A fault on one ticket turned a bulk run into a 500 with no results, and the page said nothing changed | That ticket is `failed`, the run goes on; the page refreshes and says some may have changed |
+| 8 | TB5 | One bulk request is two hundred writes, priced as one request | 10 a minute per address, 30 per workspace, and one run per member at a time |
+| 9 | ADR-0052 | Refusals read "The request failed validation"; a bad assignee was refused two hundred times | The field's own reason; the assignment is checked once first |
+| 10 | ADR-0052 | Approvals could be run in bulk; an admin outside a team could not remove its orphaned view; the priority filter had no index; a picked row that changed since still counted | Approve and reject are not bulk actions; admins reach team views; `(orgId, priority, createdAt, id)`; a stale pick no longer counts |
+
+Checked and left as they are, with the reason:
+
+- **Reports describe tickets as they are now** (ADR-0051 erratum): a reopen moves a ticket's resolution to
+  the month it was last resolved. Keeping every resolution is an event-history read model, not a fact row.
+- **A clock stopped exactly at its deadline is met**, where the scan breaches at the deadline: a
+  millisecond apart, never observed.
+- **A view stays shared with a team its author left.** It runs as each reader, so it shows nothing it
+  should not; the team's lead or an admin removes it.
+
