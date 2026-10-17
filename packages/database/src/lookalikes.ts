@@ -384,7 +384,8 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
 
     // An event in the log, a consumer's cursor and a parked event, so isolation has a row on each side (ADR-0049).
     const event = await db.outboxEvent.create({
-      data: { orgId: org.id, type: "ticket-created", payload: { kind: "ticket-created", ticketId: ticket.id, actorMembershipId: null } },
+      // A type no consumer reads, so seeding it notifies nobody.
+      data: { orgId: org.id, type: "lookalike-seeded", payload: { ticketId: ticket.id } },
       select: { id: true },
     })
     await db.eventConsumer.create({ data: { orgId: org.id, consumer: "lookalike" } })
