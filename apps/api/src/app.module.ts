@@ -32,6 +32,7 @@ import { NotificationsModule } from "./notifications/notifications.module"
 import { EventsModule } from "./events/events.module"
 import { WebhooksModule } from "./webhooks/webhooks.module"
 import { ReportingModule } from "./reporting/reporting.module"
+import { ViewsModule } from "./views/views.module"
 import { MailModule } from "./mail/mail.module"
 import { MembershipsModule } from "./memberships/memberships.module"
 import { OrgsModule } from "./orgs/orgs.module"
@@ -157,6 +158,7 @@ const REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/
     TicketsModule,
     WebhooksModule,
     ReportingModule,
+    ViewsModule,
     IdempotencyModule,
     HealthModule,
   ],
