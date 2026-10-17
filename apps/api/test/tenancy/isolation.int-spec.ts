@@ -253,6 +253,7 @@ describe("4 · RLS holds when the repository does not", () => {
         "EventDeadLetter",
         "WebhookEndpoint",
         "WebhookDelivery",
+        "TicketFact",
       ])
     )
 

@@ -162,6 +162,7 @@ model Organization {
   deadLetters       EventDeadLetter[]
   webhooks          WebhookEndpoint[]
   webhookDeliveries WebhookDelivery[]
+  ticketFacts       TicketFact[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -787,6 +788,7 @@ model Ticket {
   attachments   Attachment[]
   assets        TicketAsset[]
   inboundEmails InboundEmail[]
+  fact          TicketFact?
 
   @@unique([orgId, id])
   @@unique([orgId, type, number])
@@ -1255,6 +1257,59 @@ model EventDeadLetter {
   @@unique([orgId, id])
   @@unique([orgId, consumer, eventId])
   @@index([orgId, consumer, parkedAt(sort: Desc)])
+}
+
+enum TicketFactState {
+  OPEN
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum ClockOutcome {
+  NONE
+  RUNNING
+  MET
+  BREACHED
+}
+
+/// The reporting read model (ADR-0051): one row per ticket, holding what a
+/// report groups by and what it measures, already computed. Derived: written
+/// only by the `reporting` consumer and the reconcile, from the ticket as it
+/// is, and only over a fact built from an older `sourceVersion`.
+model TicketFact {
+  orgId                String          @db.Uuid
+  ticketId             String          @db.Uuid
+  sourceVersion        Int
+  type                 TicketType
+  priority             Priority
+  teamId               String?         @db.Uuid
+  categoryId           String?         @db.Uuid
+  assigneeMembershipId String?         @db.Uuid
+  state                TicketFactState
+  createdAt            DateTime        @db.Timestamptz(3)
+  resolvedAt           DateTime?       @db.Timestamptz(3)
+  closedAt             DateTime?       @db.Timestamptz(3)
+  /// From the response clock's start to the first response; null while unanswered.
+  responseMinutes      Int?
+  /// From the resolution clock's start to resolution, less the paused minutes (ADR-0003).
+  resolutionMinutes    Int?
+  response             ClockOutcome
+  resolution           ClockOutcome
+  reopenCount          Int
+  refreshedAt          DateTime        @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  /// Derived data: a ticket that goes takes its fact with it.
+  ticket       Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id], onDelete: Cascade)
+
+  @@id([orgId, ticketId])
+  /// What was resolved in a range: compliance and time to resolve.
+  @@index([orgId, resolvedAt])
+  /// What was raised in a range.
+  @@index([orgId, createdAt])
+  /// The backlog: open tickets by age.
+  @@index([orgId, state, createdAt])
 }
 
 enum WebhookEndpointStatus {

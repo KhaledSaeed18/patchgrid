@@ -391,6 +391,22 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     await db.eventConsumer.create({ data: { orgId: org.id, consumer: "lookalike" } })
     await db.eventDeadLetter.create({ data: { orgId: org.id, consumer: "lookalike", eventId: event.id, failures: 3, error: "Lookalike failure" } })
 
+    // A reporting fact for the ticket, so isolation has a row on each side (ADR-0051).
+    await db.ticketFact.create({
+      data: {
+        orgId: org.id,
+        ticketId: ticket.id,
+        sourceVersion: 1,
+        type: "INCIDENT",
+        priority: "MEDIUM",
+        state: "OPEN",
+        createdAt: now,
+        response: "RUNNING",
+        resolution: "RUNNING",
+        reopenCount: 0,
+      },
+    })
+
     // A disabled endpoint and a dead delivery, so isolation has a row on each side (ADR-0050). Disabled, so nothing sends.
     const endpoint = await db.webhookEndpoint.create({
       data: {
@@ -446,6 +462,7 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.supportSession.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.apiToken.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.orgExport.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ticketFact.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.webhookDelivery.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.webhookEndpoint.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.eventDeadLetter.deleteMany({ where: { orgId: { in: orgIds } } })
