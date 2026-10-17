@@ -18,6 +18,7 @@ export {
   type TenantTransactionClient,
 } from "./tenant-client.ts"
 export { PLATFORM_TABLES, isTenantOwned } from "./table-classes.ts"
+export { listen, type Listener, type ListenOptions, OUTBOX_CHANNEL } from "./listen.ts"
 export {
   type Lookalikes,
   type LookalikeOptions,
