@@ -1,0 +1,86 @@
+A webhook tells another system when something happens in your workspace: a chat channel hears about new incidents, a status page about a breached SLA, your own service about every status change. Patchgrid sends an HTTPS `POST` to an address you choose, signed so you can tell it came from us.
+
+## Adding one
+
+Admins and owners add webhooks in **Settings → Webhooks**. Choose an `https` address and the events it should hear about. The signing secret is shown once, when the webhook is created. A workspace can have ten.
+
+API tokens cannot manage webhooks. An integration that could subscribe itself to every event would be a quiet way to copy a workspace out, so setting one up is a person's decision.
+
+## Events
+
+<WebhookEvents />
+
+Internal notes are never sent. They are for agents only, and no integration reads them unless a person gives it that scope explicitly.
+
+## What arrives
+
+Every request is a small JSON body. It carries identifiers and states, **never the words of a ticket**: no title, no description, no reply text.
+
+```json
+{
+  "id": "01a149d8-3e66-7023-8690-151624996101",
+  "type": "ticket.status_changed",
+  "occurredAt": "2026-10-17T12:31:10.912Z",
+  "orgId": "01a146c9-07a8-74db-acb8-befb71917ea2",
+  "data": {
+    "type": "ticket.status_changed",
+    "ticket": { "id": "01a149d8-3e45-726f-8839-25913b6a61f2", "number": "INC-000031", "type": "INCIDENT" },
+    "actorMembershipId": "01a146c9-0832-7ee0-a2a4-15d0d8ea6d3b",
+    "status": "RESOLVED"
+  }
+}
+```
+
+If your receiver needs more, it calls the [API](/docs/api) with a token. What it may read is then decided by that token's role and scopes, as for any other caller. A webhook is never a way around permissions, and a leaked delivery log holds no ticket text.
+
+## Verifying a request
+
+Requests follow the [Standard Webhooks](https://www.standardwebhooks.com) specification, so its libraries verify them in every common language. Each request has three headers:
+
+| Header | Value |
+| --- | --- |
+| `webhook-id` | The delivery's id: the same on every retry and replay |
+| `webhook-timestamp` | When this attempt was signed, in seconds |
+| `webhook-signature` | `v1,` and the base64 HMAC-SHA256 of `id.timestamp.body`, keyed with your secret's bytes |
+
+Without a library, in Node:
+
+```ts
+import { createHmac, timingSafeEqual } from "node:crypto"
+
+function verify(secret: string, headers: Headers, body: string): boolean {
+  const id = headers.get("webhook-id") ?? ""
+  const timestamp = headers.get("webhook-timestamp") ?? ""
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false
+  const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64")
+  const expected = Buffer.from(`v1,${createHmac("sha256", key).update(`${id}.${timestamp}.${body}`).digest("base64")}`)
+  return (headers.get("webhook-signature") ?? "").split(" ").some((candidate) => {
+    const given = Buffer.from(candidate)
+    return given.length === expected.length && timingSafeEqual(given, expected)
+  })
+}
+```
+
+Verify against the raw body, before parsing it, and refuse a timestamp more than five minutes old, so a captured request cannot be replayed at you later.
+
+## Delivery is at least once
+
+Patchgrid records each event's delivery to each webhook exactly once, in the same transaction that reads the event. The request itself is retried until your receiver answers with a `2xx`, so your receiver can get the same request more than once. **Deduplicate on `webhook-id`.** Deliveries can also arrive out of order; use `occurredAt` when order matters.
+
+## Retries, and when they stop
+
+Only a `2xx` counts. A redirect counts as a failure too: Patchgrid never follows one, because it would be a second address that no one checked. Each attempt waits up to ten seconds for an answer.
+
+After a failure, Patchgrid tries again after 5 seconds, 5 minutes, 30 minutes, 2 hours, 5 hours and 10 hours. Each wait varies by up to a fifth, so a receiver that comes back is not hit by every retry at once. After the seventh failure the delivery **gives up**. The delivery log shows every delivery's attempts and its last answer, and you can replay one, or everything that gave up, once the receiver is fixed.
+
+## When a receiver keeps failing
+
+After five failures in a row, Patchgrid **pauses** the webhook. Deliveries wait, and spend no attempts, until a single probe is sent. The first pause lasts a minute and each failed probe doubles it, up to an hour. One success ends the pause. A webhook that has failed for five days without a single success is **turned off**, and the settings page says why. Turning it back on clears its failures.
+
+## Rotating the secret
+
+**Rotate secret** issues a new one and shows it once. For the next 24 hours requests are signed with both, as two space-separated signatures in `webhook-signature`, so you can switch your receiver over without missing a request.
+
+## What a webhook can reach
+
+The address must be public. Patchgrid refuses addresses on private networks, loopback, link-local (including cloud metadata addresses) and other reserved ranges. It checks every address the name resolves to at the moment it connects, not only when you save, so a name that later points somewhere private is refused too.

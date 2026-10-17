@@ -78,6 +78,13 @@ export const DOCS: readonly Doc[] = [
     section: "Building on it",
   },
   {
+    slug: "webhooks",
+    title: "Webhooks",
+    description:
+      "Outbound webhooks: the event catalogue, the payload, verifying the Standard Webhooks signature, retries, the circuit breaker, replay and secret rotation.",
+    section: "Building on it",
+  },
+  {
     slug: "security-and-data",
     title: "Security and your data",
     description: 
