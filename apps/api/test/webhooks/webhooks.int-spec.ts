@@ -38,6 +38,8 @@ const received: Received[] = []
 
 beforeAll(async () => {
   process.env.WORKER_MODE = "api"
+  // The receiver is on this machine: the spec lifts the private-address refusal for itself.
+  process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS = "true"
   owner = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
   receiver = createServer((req, res) => {
     let body = ""
@@ -74,6 +76,7 @@ afterAll(async () => {
   await new Promise<void>((resolve) => receiver.close(() => resolve()))
   await owner.$disconnect()
   delete process.env.WORKER_MODE
+  delete process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS
 })
 
 const as = (who: "owner" | "agent" | "requester") => browser(app, ws.origin, ws.people[who].access)
