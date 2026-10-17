@@ -39,8 +39,9 @@ export class OrgPurgeRepository {
     this.step("WebhookDelivery", (orgId) => this.prisma.db.webhookDelivery.deleteMany({ where: { orgId } })),
     this.step("WebhookEndpoint", (orgId) => this.prisma.db.webhookEndpoint.deleteMany({ where: { orgId } })),
     this.step("EventDeadLetter", (orgId) => this.prisma.db.eventDeadLetter.deleteMany({ where: { orgId } })),
-    this.step("EventConsumer", (orgId) => this.prisma.db.eventConsumer.deleteMany({ where: { orgId } })),
+    // Events before cursors: a drain between the two would find no cursor and replay the whole log.
     this.step("OutboxEvent", (orgId) => this.prisma.db.outboxEvent.deleteMany({ where: { orgId } })),
+    this.step("EventConsumer", (orgId) => this.prisma.db.eventConsumer.deleteMany({ where: { orgId } })),
     this.step("TicketAsset", (orgId) => this.prisma.db.ticketAsset.deleteMany({ where: { orgId } })),
     this.step("Asset", (orgId) => this.prisma.db.asset.deleteMany({ where: { orgId } })),
     this.step("KnowledgeArticle", (orgId) => this.prisma.db.knowledgeArticle.deleteMany({ where: { orgId } })),
