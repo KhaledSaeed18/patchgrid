@@ -382,6 +382,14 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     // An export that failed, so isolation has a row on each side (ADR-0044).
     await db.orgExport.create({ data: { orgId: org.id, requestedByMembershipId: owner, status: "FAILED", failure: "Lookalike export" } })
 
+    // An event in the log, a consumer's cursor and a parked event, so isolation has a row on each side (ADR-0049).
+    const event = await db.outboxEvent.create({
+      data: { orgId: org.id, type: "ticket-created", payload: { kind: "ticket-created", ticketId: ticket.id, actorMembershipId: null } },
+      select: { id: true },
+    })
+    await db.eventConsumer.create({ data: { orgId: org.id, consumer: "lookalike" } })
+    await db.eventDeadLetter.create({ data: { orgId: org.id, consumer: "lookalike", eventId: event.id, failures: 3, error: "Lookalike failure" } })
+
     // What the rows above use of the plan, so a delete releases what a create consumed (TENANCY.md §8).
     await db.usageCounter.createMany({
       data: [
@@ -420,6 +428,9 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.supportSession.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.apiToken.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.orgExport.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.eventDeadLetter.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.eventConsumer.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.outboxEvent.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.apiTokenIndex.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketAsset.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.asset.deleteMany({ where: { orgId: { in: orgIds } } })
