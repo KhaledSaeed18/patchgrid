@@ -22,6 +22,8 @@ export type FactSource = {
   responseBreached: boolean
   resolutionBreached: boolean
   reopenCount: number
+  /** When the ticket last changed: the reconcile's grace before calling a difference drift. */
+  updatedAt: Date
 }
 
 export type FactState = "OPEN" | "RESOLVED" | "CLOSED" | "CANCELLED"

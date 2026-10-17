@@ -2,6 +2,7 @@ import { Processor, WorkerHost } from "@nestjs/bullmq"
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common"
 import type { Job } from "bullmq"
 
+import { type Clock, InjectClock } from "../common/clock/clock"
 import { type AppConfig, InjectConfig } from "../config/app-config"
 import { runJob } from "../jobs/dispatcher/run-job"
 import { readTenantSweep } from "../jobs/sweeps"
@@ -13,6 +14,8 @@ import { ReportingRepository } from "./repositories/reporting.repository"
 
 /** Tickets read and compared per transaction. */
 const BATCH = 500
+/** A ticket changed this recently may simply not have been read off the log yet: refreshed, not called drift. */
+const DRIFT_GRACE_MS = 5 * 60_000
 
 export type Reconciled = { checked: number; drifted: number }
 
@@ -32,6 +35,7 @@ export class ReportingReconcileService {
     private readonly reporting: ReportingRepository,
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContextService,
+    @InjectClock() private readonly clock: Clock,
   ) {}
 
   async reconcile(): Promise<Reconciled> {
@@ -39,17 +43,25 @@ export class ReportingReconcileService {
     let after: string | null = null
     let checked = 0
     let drifted = 0
+    const settled = new Date(this.clock.now().getTime() - DRIFT_GRACE_MS)
     for (;;) {
       const cursor: string | null = after
       const batch = await this.prisma.transaction(async () => {
+        await this.reporting.lockFacts(orgId)
         const tickets = await this.reporting.page(orgId, cursor, BATCH)
         const stored = new Map((await this.reporting.facts(orgId, tickets.map((t) => t.id))).map((f) => [f.ticketId, f]))
-        const changed: Fact[] = tickets.map(factOf).filter((fact) => {
+        const changed: Fact[] = []
+        let missed = 0
+        for (const ticket of tickets) {
+          const fact = factOf(ticket)
           const current = stored.get(fact.ticketId)
-          return current === undefined || !sameFact(current, fact)
-        })
+          if (current !== undefined && sameFact(current, fact)) continue
+          changed.push(fact)
+          // Missing or different, and long enough ago that the log should have carried it: drift.
+          if (ticket.updatedAt < settled) missed += 1
+        }
         await this.reporting.upsert(orgId, changed)
-        return { count: tickets.length, changed: changed.length, last: tickets.at(-1)?.id ?? null }
+        return { count: tickets.length, changed: missed, last: tickets.at(-1)?.id ?? null }
       })
       checked += batch.count
       drifted += batch.changed

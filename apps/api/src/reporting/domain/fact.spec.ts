@@ -26,6 +26,7 @@ const ticket = (over: Partial<FactSource> = {}): FactSource => ({
   responseBreached: false,
   resolutionBreached: false,
   reopenCount: 0,
+  updatedAt: T0,
   ...over,
 })
 
