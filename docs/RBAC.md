@@ -139,6 +139,8 @@ the actor.
 | `ticket:link` | — | scope | ✅ | ✅ |
 | `ticket:watch` (self) | own, watch | scope | ✅ | ✅ |
 | `ticket:watch_others` | — | scope | ✅ | ✅ |
+| `ticket:bulk` | — | ✅ | ✅ | ✅ |
+| `view:manage` | — | ✅ | ✅ | ✅ |
 | `ticket:approve_change` | — | `lead`, never own change | ✅, never own | ✅, never own (except the documented last-approver case, `DOMAIN.md` §2.3) |
 | `ticket:read_audit` | — | scope | ✅ | ✅ |
 

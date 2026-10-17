@@ -264,6 +264,8 @@ export const ticketSummarySchema = z.object({
   title: z.string(),
   status: ticketStatusSchema,
   priority: prioritySchema,
+  /** What a bulk action sends back for this row (ADR-0052): the version the list showed. */
+  version: z.int().positive(),
   /** How it arrived — an email-raised ticket says so in the queue. */
   source: ticketSourceSchema,
   requester: personSchema,
@@ -408,6 +410,8 @@ export const ticketListQuerySchema = paginationQuerySchema.extend({
   /** The per-type queues. */
   type: ticketTypeSchema.optional(),
   status: ticketStatusSchema.optional(),
+  /** Computed priority: what "my critical tickets" filters on (ADR-0052). */
+  priority: prioritySchema.optional(),
   /** Only the tickets raised about this asset (DOMAIN.md §9.3). */
   assetId: idSchema.optional(),
   sort: ticketSortSchema.default("newest"),

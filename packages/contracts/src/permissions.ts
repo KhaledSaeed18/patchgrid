@@ -145,6 +145,10 @@ export const PERMISSION_MATRIX = {
   "token:read": admins,
   "token:create": admins,
   "token:revoke": admins,
+  /** Save, share with one's own teams, and remove one's saved views (ADR-0052). */
+  "view:manage": agents,
+  /** The bulk route; each ticket's own permission still decides each ticket (ADR-0052). */
+  "ticket:bulk": agents,
   /** The workspace's reports (ADR-0051). Whole-workspace, so they ignore an agent's visibility scope. */
   "report:read": admins,
   /** Endpoints, their deliveries, rotation and replay (ADR-0050). Never a token's: a service account is at most an agent. */
