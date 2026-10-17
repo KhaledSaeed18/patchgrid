@@ -432,7 +432,10 @@ retried and parked, and replays them, and a slow or hostile endpoint harms nobod
 - [x] Outbound webhooks (ADR-0050): `WebhookEndpoint` (owner/admin; no token, see the ADR), the Standard Webhooks
       signature with rotating secrets, a delivery log, retries with backoff and jitter, dead letters with
       replay, a circuit breaker per endpoint, SSRF protection on the target, a per-tenant concurrency cap
-- [ ] Settings UI for endpoints, deliveries and replay; the public event catalogue in the docs site
+- [x] Settings UI for endpoints, deliveries and replay; the public event catalogue in the docs site.
+      Settings → Webhooks (list, add with the secret shown once, edit, turn off and on, rotate, remove,
+      the delivery log with replay), walked in a browser against a local receiver; `/docs/webhooks`
+      renders the catalogue from the same constant as the picker
 - [ ] Event retention: consumed events deleted past the retention window, never ahead of a cursor
 
 ## M12 — Insight
