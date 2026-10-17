@@ -2,6 +2,7 @@ import type { MDXComponents } from "mdx/types"
 import Link from "next/link"
 import type { ComponentPropsWithoutRef } from "react"
 
+import { WebhookEvents } from "@/components/webhook-events"
 import { anchorFor, textOf } from "@/lib/headings"
 
 /**
@@ -63,6 +64,7 @@ const components = {
   ),
   th: (props) => <th className="border-b border-border py-2 pr-4 text-left font-medium" {...props} />,
   td: (props) => <td className="border-b border-border py-2 pr-4 align-top" {...props} />,
+  WebhookEvents,
 } satisfies MDXComponents
 
 export function useMDXComponents(): MDXComponents {
