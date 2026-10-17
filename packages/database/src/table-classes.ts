@@ -14,9 +14,10 @@ export const PLATFORM_TABLES: ReadonlySet<string> = new Set([
   "OrganizationSlugHistory",
   "User",
   "PlatformAdmin",
-  // A person's second factors, and the operators' own log (ADR-0040)
+  // A person's second factors and passkeys, and the operators' own log (ADR-0040, ADR-0053)
   "UserMfaFactor",
   "UserMfaRecovery",
+  "UserPasskey",
   "PlatformAuditLog",
   "RefreshToken",
   "PasswordResetToken",
