@@ -389,8 +389,8 @@ browser, including the negative cases; observability answers "which tenant is sl
 
 ## M10 — Ship
 
-_Exit: a stranger clones the repo, runs three commands, signs up, and uses a realistic system; the public
-demo is live; the README explains the decisions._
+_Exit: a stranger clones the repo, runs three commands, signs up, and uses a realistic system; the README
+explains the decisions. There is no public deployment (ADR-0047): Patchgrid runs locally._
 
 - [x] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, inbound mail; idempotent
       `db:reset` (M7 adds its rules and phishing tickets to it)
@@ -403,10 +403,9 @@ demo is live; the README explains the decisions._
       `apps/api/Dockerfile` (`runtime`, `tools`) and `docker/next.Dockerfile` (standalone); the compose
       file runs migrate → api, worker, app, www against managed state. Smoke-tested locally against the
       dev stack's Postgres, Redis and MinIO; CI builds all three. `TRUST_PROXY_HOPS` replaces the fixed hop count
-- [ ] **DNS and TLS** (ADR-0026, ADR-0027): wildcard `*.patchgrid.xyz`, DNS-01 via delegated
-      `_acme-challenge`, CAA records, SPF/DKIM/DMARC progression, MX for `inbound.`
-- [ ] Deploy: Coolify on Hetzner, managed Postgres/Redis/MinIO, migrations in a post-deploy hook, nightly
-      demo reset — without models: nothing before M7 calls one
+- ~~DNS and TLS~~ and ~~the public deployment~~: **dropped** (ADR-0047). The design stays in `DNS.md`,
+      ADR-0026 and ADR-0027, and the images keep building in CI; what only a real deployment would prove
+      is listed in `HANDOFF.md`
 - [x] README: architecture diagram, screenshots/GIF, "why these decisions" linking to ADRs, run
       instructions. Three commands from a clone — `pnpm install && pnpm local:up && pnpm dev` — walked
       on a fresh clone in its own compose project: 6/6 invariants, the seed, a signup whose verification
@@ -434,8 +433,8 @@ demonstrably fire — all per tenant, none blocking ticket creation._
       is **data an agent accepts**, never an instruction and never auto-applied
 - [ ] Seed: rules replicating hard-coded escalation; sample phishing tickets
 - [ ] Prompt-injection review against TB8 (`THREAT-MODEL.md`), moved here from M9's security review
-- [ ] Ship the models: `phishing-svc` Dockerfile, Ollama on-server or the degraded mode (ADR-0010), and the
-      demo seed's rules and phishing tickets on the live demo
+- [ ] Ship the models locally: `phishing-svc` in Compose with its Dockerfile, Ollama in Compose (ADR-0047),
+      and the demo seed's rules and phishing tickets
 
 ---
 
