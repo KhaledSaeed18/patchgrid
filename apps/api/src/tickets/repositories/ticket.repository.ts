@@ -82,6 +82,7 @@ export type TicketChanges = Partial<
 export type TicketSummaryRow = Pick<
   TicketRow,
   | "id"
+  | "version"
   | "number"
   | "type"
   | "source"
@@ -134,6 +135,7 @@ export type ListFilter = {
   where: {
     type?: TicketType
     status?: TicketStatus | { in: TicketStatus[] }
+    priority?: Priority
     assigneeMembershipId?: string | null
     requesterMembershipId?: string | { not: string }
     teamId?: string | null | { in: string[] }
@@ -191,6 +193,7 @@ function toRow({ approvals, change, assets, ...row }: FullRow): TicketRow {
 
 const SUMMARY = {
   id: true,
+  version: true,
   number: true,
   type: true,
   source: true,
