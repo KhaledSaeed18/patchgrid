@@ -145,6 +145,8 @@ export const PERMISSION_MATRIX = {
   "token:read": admins,
   "token:create": admins,
   "token:revoke": admins,
+  /** Endpoints, their deliveries, rotation and replay (ADR-0050). Never a token's: a service account is at most an agent. */
+  "webhook:manage": admins,
   "support:read_sessions": admins,
   "support:grant_access": owners,
   "support:revoke_access": owners,
@@ -201,4 +203,4 @@ export const SCOPE_GRANTS = {
 } as const satisfies Record<TokenScope, readonly Permission[]>
 
 /** No set of scopes reaches these families (RBAC.md §10). */
-export const TOKEN_FORBIDDEN_FAMILIES = ["member", "org", "token", "support"] as const
+export const TOKEN_FORBIDDEN_FAMILIES = ["member", "org", "token", "support", "webhook"] as const

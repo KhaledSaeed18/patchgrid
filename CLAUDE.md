@@ -32,7 +32,7 @@ Patchgrid is a **multi-tenant SaaS**: three deployables (`apps/www` marketing, `
 - **Roles are on `Membership`** and cumulative (`REQUESTER ⊂ AGENT ⊂ ADMIN ⊂ OWNER`). Team lead is `TeamMembership.isLead`, a scoped capability, not a role — and a member can be in several teams.
 - **Reads return `404`, actions return `403`.** A read of an entity the actor may not see is `404`; an action on an entity they _can_ see but may not perform is `403`. Nothing is left to taste.
 - **`402` is only ever a plan limit.** Suspended orgs are `403`.
-- **API tokens are actors, not bypasses**: scope ∩ role via the explicit `SCOPE_GRANTS` map, and never `member:*`, `org:*`, `token:*`, `support:*`, or `comment:read_internal` without the opt-in scope.
+- **API tokens are actors, not bypasses**: scope ∩ role via the explicit `SCOPE_GRANTS` map, and never `member:*`, `org:*`, `token:*`, `support:*`, `webhook:*`, or `comment:read_internal` without the opt-in scope.
 - **Platform admins never read tenant content** outside an owner-granted, read-only, audited support session. Never add an impersonation path.
 - Authorization never considers `orgId` — by the time it runs, tenancy has already been resolved. Don't conflate the two layers.
 
