@@ -453,9 +453,11 @@ and closes two hundred tickets in one action, with every refusal and conflict re
       age; workload per agent. Charts in the app, CSV export. Every report under 25 ms at 100k tickets
       (`ENGINEERING.md`); walked in a browser on the demo seed
 - [x] The reconcile recomputes facts from source and counts every one it has to change as drift
-- [ ] Saved views: a filter set per member, shareable to a team
-- [ ] Bulk actions: assign, transition, close, with a permission check and version check per ticket, a
-      per-ticket outcome, and progress over the live stream
+- [x] Saved views (ADR-0052): a list query per member, shareable with one of their teams, run as each
+      reader; the list query gains a priority filter
+- [x] Bulk actions (ADR-0052): assign or any transition over up to 200 tickets, each through the single
+      action's own path and transaction, a per-ticket outcome, and progress over the live stream; walked
+      in a browser
 
 ## M13 — Identity
 
