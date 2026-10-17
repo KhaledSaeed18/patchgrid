@@ -217,6 +217,7 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `org:transfer_ownership` | — | — | — | ✅ |
 | `org:delete` / `org:cancel_deletion` | — | — | — | ✅ |
 | `token:read` / `token:create` / `token:revoke` | — | — | ✅ | ✅ |
+| `webhook:manage` | — | — | ✅ | ✅ |
 | `support:read_sessions` | — | — | ✅ | ✅ |
 | `support:grant_access` / `support:revoke_access` | — | — | — | ✅ |
 
@@ -346,9 +347,9 @@ See ADR-0021. Summary:
 | `comments:internal` | `comment:create_internal`, `comment:read_internal` — **opt-in, never implied by `tickets:*`** |
 | `assets:read` / `assets:write` | `asset:read`, `asset:read_all` / `asset:write` |
 | `kb:read` | `kb:read_published`, `kb:read_internal` |
-| `webhooks:write` | reserved; grants nothing in v1 |
+| `webhooks:write` | reserved; grants nothing. Managing webhooks is an admin's permission and a service account is at most an agent, so no token manages them (ADR-0050) |
 
-- Regardless of scopes, a token never grants `member:*`, `org:*`, `token:*`, `support:*`, or
+- Regardless of scopes, a token never grants `member:*`, `org:*`, `token:*`, `support:*`, `webhook:*`, or
   `comment:read_internal` unless `comments:internal` is explicitly present. A leaked monitoring token
   cannot read your internal notes, escalate, invite, or mint more tokens.
 - Presented as `Authorization: Bearer pg_<prefix>_<secret>`; stored as an Argon2id hash; the secret is
@@ -404,7 +405,7 @@ Beyond ticket mutations (`DOMAIN.md` §7), these are audited into the tenant's `
 `ORG_SETTINGS_UPDATED`, `ORG_SLUG_CHANGED`, `ORG_PLAN_CHANGED`, `ORG_SUSPENDED/UNSUSPENDED`,
 `ORG_DELETION_REQUESTED/CANCELLED`, `ORG_EXPORTED`, `ORG_MFA_REQUIREMENT_CHANGED`, `OWNERSHIP_TRANSFERRED`,
 `AGENT_VISIBILITY_CHANGED`,
-`TOKEN_CREATED/REVOKED`, `SUPPORT_ACCESS_REQUESTED/GRANTED/DECLINED/REVOKED/EXPIRED`, `SUPPORT_READ`,
+`TOKEN_CREATED/REVOKED`, `WEBHOOK_CREATED/UPDATED/DELETED/DISABLED`, `WEBHOOK_SECRET_ROTATED`, `WEBHOOK_DELIVERIES_REPLAYED`, `SUPPORT_ACCESS_REQUESTED/GRANTED/DECLINED/REVOKED/EXPIRED`, `SUPPORT_READ`,
 `WATCHER_ADDED/REMOVED`, `SLA_POLICY_CHANGED`, `AUTOMATION_RULE_CHANGED`,
 `COMMENT_EDITED`, `COMMENT_DELETED`, `CHANGE_SELF_APPROVED`.
 
