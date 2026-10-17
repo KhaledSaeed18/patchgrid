@@ -15,7 +15,7 @@ import { AppModule } from "../../src/app.module"
 import { RevocationEpochService } from "../../src/auth/revocation/revocation-epoch.service"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
-import { NOTIFY_QUEUE } from "../../src/notifications/notify"
+import { OUTBOX_DRAIN_QUEUE } from "../../src/events/drain-requests"
 import { OrganizationLookupService } from "../../src/tenancy/organization-lookup.service"
 import { type Settler, settler } from "../support/queues"
 import { type Frame, openStream, type Stream } from "../support/sse"
@@ -47,7 +47,7 @@ beforeAll(async () => {
   await db.teamMembership.create({ data: { orgId: ws.orgId, teamId: ws.teams.Security ?? "", membershipId: ws.people.sec.membershipId } })
   await db.organization.update({ where: { id: ws.orgId }, data: { agentVisibility: "OWN_TEAM_ONLY" } })
   await app.get(OrganizationLookupService).invalidate({ id: ws.orgId, slug: ws.slug })
-  jobs = settler(app, [NOTIFY_QUEUE])
+  jobs = settler(app, [OUTBOX_DRAIN_QUEUE])
 })
 
 afterAll(async () => {

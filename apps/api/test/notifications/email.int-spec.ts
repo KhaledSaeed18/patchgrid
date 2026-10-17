@@ -14,7 +14,7 @@ import { AppModule } from "../../src/app.module"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
 import { MAIL_QUEUE } from "../../src/mail/mail.service"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
-import { NOTIFY_QUEUE } from "../../src/notifications/notify"
+import { OUTBOX_DRAIN_QUEUE } from "../../src/events/drain-requests"
 import { OrganizationLookupService } from "../../src/tenancy/organization-lookup.service"
 import { type Settler, settler } from "../support/queues"
 import { browser, seedWorkspace, type Workspace } from "../support/workspace"
@@ -38,7 +38,7 @@ beforeAll(async () => {
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   ws = await seedWorkspace(app, db, { prefix: "mail", people: { requester: "REQUESTER", agent: "AGENT", teammate: "AGENT" } })
-  jobs = settler(app, [NOTIFY_QUEUE, MAIL_QUEUE])
+  jobs = settler(app, [OUTBOX_DRAIN_QUEUE, MAIL_QUEUE])
 })
 
 afterAll(async () => {

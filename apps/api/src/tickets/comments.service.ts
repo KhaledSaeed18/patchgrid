@@ -103,14 +103,9 @@ export class CommentsService {
       await this.audit.record(orgId, entries)
       // The caller's own record of the reply, committed with it or not at all (ADR-0039).
       if (options.within !== undefined) await options.within(created.id)
+      await this.notifier.notify(orgId, { kind: "comment-added", ticketId, actorMembershipId: actor.membershipId, visibility: input.visibility })
       return { created, loaded }
     })
-    await this.notifier.notify(
-      orgId,
-      { kind: "comment-added", ticketId, actorMembershipId: actor.membershipId, visibility: input.visibility },
-      row.created.id,
-      "added",
-    )
     await this.pulse.changed(orgId, ticketId, contentOf(input.visibility))
     return row
   }

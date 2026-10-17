@@ -1,7 +1,7 @@
 /**
- * Notifications end to end (DOMAIN.md §8): a change commits, the `notify`
- * job runs in its tenant, the inbox fills — through the real queue and
- * worker, awaited through the queue rather than slept on. A burst of replies
+ * Notifications end to end (DOMAIN.md §8): a change commits with its event,
+ * the `notify` consumer reads it from the outbox in its tenant, the inbox
+ * fills — through the real relay and worker, awaited rather than slept on. A burst of replies
  * is one unread row; an internal note never reaches the requester; marking
  * read is the reader's own business.
  */
@@ -13,7 +13,7 @@ import { createPrismaClient, type PrismaClient } from "@patchgrid/database"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { AppModule } from "../../src/app.module"
-import { NOTIFY_QUEUE } from "../../src/notifications/notify"
+import { OUTBOX_DRAIN_QUEUE } from "../../src/events/drain-requests"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
 import { type Settler, settler } from "../support/queues"
@@ -35,7 +35,7 @@ beforeAll(async () => {
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   ws = await seedWorkspace(app, db, { prefix: "note", people: { requester: "REQUESTER", agent: "AGENT", watcher: "AGENT" } })
-  jobs = settler(app, [NOTIFY_QUEUE])
+  jobs = settler(app, [OUTBOX_DRAIN_QUEUE])
 })
 
 afterAll(async () => {

@@ -1,4 +1,3 @@
-import { BullModule } from "@nestjs/bullmq"
 import { Module } from "@nestjs/common"
 
 import { AuthModule } from "../auth/auth.module"
@@ -9,7 +8,7 @@ import { StreamBus } from "./live/stream-bus"
 import { TicketPulse } from "./live/ticket-pulse"
 import { NotificationsController } from "./notifications.controller"
 import { NotificationsService } from "./notifications.service"
-import { NOTIFY_QUEUE, Notifier, NotifyProcessor, NotifyService } from "./notify"
+import { Notifier, NotifyConsumer, NotifyService } from "./notify"
 import { NotificationPreferencesRepository } from "./repositories/notification-preferences.repository"
 import { NotificationRepository } from "./repositories/notification.repository"
 import { TicketCircleRepository } from "./repositories/ticket-circle.repository"
@@ -17,7 +16,7 @@ import { TicketFactsRepository } from "./repositories/ticket-facts.repository"
 
 /** Notifications (M3): the inbox, the fan-out that fills it and emails, the stream that announces it. */
 @Module({
-  imports: [AuthModule, MailModule, BullModule.registerQueue({ name: NOTIFY_QUEUE })],
+  imports: [AuthModule, MailModule],
   controllers: [NotificationsController],
   providers: [
     TicketAudience,
@@ -28,7 +27,7 @@ import { TicketFactsRepository } from "./repositories/ticket-facts.repository"
     NotificationsService,
     Notifier,
     NotifyService,
-    NotifyProcessor,
+    NotifyConsumer,
     StreamBus,
     TicketPulse,
     NotificationStreamService,

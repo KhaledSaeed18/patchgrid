@@ -21,7 +21,7 @@ import { INBOUND_QUEUE } from "../../src/inbound/inbound-receiver.service"
 import { INBOUND_WEBHOOK_PATH, inboundBodyParser } from "../../src/inbound/inbound.controller"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
 import { MAIL_QUEUE } from "../../src/mail/mail.service"
-import { NOTIFY_QUEUE } from "../../src/notifications/notify"
+import { OUTBOX_DRAIN_QUEUE } from "../../src/events/drain-requests"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
 import { StorageService } from "../../src/storage/storage.service"
 import { buildMessage, type SampleMail, webhookRequest } from "../support/inbound-mail"
@@ -50,7 +50,7 @@ beforeAll(async () => {
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   ws = await seedWorkspace(app, db, { prefix: "intake", people: { rita: "REQUESTER", rosa: "REQUESTER", agent: "AGENT", admin: "ADMIN" } })
-  jobs = settler(app, [INBOUND_QUEUE, NOTIFY_QUEUE, MAIL_QUEUE])
+  jobs = settler(app, [INBOUND_QUEUE, OUTBOX_DRAIN_QUEUE, MAIL_QUEUE])
 })
 
 afterAll(async () => {

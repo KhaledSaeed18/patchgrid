@@ -41,7 +41,7 @@ const toPerson = (row: PersonRow | null): Person | null =>
 const people = (rows: PersonRow[]): Person[] => rows.flatMap((r) => toPerson(r) ?? [])
 
 /**
- * The people around one ticket, read when a `notify` job runs (DOMAIN.md §8):
+ * The people around one ticket, read when the `notify` consumer runs (DOMAIN.md §8):
  * its requester and assignee, its team and the team's leads, its explicit
  * watchers, the workspace's admins — each with the role and teams that decide
  * whether they may read it, and the address and choices that decide whether

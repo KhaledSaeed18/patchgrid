@@ -2,8 +2,8 @@ import { commentVisibilitySchema, idSchema, ticketStatusSchema } from "@patchgri
 import { z } from "zod"
 
 /**
- * What happened, as the `notify` job carries it (ADR-0018): ids only, never
- * entities, so the processor reads the ticket as it is when the job runs.
+ * What happened, as the outbox carries it (ADR-0018, ADR-0049): ids only,
+ * never entities, so the consumer reads the ticket as it is when it runs.
  * `actorMembershipId` is `null` for the system — a sweep, an automation.
  */
 const actor = idSchema.nullable()
@@ -47,5 +47,3 @@ export const notifyEventSchema = z.discriminatedUnion("kind", [
 ])
 export type NotifyEvent = z.infer<typeof notifyEventSchema>
 
-export const notifyJobSchema = z.object({ orgId: idSchema, event: notifyEventSchema })
-export type NotifyJob = z.infer<typeof notifyJobSchema>

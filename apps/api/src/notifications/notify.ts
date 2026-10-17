@@ -1,65 +1,49 @@
-import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq"
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common"
-import { type Job, type Queue, UnrecoverableError } from "bullmq"
+import { Injectable, Logger, type OnModuleInit } from "@nestjs/common"
 
 import { formatTicketNumber } from "@patchgrid/contracts"
 
 import { type Clock, InjectClock } from "../common/clock/clock"
-import { type AppConfig, InjectConfig } from "../config/app-config"
-import { runJob } from "../jobs/dispatcher/run-job"
-import { jobId } from "../jobs/job-id"
 import { PublicUrls } from "../common/urls"
+import { type AfterCommit, type EventConsumer, EventConsumers } from "../events/consumer"
+import { Outbox } from "../events/outbox"
+import type { StoredEvent } from "../events/repositories/outbox.repository"
 import { MailService } from "../mail/mail.service"
-import { PrismaService } from "../prisma/prisma.service"
 import { TicketAudience } from "./audience"
 import { StreamBus } from "./live/stream-bus"
 import { deliveriesFor, type Mailing, mailingsFor, type Person, type TicketCircle } from "./fan-out"
-import { type NotifyEvent, notifyJobSchema } from "./notify-events"
+import { type NotifyEvent, notifyEventSchema } from "./notify-events"
 import { type AddedNotification, NotificationRepository } from "./repositories/notification.repository"
 import { TicketCircleRepository } from "./repositories/ticket-circle.repository"
-
-export const NOTIFY_QUEUE = "notify"
 
 /** One inbox row written for one person — what the live stream announces. */
 export type Delivered = { person: Person; row: AddedNotification }
 
-/** One thing to tell: the event, and the entity and discriminator that make its job id. */
-export type Notice = { event: NotifyEvent; entityId: string; discriminator: string }
+/** What one event wrote, and what is left to do once it has committed. */
+export type Written = { circle: TicketCircle; delivered: Delivered[]; mailings: Mailing[] }
+
+/** The event types the `notify` consumer reads; the log carries others it skips. */
+const NOTIFY_TYPES: ReadonlySet<string> = new Set(notifyEventSchema.options.map((o) => o.shape.kind.value))
 
 /**
- * After commit, a service says what happened; this queues it (ADR-0018). The
- * job carries the tenant and ids, and a job id that makes a retried request
- * notify once: `notify/<orgId>/<entity>/<what>`.
+ * How a service says what happened (ADR-0018, ADR-0049): inside the
+ * transaction that made it happen, as events in the tenant's outbox. The
+ * `notify` consumer reads them from there, so a notification exists exactly
+ * when its change does — no queue between the commit and the inbox to lose
+ * one or repeat it.
  */
 @Injectable()
 export class Notifier {
-  private readonly logger = new Logger(Notifier.name)
+  constructor(private readonly outbox: Outbox) {}
 
-  constructor(@InjectQueue(NOTIFY_QUEUE) private readonly queue: Queue) {}
-
-  async notify(orgId: string, event: NotifyEvent, entityId: string, discriminator: string): Promise<void> {
-    await this.notifyAll(orgId, [{ event, entityId, discriminator }])
+  async notify(orgId: string, event: NotifyEvent): Promise<void> {
+    await this.notifyAll(orgId, [event])
   }
 
-  /**
-   * Many at once, in one round trip. Never throws: the change it reports has
-   * already committed, and a lost notification must not turn a successful
-   * request into a 500. The table stays the source of truth for whatever did
-   * arrive.
-   */
-  async notifyAll(orgId: string, notices: readonly Notice[]): Promise<void> {
-    if (notices.length === 0) return
-    try {
-      await this.queue.addBulk(
-        notices.map(({ event, entityId, discriminator }) => ({
-          name: event.kind,
-          data: { orgId, event },
-          opts: { jobId: jobId(NOTIFY_QUEUE, orgId, entityId, discriminator) },
-        })),
-      )
-    } catch (error) {
-      this.logger.error({ msg: "notifications not queued", orgId, count: notices.length, error: String(error) })
-    }
+  async notifyAll(orgId: string, events: readonly NotifyEvent[]): Promise<void> {
+    await this.outbox.append(
+      orgId,
+      events.map((event) => ({ type: event.kind, payload: event })),
+    )
   }
 }
 
@@ -78,28 +62,27 @@ export class NotifyService {
     private readonly circles: TicketCircleRepository,
     private readonly notifications: NotificationRepository,
     private readonly audience: TicketAudience,
-    private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly urls: PublicUrls,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
   /**
-   * One transaction for the event: the reads see one state, the rows land
-   * together — and the raw upsert runs where the tenant setting is applied,
-   * which RLS insists on. Email is a side effect, so it waits for the commit.
+   * Inside the consumer's transaction (ADR-0049): the reads see one state, the
+   * rows land with the cursor that consumed the event, and the raw upsert runs
+   * where the tenant setting is applied, which RLS insists on. `null` when the
+   * ticket is gone.
    */
-  async deliver(orgId: string, event: NotifyEvent): Promise<Delivered[]> {
-    const outcome = await this.prisma.transaction(() => this.write(orgId, event))
-    if (outcome === null) return []
-    await this.send(orgId, outcome.circle, outcome.mailings)
-    return outcome.delivered
+  async write(orgId: string, event: NotifyEvent): Promise<Written | null> {
+    return this.writeRows(orgId, event)
   }
 
-  private async write(
-    orgId: string,
-    event: NotifyEvent,
-  ): Promise<{ circle: TicketCircle; delivered: Delivered[]; mailings: Mailing[] } | null> {
+  /** After the cursor committed: the emails the rows allow. */
+  async afterCommit(orgId: string, written: Written): Promise<void> {
+    await this.send(orgId, written.circle, written.mailings)
+  }
+
+  private async writeRows(orgId: string, event: NotifyEvent): Promise<Written | null> {
     const circle = await this.circles.load(orgId, event.ticketId, event.actorMembershipId)
     if (circle === null) return null
     const ticket = { ...circle.ticket, watcherMembershipIds: new Set(circle.watchers.map((w) => w.membershipId)) }
@@ -132,8 +115,9 @@ export class NotifyService {
   }
 
   /**
-   * Never throws: the rows have committed, and a job retried for a lost
-   * email would fold every row it wrote a second time.
+   * Never throws: the rows have committed with the cursor, and a lost email
+   * must not be retried by replaying the event, which would fold every row
+   * it wrote a second time.
    */
   private async send(orgId: string, circle: TicketCircle, mailings: Mailing[]): Promise<void> {
     const { org, ticket } = circle
@@ -165,37 +149,49 @@ export class NotifyService {
   }
 }
 
-@Processor(NOTIFY_QUEUE, { autorun: false, concurrency: 5 })
-export class NotifyProcessor extends WorkerHost implements OnApplicationBootstrap {
+/**
+ * The `notify` consumer of the tenant log (ADR-0049). Each event's inbox rows
+ * are written in the transaction that moves the cursor past it, so they are
+ * written exactly once; once that commits, the emails are queued and each
+ * recipient's open streams hear of their rows. Events of other types are
+ * skipped; an event of a notify type that does not parse is a bug, and fails
+ * until it is parked.
+ */
+@Injectable()
+export class NotifyConsumer implements EventConsumer, OnModuleInit {
+  readonly name = "notify" as const
+
   constructor(
+    private readonly consumers: EventConsumers,
     private readonly service: NotifyService,
     private readonly bus: StreamBus,
-    @InjectConfig() private readonly config: AppConfig,
-  ) {
-    super()
+  ) {}
+
+  onModuleInit(): void {
+    this.consumers.register(this)
   }
 
-  onApplicationBootstrap(): void {
-    if (this.config.WORKER_MODE !== "api") void this.worker.run()
-  }
-
-  async process(job: Job): Promise<number> {
-    const parsed = notifyJobSchema.safeParse(job.data)
-    if (!parsed.success) {
-      throw new UnrecoverableError(`notify job ${String(job.id)} is unreadable or names no tenant: ${parsed.error.message}`)
+  async handle(orgId: string, events: readonly StoredEvent[]): Promise<AfterCommit> {
+    const written: Written[] = []
+    for (const stored of events) {
+      if (!NOTIFY_TYPES.has(stored.type)) continue
+      const event = notifyEventSchema.parse(stored.payload)
+      const outcome = await this.service.write(orgId, event)
+      if (outcome !== null) written.push(outcome)
     }
-    const { orgId, event } = parsed.data
-    const delivered = await runJob({ orgId }, "job:notify", event.kind, () => this.service.deliver(orgId, event))
-    // The rows have committed; now each recipient's open streams hear of theirs.
-    await Promise.all(
-      delivered.map(({ person, row }) =>
-        this.bus.publish(orgId, {
-          kind: "notification",
-          membershipId: person.membershipId,
-          event: { id: row.id, type: row.type, title: row.title, ticketId: row.ticketId },
-        }),
-      ),
-    )
-    return delivered.length
+    return async () => {
+      for (const outcome of written) await this.service.afterCommit(orgId, outcome)
+      await Promise.all(
+        written.flatMap(({ delivered }) =>
+          delivered.map(({ person, row }) =>
+            this.bus.publish(orgId, {
+              kind: "notification",
+              membershipId: person.membershipId,
+              event: { id: row.id, type: row.type, title: row.title, ticketId: row.ticketId },
+            }),
+          ),
+        ),
+      )
+    }
   }
 }

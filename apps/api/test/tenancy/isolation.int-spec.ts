@@ -41,7 +41,7 @@ import { AttachmentSweepProcessor } from "../../src/jobs/maintenance/attachment-
 import { ProjectionReconcileProcessor } from "../../src/memberships/projections/projection-reconcile"
 import { AutoCloseProcessor } from "../../src/tickets/sweeps/auto-close"
 import { SlaScanProcessor } from "../../src/tickets/sweeps/sla-scan"
-import { NOTIFY_QUEUE } from "../../src/notifications/notify"
+import { OUTBOX_DRAIN_QUEUE } from "../../src/events/drain-requests"
 import { settler } from "../support/queues"
 import { openStream } from "../support/sse"
 import { browser, HEADERS } from "../support/workspace"
@@ -397,7 +397,7 @@ describe("the live stream keeps to the credential's org (TENANCY.md §9, ADR-000
     const jar = `${dana.access[slugs.acme] ?? ""}; ${dana.access[slugs.globex] ?? ""}`
     const stream = await openStream(app, origin(slugs.acme), jar)
     expect(stream.status).toBe(200)
-    const jobs = settler(app, [NOTIFY_QUEUE])
+    const jobs = settler(app, [OUTBOX_DRAIN_QUEUE])
     try {
       // Globex first: Dana watches this ticket there, so in Globex she would hear of it.
       const theirs = await (await as("gus", slugs.globex)).post(`/tickets/${seed.globex.ticketId}/comments`, { body: "Any news?", visibility: "PUBLIC" })

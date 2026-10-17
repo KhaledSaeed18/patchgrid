@@ -126,7 +126,13 @@ function harness(
     relation: { role, isRequester: ticket.requesterMembershipId === actor.membershipId, isAssignee: ticket.assigneeMembershipId === actor.membershipId, ticketHasAssignee: ticket.assigneeMembershipId !== null },
   })
   const branchResults = [...(options.branches ?? [])]
-  const notifier = { notifyAll: vi.fn(async () => undefined) }
+  // Whether each event was written inside the change's transaction (ADR-0049).
+  let open = false
+  const written: { event: object; inTransaction: boolean }[] = []
+  const notifier = {
+    notify: vi.fn(async (_o: string, event: object) => void written.push({ event, inTransaction: open })),
+    notifyAll: vi.fn(async (_o: string, events: object[]) => void written.push(...events.map((event) => ({ event, inTransaction: open })))),
+  }
   const pulse = { changed: vi.fn(async () => undefined) }
   const tickets = {
     nextNumber: vi.fn(async () => {
@@ -177,7 +183,16 @@ function harness(
       requireOrgId: () => ORG,
       organization: () => ({ agentVisibility: options.ownTeamOnly === true ? "OWN_TEAM_ONLY" : "ALL_TICKETS" }),
     } as unknown as TenantContextService,
-    { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
+    {
+      transaction: async (fn: () => Promise<unknown>) => {
+        open = true
+        try {
+          return await fn()
+        } finally {
+          open = false
+        }
+      },
+    } as unknown as PrismaService,
     audit as unknown as AuditService,
     {
       consume: async () => {
@@ -190,7 +205,7 @@ function harness(
   )
   // `get` re-reads through the access layer; the spec only cares that it is reached.
   vi.spyOn(service, "get").mockResolvedValue({} as never)
-  return { service, tickets, calls, notifier, pulse, links, assetLinks, audit }
+  return { service, tickets, calls, notifier, written, pulse, links, assetLinks, audit }
 }
 
 const create = { type: "INCIDENT" as const, title: "Laptop", description: "Broken", impact: "MEDIUM" as const, urgency: "HIGH" as const }
@@ -268,30 +283,37 @@ describe("TicketsService.assign", () => {
 })
 
 describe("TicketsService notifications", () => {
-  const notice = (event: object, discriminator: string) => ({ event, entityId: "t-1", discriminator })
-
-  it("queues one event per change, after the write, keyed to the version the write made", async () => {
+  it("writes each event inside the change's own transaction, never after it", async () => {
     const assign = harness("AGENT", row({ status: "NEW", assigneeMembershipId: null }))
-    // A concurrent write moved the ticket on before the re-read: the key is still the write's own.
-    vi.spyOn(assign.service, "get").mockResolvedValue({ version: 5 } as never)
     await assign.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })
-    expect(assign.notifier.notifyAll).toHaveBeenCalledWith(ORG, [
-      notice({ kind: "ticket-assigned", ticketId: "t-1", actorMembershipId: "m-agent", assigneeMembershipId: "m-agent" }, "v4"),
+    expect(assign.written).toEqual([
+      { event: { kind: "ticket-assigned", ticketId: "t-1", actorMembershipId: "m-agent", assigneeMembershipId: "m-agent" }, inTransaction: true },
     ])
     expect(assign.pulse.changed).toHaveBeenCalledWith(ORG, "t-1")
 
     const resolve = harness("AGENT")
     await resolve.service.transition("t-1", { action: "resolve", version: 3, comment: { body: "Done", visibility: "PUBLIC" } })
-    expect(resolve.notifier.notifyAll).toHaveBeenCalledWith(ORG, [
-      notice({ kind: "status-changed", ticketId: "t-1", actorMembershipId: "m-agent", to: "RESOLVED", comment: "PUBLIC" }, "v4"),
+    expect(resolve.written).toEqual([
+      { event: { kind: "status-changed", ticketId: "t-1", actorMembershipId: "m-agent", to: "RESOLVED", comment: "PUBLIC" }, inTransaction: true },
     ])
+
+    const created = harness("AGENT")
+    await created.service.create(create)
+    expect(created.written).toEqual([{ event: { kind: "ticket-created", ticketId: "t-new", actorMembershipId: "m-agent" }, inTransaction: true }])
   })
 
-  it("announces before reading back, so a read-back the caller may not make loses nothing", async () => {
+  it("writes nothing when the change fails, so a stale write tells nobody", async () => {
+    const h = harness("AGENT", row(), { versionMatches: false })
+    await expect(h.service.transition("t-1", { action: "resolve", version: 3, comment: { body: "Done", visibility: "PUBLIC" } })).rejects.toBeInstanceOf(StaleWriteProblem)
+    expect(h.written).toEqual([])
+    expect(h.pulse.changed).not.toHaveBeenCalled()
+  })
+
+  it("pulses before reading back, so a read-back the caller may not make loses nothing", async () => {
     const h = harness("AGENT", row({ status: "NEW", assigneeMembershipId: null }))
     vi.spyOn(h.service, "get").mockRejectedValue(new NotFoundProblem())
     await expect(h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })).rejects.toBeInstanceOf(NotFoundProblem)
-    expect(h.notifier.notifyAll).toHaveBeenCalledTimes(1)
+    expect(h.written).toHaveLength(1)
     expect(h.pulse.changed).toHaveBeenCalledTimes(1)
   })
 })
@@ -300,15 +322,13 @@ describe("TicketsService notification choices", () => {
   it("tells nobody when an assignment names the current assignee", async () => {
     const h = harness("AGENT", row({ assigneeMembershipId: "m-agent" }))
     await h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })
-    expect(h.notifier.notifyAll).toHaveBeenCalledWith(ORG, [])
+    expect(h.written).toEqual([])
   })
 
   it("reports a reopen as a reopen, not as a status change", async () => {
     const h = harness("REQUESTER", row({ status: "RESOLVED", resolvedAt: NOW }))
     await h.service.transition("t-1", { action: "reopen", version: 3, comment: { body: "Still broken", visibility: "PUBLIC" } })
-    expect(h.notifier.notifyAll).toHaveBeenCalledWith(ORG, [
-      { event: { kind: "ticket-reopened", ticketId: "t-1", actorMembershipId: "m-req", comment: "PUBLIC" }, entityId: "t-1", discriminator: "v4" },
-    ])
+    expect(h.written.map((w) => w.event)).toEqual([{ kind: "ticket-reopened", ticketId: "t-1", actorMembershipId: "m-req", comment: "PUBLIC" }])
   })
 })
 
@@ -367,7 +387,7 @@ describe("TicketsService — problems and changes", () => {
     await h.service.transition("t-1", { action: "approve", version: 3 })
     expect(h.tickets.addApproval).toHaveBeenCalledWith(ORG, expect.objectContaining({ decision: "APPROVED", selfApproved: false, approverMembershipId: "m-admin" }))
     expect(h.audit.record).toHaveBeenCalledWith(ORG, expect.arrayContaining([expect.objectContaining({ action: "CHANGE_APPROVED" })]))
-    expect(h.notifier.notifyAll).toHaveBeenCalledWith(ORG, [expect.objectContaining({ event: expect.objectContaining({ kind: "change-decided", decision: "APPROVED" }) })])
+    expect(h.written.map((w) => w.event)).toEqual([expect.objectContaining({ kind: "change-decided", decision: "APPROVED" })])
   })
 
   it("lets a lead of the change's team decide, but never on a change they raised", async () => {
