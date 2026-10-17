@@ -186,6 +186,10 @@ export function WebhookDetail({
               Remove
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Turning it off stops sending: deliveries still waiting to retry give up, and events while it is off
+            are not kept for it. Turn it back on, then replay what gave up.
+          </p>
           {endpoint.previousSecretExpiresAt !== null && new Date(endpoint.previousSecretExpiresAt) > new Date() && (
             <p className="text-xs text-muted-foreground">
               The previous secret still signs until <RelativeTime at={endpoint.previousSecretExpiresAt} />.
@@ -207,7 +211,8 @@ export function WebhookDetail({
           <DialogHeader>
             <DialogTitle>Remove this webhook?</DialogTitle>
             <DialogDescription>
-              Nothing more is sent to it, and its delivery log goes with it. To pause it instead, turn it off.
+              Nothing more is sent to it, and its delivery log goes with it. To stop it but keep its log, turn
+              it off.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
