@@ -35,6 +35,7 @@ const SECTIONS: NavSection[] = [
         href: "/notifications",
         requires: "notification:read",
       },
+      { label: "Reports", href: "/reports", requires: "report:read" },
     ],
   },
   {
