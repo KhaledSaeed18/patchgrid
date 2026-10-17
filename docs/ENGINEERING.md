@@ -396,6 +396,20 @@ rows were the `assigned` and `teams` branches: their indexes carried `status` bu
 assignee's page sorted ten thousand rows. Two indexes on `(orgId, assignee|team, createdAt desc, id desc)`
 halved them (the arrows). Transactions per request stayed at one per branch.
 
+**The reports at a hundred thousand (M12, 2026-10-17).** The same load, the reporting read side
+(ADR-0051) built over it. The reconcile walks all 100,067 tickets, in batches of 500 through the same
+`factOf` the consumer uses, in 2.6 s. Each report is one transaction, seven runs each, warm:
+
+| Report | p50 | max |
+| --- | --- | --- |
+| SLA, 90 days, by priority, team, category, assignee or type | 6–8 ms | 10 ms |
+| SLA, 365 days, by team | 20 ms | 20 ms |
+| Resolution percentiles, 365 days | 5 ms | 6 ms |
+| Backlog by priority and age | 23 ms | 25 ms |
+| Workload, 90 days | 12 ms | 13 ms |
+
+Every report is far inside M12's 100 ms, so the daily rollups ADR-0051 held in reserve are not built.
+
 Node version comes from `.nvmrc`; pnpm from the `packageManager` field, so the
 lockfile and CI cannot disagree about which pnpm produced them.
 
