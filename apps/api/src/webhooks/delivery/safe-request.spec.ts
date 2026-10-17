@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { BlockedTargetError, checkTarget, isBlockedAddress, postSafely } from "./safe-request"
+import { BlockedTargetError, checkTarget, describeFailure, isBlockedAddress, postSafely } from "./safe-request"
 
 describe("isBlockedAddress", () => {
   it("blocks this host, private networks, link-local and the metadata address, in both families", () => {
@@ -18,11 +18,32 @@ describe("isBlockedAddress", () => {
     expect(isBlockedAddress("::ffff:93.184.216.34")).toBe(false)
   })
 
+  it("lets only global unicast IPv6 through: compatible, SIIT and local-use NAT64 forms are refused", () => {
+    for (const address of ["::7f00:1", "::127.0.0.1", "::ffff:0:7f00:1", "::ffff:0:127.0.0.1", "64:ff9b:1::a00:1", "3fff::1", "fec0::1"]) {
+      expect(isBlockedAddress(address), address).toBe(true)
+    }
+    // Well-known NAT64 to a public address is that public address.
+    expect(isBlockedAddress("64:ff9b::5db8:d822")).toBe(false)
+  })
+
   it("lets public addresses through, and blocks what does not parse", () => {
     for (const address of ["93.184.216.34", "1.1.1.1", "172.32.0.1", "2606:4700:4700::1111"]) {
       expect(isBlockedAddress(address), address).toBe(false)
     }
     expect(isBlockedAddress("not-an-ip")).toBe(true)
+  })
+})
+
+describe("describeFailure", () => {
+  it("says what kind of failure, never which address or what the resolver said", () => {
+    const blocked = new BlockedTargetError("the host resolves to a private or reserved address", "postgres resolves to 172.18.0.3")
+    expect(describeFailure(blocked)).not.toContain("172.18")
+    expect(describeFailure(blocked)).not.toContain("postgres")
+    expect(describeFailure(Object.assign(new Error("getaddrinfo ENOTFOUND redis.internal"), { code: "ENOTFOUND" }))).toBe("could not resolve the host")
+    expect(describeFailure(Object.assign(new Error("connect ECONNREFUSED 10.0.0.5:443"), { code: "ECONNREFUSED" }))).toBe("connection refused")
+    expect(describeFailure(Object.assign(new Error("self-signed"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }))).toBe("the TLS certificate was not accepted")
+    expect(describeFailure(new Error("timed out after 10000 ms"))).toBe("timed out after 10000 ms")
+    expect(describeFailure(new Error("something about 10.0.0.5"))).toBe("the request failed")
   })
 })
 
