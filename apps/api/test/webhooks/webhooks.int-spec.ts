@@ -123,7 +123,11 @@ describe("managing endpoints", () => {
     const row = await owner.webhookEndpoint.findUniqueOrThrow({ where: { id: created.id } })
     expect(row.secretSealed).not.toContain(created.secret.slice(6))
     await as("owner").delete(`/org/webhooks/${created.id}`)
-    expect(await owner.auditLog.count({ where: { orgId: ws.orgId, action: { in: ["WEBHOOK_CREATED", "WEBHOOK_DELETED"] } } })).toBeGreaterThanOrEqual(2)
+    const audited = await owner.auditLog.findMany({ where: { orgId: ws.orgId, action: { in: ["WEBHOOK_CREATED", "WEBHOOK_DELETED"] } } })
+    expect(audited.length).toBeGreaterThanOrEqual(2)
+    // The path can be a credential (a chat hook's key): the audit log keeps the origin and a fingerprint.
+    expect(JSON.stringify(audited)).not.toContain("/hook")
+    expect(JSON.stringify(audited)).toContain("127.0.0.1")
   })
 
   it("refuses a URL with credentials, and an event type the catalogue does not have", async () => {
@@ -200,6 +204,11 @@ describe("failure", () => {
     expect(await attempt(delivery.id)).toEqual({ kind: "dead" })
     expect(await owner.webhookDelivery.findUniqueOrThrow({ where: { id: delivery.id } })).toMatchObject({ status: "DEAD", nextAttemptAt: null })
 
+    // An endpoint that is off is turned on before its deliveries are replayed.
+    await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: false })
+    expect((await as("owner").post(`/org/webhooks/${hook.id}/deliveries/replay`)).status).toBe(409)
+    await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: true })
+
     // A delivery still trying cannot be replayed; a dead one can, from attempt zero.
     respondWith = 200
     const replayed = await as("owner").post(`/org/webhooks/${hook.id}/deliveries/${delivery.id}/replay`)
@@ -234,10 +243,32 @@ describe("failure", () => {
     expect(received).toHaveLength(sent)
     expect((await owner.webhookDelivery.findUniqueOrThrow({ where: { id: next.id } })).attempts).toBe(1)
 
+    // Once its time has come, one attempt is the probe and the others wait for its answer.
+    await owner.webhookEndpoint.update({ where: { id: hook.id }, data: { circuitOpenUntil: new Date(Date.now() - 1_000) } })
+    respondWith = 200
+    const [first, second] = deliveries
+    if (first === undefined || second === undefined) throw new Error("no deliveries")
+    await owner.webhookDelivery.updateMany({ where: { id: { in: [first.id, second.id] } }, data: { nextAttemptAt: new Date(Date.now() - 1_000) } })
+    const [a, b] = await Promise.all([first, second].map((d) => runAsTenant(ws.orgId, crossing, () => app.get(WebhookDeliverer).attempt(ws.orgId, d.id))))
+    expect([a?.kind, b?.kind].sort()).toEqual(["delivered", "postponed"])
+    // The probe's success closes the circuit.
+    expect(await owner.webhookEndpoint.findUniqueOrThrow({ where: { id: hook.id } })).toMatchObject({ consecutiveFailures: 0, circuitOpenUntil: null })
+
     // Turning it back on closes the circuit.
     await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: false })
     const back = await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: true })
     expect(back.body).toMatchObject({ status: "ACTIVE", consecutiveFailures: 0, circuitOpenUntil: null })
+    await as("owner").delete(`/org/webhooks/${hook.id}`)
+  })
+})
+
+describe("a new endpoint", () => {
+  it("hears only of what happened after it existed, however far behind the consumer is", async () => {
+    await newTicket("Before the endpoint")
+    const hook = await endpoint(["ticket.created"])
+    await newTicket("After the endpoint")
+    await drainLog()
+    expect(await deliveriesOf(hook.id)).toHaveLength(1)
     await as("owner").delete(`/org/webhooks/${hook.id}`)
   })
 })
@@ -261,6 +292,8 @@ describe("rotation", () => {
     const now = Math.floor(Date.now() / 1000)
     expect(verify(fresh, headers, request.body, now)).toBe(true)
     expect(verify(hook.secret, headers, request.body, now)).toBe(true)
+    // A second rotation inside the overlap would cut off receivers still on the first secret.
+    expect((await as("owner").post(`/org/webhooks/${hook.id}/rotate-secret`)).status).toBe(409)
     await as("owner").delete(`/org/webhooks/${hook.id}`)
   })
 })
