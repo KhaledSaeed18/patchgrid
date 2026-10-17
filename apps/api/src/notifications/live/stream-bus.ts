@@ -5,8 +5,7 @@ import {
   notificationEventSchema,
   ticketStatusSchema,
   ticketTypeSchema,
-  ticketUpdatedEventSchema,
-} from "@patchgrid/contracts"
+  ticketUpdatedEventSchema, bulkProgressEventSchema } from "@patchgrid/contracts"
 import Redis from "ioredis"
 import { z } from "zod"
 
@@ -20,6 +19,8 @@ import { RedisService } from "../../redis/redis.service"
  * sent to a browser as is.
  */
 export const streamMessageSchema = z.discriminatedUnion("kind", [
+  /** How far a bulk action has got, for the member running it and no one else (ADR-0052). */
+  z.object({ kind: z.literal("bulk-progress"), membershipId: idSchema, event: bulkProgressEventSchema }),
   /** One inbox row, for its one recipient — already filtered by `TicketAudience` when it was written. */
   z.object({ kind: z.literal("notification"), membershipId: idSchema, event: notificationEventSchema }),
   /** A ticket changed: every stream whose member may read it gets the event. */

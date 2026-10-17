@@ -32,6 +32,6 @@ import { TicketFactsRepository } from "./repositories/ticket-facts.repository"
     TicketPulse,
     NotificationStreamService,
   ],
-  exports: [Notifier, TicketPulse],
+  exports: [Notifier, TicketPulse, StreamBus],
 })
 export class NotificationsModule {}
