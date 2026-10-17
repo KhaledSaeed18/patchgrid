@@ -42,6 +42,7 @@ const MOVES = [
 type Move = (typeof MOVES)[number]
 
 const OUTCOME_LABEL: Record<Exclude<BulkOutcome, "done">, string> = {
+  failed: "Something went wrong; check it",
   conflict: "Changed by someone else since it was loaded",
   refused: "Refused",
   "not-found": "Not found",
@@ -109,7 +110,9 @@ export function BulkBar({
     },
     onError: (error) => {
       setOperationId(null)
-      toast.error(failureMessage(error, "Nothing was changed."))
+      // Some tickets may have gone through before the failure: say so, and show the list as it is now.
+      toast.error(failureMessage(error, "The action stopped. Some tickets may have changed; the list is refreshed."))
+      onChanged()
     },
   })
 

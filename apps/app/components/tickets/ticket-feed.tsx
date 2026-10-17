@@ -48,13 +48,19 @@ export function TicketFeed({
   })
   const tickets = feed.data.pages.flatMap((p) => p.items)
 
+  // A picked row that changed since it was picked no longer counts as picked: acting on it would only
+  // answer `conflict` for a row that looks current on screen (M12 review). Rows not shown keep their pick.
+  const shown = new Map(tickets.map((t) => [t.id, t.version]))
+  const live = new Map([...picked].filter(([id, pick]) => (shown.get(id) ?? pick.version) === pick.version))
+
   const selection = bulk
     ? {
-        selected: new Set(picked.keys()),
+        selected: new Set(live.keys()),
         toggle: (ticket: TicketSummary) =>
           setPicked((current) => {
             const next = new Map(current)
-            if (next.has(ticket.id)) next.delete(ticket.id)
+            // A stale pick shows unchecked; a click on it picks the row as it is now.
+            if (next.get(ticket.id)?.version === ticket.version) next.delete(ticket.id)
             else next.set(ticket.id, { version: ticket.version, number: ticket.number })
             return next
           }),
@@ -73,9 +79,9 @@ export function TicketFeed({
   if (tickets.length === 0) return <>{empty}</>
   return (
     <>
-      {bulk && picked.size > 0 && (
+      {bulk && live.size > 0 && (
         <BulkBar
-          picked={[...picked].map(([id, row]) => ({ id, ...row }))}
+          picked={[...live].map(([id, row]) => ({ id, ...row }))}
           onChanged={() => void feed.refetch()}
           onFinished={() => setPicked(new Map())}
         />
