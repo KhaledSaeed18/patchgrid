@@ -48,6 +48,7 @@ function instruments() {
       advice: { explicitBucketBoundaries: [5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 30_000, 60_000, 300_000, 900_000] },
     }),
     outboxDrains: meter.createCounter("outbox_drains_total", { description: "Drains by consumer and outcome: drained, idle, held back by the horizon, busy" }),
+    reportingDrift: meter.createCounter("reporting_drift_total", { description: "Reporting facts the reconcile had to rewrite, by tenant — after the first build, any value is a missed write" }),
     outboxParked: meter.createCounter("outbox_events_parked_total", { description: "Events a consumer gave up on, by consumer and tenant — any value needs a look" }),
   }
 }
@@ -99,6 +100,10 @@ export function recordOutboxConsumed(input: { consumer: string; orgId: string; a
 
 export function recordOutboxDrain(consumer: string, outcome: "drained" | "idle" | "held-back" | "busy"): void {
   the().outboxDrains.add(1, { consumer, outcome })
+}
+
+export function recordReportingDrift(orgId: string, facts: number): void {
+  the().reportingDrift.add(facts, { org: tenants.labelFor(orgId) })
 }
 
 export function recordOutboxParked(consumer: string, orgId: string): void {

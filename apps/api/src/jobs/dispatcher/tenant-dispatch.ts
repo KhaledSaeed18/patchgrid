@@ -49,8 +49,10 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue("projection-reconcile") projectionReconcile: Queue,
     @InjectQueue("outbox-sweep") outboxSweep: Queue,
     @InjectQueue("webhook-sweep") webhookSweep: Queue,
+    @InjectQueue("reporting-reconcile") reportingReconcile: Queue,
   ) {
     this.queues = {
+      "reporting-reconcile": reportingReconcile,
       "webhook-sweep": webhookSweep,
       "outbox-sweep": outboxSweep,
       "sla-scan": slaScan,
