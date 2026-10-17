@@ -59,6 +59,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0050](0050-outbound-webhooks.md) | Outbound webhooks: thin signed events, at least once, and nobody else's problem | Accepted |
 | [0051](0051-reporting-read-side.md) | Reporting: a fact row per ticket, refreshed from the log, checked against the source | Accepted |
 | [0052](0052-saved-views-and-bulk-actions.md) | Saved views are queries; bulk actions are many single actions | Accepted |
+| [0053](0053-passkeys.md) | Passkeys: a credential that signs in alone, scoped to the workspace hosts | Accepted |
 
 ## Reading order for someone new
 
