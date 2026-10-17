@@ -13,6 +13,17 @@ export function percent(part: number, whole: number): number | null {
   return whole === 0 ? null : Math.round((part / whole) * 1000) / 10
 }
 
+/**
+ * One CSV cell: quoted, quotes doubled, and a leading `=`, `+`, `-`, `@`, tab
+ * or carriage return defused with a `'`, or a spreadsheet would run a team's
+ * or a person's name as a formula (M12 review).
+ */
+export function csvCell(value: string | number): string {
+  const text = String(value)
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  return `"${safe.replaceAll('"', '""')}"`
+}
+
 /** Minutes as a person reads them: 45 min, 3.5 h, 2.1 d. */
 export function duration(minutes: number | null): string {
   if (minutes === null) return "—"

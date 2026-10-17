@@ -20,7 +20,7 @@ import { useState } from "react"
 import { NativeSelect } from "@/components/native-select"
 import { clientApi } from "@/lib/api/client"
 
-import { duration, percent, RANGE_DAYS, type RangeDays, rangeFor } from "./range"
+import { csvCell, duration, percent, RANGE_DAYS, type RangeDays, rangeFor } from "./range"
 
 const GROUP_LABEL: Record<ReportGroup, string> = {
   priority: "Priority",
@@ -133,7 +133,7 @@ function SlaSection({ report, groupBy }: { report: SlaReport; groupBy: ReportGro
     const header = ["group", "answered_met", "answered_missed", "awaiting_answer", "resolved_met", "resolved_missed", "resolved", "median_minutes", "p90_minutes"]
     const line = (r: SlaReportRow) =>
       [r.label, r.response.met, r.response.breached, r.response.running, r.resolution.met, r.resolution.breached, r.resolved, r.medianResolutionMinutes ?? "", r.p90ResolutionMinutes ?? ""]
-        .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
+        .map(csvCell)
         .join(",")
     const csv = [header.join(","), ...report.rows.map(line), line(report.total)].join("\n")
     const link = document.createElement("a")
