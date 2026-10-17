@@ -306,6 +306,12 @@ export class TicketsService {
     return this.get(id)
   }
 
+  /** Whether an assignee and team could be assigned at all, before a bulk action tries two hundred times (ADR-0052). */
+  async checkAssignment(assigneeMembershipId: string | null | undefined, teamId: string | null | undefined): Promise<void> {
+    const orgId = this.tenant.requireOrgId()
+    await this.prisma.transaction(() => this.assignment(orgId, assigneeMembershipId, teamId))
+  }
+
   /** The assignment without the read-back: what a bulk action runs per ticket (ADR-0052). */
   async applyAssign(id: string, request: AssignTicketRequest): Promise<void> {
     const actor = this.actors.requireTenantActor()
@@ -324,6 +330,9 @@ export class TicketsService {
       const assignee = changes.assigneeMembershipId
       if (assignee !== undefined && assignee !== null && assignee !== loaded.row.assigneeMembershipId) {
         await this.notifier.notify(orgId, { kind: "ticket-assigned", ticketId: id, actorMembershipId: actor.membershipId, assigneeMembershipId: assignee })
+      } else {
+        // A team-only move or an unassignment tells nobody, but the log still hears of it (ADR-0051).
+        await this.outbox.append(orgId, [{ type: "ticket-changed", payload: { ticketId: id } }])
       }
     })
     await this.pulse.changed(orgId, id)
