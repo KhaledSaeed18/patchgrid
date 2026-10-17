@@ -11,7 +11,7 @@
  * that starts over.
  */
 import { execFileSync } from "node:child_process"
-import { appendFileSync, copyFileSync, existsSync, readFileSync } from "node:fs"
+import { appendFileSync, closeSync, constants, copyFileSync, openSync, readFileSync } from "node:fs"
 import path from "node:path"
 import process from "node:process"
 
@@ -22,27 +22,35 @@ function step(title, command, args) {
   execFileSync(command, args, { cwd: root, stdio: "inherit" })
 }
 
-/** The variable names a dotenv file sets. */
-const names = (file) => new Set([...readFileSync(file, "utf8").matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]))
+/** The variable names dotenv text sets. */
+const names = (text) => new Set([...text.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]))
 
 const env = path.join(root, ".env")
 const example = path.join(root, ".env.example")
-if (existsSync(env)) {
-  // A clone made before a new setting existed would otherwise refuse to boot on it.
-  const have = names(env)
-  const missing = readFileSync(example, "utf8").split("\n").filter((line) => {
-    const name = /^([A-Z][A-Z0-9_]*)=/.exec(line)?.[1]
-    return name !== undefined && !have.has(name)
-  })
-  if (missing.length > 0) {
-    appendFileSync(env, `\n# Added by local:up from .env.example\n${missing.join("\n")}\n`)
-    console.log(`▸ .env exists — keeping it, and adding ${missing.map((l) => l.split("=")[0]).join(", ")} from .env.example`)
-  } else {
-    console.log("▸ .env exists — keeping it")
-  }
-} else {
-  copyFileSync(example, env)
+try {
+  // Exclusive: created only if absent, so nothing between a check and the copy can be overwritten.
+  copyFileSync(example, env, constants.COPYFILE_EXCL)
   console.log("▸ .env created from .env.example (local development values only)")
+} catch (error) {
+  if (error.code !== "EEXIST") throw error
+  // One descriptor for the read and the append: the file read is the file extended.
+  const fd = openSync(env, "a+")
+  try {
+    // A clone made before a new setting existed would otherwise refuse to boot on it.
+    const have = names(readFileSync(fd, "utf8"))
+    const missing = readFileSync(example, "utf8").split("\n").filter((line) => {
+      const name = /^([A-Z][A-Z0-9_]*)=/.exec(line)?.[1]
+      return name !== undefined && !have.has(name)
+    })
+    if (missing.length > 0) {
+      appendFileSync(fd, `\n# Added by local:up from .env.example\n${missing.join("\n")}\n`)
+      console.log(`▸ .env exists — keeping it, and adding ${missing.map((l) => l.split("=")[0]).join(", ")} from .env.example`)
+    } else {
+      console.log("▸ .env exists — keeping it")
+    }
+  } finally {
+    closeSync(fd)
+  }
 }
 
 try {
