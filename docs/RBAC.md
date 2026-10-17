@@ -218,6 +218,7 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `org:delete` / `org:cancel_deletion` | — | — | — | ✅ |
 | `token:read` / `token:create` / `token:revoke` | — | — | ✅ | ✅ |
 | `webhook:manage` | — | — | ✅ | ✅ |
+| `report:read` | — | — | ✅ | ✅ |
 | `support:read_sessions` | — | — | ✅ | ✅ |
 | `support:grant_access` / `support:revoke_access` | — | — | — | ✅ |
 
