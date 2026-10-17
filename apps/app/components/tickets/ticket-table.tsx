@@ -17,17 +17,38 @@ import { RelativeTime } from "./relative-time"
  * Tickets as rows. `columns` picks what the audience needs: a requester knows
  * who raised them, an agent needs the requester and the deadline.
  */
+/** Rows an agent can pick for a bulk action (ADR-0052); absent, the table has no checkboxes. */
+export type TicketSelection = {
+  selected: ReadonlySet<string>
+  toggle: (ticket: TicketSummary) => void
+  setAll: (tickets: readonly TicketSummary[], on: boolean) => void
+}
+
 export function TicketTable({
   tickets,
   columns,
+  selection,
 }: {
   tickets: TicketSummary[]
   columns: "portal" | "console"
+  selection?: TicketSelection
 }) {
+  const allOn = selection !== undefined && tickets.length > 0 && tickets.every((t) => selection.selected.has(t.id))
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          {selection !== undefined && (
+            <TableHead className="w-8">
+              <input
+                type="checkbox"
+                aria-label="Select every ticket shown"
+                className="size-4 accent-primary"
+                checked={allOn}
+                onChange={() => selection.setAll(tickets, !allOn)}
+              />
+            </TableHead>
+          )}
           <TableHead className="w-28">Ticket</TableHead>
           <TableHead>Title</TableHead>
           <TableHead>Status</TableHead>
@@ -48,7 +69,18 @@ export function TicketTable({
       </TableHeader>
       <TableBody>
         {tickets.map((ticket) => (
-          <TableRow key={ticket.id}>
+          <TableRow key={ticket.id} data-state={selection?.selected.has(ticket.id) === true ? "selected" : undefined}>
+            {selection !== undefined && (
+              <TableCell>
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${ticket.number}`}
+                  className="size-4 accent-primary"
+                  checked={selection.selected.has(ticket.id)}
+                  onChange={() => selection.toggle(ticket)}
+                />
+              </TableCell>
+            )}
             <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
               {ticket.number}
             </TableCell>

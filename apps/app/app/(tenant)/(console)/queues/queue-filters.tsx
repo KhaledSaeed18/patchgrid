@@ -1,6 +1,8 @@
 "use client"
 
 import {
+  type Priority,
+  prioritySchema,
   TICKET_STATUSES_BY_TYPE,
   type TicketSort,
   ticketSortSchema,
@@ -14,7 +16,7 @@ import { Input } from "@patchgrid/ui/components/input"
 import { useRouter } from "next/navigation"
 
 import { NativeSelect } from "@/components/native-select"
-import { TICKET_STATUS_LABEL, TICKET_TYPE_LABEL } from "@/lib/labels"
+import { PRIORITY_LABEL, TICKET_STATUS_LABEL, TICKET_TYPE_LABEL } from "@/lib/labels"
 
 /** Every status, in the order the types' lifecycles first meet them. */
 const ALL_STATUSES: TicketStatus[] = [
@@ -26,12 +28,14 @@ export function QueueFilters({
   view,
   type,
   status,
+  priority,
   sort,
   q,
 }: {
   view: TicketView
   type: TicketType | undefined
   status: TicketStatus | undefined
+  priority: Priority | undefined
   sort: TicketSort
   q: string
 }) {
@@ -41,6 +45,7 @@ export function QueueFilters({
   const go = (next: {
     type?: TicketType | undefined
     status?: TicketStatus | undefined
+    priority?: Priority | undefined
     sort?: TicketSort
     q?: string
   }) => {
@@ -49,6 +54,8 @@ export function QueueFilters({
     if (t !== undefined) params.set("type", t)
     const s = "status" in next ? next.status : status
     if (s !== undefined) params.set("status", s)
+    const p = "priority" in next ? next.priority : priority
+    if (p !== undefined) params.set("priority", p)
     const order = next.sort ?? sort
     if (order !== "newest") params.set("sort", order)
     const text = next.q ?? ""
@@ -113,6 +120,24 @@ export function QueueFilters({
           {statuses.map((s) => (
             <option key={s} value={s}>
               {TICKET_STATUS_LABEL[s]}
+            </option>
+          ))}
+        </NativeSelect>
+      )}
+      {q === "" && view !== "approvals" && (
+        <NativeSelect
+          aria-label="Priority"
+          className="w-40"
+          value={priority ?? ""}
+          onChange={(e) => {
+            const parsed = prioritySchema.safeParse(e.target.value)
+            go({ priority: parsed.success ? parsed.data : undefined })
+          }}
+        >
+          <option value="">Any priority</option>
+          {prioritySchema.options.map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_LABEL[p]}
             </option>
           ))}
         </NativeSelect>
