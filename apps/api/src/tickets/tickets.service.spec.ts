@@ -330,10 +330,11 @@ describe("TicketsService notifications", () => {
 })
 
 describe("TicketsService notification choices", () => {
-  it("tells nobody when an assignment names the current assignee", async () => {
+  it("tells nobody when an assignment names the current assignee, but still writes the change to the log", async () => {
     const h = harness("AGENT", row({ assigneeMembershipId: "m-agent" }))
     await h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent" })
-    expect(h.written).toEqual([])
+    expect(h.notifier.notify).not.toHaveBeenCalled()
+    expect(h.written).toEqual([{ event: { type: "ticket-changed", payload: { ticketId: "t-1" } }, inTransaction: true }])
   })
 
   it("reports a reopen as a reopen, not as a status change", async () => {
