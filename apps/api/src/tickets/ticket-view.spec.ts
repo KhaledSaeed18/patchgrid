@@ -9,6 +9,7 @@ const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
 function row(over: Partial<TicketSummaryRow> = {}): TicketSummaryRow {
   return {
     id: "t-1",
+    version: 1,
     number: 7,
     type: "INCIDENT",
     source: "PORTAL",
