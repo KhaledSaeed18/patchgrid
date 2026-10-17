@@ -55,7 +55,9 @@ export class SavedViewsService {
     const { actor, orgId } = this.who()
     await this.prisma.transaction(async () => {
       const row = await this.views.find(orgId, id)
-      if (row === null || !visibleTo(row, actor)) throw new NotFoundProblem()
+      // An admin reaches a team's shared view to remove it, whatever teams they are in themselves.
+      const admin = row !== null && row.teamId !== null && (actor.role === "ADMIN" || actor.role === "OWNER")
+      if (row === null || !(visibleTo(row, actor) || admin)) throw new NotFoundProblem()
       if (!removableBy(row, actor)) throw new NotPermittedProblem("Only its author, the team's lead or an admin can remove a shared view")
       await this.views.remove(orgId, id)
     })
