@@ -29,6 +29,7 @@ import { ApiTokensModule } from "./api-tokens/api-tokens.module"
 import { JobsModule } from "./jobs/jobs.module"
 import { KnowledgeModule } from "./knowledge/knowledge.module"
 import { NotificationsModule } from "./notifications/notifications.module"
+import { EventsModule } from "./events/events.module"
 import { MailModule } from "./mail/mail.module"
 import { MembershipsModule } from "./memberships/memberships.module"
 import { OrgsModule } from "./orgs/orgs.module"
@@ -148,6 +149,7 @@ const REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/
     MembershipsModule,
     TeamsModule,
     CategoriesModule,
+    EventsModule,
     NotificationsModule,
     SlaModule,
     TicketsModule,

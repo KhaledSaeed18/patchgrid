@@ -7,6 +7,8 @@ import { z } from "zod"
  * `everyMs` is how often the dispatcher fans the sweep out.
  */
 export const SWEEPS = {
+  /** Drain any consumer the outbox wake missed (ADR-0049). */
+  "outbox-sweep": { everyMs: 60_000 },
   /** Warn before, and flag after, an SLA target (DOMAIN.md §4.3). */
   "sla-scan": { everyMs: 60_000 },
   /** Close what has sat resolved for AUTO_CLOSE_DAYS (DOMAIN.md §2.1). */
