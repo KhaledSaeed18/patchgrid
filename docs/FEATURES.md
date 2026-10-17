@@ -4,7 +4,8 @@ Vertical slices, not horizontal layers: every milestone ends with something you 
 start the next milestone until the current one's exit criteria are met. Do not add a feature that is not on this
 list without adding it here first (and an ADR if it is a real decision).
 
-**Build order: M0 → M6, then M8 → M9 → M10, then M7 last** (re-planned 2026-10-15). M7 is the only
+**Build order: M0 → M6, then M8 → M9 → M10, then M11 → M14, then M7 last** (re-planned 2026-10-15;
+M11–M14 added 2026-10-17 by ADR-0048). M7 is the only
 milestone that needs local models — Ollama, embeddings, the phishing service — so the platform, hardening
 and ship work come first and M7 lands on a running system. Milestone numbers are kept as they were: ADRs,
 the threat model and code comments refer to them by number, so M7 keeps its name and moves to the end of
@@ -411,9 +412,73 @@ explains the decisions. There is no public deployment (ADR-0047): Patchgrid runs
       on a fresh clone in its own compose project: 6/6 invariants, the seed, a signup whose verification
       mail arrives
 
+## M11 — Reliable delivery
+
+_Exit: a side effect of a committed change cannot be lost and is not repeated: kill the worker between
+commit and delivery and the notification still arrives once. One tenant flooding its log does not delay
+another's notifications. A tenant subscribes an endpoint, receives signed deliveries, sees failures
+retried and parked, and replays them, and a slow or hostile endpoint harms nobody else._
+
+- [ ] Transactional outbox read as a per-tenant log (ADR-0049): `OutboxEvent` written in the change's own
+      transaction, ordered by transaction id and read only below the snapshot horizon, so no reader
+      skips an event that commits late; `EventConsumer` cursors; poison events parked in
+      `EventDeadLetter`
+- [ ] The relay: a `LISTEN` wake on commit, per-tenant drain jobs, a sweep as the safety net; ticket
+      notifications move onto it, and their inbox rows are written in the same transaction as the
+      cursor that consumed them
+- [ ] Fairness: a drain takes a bounded batch and yields, so tenants are served round-robin; a flood test
+      proves one tenant's backlog does not delay another's; per-tenant lag on the dashboard
+- [ ] Outbound webhooks: `WebhookEndpoint` (owner/admin, `webhooks:write` scope), the Standard Webhooks
+      signature with rotating secrets, a delivery log, retries with backoff and jitter, dead letters with
+      replay, a circuit breaker per endpoint, SSRF protection on the target, a per-tenant concurrency cap
+- [ ] Settings UI for endpoints, deliveries and replay; the public event catalogue in the docs site
+- [ ] Event retention: consumed events deleted past the retention window, never ahead of a cursor
+
+## M12 — Insight
+
+_Exit: an admin opens a reports page that answers "are we meeting our SLAs, and where not?" in under
+100 ms at a hundred thousand tickets, with numbers that agree with the tickets. An agent saves a view
+and closes two hundred tickets in one action, with every refusal and conflict reported per ticket._
+
+- [ ] A reporting read side built by a consumer of M11's log: daily per-tenant facts (opened, resolved,
+      breached, time to respond and resolve) under RLS, rebuildable from the log
+- [ ] Reports: SLA compliance by priority, team and category; median and p90 time to resolve; backlog
+      age; workload per agent. Charts in the app, CSV export
+- [ ] A reconcile that recomputes a day from source and fails loudly on drift
+- [ ] Saved views: a filter set per member, shareable to a team
+- [ ] Bulk actions: assign, transition, close, with a permission check and version check per ticket, a
+      per-ticket outcome, and progress over the live stream
+
+## M13 — Identity
+
+_Exit: a member signs in with a passkey and uses it for step-up; a workspace with SSO configured sends its
+members to their identity provider, and a new member is provisioned on first sign-in._
+
+- [ ] Passkeys (WebAuthn): register, sign in without a password, step-up with a passkey (ADR-0045's
+      `sua`), list and revoke
+- [ ] Per-tenant OIDC (authorization code with PKCE) against a local Keycloak profile in Compose; the
+      workspace's verified email domain routes sign-in; just-in-time membership at a default role;
+      "SSO required" mirrors `requireMfa`
+- [ ] Threat model and authorization updates: which routes a SSO-only member may still use, and how an
+      owner recovers when the provider is down
+
+## M14 — Production rehearsal, locally
+
+_Exit: `pnpm local:prod` serves the production images over HTTPS on `*.patchgrid.test`, through
+PgBouncer in transaction mode, with reads optionally served by a replica, and the tenancy suite passes
+against it._
+
+- [ ] Caddy in front of `docker-compose.prod.yml`: locally trusted wildcard TLS (mkcert), HSTS,
+      `Secure` cookies, `TRUST_PROXY_HOPS` at its real value
+- [ ] PgBouncer in transaction mode between the API and Postgres; the isolation suite run through it,
+      proving the transaction-local tenant setting (ADR-0015) is what makes pooling safe
+- [ ] A streaming replica, with reads that tolerate lag routed to it; the replica's RLS and its lag
+      on the dashboard
+- [ ] A short runbook: what a real deployment would still need (ADR-0047's list)
+
 ## M7 — Differentiators (built last)
 
-_Built after M10: the one milestone that needs local models (Ollama, embeddings, the phishing model), so
+_Built after M14: the one milestone that needs local models (Ollama, embeddings, the phishing model), so
 everything else ships first and this lands on a running system. Nothing before it calls a model; its
 ports (`TicketClassifier`, `EmbeddingProvider`, `UrlRiskScorer`) and their `Noop` implementations arrive
 with it._
@@ -441,7 +506,7 @@ demonstrably fire — all per tenant, none blocking ticket creation._
 ## Explicitly out of scope (do not build unless this doc changes)
 
 - Payment processing / self-serve billing (plans exist; a platform admin sets them)
-- SSO / SAML / OIDC per tenant, SCIM provisioning
+- SAML and SCIM provisioning (per-tenant OIDC is M13)
 - Per-tenant custom domains (`support.acme.com`) — the design accommodates it (`DNS.md`), v1 does not
   ship it
 - Custom form builder / configurable workflow DSL
@@ -451,7 +516,6 @@ demonstrably fire — all per tenant, none blocking ticket creation._
 - Custom/customer-defined roles or per-field permission policies (ADR-0019 documents the path to a policy
   engine)
 - Write-capable support sessions or operator impersonation (ADR-0020)
-- Outbound webhooks (`webhooks:write` is reserved in the scope list for later)
 - Database-per-tenant or schema-per-tenant isolation (ADR-0015 documents the path if ever needed)
 - Internationalisation — English only, `english` text search config
 - Antivirus scanning of attachments — deferred with a stated reason, not omitted (ADR-0005); the
