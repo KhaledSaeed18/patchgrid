@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { AuditService } from "../audit/audit.service"
 import { SystemClock } from "../common/clock/clock"
 import type { AppConfig } from "../config/app-config"
-import type { Notice, Notifier } from "../notifications/notify"
+import type { Notifier } from "../notifications/notify"
+import type { NotifyEvent } from "../notifications/notify-events"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
 import type { RunningClockRow, TicketRepository } from "../tickets/repositories/ticket.repository"
@@ -37,8 +38,8 @@ const inTransaction = { transaction: async (fn: () => Promise<unknown>) => fn() 
 const tenant = { requireOrgId: () => ORG } as unknown as TenantContextService
 const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService
 function notifier() {
-  const sent: Notice[] = []
-  return { sent, service: { notifyAll: vi.fn(async (_o: string, n: Notice[]) => void sent.push(...n)) } as unknown as Notifier }
+  const sent: NotifyEvent[] = []
+  return { sent, service: { notify: vi.fn(async (_o: string, e: NotifyEvent) => void sent.push(e)) } as unknown as Notifier }
 }
 
 describe("the dispatcher over time", () => {
@@ -132,11 +133,12 @@ describe("the SLA scan over a ticket's life", () => {
   it("warns at the window and breaches at the target, each once, minute by minute", async () => {
     const h = harness(ticket())
     expect(await runFor(h, 600)).toEqual(["20:response-warning", "30:response-breach", "420:resolution-warning", "480:resolution-breach"])
-    expect(h.told.sent.map((n) => n.discriminator)).toEqual([
-      `response-warning-${String(at(30).getTime())}`,
-      `response-breach-${String(at(30).getTime())}`,
-      `resolution-warning-${String(at(480).getTime())}`,
-      `resolution-breach-${String(at(480).getTime())}`,
+    // Told once per flag, in the flag's own transaction: a later scan finds the flag set and tells nobody again.
+    expect(h.told.sent.map((e) => (e.kind === "sla" ? `${e.clock}-${e.signal}` : e.kind))).toEqual([
+      "response-warning",
+      "response-breach",
+      "resolution-warning",
+      "resolution-breach",
     ])
   })
 
@@ -169,8 +171,6 @@ describe("auto-close over a week", () => {
     vi.advanceTimersByTime(MINUTE)
     expect(await sweep.closeExpired()).toBe(1)
     expect(await sweep.closeExpired()).toBe(0)
-    expect(told.sent).toEqual([
-      { event: { kind: "status-changed", ticketId: "t-1", actorMembershipId: null, to: "CLOSED", comment: null }, entityId: "t-1", discriminator: "v4" },
-    ])
+    expect(told.sent).toEqual([{ kind: "status-changed", ticketId: "t-1", actorMembershipId: null, to: "CLOSED", comment: null }])
   })
 })

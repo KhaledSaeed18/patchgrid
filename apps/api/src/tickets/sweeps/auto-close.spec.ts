@@ -19,7 +19,7 @@ function harness(due: { id: string; version: number }[][], stale: string[] = [])
     updateVersioned: vi.fn(async (_o: string, id: string) => !stale.includes(id)),
   }
   const audit = { record: vi.fn(async () => undefined) }
-  const notifier = { notifyAll: vi.fn(async () => undefined) }
+  const notifier = { notify: vi.fn(async () => undefined) }
   const service = new AutoCloseService(
     tickets as unknown as TicketRepository,
     { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
@@ -50,16 +50,11 @@ describe("AutoCloseService", () => {
     expect(h.audit.record).toHaveBeenCalledTimes(1)
   })
 
-  it("tells the requester about each close it made, keyed to the version it wrote, and no other", async () => {
+  it("tells the requester about each close it made, in the close's own transaction, and no other", async () => {
     const h = harness([[{ id: "t-1", version: 4 }, { id: "t-2", version: 1 }]], ["t-1"])
     await h.service.closeExpired()
-    expect(h.notifier.notifyAll).toHaveBeenCalledWith("o-1", [
-      {
-        event: { kind: "status-changed", ticketId: "t-2", actorMembershipId: null, to: "CLOSED", comment: null },
-        entityId: "t-2",
-        discriminator: "v2",
-      },
-    ])
+    expect(h.notifier.notify).toHaveBeenCalledTimes(1)
+    expect(h.notifier.notify).toHaveBeenCalledWith("o-1", { kind: "status-changed", ticketId: "t-2", actorMembershipId: null, to: "CLOSED", comment: null })
   })
 
   it("keeps taking batches while they come back full", async () => {

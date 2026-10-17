@@ -6,7 +6,6 @@ import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { ConflictProblem, NotFoundProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
-import { type Clock, InjectClock } from "../common/clock/clock"
 import { TicketPulse } from "../notifications/live/ticket-pulse"
 import { Notifier } from "../notifications/notify"
 import { PrismaService } from "../prisma/prisma.service"
@@ -33,7 +32,6 @@ export class WatchersService {
     private readonly audit: AuditService,
     private readonly notifier: Notifier,
     private readonly pulse: TicketPulse,
-    @InjectClock() private readonly clock: Clock,
   ) {}
 
   async list(ticketId: string): Promise<Watcher[]> {
@@ -70,18 +68,11 @@ export class WatchersService {
       }
       if (!(await this.watchers.add(orgId, ticketId, membershipId, actor.membershipId))) return false
       await this.audit.record(orgId, [{ action: "WATCHER_ADDED", entityType: "Ticket", entityId: ticketId, diff: { membershipId } }])
+      // Watching yourself is not news; `deliveriesFor` drops the actor.
+      await this.notifier.notify(orgId, { kind: "watcher-added", ticketId, actorMembershipId: actor.membershipId, membershipId })
       return true
     })
-    if (added) {
-      // Watching yourself is not news; `deliveriesFor` drops the actor.
-      await this.notifier.notify(
-        orgId,
-        { kind: "watcher-added", ticketId, actorMembershipId: actor.membershipId, membershipId },
-        ticketId,
-        `watch-${membershipId}-${String(this.clock.now().getTime())}`,
-      )
-      await this.pulse.changed(orgId, ticketId)
-    }
+    if (added) await this.pulse.changed(orgId, ticketId)
     return this.list(ticketId)
   }
 

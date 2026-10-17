@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { AppModule } from "../../src/app.module"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
-import { NOTIFY_QUEUE } from "../../src/notifications/notify"
+import { OUTBOX_DRAIN_QUEUE } from "../../src/events/drain-requests"
 import { type Settler, settler } from "../support/queues"
 import { browser, seedWorkspace, type Workspace } from "../support/workspace"
 
@@ -49,7 +49,7 @@ beforeAll(async () => {
   await db.teamMembership.create({ data: { orgId: ws.orgId, teamId: ws.teams.Network ?? "", membershipId: ws.people.lead.membershipId, isLead: true } })
   // The lead's token predates the team row; the auth guard reads team facts fresh on each request.
   solo = await seedWorkspace(app, db, { prefix: "solo", people: { owner: "OWNER" } })
-  jobs = settler(app, [NOTIFY_QUEUE])
+  jobs = settler(app, [OUTBOX_DRAIN_QUEUE])
 })
 
 afterAll(async () => {

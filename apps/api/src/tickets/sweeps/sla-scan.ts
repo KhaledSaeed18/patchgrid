@@ -18,7 +18,7 @@ const PAGE = 200
 /** A tenant with more running clocks than this finishes on the next tick. */
 const MAX_PAGES = 25
 
-/** One flag the scan set, for whoever is told about it after commit. */
+/** One flag the scan set; who hears of it is in the outbox, written with it (ADR-0049). */
 export type SlaFlagged = SlaSignal & { ticketId: string; due: Date | null }
 
 /**
@@ -66,6 +66,7 @@ export class SlaScanService {
               ],
               { kind: "system" },
             )
+            await this.notifier.notify(orgId, { kind: "sla", ticketId: row.id, actorMembershipId: null, clock: signal.clock, signal: signal.kind })
             return true
           })
           if (done) {
@@ -79,16 +80,6 @@ export class SlaScanService {
       after = rows.at(-1)?.id ?? null
     }
     if (flagged.length > 0) this.logger.log({ msg: "sla flags set", orgId, flagged: flagged.length })
-    // After every flag has committed; one round trip for the lot.
-    await this.notifier.notifyAll(
-      orgId,
-      flagged.map((flag) => ({
-        event: { kind: "sla", ticketId: flag.ticketId, actorMembershipId: null, clock: flag.clock, signal: flag.kind },
-        entityId: flag.ticketId,
-        // A reopened ticket can miss its new deadline too: the deadline is part of the key.
-        discriminator: `${flag.clock}-${flag.kind}-${String(flag.due?.getTime() ?? 0)}`,
-      })),
-    )
     return flagged
   }
 }

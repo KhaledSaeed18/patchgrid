@@ -41,7 +41,7 @@ function harness(pages: RunningClockRow[][], now: Date, lost: string[] = []) {
     flagSla: vi.fn(async (_o: string, id: string) => !lost.includes(id)),
   }
   const audit = { record: vi.fn(async () => undefined) }
-  const notifier = { notifyAll: vi.fn(async () => undefined) }
+  const notifier = { notify: vi.fn(async () => undefined) }
   const service = new SlaScanService(
     tickets as unknown as TicketRepository,
     { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
@@ -66,14 +66,9 @@ describe("SlaScanService", () => {
       [{ action: "SLA_BREACHED", entityType: "Ticket", entityId: "late", diff: { clock: "response", due: at(10).toISOString() } }],
       { kind: "system" },
     )
-    expect(h.notifier.notifyAll).toHaveBeenCalledTimes(1)
-    expect(h.notifier.notifyAll).toHaveBeenCalledWith("o-1", [
-      expect.objectContaining({ entityId: "warn", discriminator: `response-warning-${String(at(30).getTime())}` }),
-      {
-        event: { kind: "sla", ticketId: "late", actorMembershipId: null, clock: "response", signal: "breach" },
-        entityId: "late",
-        discriminator: `response-breach-${String(at(10).getTime())}`,
-      },
+    expect(h.notifier.notify.mock.calls).toEqual([
+      ["o-1", { kind: "sla", ticketId: "warn", actorMembershipId: null, clock: "response", signal: "warning" }],
+      ["o-1", { kind: "sla", ticketId: "late", actorMembershipId: null, clock: "response", signal: "breach" }],
     ])
   })
 
@@ -81,7 +76,7 @@ describe("SlaScanService", () => {
     const h = harness([[clock("raced", { respondBy: at(10) })]], at(21), ["raced"])
     expect(await h.service.scan()).toEqual([])
     expect(h.audit.record).not.toHaveBeenCalled()
-    expect(h.notifier.notifyAll).toHaveBeenCalledWith("o-1", [])
+    expect(h.notifier.notify).not.toHaveBeenCalled()
   })
 
   it("pages through a tenant by id", async () => {
