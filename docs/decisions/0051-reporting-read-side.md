@@ -4,6 +4,15 @@
 - **Date:** 2026-10-17
 - **Builds on:** [0049](0049-transactional-outbox-as-a-tenant-log.md) (the log a consumer reads), [0003](0003-sla-24x7-with-pending-pause.md) (what the clocks measure)
 
+> **Erratum (2026-10-17, the M12 review).** "Writes that already emit an event (create, assign, …)" was
+> half true: an assignment that moved only the team, or unassigned, told nobody and so wrote nothing. It
+> now appends `ticket-changed`. Also settled: the reconcile holds the consumer's own lock while it writes,
+> so a batch read before a write cannot land after the consumer's refresh; a difference counts as drift
+> only past a five-minute grace; times to resolve and their percentiles cover tickets with a resolution
+> clock only; and a cancelled ticket still counts its response if that response had breached. **Reports
+> describe tickets as they are now**: a ticket reopened and resolved again is counted in the month it was
+> last resolved, with that resolution's outcome (THREAT-MODEL §9).
+
 ## Context
 
 M12 asks one question first: are we meeting our SLAs, and where not? And it asks it by priority, team,

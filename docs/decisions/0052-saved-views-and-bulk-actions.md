@@ -4,6 +4,12 @@
 - **Date:** 2026-10-17
 - **Builds on:** [0019](0019-rbac-model-and-enforcement.md) (scope as query branches), [0006](0006-explicit-transition-endpoint.md) (one way a status changes), [0008](0008-sse-for-in-app-notifications.md) (the live stream)
 
+> **Erratum (2026-10-17, the M12 review).** A fault on one ticket is that ticket's `failed` outcome and the
+> run goes on, so no result is lost to a 500. A member runs one bulk action at a time, and the route is
+> throttled per address and per workspace. An assignment is checked once, before any ticket. Approving
+> and rejecting changes are not bulk actions: each is a decision about that change. An admin may remove a
+> team's shared view whatever their own teams (THREAT-MODEL §9).
+
 ## Context
 
 M12's second half: an agent saves a view and closes two hundred tickets in one action, with every
