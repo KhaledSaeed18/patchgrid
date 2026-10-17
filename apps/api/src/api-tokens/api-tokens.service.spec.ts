@@ -116,7 +116,7 @@ describe("ApiTokensService", () => {
     const created = await h.service.create(request)
     expect(h.steps).toEqual(["begin", "token", "index", "audit", "commit"])
     expect(created.secret).toMatch(API_TOKEN_PATTERN)
-    const [, prefix] = API_TOKEN_PATTERN.exec(created.secret) ?? []
+    const [, prefix, secret] = API_TOKEN_PATTERN.exec(created.secret) ?? []
     expect(h.tokens.create).toHaveBeenCalledWith(
       ORG,
       expect.objectContaining({
@@ -128,8 +128,10 @@ describe("ApiTokensService", () => {
       }),
       NOW,
     )
-    // The audit row names the token; it never holds the secret.
-    expect(JSON.stringify(h.audit.record.mock.calls)).not.toContain(created.secret.split("_")[2])
+    // The audit row names the token; it never holds the secret. The secret is
+    // base64url, so it may itself contain "_": take it from the pattern, not a split.
+    expect(secret).toHaveLength(43)
+    expect(JSON.stringify(h.audit.record.mock.calls)).not.toContain(secret)
   })
 
   it("asks for a fresh proof before minting: none, or one older than five minutes, is a step-up refusal before any write (ADR-0029)", async () => {
