@@ -24,7 +24,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0015](0015-tenant-isolation-rls.md) | Tenant isolation via shared schema + `orgId` + Postgres RLS | Accepted — refined by 0022 and 0023; erratum on `FORCE` and ownership |
 | [0016](0016-three-frontend-deployables.md) | Three deployables: `www`, `app`, `api` | Accepted |
 | [0017](0017-org-signup-and-provisioning.md) | Org signup, provisioning, membership model | Accepted — supersedes 0004 in part; erratum; immediate signup session superseded by 0031 |
-| [0018](0018-tenant-aware-jobs-and-events.md) | Tenant-aware background jobs, events and email | Accepted — erratum; inbound auth in 0027 |
+| [0018](0018-tenant-aware-jobs-and-events.md) | Tenant-aware background jobs, events and email | Accepted — erratum; inbound auth in 0027; outbox by 0049 |
 | [0019](0019-rbac-model-and-enforcement.md) | RBAC: cumulative roles, permission catalog, pure policy function | Accepted — erratum; team scoping extended by 0025 |
 | [0020](0020-consent-based-support-access.md) | Consent-based, read-only, audited support access | Accepted — erratum: per-request auditing |
 | [0021](0021-api-tokens-as-service-accounts.md) | API tokens as scoped service accounts | Accepted — erratum: tenant lookup, scope mapping |
@@ -55,6 +55,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0046](0046-observability-as-built.md) | Observability as built: the SDK before the app, metrics by top-N tenant, a trace id as the request id | Accepted |
 | [0047](0047-no-public-deployment.md) | No public deployment: Patchgrid runs locally, and the deployment design stays a design | Accepted |
 | [0048](0048-roadmap-after-m10.md) | The roadmap after M10: four architecture milestones before M7 | Accepted |
+| [0049](0049-transactional-outbox-as-a-tenant-log.md) | A transactional outbox, read as a per-tenant log below the snapshot horizon | Accepted |
 
 ## Reading order for someone new
 

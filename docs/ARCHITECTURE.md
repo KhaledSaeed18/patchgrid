@@ -393,9 +393,42 @@ and owns none. "Tenant-owned" means *not on the closed platform list* in
 | `attachment-sweep` | hourly, per tenant | delete `PENDING` attachments older than 1 h — row **and** object — and decrement `storage_bytes` (dispatched and tenant-scoped since M3; the work lands with attachments in M5) |
 | `projection-reconcile` | nightly, per tenant | recompute `UserOrgIndex` / `ApiTokenIndex` from source; drift is a bug, not a state (ADR-0022) |
 | `audit-partition` | daily, platform — partitions belong to the table, not a tenant | ensure this and next month's `AuditLog` partitions; detach months wholly past the 7-year window into the `audit_archive` schema (ADR-0034) |
+| `outbox-drain` | per tenant and consumer, woken on commit | read a consumer's place in the tenant's outbox forward, a batch at a time (ADR-0049) |
+| `outbox-sweep` | every minute, per tenant | ask for a drain wherever a consumer is behind — the wake's safety net (ADR-0049) |
 | `triage`, `automation` (later) | per ticket / per event | tenant-scoped |
 
 Workers run in the same Nest process in development; `WORKER_MODE=all|api|worker` allows splitting later without code changes.
+
+### The outbox (ADR-0049)
+
+Anything that should follow a change, today the ticket notifications, is written as an event **in the
+change's own transaction**, to the tenant-owned `OutboxEvent`. Nothing is queued after commit, so nothing
+can be lost or repeated in between.
+
+```
+service transaction ──► OutboxEvent (txn = pg_current_xact_id())
+        │ commit
+        ▼
+outbox_wake() trigger ── pg_notify(orgId) ──► OutboxListener (worker) ──► DrainRequests (SET NX, one waiting per tenant)
+                                                                              │
+                         outbox-sweep (every minute, and at worker boot) ─────┤
+                                                                              ▼
+                                       outbox-drain job ── runAsTenant ── EventRelay.drain
+                                         advisory lock → cursor → read (txn, id) below the snapshot horizon
+                                         → consumer.handle (its rows) → advance cursor ── one transaction
+                                         → after commit: email, live stream
+```
+
+- **Consumers read the log** from their own cursor in `EventConsumer`: `notify` today, webhooks and the
+  reporting read side next. A new consumer starts at the beginning.
+- **Order is the writing transaction's id, read only below `pg_snapshot_xmin`**, so a reader never moves
+  past an event that commits after a later one.
+- **A consumer's database writes commit with its cursor**: exactly once. Email and the stream follow the
+  commit, best effort.
+- **Fairness**: one waiting drain per tenant and consumer, a bounded batch, then the back of the queue.
+- **Poison events** are narrowed to one, retried, then parked in `EventDeadLetter`.
+- Raw SQL on the log goes through `PrismaService.tx`, which throws outside a transaction rather than let
+  RLS answer "nothing".
 
 ## Integration boundaries (later milestones)
 

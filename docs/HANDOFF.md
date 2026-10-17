@@ -32,9 +32,14 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6, M8, M9 and M10 are complete. M7 is next, and last**: it is the one milestone that needs local
-models (Ollama, embeddings, the phishing service), so it lands on a running system. Milestone numbers did
-not change; `FEATURES.md` lists M7 last.
+**M0–M6, M8, M9 and M10 are complete. M11 (reliable delivery) is under way**, then M12–M14 and M7 last
+(ADR-0048): four architecture milestones before the models. Milestone numbers did not change.
+
+**M11 so far:** the transactional outbox (ADR-0049). Ticket notifications are written as events in the
+change's own transaction and read by the `notify` consumer from a per-tenant log, below the snapshot
+horizon, with cursors, dead letters, a wake on commit, catch-up at worker boot and per-tenant fairness.
+`test/events/` proves each claim against Postgres. Next: fairness on the dashboard (per-tenant lag), then
+outbound webhooks as the log's second consumer.
 
 **M10 (Ship): complete 2026-10-17.** Its exit holds: a stranger clones the repository, runs
 `pnpm install && pnpm local:up && pnpm dev`, signs up and uses a realistic system, and the README explains
@@ -105,26 +110,21 @@ M10 added no API behaviour; the counts are M9's.
 
 ---
 
-## Recommended next steps — M7
+## Recommended next steps — M11, then M12–M14, then M7
 
-`FEATURES.md` §M7. Its exit: new tickets get an LLM suggestion an agent can accept; a phishing report is
-scored and lands in the Security queue; likely duplicates surface with a merge action; admins define
-automation rules that demonstrably fire — all per tenant, none blocking ticket creation. Everything runs
-in the local Compose stack (ADR-0047). A suggested order, cheapest dependency first:
+`FEATURES.md` §M11. Its exit: a committed change's side effects cannot be lost or repeated; one tenant's
+flood does not delay another; tenants subscribe webhooks with signed deliveries, retries, dead letters
+and replay, and a hostile endpoint harms nobody else. In order:
 
-1. **The automation rule engine** (`DOMAIN.md` §10): needs no model, so it lands first and gives the
-   seed its escalation rules. Per-tenant evaluation, per-rule execution audit, the admin UI.
-2. **The ports and their `Noop` implementations** (`TicketClassifier`, `EmbeddingProvider`,
-   `UrlRiskScorer`, ADR-0010), so every later item is testable without a model.
-3. **Embeddings and similar tickets**: `nomic-embed-text` in Ollama, `TicketEmbedding` with a pgvector
-   HNSW index under RLS, the similar-tickets panel scoped to the tenant, merge via `DUPLICATE_OF`.
-4. **LLM triage**: the per-tenant `triage` queue, `TicketTriage`, accept/dismiss, gated on plan.
-5. **`apps/phishing-svc`**: FastAPI around the thesis model, the "Report phishing" form, the risk badge,
-   Security routing.
-6. **The prompt-injection posture and its review against TB8**: model output is data an agent accepts,
-   never an instruction and never auto-applied.
+1. **Per-tenant consumer lag** as a metric and a dashboard panel (cursor age, events behind), so the
+   horizon's cost and a stuck consumer are visible.
+2. **Outbound webhooks** as the second consumer: `WebhookEndpoint`, the Standard Webhooks signature,
+   a delivery log, retries with backoff and jitter, a circuit breaker per endpoint, SSRF protection, a
+   per-tenant concurrency cap, replay from the dead letters. An ADR first.
+3. **The settings UI** for endpoints and deliveries, and the event catalogue in the docs site.
+4. **Retention** of consumed events, never ahead of a cursor.
 
-Write an ADR for each "as built" decision the way M8 and M9 did.
+Then M12 (the reporting read side as a third consumer), M13, M14 and M7, each per `FEATURES.md`.
 
 ## Still open
 
@@ -136,7 +136,7 @@ Write an ADR for each "as built" decision the way M8 and M9 did.
 | `org:manage_plan` has no tenant route yet; it gets the step-up when it gets the route | spec decision | ADR-0045 |
 | Tokens are unlimited per plan; service accounts hold no seat | spec decision | A plan-limit question, not isolation |
 | A `complete` racing the attachment sweep can orphan a final object | any time | Suspected in the review; a leak, not a bypass |
-| Raw SQL outside `prisma.transaction()` runs with no GUC (fail-closed) | any time | A lint when a second site appears |
+| Raw SQL outside `prisma.transaction()` runs with no GUC (fail-closed) | any time | The second site appeared (the outbox sweep saw an empty log); `PrismaService.tx` throws outside a transaction, and the outbox uses it. Move the other raw repositories onto it |
 | `db_transactions_per_request` counts interactive transactions only | docs | Every statement is in `db_client_operation_duration` |
 | The SLA browser scenario waits up to four minutes for a real breach | any time | Passes on retry when the sweep lands late; a test clock would make it instant |
 | The export lists every file's row before streaming | load check | Rows, not bytes; fine to tens of thousands |
@@ -144,7 +144,7 @@ Write an ADR for each "as built" decision the way M8 and M9 did.
 | Plan-limit-reached notification (`DOMAIN.md` §8) | any time | Needs its own event, type and dedupe key |
 | A usage-counter reconcile | any time | Nothing recomputes `KB_ARTICLES` or `STORAGE_BYTES` after a bug |
 | CLAUDE.md says no raw SQL outside `packages/database`, but the lint allows `src/**/repositories/**` | docs | Align the rule with the lint |
-| Requester receipt can repeat if a notify job stalls after commit | any time | Email-only, so there is no row to fold against |
+| An email can be lost if Redis refuses it in the instant after a drain commits | any time | The inbox row is exactly-once with the cursor (ADR-0049); the email is queued after it, best effort. A `mail` consumer of the log would make it at-least-once |
 | `ProjectionRepository` duplicates part of `UserOrgIndexRepository` | any time | Merge them |
 | `pg` "client.query() while executing" deprecation warning in integration runs | any time | Present since M2 |
 | Rule 3 can be engineered: an owner may assign their change to the only other admin | spec decision | What DOMAIN.md §2.3 says today |
