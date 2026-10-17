@@ -208,6 +208,7 @@ model User {
   memberships         Membership[]
   mfaFactors          UserMfaFactor[]
   mfaRecoveryCodes    UserMfaRecovery[]
+  passkeys            UserPasskey[]
 }
 
 /// An operator, outside all tenancy. Created only by CLI (RBAC.md §8).
@@ -1148,6 +1149,30 @@ model UserMfaRecovery {
   codeHash  String
   usedAt    DateTime? @db.Timestamptz(3)
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A WebAuthn credential (ADR-0053): several per person, platform-class like
+/// the factor tables. The public key is not a secret, so it is stored as it is.
+model UserPasskey {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @db.Uuid
+  /// The authenticator's credential id, as the browser presents it on every assertion.
+  credentialId Bytes     @unique
+  /// COSE-encoded.
+  publicKey    Bytes
+  /// Zero for synced passkeys, which never count; a hardware key's must only go up.
+  signCount    BigInt    @default(0)
+  transports   String[]
+  aaguid       String
+  /// Synced to a provider's keychain rather than bound to one device.
+  backedUp     Boolean
+  label        String
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt   DateTime? @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
