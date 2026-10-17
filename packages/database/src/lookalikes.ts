@@ -391,6 +391,9 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     await db.eventConsumer.create({ data: { orgId: org.id, consumer: "lookalike" } })
     await db.eventDeadLetter.create({ data: { orgId: org.id, consumer: "lookalike", eventId: event.id, failures: 3, error: "Lookalike failure" } })
 
+    // A saved view, so isolation has a row on each side (ADR-0052).
+    await db.savedView.create({ data: { orgId: org.id, ownerMembershipId: owner, name: "Lookalike view", query: { view: "open", sort: "newest" } } })
+
     // A reporting fact for the ticket, so isolation has a row on each side (ADR-0051).
     await db.ticketFact.create({
       data: {
@@ -463,6 +466,7 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.apiToken.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.orgExport.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketFact.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.savedView.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.webhookDelivery.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.webhookEndpoint.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.eventDeadLetter.deleteMany({ where: { orgId: { in: orgIds } } })

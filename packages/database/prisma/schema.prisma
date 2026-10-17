@@ -163,6 +163,7 @@ model Organization {
   webhooks          WebhookEndpoint[]
   webhookDeliveries WebhookDelivery[]
   ticketFacts       TicketFact[]
+  savedViews        SavedView[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -378,6 +379,7 @@ model Membership {
   supportDecisions         SupportSession[]   @relation("SupportDecidedBy")
   supportRevocations       SupportSession[]   @relation("SupportRevokedBy")
   webhooksCreated          WebhookEndpoint[]  @relation("WebhookEndpointCreatedBy")
+  savedViews               SavedView[]
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -400,6 +402,7 @@ model Team {
   invitations  Invitation[]
   categories   Category[]
   tickets      Ticket[]
+  savedViews   SavedView[]
 
   @@unique([orgId, id])
   @@unique([orgId, name])
@@ -1257,6 +1260,30 @@ model EventDeadLetter {
   @@unique([orgId, id])
   @@unique([orgId, consumer, eventId])
   @@index([orgId, consumer, parkedAt(sort: Desc)])
+}
+
+/// A saved ticket list (ADR-0052): a name and a query, never its results.
+/// Opening it runs the query as the reader, so a view shared with a team shows
+/// each member their own visible tickets.
+model SavedView {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  orgId             String   @db.Uuid
+  ownerMembershipId String   @db.Uuid
+  /// Shared with this team; null keeps it the owner's own.
+  teamId            String?  @db.Uuid
+  name              String
+  /// The list query, validated by `savedViewQuerySchema` on the way in and out.
+  query             Json
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  owner        Membership   @relation(fields: [orgId, ownerMembershipId], references: [orgId, id])
+  team         Team?        @relation(fields: [orgId, teamId], references: [orgId, id], onDelete: Cascade)
+
+  @@unique([orgId, id])
+  @@unique([orgId, ownerMembershipId, name])
+  @@index([orgId, teamId])
 }
 
 enum TicketFactState {

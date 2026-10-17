@@ -71,6 +71,7 @@ export async function seedWorkspace<P extends string>(
     await db.auditLog.deleteMany({ where: { orgId: org.id } })
     await db.notification.deleteMany({ where: { orgId: org.id } })
     await db.invitation.deleteMany({ where: { orgId: org.id } })
+    await db.savedView.deleteMany({ where: { orgId: org.id } })
     await db.teamMembership.deleteMany({ where: { orgId: org.id } })
     await db.membership.updateMany({ where: { orgId: org.id }, data: { invitedByMembershipId: null } })
     await db.membership.deleteMany({ where: { orgId: org.id } })
