@@ -76,6 +76,11 @@ const SECTIONS: NavSection[] = [
         requires: "token:read",
       },
       {
+        label: "Webhooks",
+        href: "/settings/webhooks",
+        requires: "webhook:manage",
+      },
+      {
         label: "Support access",
         href: "/settings/support",
         requires: "support:read_sessions",
