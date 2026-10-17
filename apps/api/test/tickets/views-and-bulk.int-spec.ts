@@ -154,6 +154,13 @@ describe("bulk actions", () => {
     expect(await owner.ticket.findUniqueOrThrow({ where: { id: one.id } })).toMatchObject({ status: "RESOLVED" })
   })
 
+  it("leaves approving and rejecting changes to one decision at a time", async () => {
+    const t = await raise("A change in disguise")
+    for (const action of ["approve", "reject"]) {
+      expect((await as("agent").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t], action: { kind: "transition", action } })).status).toBe(400)
+    }
+  })
+
   it("is an agent's, and takes at most two hundred tickets, each once", async () => {
     const t = await raise("Requester's own")
     expect((await as("requester").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t], action: { kind: "transition", action: "close" } })).status).toBe(403)

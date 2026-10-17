@@ -80,17 +80,45 @@ describe("facts follow their tickets through the log", () => {
   })
 })
 
+describe("writes that tell nobody", () => {
+  it("a team-only reassignment and an unassignment still refresh the fact (M12 review)", async () => {
+    const team = await owner.team.create({ data: { orgId: ws.orgId, name: `Desk ${String(Date.now())}` } })
+    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Moved by team", description: "x", impact: "LOW", urgency: "LOW" })
+    const id = created.body.id as string
+    const moved = await as("agent").put(`/tickets/${id}/assignment`, { version: created.body.version, teamId: team.id })
+    expect(moved.status).toBe(200)
+    await drainReporting()
+    expect(await fact(id)).toMatchObject({ teamId: team.id, sourceVersion: moved.body.version })
+    const cleared = await as("agent").put(`/tickets/${id}/assignment`, { version: moved.body.version, teamId: null })
+    expect(cleared.status).toBe(200)
+    await drainReporting()
+    expect(await fact(id)).toMatchObject({ teamId: null, sourceVersion: cleared.body.version })
+    await owner.ticket.update({ where: { id }, data: { teamId: null } })
+    await owner.team.delete({ where: { id: team.id } })
+  })
+})
+
 describe("the reconcile", () => {
   it("builds a fact the log never saw, counts it as drift, and finds nothing the second time", async () => {
     const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Seeded before the log", description: "x", impact: "MEDIUM", urgency: "MEDIUM" })
     const id = created.body.id as string
     await drainReporting()
     await owner.ticketFact.delete({ where: { orgId_ticketId: { orgId: ws.orgId, ticketId: id } } })
+    // Long enough ago that the log should have carried it: a missing fact is drift, not a refresh in flight.
+    await owner.$executeRaw`UPDATE "Ticket" SET "updatedAt" = now() - interval '1 hour' WHERE id = ${id}::uuid`
 
     const first = await inTenant(() => app.get(ReportingReconcileService).reconcile())
     expect(first.drifted).toBeGreaterThanOrEqual(1)
     expect(await fact(id)).toMatchObject({ priority: "MEDIUM", state: "OPEN" })
     expect(await inTenant(() => app.get(ReportingReconcileService).reconcile())).toMatchObject({ drifted: 0 })
+  })
+
+  it("rebuilds a fact for a ticket written moments ago without calling it drift", async () => {
+    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Just now", description: "x", impact: "LOW", urgency: "LOW" })
+    const id = created.body.id as string
+    const before = await inTenant(() => app.get(ReportingReconcileService).reconcile())
+    expect(await fact(id)).not.toBeNull()
+    expect(before.drifted).toBe(0)
   })
 
   it("never lets an older refresh overwrite a newer fact", async () => {
