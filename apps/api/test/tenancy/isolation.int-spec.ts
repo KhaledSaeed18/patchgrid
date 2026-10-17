@@ -254,6 +254,7 @@ describe("4 · RLS holds when the repository does not", () => {
         "WebhookEndpoint",
         "WebhookDelivery",
         "TicketFact",
+        "SavedView",
       ])
     )
 
