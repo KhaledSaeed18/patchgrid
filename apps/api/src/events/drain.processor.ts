@@ -50,6 +50,8 @@ export class DrainProcessor extends WorkerHost implements OnApplicationBootstrap
   private async follow(orgId: string, consumer: (typeof CONSUMER_NAMES)[number], outcome: DrainOutcome): Promise<void> {
     if (outcome.kind === "busy" || (outcome.kind === "idle" && outcome.heldBack)) {
       await this.requests.request(orgId, consumer, RETRY_SOON_MS)
+    } else if (outcome.kind === "backoff") {
+      await this.requests.request(orgId, consumer, Math.max(RETRY_SOON_MS, outcome.until.getTime() - Date.now()))
     } else if (outcome.kind === "drained" && outcome.more) {
       await this.requests.request(orgId, consumer)
     }

@@ -10,6 +10,28 @@ import { OutboxRepository, type StoredEvent } from "./repositories/outbox.reposi
 export const DRAIN_BATCH = 100
 /** Failures of one event before it is parked and the consumer moves on. */
 export const OUTBOX_MAX_FAILURES = 3
+/**
+ * How long a consumer waits after the `n`th failure of an event before trying
+ * it again: 2 s, 8 s, 32 s. The wait lives on the cursor, not on a job, so a
+ * wake or a sweep in between does not retry early and burn the count.
+ */
+export function failureBackoffMs(failures: number): number {
+  return 2_000 * 4 ** Math.max(0, failures - 1)
+}
+
+/**
+ * Failures that say nothing about the event: a deadlock, a serialization
+ * conflict, an interactive transaction that timed out under load, a dropped
+ * connection. They are retried as the job's own failure and never counted
+ * against the event, or a busy minute would park good events.
+ */
+const TRANSIENT = new Set(["40P01", "40001", "55P03", "57014", "08006", "P2028", "P2034", "P1001", "P1017"])
+export function isTransient(error: unknown, depth = 0): boolean {
+  if (typeof error !== "object" || error === null || depth > 4) return false
+  const record = error as Record<string, unknown>
+  if (typeof record.code === "string" && TRANSIENT.has(record.code)) return true
+  return ["cause", "meta", "driverAdapterError", "originalError"].some((key) => isTransient(record[key], depth + 1))
+}
 
 /**
  * What a drain did, and so what should happen next:
@@ -22,11 +44,13 @@ export const OUTBOX_MAX_FAILURES = 3
 export type DrainOutcome =
   | { kind: "busy" }
   | { kind: "idle"; heldBack: boolean }
+  | { kind: "backoff"; until: Date }
   | { kind: "drained"; count: number; parked: number; more: boolean }
 
 type Step =
   | { kind: "busy" }
   | { kind: "idle"; heldBack: boolean }
+  | { kind: "backoff"; until: Date }
   | { kind: "parked"; event: StoredEvent }
   | { kind: "handled"; count: number; full: boolean; heldBack: boolean; after: AfterCommit; occurredAt: Date[] }
 
@@ -72,7 +96,7 @@ export class EventRelay {
 
   async drain(orgId: string, name: ConsumerName, batch = DRAIN_BATCH): Promise<DrainOutcome> {
     const outcome = await this.drainSteps(orgId, name, batch)
-    recordOutboxDrain(name, outcome.kind === "idle" ? (outcome.heldBack ? "held-back" : "idle") : outcome.kind)
+    recordOutboxDrain(name, outcome.kind === "idle" ? (outcome.heldBack ? "held-back" : "idle") : outcome.kind === "backoff" ? "busy" : outcome.kind)
     return outcome
   }
 
@@ -88,17 +112,20 @@ export class EventRelay {
         step = await this.step(orgId, name, single ? 1 : batch)
       } catch (error) {
         if (!(error instanceof StepFailed)) throw error
+        // The database's trouble, not the event's: the job retries, the event is not blamed.
+        if (isTransient(error.cause)) throw error.cause
         const failed = error.single
         if (failed === null) {
           single = true
           continue
         }
         const message = error.message.slice(0, 2_000)
-        const failures = await this.prisma.transaction(() => this.outbox.recordFailure(orgId, name, failed.id, message))
-        throw new ConsumerEventFailed(name, failed.id, failures, message)
+        const failures = await this.prisma.transaction(() => this.outbox.recordFailure(orgId, name, failed, message))
+        throw new ConsumerEventFailed(name, failed.id, failures ?? 0, message)
       }
 
       if (step.kind === "busy") return count === 0 && parked === 0 ? step : { kind: "drained", count, parked, more: true }
+      if (step.kind === "backoff") return count === 0 && parked === 0 ? step : { kind: "drained", count, parked, more: true }
       if (step.kind === "idle") {
         return count === 0 && parked === 0 ? step : { kind: "drained", count, parked, more: step.heldBack }
       }
@@ -127,6 +154,11 @@ export class EventRelay {
       return await this.prisma.transaction(async (): Promise<Step> => {
         if (!(await this.outbox.tryLock(orgId, name))) return { kind: "busy" }
         const cursor = await this.outbox.cursor(orgId, name)
+        // An event that failed waits out its backoff, whoever asked for this drain.
+        if (cursor.failures > 0 && cursor.failedAt !== null) {
+          const until = new Date(cursor.failedAt.getTime() + failureBackoffMs(cursor.failures))
+          if (until > this.clock.now()) return { kind: "backoff", until }
+        }
         // A consumer stuck on an event reads one at a time until it is past it.
         const take = cursor.failures > 0 ? 1 : limit
         const { events, heldBack } = await this.outbox.read(orgId, cursor, take)

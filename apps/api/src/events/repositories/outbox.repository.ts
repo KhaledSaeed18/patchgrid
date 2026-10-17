@@ -10,7 +10,7 @@ export type StoredEvent = { id: string; txn: bigint; type: string; payload: unkn
 export type LogPosition = { txn: bigint; id: string }
 export const LOG_START: LogPosition = { txn: 0n, id: "00000000-0000-0000-0000-000000000000" }
 
-export type ConsumerCursor = LogPosition & { failingEventId: string | null; failures: number }
+export type ConsumerCursor = LogPosition & { failingEventId: string | null; failures: number; failedAt: Date | null }
 
 export type NewEvent = { type: string; payload: Record<string, unknown> }
 
@@ -49,10 +49,11 @@ export class OutboxRepository {
   async cursor(orgId: string, consumer: string): Promise<ConsumerCursor> {
     const row = await this.prisma.db.eventConsumer.findUnique({
       where: { orgId_consumer: { orgId, consumer } },
-      select: { cursorTxn: true, cursorEventId: true, failingEventId: true, failures: true },
+      select: { cursorTxn: true, cursorEventId: true, failingEventId: true, failures: true, updatedAt: true },
     })
-    if (row === null) return { ...LOG_START, failingEventId: null, failures: 0 }
-    return { txn: row.cursorTxn, id: row.cursorEventId, failingEventId: row.failingEventId, failures: row.failures }
+    if (row === null) return { ...LOG_START, failingEventId: null, failures: 0, failedAt: null }
+    // A cursor with a failure was last written by `recordFailure`: its `updatedAt` is when.
+    return { txn: row.cursorTxn, id: row.cursorEventId, failingEventId: row.failingEventId, failures: row.failures, failedAt: row.failures > 0 ? row.updatedAt : null }
   }
 
   /**
@@ -104,11 +105,20 @@ export class OutboxRepository {
     })
   }
 
-  /** Counts a failure of `eventId`; a different event than last time starts the count again. Returns the count. */
-  async recordFailure(orgId: string, consumer: string, eventId: string, error: string): Promise<number> {
+  /**
+   * Counts a failure of `event`; a different event than last time starts the
+   * count again. Under the consumer's lock, and only while the cursor is still
+   * before the event: a drain that lost the race, or one whose event another
+   * drain has since handled, records nothing. Returns the count, or `null`
+   * when it recorded nothing.
+   */
+  async recordFailure(orgId: string, consumer: string, event: LogPosition, error: string): Promise<number | null> {
+    if (!(await this.tryLock(orgId, consumer))) return null
+    const cursor = await this.cursor(orgId, consumer)
+    if (cursor.txn > event.txn || (cursor.txn === event.txn && cursor.id >= event.id)) return null
     const rows = await this.prisma.tx.$queryRaw<{ failures: number }[]>`
       INSERT INTO "EventConsumer" ("orgId", "consumer", "failingEventId", "failures", "lastError", "updatedAt")
-      VALUES (${orgId}::uuid, ${consumer}, ${eventId}::uuid, 1, ${error}, now())
+      VALUES (${orgId}::uuid, ${consumer}, ${event.id}::uuid, 1, ${error}, now())
       ON CONFLICT ("orgId", "consumer") DO UPDATE SET
         "failures" = CASE WHEN "EventConsumer"."failingEventId" = EXCLUDED."failingEventId"
                           THEN "EventConsumer"."failures" + 1 ELSE 1 END,
