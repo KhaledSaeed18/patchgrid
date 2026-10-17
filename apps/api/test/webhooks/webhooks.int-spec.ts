@@ -35,6 +35,10 @@ let receiver: Server
 let hookUrl = ""
 let respondWith = 200
 const received: Received[] = []
+/** When set, the receiver holds its answer until released: an attempt kept in flight on purpose. */
+let hold: Promise<void> | null = null
+/** Resolves when the next request arrives. */
+let arrived: (() => void) | null = null
 
 beforeAll(async () => {
   process.env.WORKER_MODE = "api"
@@ -46,7 +50,10 @@ beforeAll(async () => {
     req.on("data", (chunk: Buffer) => (body += chunk.toString()))
     req.on("end", () => {
       received.push({ headers: req.headers, body })
-      res.writeHead(respondWith).end(respondWith === 200 ? "ok" : "receiver is down")
+      arrived?.()
+      const answer = () => res.writeHead(respondWith).end(respondWith === 200 ? "ok" : "receiver is down")
+      if (hold === null) answer()
+      else void hold.then(answer)
     })
   })
   await new Promise<void>((resolve) => receiver.listen(0, "127.0.0.1", resolve))
@@ -249,8 +256,19 @@ describe("failure", () => {
     const [first, second] = deliveries
     if (first === undefined || second === undefined) throw new Error("no deliveries")
     await owner.webhookDelivery.updateMany({ where: { id: { in: [first.id, second.id] } }, data: { nextAttemptAt: new Date(Date.now() - 1_000) } })
-    const [a, b] = await Promise.all([first, second].map((d) => runAsTenant(ws.orgId, crossing, () => app.get(WebhookDeliverer).attempt(ws.orgId, d.id))))
-    expect([a?.kind, b?.kind].sort()).toEqual(["delivered", "postponed"])
+    // The probe is held in flight at the receiver, so the second attempt runs while it is out.
+    let release = () => undefined as void
+    hold = new Promise<void>((resolve) => (release = resolve))
+    const reached = new Promise<void>((resolve) => (arrived = resolve))
+    // Straight to the deliverer: the circuit, not the spec's helper, decides when each goes.
+    const tryNow = (id: string) => runAsTenant(ws.orgId, crossing, () => app.get(WebhookDeliverer).attempt(ws.orgId, id))
+    const probe = tryNow(first.id)
+    await reached
+    expect(await tryNow(second.id)).toMatchObject({ kind: "postponed" })
+    release()
+    hold = null
+    arrived = null
+    expect(await probe).toEqual({ kind: "delivered" })
     // The probe's success closes the circuit.
     expect(await owner.webhookEndpoint.findUniqueOrThrow({ where: { id: hook.id } })).toMatchObject({ consecutiveFailures: 0, circuitOpenUntil: null })
 
