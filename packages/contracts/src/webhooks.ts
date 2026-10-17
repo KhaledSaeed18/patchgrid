@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { idSchema } from "./id.ts"
+import { pageSchema } from "./pagination.ts"
 import { ticketTypeSchema } from "./ticket-number.ts"
 import { ticketStatusSchema } from "./tickets.ts"
 
@@ -28,6 +29,19 @@ export type WebhookEventType = z.infer<typeof webhookEventTypeSchema>
 
 /** At most this many endpoints per workspace. */
 export const MAX_WEBHOOK_ENDPOINTS = 10
+
+/** What each event type means, in a sentence: the settings page and the docs site say the same thing. */
+export const WEBHOOK_EVENT_DESCRIPTIONS: Readonly<Record<WebhookEventType, string>> = {
+  "ticket.created": "A ticket was raised, by anyone, through any channel",
+  "ticket.assigned": "A ticket was given to someone",
+  "ticket.status_changed": "A ticket moved to another status",
+  "ticket.reopened": "A requester reopened a resolved ticket",
+  "comment.created": "A public reply was written (internal notes are never sent)",
+  "change.submitted": "A change was submitted for approval",
+  "change.decided": "A change was approved or rejected",
+  "ticket.sla_warning": "A ticket is close to missing its response or resolution target",
+  "ticket.sla_breached": "A ticket missed its response or resolution target",
+}
 
 /** The ticket every event is about: what never changes about it, so a stale copy is never wrong. */
 const ticketRef = z.object({ id: idSchema, number: z.string(), type: ticketTypeSchema })
@@ -143,6 +157,8 @@ export const webhookDeliverySchema = z.object({
   createdAt: z.iso.datetime(),
 })
 export type WebhookDelivery = z.infer<typeof webhookDeliverySchema>
+
+export const webhookDeliveryPageSchema = pageSchema(webhookDeliverySchema)
 
 export const webhookDeliveryListQuerySchema = z.object({
   status: webhookDeliveryStatusSchema.optional(),
