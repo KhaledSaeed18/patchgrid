@@ -395,6 +395,8 @@ and owns none. "Tenant-owned" means *not on the closed platform list* in
 | `audit-partition` | daily, platform — partitions belong to the table, not a tenant | ensure this and next month's `AuditLog` partitions; detach months wholly past the 7-year window into the `audit_archive` schema (ADR-0034) |
 | `outbox-drain` | per tenant and consumer, woken on commit | read a consumer's place in the tenant's outbox forward, a batch at a time (ADR-0049) |
 | `outbox-sweep` | every minute, per tenant | ask for a drain wherever a consumer is behind — the wake's safety net (ADR-0049) |
+| `webhook-deliver` | per delivery attempt, queued by the `webhooks` consumer and by retries | claim, sign, send through the SSRF guard, record the outcome and the endpoint's circuit (ADR-0050) |
+| `webhook-sweep` | every minute, per tenant | re-queue pending deliveries whose job was lost (ADR-0050) |
 | `triage`, `automation` (later) | per ticket / per event | tenant-scoped |
 
 Workers run in the same Nest process in development; `WORKER_MODE=all|api|worker` allows splitting later without code changes.
@@ -429,6 +431,23 @@ outbox_wake() trigger ── pg_notify(orgId) ──► OutboxListener (worker) 
 - **Poison events** are narrowed to one, retried, then parked in `EventDeadLetter`.
 - Raw SQL on the log goes through `PrismaService.tx`, which throws outside a transaction rather than let
   RLS answer "nothing".
+
+### Outbound webhooks (ADR-0050)
+
+The log's second consumer. `webhooks` writes one `WebhookDelivery` per subscribed endpoint per event, in
+its cursor's transaction, with the payload fixed. Each attempt then:
+
+1. **Claims** the delivery (pending and due → its `nextAttemptAt` moves to a lease), so a duplicate job
+   finds nothing to claim.
+2. Postpones without spending an attempt when the endpoint's **circuit** is open.
+3. **Signs** with every secret in force (Standard Webhooks; the secrets sealed under
+   `WEBHOOK_SECRETS_KEY`).
+4. **Sends** through `postSafely`: https only, every resolved address checked inside the connection's own
+   `lookup`, no redirects, 10 s, 4 KB of the response kept.
+5. **Records** the outcome, the next attempt and the circuit together, with the endpoint row locked.
+
+A tenant has at most 2 (Free) or 8 (Pro) attempts in flight, a Redis lease set taken by a Lua script.
+Payloads are thin (ids and states), and internal notes are never in them.
 
 ## Integration boundaries (later milestones)
 

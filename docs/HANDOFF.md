@@ -144,6 +144,7 @@ Then M12 (the reporting read side as a third consumer), M13, M14 and M7, each pe
 | Plan-limit-reached notification (`DOMAIN.md` §8) | any time | Needs its own event, type and dedupe key |
 | A usage-counter reconcile | any time | Nothing recomputes `KB_ARTICLES` or `STORAGE_BYTES` after a bug |
 | CLAUDE.md says no raw SQL outside `packages/database`, but the lint allows `src/**/repositories/**` | docs | Align the rule with the lint |
+| An auto-disabled webhook endpoint emails nobody | any time | ADR-0050: audited as the system and shown on the settings page; a mail to the workspace's admins is the missing half |
 | An email can be lost if Redis refuses it in the instant after a drain commits | any time | The inbox row is exactly-once with the cursor (ADR-0049); the email is queued after it, best effort. A `mail` consumer of the log would make it at-least-once |
 | `ProjectionRepository` duplicates part of `UserOrgIndexRepository` | any time | Merge them |
 | `pg` "client.query() while executing" deprecation warning in integration runs | any time | Present since M2 |

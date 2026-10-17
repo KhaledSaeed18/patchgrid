@@ -429,7 +429,7 @@ retried and parked, and replays them, and a slow or hostile endpoint harms nobod
       horizon, the lock, poison parking, recovery after downtime and fairness against Postgres
 - [~] Fairness: a drain takes a bounded batch and yields, so tenants are served round-robin; a flood test
       proves one tenant's backlog does not delay another's; per-tenant lag on the dashboard
-- [ ] Outbound webhooks: `WebhookEndpoint` (owner/admin, `webhooks:write` scope), the Standard Webhooks
+- [x] Outbound webhooks (ADR-0050): `WebhookEndpoint` (owner/admin; no token, see the ADR), the Standard Webhooks
       signature with rotating secrets, a delivery log, retries with backoff and jitter, dead letters with
       replay, a circuit breaker per endpoint, SSRF protection on the target, a per-tenant concurrency cap
 - [ ] Settings UI for endpoints, deliveries and replay; the public event catalogue in the docs site
