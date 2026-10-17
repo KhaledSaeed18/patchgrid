@@ -251,6 +251,8 @@ describe("4 · RLS holds when the repository does not", () => {
         "OutboxEvent",
         "EventConsumer",
         "EventDeadLetter",
+        "WebhookEndpoint",
+        "WebhookDelivery",
       ])
     )
 

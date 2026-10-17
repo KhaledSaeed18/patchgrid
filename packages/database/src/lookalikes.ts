@@ -391,6 +391,23 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     await db.eventConsumer.create({ data: { orgId: org.id, consumer: "lookalike" } })
     await db.eventDeadLetter.create({ data: { orgId: org.id, consumer: "lookalike", eventId: event.id, failures: 3, error: "Lookalike failure" } })
 
+    // A disabled endpoint and a dead delivery, so isolation has a row on each side (ADR-0050). Disabled, so nothing sends.
+    const endpoint = await db.webhookEndpoint.create({
+      data: {
+        orgId: org.id,
+        url: "https://hooks.example.com/lookalike",
+        eventTypes: ["ticket.created"],
+        status: "DISABLED",
+        disabledReason: "Lookalike endpoint",
+        secretSealed: "lookalike-not-a-sealed-secret",
+        createdByMembershipId: owner,
+      },
+      select: { id: true },
+    })
+    await db.webhookDelivery.create({
+      data: { orgId: org.id, endpointId: endpoint.id, eventId: event.id, eventType: "ticket.created", payload: {}, status: "DEAD", attempts: 7, lastError: "Lookalike failure" },
+    })
+
     // What the rows above use of the plan, so a delete releases what a create consumed (TENANCY.md §8).
     await db.usageCounter.createMany({
       data: [
@@ -429,6 +446,8 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.supportSession.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.apiToken.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.orgExport.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.webhookDelivery.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.webhookEndpoint.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.eventDeadLetter.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.eventConsumer.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.outboxEvent.deleteMany({ where: { orgId: { in: orgIds } } })
