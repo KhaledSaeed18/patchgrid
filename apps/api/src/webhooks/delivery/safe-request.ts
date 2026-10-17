@@ -37,6 +37,8 @@ for (const [network, prefix] of [
   ["100::", 64],
   ["2001::", 32],
   ["2001:db8::", 32],
+  // Documentation, RFC 9637: inside global unicast, so the allow-list alone would let it through.
+  ["3fff::", 20],
   ["2002::", 16],
   ["fc00::", 7],
   ["fe80::", 10],
@@ -56,18 +58,37 @@ function embeddedIpv4(address: string): string | null {
   return [high >> 8, high & 255, low >> 8, low & 255].join(".")
 }
 
-/** Whether an IP address is one a webhook may never reach. Anything unparseable is blocked. */
+/** The only IPv6 a webhook may reach: global unicast. Everything outside it is local, reserved or a transition form. */
+const GLOBAL_UNICAST = new BlockList()
+GLOBAL_UNICAST.addSubnet("2000::", 3, "ipv6")
+
+/**
+ * Whether an IP address is one a webhook may never reach. Anything
+ * unparseable is blocked. IPv6 is an allow-list, not a deny-list: IPv4 carried
+ * in a mapped or well-known NAT64 address is judged as that IPv4, and
+ * otherwise only global unicast passes, less its reserved blocks. The
+ * deprecated compatible form (`::a.b.c.d`), SIIT (`::ffff:0:a.b.c.d`) and
+ * local-use NAT64 (`64:ff9b:1::/48`) all fall outside it.
+ */
 export function isBlockedAddress(address: string): boolean {
   const family = isIP(address)
   if (family === 4) return BLOCKED.check(address, "ipv4")
   if (family !== 6) return true
   const v4 = embeddedIpv4(address)
   if (v4 !== null) return isBlockedAddress(v4)
-  return BLOCKED.check(address, "ipv6")
+  return !GLOBAL_UNICAST.check(address, "ipv6") || BLOCKED.check(address, "ipv6")
 }
 
+/**
+ * A target refused. The message is safe to show the tenant; `detail` names the
+ * address and is for the server's log only, or the delivery log would map
+ * internal host names to private addresses for anyone who asks (ADR-0050).
+ */
 export class BlockedTargetError extends Error {
-  constructor(reason: string) {
+  constructor(
+    reason: string,
+    readonly detail: string = reason,
+  ) {
     super(`webhook target refused: ${reason}`)
   }
 }
@@ -103,7 +124,7 @@ export function guardedLookup(allowPrivate: boolean): LookupFunction {
       }
       const blocked = allowPrivate ? undefined : addresses.find((a) => isBlockedAddress(a.address))
       if (blocked !== undefined) {
-        callback(new BlockedTargetError(`${hostname} resolves to ${blocked.address}`), "", 0)
+        callback(new BlockedTargetError("the host resolves to a private or reserved address", `${hostname} resolves to ${blocked.address}`), "", 0)
         return
       }
       if (options.all === true) {
@@ -111,7 +132,7 @@ export function guardedLookup(allowPrivate: boolean): LookupFunction {
         return
       }
       const first = addresses[0]
-      if (first === undefined) callback(new BlockedTargetError(`${hostname} resolves to nothing`), "", 0)
+      if (first === undefined) callback(new BlockedTargetError("the host resolves to nothing", `${hostname} resolves to nothing`), "", 0)
       else callback(null, first.address, first.family)
     })
   }
@@ -125,6 +146,22 @@ export type SafeRequestOptions = {
   /** Response bytes kept; the rest is read and dropped. */
   maxBodyBytes: number
   allowPrivate: boolean
+}
+
+/**
+ * What a failed attempt says in the delivery log: the kind of failure, never
+ * an address or a resolver's words. The full error goes to the server's log.
+ */
+export function describeFailure(error: unknown): string {
+  if (error instanceof BlockedTargetError) return error.message
+  const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code: unknown }).code) : ""
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || code === "EAI_NONAME") return "could not resolve the host"
+  if (code === "ECONNREFUSED") return "connection refused"
+  if (code === "ECONNRESET" || code === "EPIPE") return "connection reset"
+  if (code === "EHOSTUNREACH" || code === "ENETUNREACH") return "host unreachable"
+  if (/CERT|TLS|SSL|SELF_SIGNED|DEPTH_ZERO/.test(code)) return "the TLS certificate was not accepted"
+  if (error instanceof Error && error.message.startsWith("timed out")) return error.message
+  return "the request failed"
 }
 
 /**
