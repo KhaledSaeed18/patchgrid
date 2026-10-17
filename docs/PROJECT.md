@@ -89,4 +89,4 @@ Both are **late-milestone** features. The tenancy model and the core ITSM lifecy
 
 ## Current stage
 
-Local development only. Everything — Postgres, Redis, MinIO, Mailpit, later Ollama — runs via Docker Compose on the developer machine, with wildcard-subdomain tenancy working locally through `lvh.me`. Public deployment (wildcard DNS and TLS, Coolify on Hetzner) is a final-milestone concern; no decision taken now may block it, but none of it is being set up yet.
+Local development only. Everything — Postgres, Redis, MinIO, Mailpit, later Ollama — runs via Docker Compose on the developer machine, with wildcard-subdomain tenancy working locally through `lvh.me`. There is no public deployment (ADR-0047): the production shape — wildcard DNS and TLS, the images, `docker-compose.prod.yml` — is designed and the images build in CI, but nothing is hosted. The effort goes to the implementation and the architecture.

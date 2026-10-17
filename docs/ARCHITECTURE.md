@@ -14,14 +14,14 @@ Tenancy rules live in `TENANCY.md`, ITSM rules in `DOMAIN.md`, working conventio
 | Tenant context | `nestjs-cls` (`AsyncLocalStorage`) + a Prisma client extension | ADR-0015, ADR-0022 |
 | Queue / cache | Redis 7 + BullMQ | tenant-dispatched jobs, quota counters, tenant lookup cache, throttling |
 | Object storage | S3-compatible — MinIO locally | attachments via presigned URLs, keyed `org/<orgId>/…` (ADR-0005) |
-| Email | Resend in prod; **Mailpit** locally | behind a `MailProvider` interface; templates are React elements rendered by `@react-email/render` (not the unsupported `@react-email/components`), compiled by the Nest SWC builder with `.tsx` in its extensions |
+| Email | **Mailpit** locally; a real provider only if ever deployed | behind a `MailProvider` interface; templates are React elements rendered by `@react-email/render` (not the unsupported `@react-email/components`), compiled by the Nest SWC builder with `.tsx` in its extensions |
 | Validation / contracts | Zod 4 in `packages/contracts`; `nestjs-zod` pipe on the API | one schema, three apps, no codegen |
 | Auth | JWT access (15 min, org-bound) + rotating refresh, **per-tenant** httpOnly cookies on `.patchgrid.xyz`; Argon2id; Redis revocation epoch | ADR-0004, ADR-0017, ADR-0024 |
 | Realtime | Server-Sent Events, Redis fan-out per org | ADR-0008, ADR-0018 |
 | Logging | `pino` via `nestjs-pino`; every line carries `reqId`, `orgId`, `membershipId` | |
 | Later: LLM | Ollama (`qwen2.5:3b`, `nomic-embed-text`) in Compose | behind `TicketClassifier` / `EmbeddingProvider` |
 | Later: phishing model | Python FastAPI `apps/phishing-svc` | behind `UrlRiskScorer` (ADR-0010) |
-| Later: deployment | Coolify on Hetzner; wildcard DNS + wildcard TLS (DNS-01) | not being set up now |
+| Deployment | none — local only (ADR-0047); wildcard DNS + TLS designed in `DNS.md` | images build in CI; nothing is hosted |
 
 ## Monorepo layout
 
@@ -434,6 +434,9 @@ The three apps run on the host via `pnpm dev` for fast HMR, reachable at `lvh.me
 edits (ADR-0014).
 
 ## Production images and the deployment shape
+
+Nothing is deployed (ADR-0047). The images and the compose file are kept and built in CI so the
+production shape stays honest, and can be run locally against the development stack's state.
 
 Three images, built from the repository root and pruned with `turbo prune --docker`, so the dependency
 layer is cached on the lockfile alone:
