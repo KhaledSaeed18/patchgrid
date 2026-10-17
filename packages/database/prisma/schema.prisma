@@ -804,6 +804,8 @@ model Ticket {
   @@index([orgId, assigneeMembershipId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([orgId, teamId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([orgId, requesterMembershipId, createdAt(sort: Desc)])
+  /// A view filtered by priority (ADR-0052), in the list's own order.
+  @@index([orgId, priority, createdAt(sort: Desc), id(sort: Desc)])
   @@index([orgId, categoryId])
   @@index([searchVector], type: Gin)
   /// The SLA scan's two questions, over open tickets only. The predicate is
