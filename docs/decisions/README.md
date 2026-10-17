@@ -54,6 +54,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0045](0045-member-mfa-as-built.md) | Member MFA as built: a challenge before the session, a proof on the token | Accepted |
 | [0046](0046-observability-as-built.md) | Observability as built: the SDK before the app, metrics by top-N tenant, a trace id as the request id | Accepted |
 | [0047](0047-no-public-deployment.md) | No public deployment: Patchgrid runs locally, and the deployment design stays a design | Accepted |
+| [0048](0048-roadmap-after-m10.md) | The roadmap after M10: four architecture milestones before M7 | Accepted |
 
 ## Reading order for someone new
 
