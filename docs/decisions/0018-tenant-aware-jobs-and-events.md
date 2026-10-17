@@ -1,6 +1,6 @@
 # 0018 — Tenant-aware background jobs, events and email
 
-- **Status:** Accepted — inbound mail authentication specified by [0027](0027-email-dns-and-inbound-sender-authentication.md)
+- **Status:** Accepted — inbound mail authentication specified by [0027](0027-email-dns-and-inbound-sender-authentication.md); a change's side effects travel through the outbox since [0049](0049-transactional-outbox-as-a-tenant-log.md)
 - **Date:** 2026-09-22
 
 > **Erratum (2026-10-05).** The Decision writes job ids as `<queue>:<orgId>:<entityId>:<discriminator>`.

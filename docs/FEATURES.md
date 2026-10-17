@@ -419,14 +419,15 @@ commit and delivery and the notification still arrives once. One tenant flooding
 another's notifications. A tenant subscribes an endpoint, receives signed deliveries, sees failures
 retried and parked, and replays them, and a slow or hostile endpoint harms nobody else._
 
-- [ ] Transactional outbox read as a per-tenant log (ADR-0049): `OutboxEvent` written in the change's own
+- [x] Transactional outbox read as a per-tenant log (ADR-0049): `OutboxEvent` written in the change's own
       transaction, ordered by transaction id and read only below the snapshot horizon, so no reader
       skips an event that commits late; `EventConsumer` cursors; poison events parked in
       `EventDeadLetter`
-- [ ] The relay: a `LISTEN` wake on commit, per-tenant drain jobs, a sweep as the safety net; ticket
+- [x] The relay: a `LISTEN` wake on commit, per-tenant drain jobs, a sweep as the safety net; ticket
       notifications move onto it, and their inbox rows are written in the same transaction as the
-      cursor that consumed them
-- [ ] Fairness: a drain takes a bounded batch and yields, so tenants are served round-robin; a flood test
+      cursor that consumed them. A worker that boots catches up at once; `test/events/` proves the
+      horizon, the lock, poison parking, recovery after downtime and fairness against Postgres
+- [~] Fairness: a drain takes a bounded batch and yields, so tenants are served round-robin; a flood test
       proves one tenant's backlog does not delay another's; per-tenant lag on the dashboard
 - [ ] Outbound webhooks: `WebhookEndpoint` (owner/admin, `webhooks:write` scope), the Standard Webhooks
       signature with rotating secrets, a delivery log, retries with backoff and jitter, dead letters with
