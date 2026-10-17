@@ -4,13 +4,14 @@
  *
  *   pnpm install && pnpm local:up && pnpm dev
  *
- * Each step is idempotent: an existing .env is kept, the containers are left
+ * Each step is idempotent: an existing .env is kept (and given any variable
+ * .env.example gained since it was made), the containers are left
  * up, the roles and grants are re-asserted, applied migrations are skipped, and
  * the seed leaves existing demo workspaces alone. `pnpm db:reset` is the step
  * that starts over.
  */
 import { execFileSync } from "node:child_process"
-import { copyFileSync, existsSync } from "node:fs"
+import { appendFileSync, copyFileSync, existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import process from "node:process"
 
@@ -21,11 +22,26 @@ function step(title, command, args) {
   execFileSync(command, args, { cwd: root, stdio: "inherit" })
 }
 
+/** The variable names a dotenv file sets. */
+const names = (file) => new Set([...readFileSync(file, "utf8").matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]))
+
 const env = path.join(root, ".env")
+const example = path.join(root, ".env.example")
 if (existsSync(env)) {
-  console.log("▸ .env exists — keeping it")
+  // A clone made before a new setting existed would otherwise refuse to boot on it.
+  const have = names(env)
+  const missing = readFileSync(example, "utf8").split("\n").filter((line) => {
+    const name = /^([A-Z][A-Z0-9_]*)=/.exec(line)?.[1]
+    return name !== undefined && !have.has(name)
+  })
+  if (missing.length > 0) {
+    appendFileSync(env, `\n# Added by local:up from .env.example\n${missing.join("\n")}\n`)
+    console.log(`▸ .env exists — keeping it, and adding ${missing.map((l) => l.split("=")[0]).join(", ")} from .env.example`)
+  } else {
+    console.log("▸ .env exists — keeping it")
+  }
 } else {
-  copyFileSync(path.join(root, ".env.example"), env)
+  copyFileSync(example, env)
   console.log("▸ .env created from .env.example (local development values only)")
 }
 
