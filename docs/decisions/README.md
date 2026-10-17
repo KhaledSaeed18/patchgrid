@@ -57,6 +57,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0048](0048-roadmap-after-m10.md) | The roadmap after M10: four architecture milestones before M7 | Accepted |
 | [0049](0049-transactional-outbox-as-a-tenant-log.md) | A transactional outbox, read as a per-tenant log below the snapshot horizon | Accepted |
 | [0050](0050-outbound-webhooks.md) | Outbound webhooks: thin signed events, at least once, and nobody else's problem | Accepted |
+| [0051](0051-reporting-read-side.md) | Reporting: a fact row per ticket, refreshed from the log, checked against the source | Accepted |
 
 ## Reading order for someone new
 
