@@ -2,7 +2,7 @@ import { metrics } from "@opentelemetry/api"
 import { AggregationTemporality, InMemoryMetricExporter, MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { isRlsDenied, recordHttpRequest, recordQuotaRejection, recordRlsDenied } from "./metrics"
+import { isRlsDenied, recordHttpRequest, recordOutboxConsumed, recordOutboxDrain, recordOutboxParked, recordQuotaRejection, recordRlsDenied } from "./metrics"
 
 /**
  * The meter is global and `metrics.ts` creates its instruments on first
@@ -45,6 +45,29 @@ describe("the multi-tenant metrics", () => {
     const rls = await collected("rls_denied_total")
     expect(quota?.dataPoints[0]).toMatchObject({ value: 1, attributes: expect.objectContaining({ metric: "AGENT_SEATS" }) })
     expect(rls?.dataPoints[0]).toMatchObject({ value: 1, attributes: { org: "none" } })
+  })
+})
+
+describe("the outbox metrics (ADR-0049)", () => {
+  const ORG = "0190b2f0-0000-7000-8000-00000000000b"
+
+  it("records each event's age when its consumer read it, in buckets that reach a stuck consumer's minutes", async () => {
+    recordOutboxConsumed({ consumer: "notify", orgId: ORG, ages: [40, 90_000, -3] })
+    const age = await collected("outbox_event_age")
+    const point = age?.dataPoints.find((p) => p.attributes.org === ORG)
+    expect(point?.attributes).toEqual({ consumer: "notify", org: ORG })
+    const value = point?.value as { count: number; min?: number; buckets: { boundaries: number[] } }
+    expect(value.count).toBe(3)
+    // A clock a millisecond behind the database is not a negative wait.
+    expect(value.min).toBe(0)
+    expect(value.buckets.boundaries).toContain(300_000)
+  })
+
+  it("counts drains by outcome and parked events by tenant", async () => {
+    recordOutboxDrain("notify", "held-back")
+    recordOutboxParked("notify", ORG)
+    expect((await collected("outbox_drains_total"))?.dataPoints[0]).toMatchObject({ value: 1, attributes: { consumer: "notify", outcome: "held-back" } })
+    expect((await collected("outbox_events_parked_total"))?.dataPoints[0]).toMatchObject({ value: 1, attributes: { consumer: "notify", org: ORG } })
   })
 })
 

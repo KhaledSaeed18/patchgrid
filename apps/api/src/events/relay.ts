@@ -1,6 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common"
 
+import { type Clock, InjectClock } from "../common/clock/clock"
 import { PrismaService } from "../prisma/prisma.service"
+import { recordOutboxConsumed, recordOutboxDrain, recordOutboxParked } from "../telemetry/metrics"
 import { type AfterCommit, type ConsumerName, EventConsumers } from "./consumer"
 import { OutboxRepository, type StoredEvent } from "./repositories/outbox.repository"
 
@@ -26,7 +28,7 @@ type Step =
   | { kind: "busy" }
   | { kind: "idle"; heldBack: boolean }
   | { kind: "parked"; event: StoredEvent }
-  | { kind: "handled"; count: number; full: boolean; heldBack: boolean; after: AfterCommit }
+  | { kind: "handled"; count: number; full: boolean; heldBack: boolean; after: AfterCommit; occurredAt: Date[] }
 
 /** A batch that failed somewhere, and the one event to blame when it was a batch of one. */
 class StepFailed extends Error {
@@ -65,9 +67,16 @@ export class EventRelay {
     private readonly outbox: OutboxRepository,
     private readonly consumers: EventConsumers,
     private readonly prisma: PrismaService,
+    @InjectClock() private readonly clock: Clock,
   ) {}
 
   async drain(orgId: string, name: ConsumerName, batch = DRAIN_BATCH): Promise<DrainOutcome> {
+    const outcome = await this.drainSteps(orgId, name, batch)
+    recordOutboxDrain(name, outcome.kind === "idle" ? (outcome.heldBack ? "held-back" : "idle") : outcome.kind)
+    return outcome
+  }
+
+  private async drainSteps(orgId: string, name: ConsumerName, batch: number): Promise<DrainOutcome> {
     let count = 0
     let parked = 0
     // A batch that failed is retried event by event, up to its own size, then the drain yields.
@@ -95,11 +104,14 @@ export class EventRelay {
       }
       if (step.kind === "parked") {
         parked += 1
+        recordOutboxParked(name, orgId)
         this.logger.warn({ msg: "event parked", orgId, consumer: name, eventId: step.event.id, type: step.event.type })
         if (!single) return { kind: "drained", count, parked, more: true }
         budget -= 1
       } else {
         count += step.count
+        const now = this.clock.now().getTime()
+        recordOutboxConsumed({ consumer: name, orgId, ages: step.occurredAt.map((at) => now - at.getTime()) })
         await this.afterCommit(orgId, name, step.after)
         if (!single) return { kind: "drained", count, parked, more: step.full || step.heldBack }
         budget -= step.count
@@ -128,7 +140,7 @@ export class EventRelay {
         const after = await consumer.handle(orgId, events)
         const last = events.at(-1) ?? head
         await this.outbox.advance(orgId, name, last)
-        return { kind: "handled", count: events.length, full: events.length === take, heldBack, after }
+        return { kind: "handled", count: events.length, full: events.length === take, heldBack, after, occurredAt: events.map((e) => e.occurredAt) }
       })
     } catch (error) {
       const only = read.length === 1 ? (read[0] ?? null) : null
