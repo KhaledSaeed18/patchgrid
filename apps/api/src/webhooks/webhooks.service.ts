@@ -14,6 +14,7 @@ import {
   type WebhookEventType,
 } from "@patchgrid/contracts"
 import type { Queue } from "bullmq"
+import { createHash } from "node:crypto"
 
 import { ActorService } from "../auth/actor"
 import { AuditService } from "../audit/audit.service"
@@ -82,7 +83,7 @@ export class WebhooksService {
         createdByMembershipId: actor.membershipId,
       })
       await this.audit.record(orgId, [
-        { action: "WEBHOOK_CREATED", entityType: "WebhookEndpoint", entityId: created.id, diff: { url, eventTypes: request.eventTypes } },
+        { action: "WEBHOOK_CREATED", entityType: "WebhookEndpoint", entityId: created.id, diff: { url: auditUrl(url), eventTypes: request.eventTypes } },
       ])
       return created
     })
@@ -114,7 +115,7 @@ export class WebhooksService {
     await this.prisma.transaction(async () => {
       const before = await this.found(orgId, id)
       await this.webhooks.deleteEndpoint(orgId, id)
-      await this.audit.record(orgId, [{ action: "WEBHOOK_DELETED", entityType: "WebhookEndpoint", entityId: id, diff: { url: before.url } }])
+      await this.audit.record(orgId, [{ action: "WEBHOOK_DELETED", entityType: "WebhookEndpoint", entityId: id, diff: { url: auditUrl(before.url) } }])
     })
   }
 
@@ -125,6 +126,10 @@ export class WebhooksService {
     const now = this.clock.now()
     await this.prisma.transaction(async () => {
       const before = await this.found(orgId, id)
+      // A second rotation inside the overlap would end the first secret at once, and receivers still on it with it.
+      if (before.previousSecretExpiresAt !== null && before.previousSecretExpiresAt > now) {
+        throw new ConflictProblem(`The last rotation's previous secret still signs until ${before.previousSecretExpiresAt.toISOString()}; rotate again after that`)
+      }
       await this.webhooks.updateEndpoint(orgId, id, {
         secretSealed: this.secrets.seal(secret),
         previousSecretSealed: before.secretSealed,
@@ -161,7 +166,9 @@ export class WebhooksService {
     const orgId = this.manage()
     const now = this.clock.now()
     const revived = await this.prisma.transaction(async () => {
-      await this.found(orgId, id)
+      const endpoint = await this.found(orgId, id)
+      // Replayed into an endpoint that is off, a delivery would only give up again.
+      if (endpoint.status !== "ACTIVE") throw new ConflictProblem("Turn the webhook on before replaying its deliveries")
       const ids = await this.webhooks.revive(orgId, id, deliveryId, now)
       if (deliveryId !== null && ids.length === 0) {
         // Not dead (pending or delivered) or not this endpoint's: there is nothing to replay.
@@ -174,7 +181,7 @@ export class WebhooksService {
       }
       return ids
     })
-    await this.queue.addBulk(revived.map((d) => deliveryJob(orgId, d, `a0-r${String(now.getTime())}`, 0)))
+    await this.queue.addBulk(revived.map((d) => deliveryJob(orgId, d, now, now)))
     return { replayed: revived.length }
   }
 
@@ -231,11 +238,25 @@ function toDelivery(row: DeliveryRow): WebhookDelivery {
   }
 }
 
-/** What an update changed, for the audit row: never the secret. */
+/**
+ * A URL as the audit log keeps it: the origin, and a fingerprint of the rest.
+ * Many receiver URLs are credentials (a chat service's incoming-hook path is
+ * the key), and the audit log is read by more people than `webhook:manage`
+ * admits, a support session among them. The fingerprint still shows that two
+ * entries name the same address.
+ */
+function auditUrl(url: string): string {
+  const parsed = new URL(url)
+  const rest = `${parsed.pathname}${parsed.search}`
+  return rest === "/" ? parsed.origin : `${parsed.origin}/…#${createHash("sha256").update(rest).digest("hex").slice(0, 12)}`
+}
+
+/** What an update changed, for the audit row: never the secret, and URLs as `auditUrl` keeps them. */
 function changed(before: EndpointRow, after: EndpointRow): Record<string, unknown> {
   const diff: Record<string, unknown> = {}
   for (const key of ["url", "description", "eventTypes", "status"] as const) {
-    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) diff[key] = { from: before[key], to: after[key] }
+    if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue
+    diff[key] = key === "url" ? { from: auditUrl(before.url), to: auditUrl(after.url) } : { from: before[key], to: after[key] }
   }
   return diff
 }
