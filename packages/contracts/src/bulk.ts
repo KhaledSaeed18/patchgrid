@@ -22,7 +22,8 @@ export const bulkTicketRequestSchema = z.strictObject({
   tickets: bulkTicketsSchema,
   action: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("assign"), assigneeMembershipId: idSchema.nullable().optional(), teamId: idSchema.nullable().optional() }),
-    z.strictObject({ kind: z.literal("transition"), action: ticketActionSchema.exclude(["assign"]), comment: commentInputSchema.optional() }),
+    // Approving or rejecting a change is a decision about that change, made one at a time (ADR-0052).
+    z.strictObject({ kind: z.literal("transition"), action: ticketActionSchema.exclude(["assign", "approve", "reject"]), comment: commentInputSchema.optional() }),
   ]),
 }).refine((r) => r.action.kind !== "assign" || r.action.assigneeMembershipId !== undefined || r.action.teamId !== undefined, {
   error: "an assignment sets an assignee, a team, or both",
@@ -33,9 +34,10 @@ export type BulkTicketRequest = z.infer<typeof bulkTicketRequestSchema>
 /**
  * How one ticket fared: `done`; `conflict`, its version moved (someone else
  * changed it); `refused`, not permitted or no such move from its status, with
- * the single action's reason; `not-found`, not a ticket this agent can see.
+ * the single action's reason; `not-found`, not a ticket this agent can see;
+ * `failed`, a fault on our side, so whether it changed is worth a look.
  */
-export const bulkOutcomeSchema = z.enum(["done", "conflict", "refused", "not-found"])
+export const bulkOutcomeSchema = z.enum(["done", "conflict", "refused", "not-found", "failed"])
 export type BulkOutcome = z.infer<typeof bulkOutcomeSchema>
 
 export const bulkTicketResultSchema = z.object({

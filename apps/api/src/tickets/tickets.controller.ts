@@ -32,6 +32,8 @@ import { TicketAuditService } from "./ticket-audit.service"
 import { TicketsService } from "./tickets.service"
 import { WatchersService } from "./watchers.service"
 import { Idempotent } from "../common/idempotency/idempotency"
+import { IP_THROTTLER, ORG_THROTTLER } from "../throttling/throttlers"
+import { Throttle } from "@nestjs/throttler"
 
 class TicketParams extends createZodDto(z.object({ id: idSchema })) {}
 class CommentParams extends createZodDto(z.object({ id: idSchema, commentId: idSchema })) {}
@@ -95,6 +97,8 @@ export class TicketsController {
    */
   @Post("bulk")
   @HttpCode(200)
+  // One request is up to two hundred writes: priced as such (M12 review, THREAT-MODEL §9).
+  @Throttle({ [IP_THROTTLER]: { limit: 10, ttl: 60_000 }, [ORG_THROTTLER]: { limit: 30, ttl: 60_000 } })
   @RequirePermission("ticket:bulk")
   bulk(@Body() body: BulkDto): Promise<BulkTicketResult> {
     return this.bulkTickets.run(body)
