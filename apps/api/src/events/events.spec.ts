@@ -10,7 +10,7 @@ import { EventConsumers, type EventConsumer } from "./consumer"
 import { DrainProcessor, RETRY_SOON_MS } from "./drain.processor"
 import { DrainRequests, pendingKey } from "./drain-requests"
 import { Outbox } from "./outbox"
-import type { DrainOutcome, EventRelay } from "./relay"
+import { type DrainOutcome, type EventRelay, failureBackoffMs, isTransient } from "./relay"
 import type { OutboxRepository } from "./repositories/outbox.repository"
 
 const ORG = "0190b2f0-0000-7000-8000-00000000000a"
@@ -153,5 +153,19 @@ describe("EventConsumers", () => {
     expect(consumers.get("notify")).toBe(notify)
     expect(consumers.names()).toEqual(["notify"])
     expect(() => consumers.register(notify)).toThrow(/twice/)
+  })
+})
+
+describe("event failures", () => {
+  it("wait longer after each failure of the same event: 2 s, 8 s, 32 s", () => {
+    expect([1, 2, 3].map(failureBackoffMs)).toEqual([2_000, 8_000, 32_000])
+  })
+
+  it("tell the database's trouble from the event's, wherever the driver wrapped the code", () => {
+    expect(isTransient({ code: "40P01" })).toBe(true)
+    expect(isTransient({ message: "wrapped", meta: { driverAdapterError: { cause: { code: "40001" } } } })).toBe(true)
+    expect(isTransient({ code: "P2028" })).toBe(true)
+    expect(isTransient(new Error("ticket payload does not parse"))).toBe(false)
+    expect(isTransient({ code: "23505" })).toBe(false)
   })
 })
