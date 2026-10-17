@@ -249,9 +249,12 @@ The docs are the specification, not a description written afterwards.
   Grafana dashboard, a security review of every trust boundary (`docs/THREAT-MODEL.md` §7), OpenAPI
   at `/api/docs`, and a load check at a hundred thousand tickets.
 
-**M10, ship, is under way.** Done: the demo seed across every type and status, the marketing site with
-its docs and blog, production images and `docker-compose.prod.yml`, and this README. Left: DNS and TLS,
-and the public deployment. M7 comes last because it needs local models: LLM triage, phishing scoring,
-duplicate detection and automation rules. `docs/HANDOFF.md` has the detail.
+**M10, ship, is complete**: the demo seed across every type and status, the marketing site with its
+docs and blog, production images and `docker-compose.prod.yml`, and this README. Patchgrid is not
+deployed publicly ([ADR-0047](docs/decisions/0047-no-public-deployment.md)) — it is a learning project
+that runs on a laptop, and the wildcard DNS, TLS and mail design in `docs/DNS.md` stays a design.
+
+**Next is M7**, built last because it needs local models: LLM triage, phishing scoring, duplicate
+detection and automation rules, all running in the local Compose stack. `docs/HANDOFF.md` has the detail.
 
 MIT licensed — the value of this repository is that people read it.
