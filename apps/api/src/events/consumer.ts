@@ -3,7 +3,7 @@ import { Injectable } from "@nestjs/common"
 import type { StoredEvent } from "./repositories/outbox.repository"
 
 /** Every consumer of the log, by name. A cursor row is keyed on it, so a name is forever. */
-export const CONSUMER_NAMES = ["notify", "webhooks"] as const
+export const CONSUMER_NAMES = ["notify", "webhooks", "reporting"] as const
 export type ConsumerName = (typeof CONSUMER_NAMES)[number]
 
 /** What a consumer does once its cursor has committed: email, the live stream — at least once. */

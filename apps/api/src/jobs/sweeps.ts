@@ -7,6 +7,8 @@ import { z } from "zod"
  * `everyMs` is how often the dispatcher fans the sweep out.
  */
 export const SWEEPS = {
+  /** Build and check the reporting facts from their tickets (ADR-0051). */
+  "reporting-reconcile": { everyMs: 24 * 60 * 60_000 },
   /** Re-queue webhook deliveries whose job was lost (ADR-0050). */
   "webhook-sweep": { everyMs: 60_000 },
   /** Drain any consumer the outbox wake missed (ADR-0049). */
