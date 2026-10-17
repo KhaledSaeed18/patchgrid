@@ -1,6 +1,6 @@
-# Handoff — M11 complete, M12 next
+# Handoff — M12 complete, M13 next
 
-Written 2026-10-17, at the M11 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
+Written 2026-10-17, at the M12 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
 whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
 an ADR, they are right and this is stale.
 
@@ -32,47 +32,42 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6 and M8–M11 are complete. M12 (Insight) is next**, then M13, M14 and M7 last (ADR-0048): four
-architecture milestones before the models. Milestone numbers did not change.
+**M0–M6 and M8–M12 are complete. M13 (Identity) is next**, then M14 and M7 last (ADR-0048). Milestone
+numbers did not change.
 
-**M11 (Reliable delivery): complete 2026-10-17.** Its exit holds: a committed change's side effects
-cannot be lost or repeated (kill the worker between commit and delivery and the notification still
-arrives, once); one tenant's flood costs another a batch, not the flood; a tenant subscribes an endpoint,
-receives signed deliveries, sees failures retried, paused and parked, and replays them. Each part landed
-as its own PR (#42–#47), and an adversarial review closed it (`THREAT-MODEL.md` §8).
+**M12 (Insight): complete 2026-10-17.** Its exit holds: an admin's reports page answers "are we meeting
+our SLAs, and where not?" in well under 100 ms at a hundred thousand tickets, with numbers the reconcile
+holds to the tickets; an agent saves a view and acts on two hundred tickets at once, every refusal and
+conflict reported per ticket. Four PRs (#49–#51 and this handoff), closed by a review (`THREAT-MODEL.md`
+§9).
 
-What M11 built:
+What M12 built:
 
-- **The transactional outbox, read as a per-tenant log** (ADR-0049). `OutboxEvent` is written in the
-  change's own transaction (`Outbox.append` refuses anywhere else) and read in `(txn, id)` order below
-  `pg_snapshot_xmin`, so no reader moves past an event that commits late. Each consumer has a cursor in
-  `EventConsumer` and writes its rows in the cursor's transaction: exactly once. A statement trigger
-  `pg_notify`s on commit; `OutboxListener` turns that into drain requests (one waiting drain per tenant,
-  `SET NX` cleared on start) and catches up at worker boot; `outbox-sweep` is the minute's safety net.
-  Drains are serialised by `pg_try_advisory_xact_lock`, take a batch and yield. A failing batch is narrowed
-  to its event, which backs off on the cursor (2 s, 8 s, 32 s) and is parked in `EventDeadLetter`;
-  transient database errors are never the event's fault.
-- **Ticket notifications** moved onto it: the `notify` queue is gone, `NotifyConsumer` writes inbox rows
-  in the drain's transaction, email and the live stream follow the commit.
-- **Outbound webhooks** (ADR-0050) as the log's second consumer: thin payloads (ids and states, never
-  words, never internal notes) from a public catalogue in the contracts; the Standard Webhooks signature
-  with `whsec_` secrets sealed under `WEBHOOK_SECRETS_KEY` and rotated with a 24-hour overlap; attempts that
-  claim their delivery, honour a per-endpoint circuit with one probe, sign and send through `postSafely`
-  (every resolved address checked in the connection's own `lookup`, IPv6 as an allow-list, no redirects,
-  10 s); retries `0s 5s 5m 30m 2h 5h 10h` with jitter, then dead and replayable; a per-tenant in-flight
-  lease in Redis (Lua). Settings → Webhooks with the delivery log; `/docs/webhooks` for receivers.
-- **Retention**: finished deliveries and fully-read events past 30 days, never ahead of a cursor, never
-  under a pointer.
-- **Observability**: event age when consumed (per tenant, buckets to 15 minutes), drains by outcome,
-  parked events, on the tenant dashboard.
-- **`PrismaService.tx`**: raw SQL on tenant tables throws outside a transaction instead of reading
-  nothing under RLS.
-- **`pnpm local:up`** adds the variables `.env.example` gained to an existing `.env`.
+- **The reporting read side** (ADR-0051). `TicketFact`, one tenant-owned row per ticket, holds what reports
+  group by and what they measure, already computed by `factOf`: minutes to respond, minutes to resolve
+  less the paused minutes, each clock's outcome (`MET`, `BREACHED`, `RUNNING`, `NONE`), with no "now" in
+  it. The `reporting` consumer of M11's log refreshes the facts of the tickets a batch names, from the
+  ticket as it is, guarded by `sourceVersion`. Every ticket write is in the log: edits and team-only
+  assignments append `ticket-changed`. `reporting-reconcile` builds what the log never saw (at worker
+  boot and nightly), holds the consumer's lock while it writes, and counts drift past a grace.
+- **Reports**: `/reports/sla` (by priority, type, team, category or assignee; half-open ranges up to a
+  year; `percentile_cont` medians and p90), `/backlog`, `/workload`, under `report:read`; a Reports page
+  with tiles, one-hue meters, a backlog heat and CSV export. Every report under 25 ms at 100k tickets, so
+  no rollups (`ENGINEERING.md`).
+- **Saved views** (ADR-0052): a name and a list query, never results; run as the reader, so a view shared
+  with a team shows each member their own tickets. A `priority` filter on lists, indexed.
+- **Bulk actions** (ADR-0052): `POST /tickets/bulk`, up to 200 tickets, each through the single route's
+  own `applyAssign` or `applyTransition` in its own transaction; per-ticket `done`, `conflict`, `refused`,
+  `not-found` or `failed`; progress frames on the actor's own live stream; one run per member, throttled;
+  approvals stay one decision at a time.
 
 **CI is green on `main`.**
 
 ## Earlier milestones, in brief
 
+- **M11** gave reliable delivery: the transactional outbox read as a per-tenant log below the snapshot
+  horizon (ADR-0049), ticket notifications on it, outbound webhooks as its second consumer (ADR-0050),
+  retention, and the event-age dashboard (`THREAT-MODEL.md` §8).
 - **M10** shipped without a public deployment (ADR-0047): the demo seed, the marketing site and docs,
   production images and `docker-compose.prod.yml`, `pnpm local:up`, and the README.
 - **M9** gave hardening: member MFA with step-up (ADR-0045), the browser suite, OpenTelemetry per tenant
@@ -88,44 +83,44 @@ The detail is in the git history of this file, at those boundaries.
 
 | Suite | Count |
 | --- | --- |
-| `apps/api` unit | 1049 |
-| `apps/api` integration | 227 (`test/events/` and `test/webhooks/` are M11's) |
+| `apps/api` unit | 1083 |
+| `apps/api` integration | 240 (`test/reporting/` and `test/tickets/views-and-bulk` are M12's) |
 | `pnpm test:tenancy` | 13 catalog + 37 (3 pointers skipped) |
-| `pnpm test:authz` | 388 |
+| `pnpm test:authz` | 400 |
 | `packages/database` unit / catalog | 8 / 13 |
-| `packages/contracts` | 200 |
-| `apps/app` unit | 59 |
+| `packages/contracts` | 203 |
+| `apps/app` unit | 64 |
 | `apps/www` | 19 |
 | `apps/app` browser suite | 8 scenarios |
 
-## Decisions made in M11
+## Decisions made in M12
 
 | Decision | Where |
 | --- | --- |
-| Four architecture milestones (M11–M14) before M7; webhooks and per-tenant OIDC in scope | ADR-0048 |
-| The outbox is a per-tenant log read below the snapshot horizon, consumers keep cursors, handlers write with them | ADR-0049 (erratum: email is best effort) |
-| Webhooks: thin signed events, at least once, a circuit with one probe, SSRF checked at connect, no token manages them | ADR-0050 (erratum: the review's settlements) |
-| Raw SQL on tenant tables goes through `PrismaService.tx` | `ARCHITECTURE.md` §The outbox |
+| Reports read a fact row per ticket, refreshed from the log and checked against the source; no rollups unless measured | ADR-0051 (erratum: reports describe tickets as they are now) |
+| A saved view is a query run as its reader; a bulk action is the single action per ticket | ADR-0052 (erratum: the review's settlements) |
+| Every ticket write is in the log, including those that notify nobody | ADR-0051 erratum |
 
 ---
 
-## Recommended next steps — M12
+## Recommended next steps — M13
 
-`FEATURES.md` §M12, Insight. Its exit: an admin's reports page answers "are we meeting our SLAs, and where
-not?" in under 100 ms at a hundred thousand tickets, with numbers that agree with the tickets; an agent
-saves a view and closes two hundred tickets in one action, every refusal and conflict reported per
-ticket. In order:
+`FEATURES.md` §M13, Identity. Its exit: a member signs in with a passkey and uses it for step-up; a
+workspace with SSO configured sends its members to their identity provider, and a new member is
+provisioned on first sign-in. In order:
 
-1. **An ADR for the read side.** The log's events carry ids, not the facts a report groups by (priority,
-   team, category), so the likely shape is a `reporting` consumer that refreshes a per-ticket fact row
-   from the ticket as it is, plus daily rollups for closed days and a live query for today. Decide where
-   time-to-respond and time-to-resolve are computed (the SLA clocks already pause) and how a rebuild runs.
-2. **The read model and its consumer**, under RLS, with the 100k load check repeated against it.
-3. **Reports** in the app: SLA compliance by priority, team and category; median and p90 time to
-   resolve; backlog age; workload; CSV export. A reconcile that recomputes a day from source.
-4. **Saved views and bulk actions**, with a per-ticket outcome and progress over the live stream.
+1. **An ADR for passkeys**: WebAuthn registration and authentication (`@simplewebauthn/server`), where the
+   credential lives (a platform-class table beside `UserMfaFactor`, since a passkey is a person's, not a
+   workspace's), how it satisfies both the first factor and ADR-0045's step-up (`sua`), the challenge's
+   home (Redis, spent once, like the MFA challenge's `jti`), and the RP id across `*.lvh.me`.
+2. **Passkeys built**: register, sign in without a password, step up, list and revoke, in the account
+   pages; a browser test with a virtual authenticator (Playwright's CDP WebAuthn).
+3. **An ADR for per-tenant OIDC**: authorization code with PKCE against a Keycloak profile in Compose;
+   routing by the workspace's verified email domain (`TENANCY.md` §5, stored, not yet used); just-in-time
+   membership at a default role; "SSO required" mirroring `requireMfa`; what a break-glass owner keeps.
+4. **SSO built**, the threat model's new boundary (an external identity provider), and the review.
 
-Then M13, M14 and M7, each per `FEATURES.md`.
+Then M14 and M7, per `FEATURES.md`.
 
 ## Still open
 
@@ -215,6 +210,21 @@ files are served by MinIO at `http://localhost:9000`, a different site from `lvh
 Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session cookies are scoped to
 `.lvh.me`, so a `localhost` cookie jar stays empty and every call is a `401`.
 
+## Gotchas paid for in M12
+
+- **`FULL JOIN` needs an equality Postgres can hash.** `IS NOT DISTINCT FROM` is refused; join on
+  `COALESCE(key, '')`.
+- **A void function cannot be read by `$queryRaw`.** `pg_advisory_xact_lock` goes through `$executeRaw`.
+- **`crypto.randomUUID()` exists only in secure contexts**, and development is plain http on `lvh.me`.
+  `lib/idempotency.ts` builds ids from `getRandomValues`.
+- **A component that owns a dialog unmounts with its parent's state.** Clear a selection after its
+  results are read, not when they arrive.
+- **The React compiler's lint refuses `setState` in an effect.** Derive what can be derived during render.
+- **A base64url secret can contain `_`.** Split a token by its pattern, never by the separator; it failed
+  one run in eight, twice, in two specs.
+- **commitlint wants a lowercase subject** (`SLA` fails). Chain a push after `&&`, never `;`, or a
+  rejected commit still pushes a partial series.
+
 ## Gotchas paid for in M11
 
 - **Ids are assigned at insert, rows appear at commit.** An id-ordered cursor skips an event whose
@@ -234,16 +244,5 @@ Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session
   `process.env` itself.
 - **A delayed job's id is a promise to BullMQ**: a failed job with the same id is kept and silently blocks
   a later add. Name jobs by what they are for (the scheduled time) and do not keep failed ones.
-
-## Gotchas paid for in M10
-
-- **Node strips TypeScript at load, but not under `node_modules`.** The packages ship as source, so the
-  API image keeps the workspace's shape with `packages/*` as real directories; `pnpm deploy`, which copies
-  them into `node_modules`, fails at the first import.
-- **`NEXT_PUBLIC_*` is inlined at build time.** A frontend image is built per environment; changing the
-  variable at run time does nothing.
-- **Prisma 7 removed `migrate reset --skip-seed`.** `db:reset` runs the reset and then the seed itself.
-- **A Tailwind source scan across the monorepo picks up the other app's classes.** Each app scans only
-  its own files.
 
 Older gotchas are in the previous handoffs in git history, and in the module headers where they bite.
