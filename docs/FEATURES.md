@@ -446,12 +446,13 @@ _Exit: an admin opens a reports page that answers "are we meeting our SLAs, and 
 100 ms at a hundred thousand tickets, with numbers that agree with the tickets. An agent saves a view
 and closes two hundred tickets in one action, with every refusal and conflict reported per ticket._
 
-- [ ] A reporting read side (ADR-0051): a `TicketFact` per ticket (what reports group by, and the
+- [x] A reporting read side (ADR-0051): a `TicketFact` per ticket (what reports group by, and the
       durations and clock outcomes already computed), refreshed by the `reporting` consumer of M11's log,
       built and checked by a nightly reconcile; rollups only if the load check asks for them
-- [ ] Reports: SLA compliance by priority, team and category; median and p90 time to resolve; backlog
-      age; workload per agent. Charts in the app, CSV export
-- [ ] The reconcile recomputes facts from source and counts every one it has to change as drift
+- [x] Reports: SLA compliance by priority, team and category; median and p90 time to resolve; backlog
+      age; workload per agent. Charts in the app, CSV export. Every report under 25 ms at 100k tickets
+      (`ENGINEERING.md`); walked in a browser on the demo seed
+- [x] The reconcile recomputes facts from source and counts every one it has to change as drift
 - [ ] Saved views: a filter set per member, shareable to a team
 - [ ] Bulk actions: assign, transition, close, with a permission check and version check per ticket, a
       per-ticket outcome, and progress over the live stream
