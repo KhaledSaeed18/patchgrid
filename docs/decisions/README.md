@@ -32,8 +32,8 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0023](0023-identity-keys-and-tenant-safe-foreign-keys.md) | Identity keys, timestamps, and tenant-safe foreign keys | Accepted |
 | [0024](0024-per-tenant-cookies-and-api-tenant-resolution.md) | Per-tenant session cookies, API tenant resolution, and revocation | Accepted |
 | [0025](0025-multi-team-membership.md) | An agent can belong to several teams | Accepted |
-| [0026](0026-wildcard-tls-and-dns-operations.md) | Wildcard TLS and DNS operations | Accepted |
-| [0027](0027-email-dns-and-inbound-sender-authentication.md) | Email DNS and inbound sender authentication | Accepted — feed and verdict format by 0039 |
+| [0026](0026-wildcard-tls-and-dns-operations.md) | Wildcard TLS and DNS operations | Accepted — design only, by 0047 |
+| [0027](0027-email-dns-and-inbound-sender-authentication.md) | Email DNS and inbound sender authentication | Accepted — feed and verdict format by 0039; DNS design only, by 0047 |
 | [0028](0028-data-protection-export-erasure-retention.md) | Data protection: export, pseudonymised erasure, retention | Accepted |
 | [0029](0029-mfa-and-step-up-authentication.md) | MFA (TOTP) and step-up authentication | Accepted |
 | [0030](0030-observability-opentelemetry-per-tenant.md) | Observability: OpenTelemetry with per-tenant dimensions | Accepted |
@@ -53,6 +53,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0044](0044-data-protection-as-built.md) | Data protection as built: a streamed export, self-service erasure, retention sweeps | Accepted |
 | [0045](0045-member-mfa-as-built.md) | Member MFA as built: a challenge before the session, a proof on the token | Accepted |
 | [0046](0046-observability-as-built.md) | Observability as built: the SDK before the app, metrics by top-N tenant, a trace id as the request id | Accepted |
+| [0047](0047-no-public-deployment.md) | No public deployment: Patchgrid runs locally, and the deployment design stays a design | Accepted |
 
 ## Reading order for someone new
 
