@@ -1,6 +1,6 @@
-# Handoff — M9 complete, M10 next
+# Handoff — M10 complete, M7 next
 
-Written 2026-10-16, at the M9 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
+Written 2026-10-17, at the M10 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
 whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
 an ADR, they are right and this is stale.
 
@@ -15,7 +15,8 @@ ITIL record types (Incident, Service Request, Problem, Change), each with its ow
 _computed_ from impact × urgency, never typed into a dropdown.
 
 It is a learning and portfolio project, built as though it were production: three deployables, tenants
-addressed by subdomain, and tenant data isolated at the database level.
+addressed by subdomain, and tenant data isolated at the database level. **It is not deployed publicly**
+(ADR-0047): it runs locally, and the hostnames below are the design, served locally under `lvh.me`.
 
 | Host                   | App        | What it is                                       |
 | ---------------------- | ---------- | ------------------------------------------------ |
@@ -31,121 +32,42 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6 and M8 are complete.** **The build order is M0–M6, then M8 → M9 → M10, and M7 last**: M7 is the
-one milestone that needs local models (Ollama, embeddings, the phishing service), so it lands on a
-running system. Milestone numbers did not change; `FEATURES.md` lists M7 last.
+**M0–M6, M8, M9 and M10 are complete. M7 is next, and last**: it is the one milestone that needs local
+models (Ollama, embeddings, the phishing service), so it lands on a running system. Milestone numbers did
+not change; `FEATURES.md` lists M7 last.
 
-**M9 (Hardening): complete 2026-10-16.** Every item is checked and the exit criterion holds: the security
-review has no open findings, the browser suite covers the core flows across two tenants with the negative
-cases, and one dashboard answers "which tenant is slow". Each part landed as its own PR (#29, #30, #32,
-#33), reviewed by CI, merged in order:
+**M10 (Ship): complete 2026-10-17.** Its exit holds: a stranger clones the repository, runs
+`pnpm install && pnpm local:up && pnpm dev`, signs up and uses a realistic system, and the README explains
+the decisions. The two items that needed money and an operator, DNS/TLS and the public deployment, were
+**dropped** by ADR-0047 rather than built: Patchgrid is a learning project and runs on a laptop. The
+design they would have exercised stays in `DNS.md`, ADR-0026 and ADR-0027, and everything only a real
+deployment would prove is in one list below, "If it is ever deployed".
 
-- **A second factor for members** (ADR-0045). Login stops at the password when a factor is confirmed;
-  the account page sets one up, replaces its recovery codes and turns it off; an owner can require it of
-  every member, which gates the next sign-in and never an open session; and the four irreversible
-  actions — deleting the workspace, making a second owner (by promotion **or** invitation), granting
-  support access, minting a token — ask for a fresh proof carried on the access token.
-- **The browser suite** (`apps/app/e2e`, eight scenarios): signup → verification → a provisioned
-  workspace → an invited agent → an incident worked and closed; an SLA breach on a two-minute target; a
-  change from draft to closed with an approver who did not raise it; and the three negatives — a session
-  for Acme reaching nothing of Globex, an agent refused every escalation, one person in two workspaces in
-  two tabs. It runs on `main` only, against the built API and app.
-- **Observability** (ADR-0046). The SDK starts before the application loads and only when an endpoint
-  is named; every span carries the tenant; the request id is the trace id; the multi-tenant metrics with
-  `org` bounded to the top-25 tenants; the compose profile with the dashboard.
-- **The security review** (`THREAT-MODEL.md` §7). Three independent read-only reviews of every trust
-  boundary; sixteen confirmed findings fixed with tests in one PR. The themes: budgets strangers could
-  spend (the per-org throttle counted before the credential was verified; a token prefix spent its
-  integration's budget), bearer capabilities in the wrong channel (a 24-hour export link in an inbox,
-  invitation tokens in logs and spans), and two gaps in the step-up rule (a bare `pg_id` could enrol a
-  factor; inviting an owner skipped the proof). Both HANDOFF items from M8 — the token prefix and the
-  stale summary after a deletion request — closed here.
-- **OpenAPI at `/api/docs`**, built from the Zod DTOs, tagged by path, with the two security schemes and
-  examples; the smoke job asserts it is served.
-- **The load check**: a hundred thousand tickets in one workspace, every list under 25 ms at p50, deep
-  cursors no dearer than page one — and two branches whose index lacked the sort column, fixed. Results
-  in `ENGINEERING.md` §Testing.
+What M10 built:
 
-**CI is green on `main`**, the browser suite included once the per-IP throttle was switched off for the
-runner (one address for the browser and the Next server alike).
+- **The demo seed**: Acme and Globex across every type, age and status, with assets, articles and
+  inbound mail; one person in both. `pnpm db:reset` drops, re-migrates and re-seeds; `db:seed -- --reset`
+  replaces only the two demo workspaces and refuses when a demo person belongs to anything else.
+- **`apps/www` finished**: eight docs pages and four posts as MDX from one registry, every page a
+  prerendered shell (Cache Components) with the session check streamed in, build-time OG cards, sitemap,
+  robots, JSON-LD. Lighthouse locally: performance 90–98, accessibility and SEO 100.
+- **Production images** (`turbo prune`): `patchgrid/api` and a `tools` image for migrations and the seed,
+  standalone Next images for `app` and `www`, and `docker-compose.prod.yml` as the single-host shape.
+  CI builds all three on every change and boots the API image to its configuration check.
+  `TRUST_PROXY_HOPS` replaced the fixed hop count.
+- **`pnpm local:up`**: one idempotent command from a clone to a seeded stack (`.env`, containers, roles,
+  migrations, the 6/6 isolation checks, the seed).
+- **The README**: the architecture diagram, four screenshots, "why these decisions" linking the ADRs,
+  and the three commands.
 
----
-
-## What M9 built — ADR-0045, ADR-0046, THREAT-MODEL §7
-
-### Member MFA — ADR-0029, ADR-0045
-
-- `POST /auth/login` with a confirmed factor answers `{ status: "mfa-required" }` and a five-minute
-  `pg_mc` challenge, path-scoped to `/api/v1/auth`; `POST /auth/mfa` with a code or a recovery code
-  completes it. A challenge completes once (its `jti` is spent in Redis). A wrong password is the same
-  `401` as before.
-- Self-service under `/auth/mfa` on `pg_id`: enrol **against the password** (the M9 review's erratum to
-  ADR-0045), confirm (recovery codes shown once), replace the codes against a code, turn off against a
-  code or a recovery code — never the password. Every change is mailed (`account-security`).
-- `Organization.requireMfa` (owner-only `org:require_mfa`, audited `ORG_MFA_REQUIREMENT_CHANGED`) is
-  checked at open, at login's mint and at refresh — a session already open is never ended by it. The
-  picker sends a refused member to `/account/security?required=<slug>`.
-- Step-up: `POST /auth/step-up` names the workspace and takes the factor — or the password only when no
-  factor exists — and re-issues the pair with `sua` on the access token. `StepUpService.assert` runs
-  after the permission in `OrgDeletionService.request`, `SupportService.grant`, `ApiTokensService.create`,
-  `MembersService.changeRole` to `OWNER` and `InvitationsService.create` for `OWNER`. A refresh re-mints
-  without the claim. The app has one `useStepUp()` dialog that re-proves and retries.
-- A recovery code revokes everywhere with `{ before: true }`, so the session it earns survives.
-
-### Observability — ADR-0030, ADR-0046
-
-- `main.ts` is three lines: read `.env`, `startTelemetry()`, `require("./bootstrap")`. Off unless
-  `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Not the Express or Nest instrumentations: they re-wrap every
-  middleware and guard in their own async context and lost the request store the tenant resolver fills.
-- `src/telemetry/metrics.ts`: plain functions over the global meter, instruments made on first use (the
-  metrics API has no proxy provider). `org` is `TenantLabels` — top-25 by volume, ranked on the count
-  before the observation, ties by id, halved past a window — then `other`, `none`.
-- The HTTP span gets `org.id`, `membership.id`, `actor.kind` from `TelemetryMiddleware` on `finish`;
-  jobs from `runJob`; every permission decision is an `authorization` span event. `genReqId` prefers the
-  trace id. Query strings are dropped from request logs and `token`, `q`, `cursor` redacted from spans;
-  Redis spans carry the command only.
-- Pool saturation comes from the `pg` pool `createPrismaClient` now builds and hands to a callback.
-- `docker/observability/`: collector → Tempo (traces) and Prometheus (metrics, which appends
-  `_milliseconds`, `_ratio`, `_total`), Grafana provisioned with both and `patchgrid-tenants.json`.
-
-### The security review — THREAT-MODEL §7
-
-Sixteen findings, each with its resolution, in the threat model. The ones that changed a rule:
-
-- The org throttler is registered in `AuthModule` **after** `AuthGuard`; the token throttler is keyed on
-  prefix **and** address and runs before resolution; the verifier remembers rejected secrets per prefix.
-- `OrganizationLookupService.invalidate` leaves a `:stale` marker for one TTL that `store` honours; API
-  tokens are refused on `orgEpochKey(orgId)` from a deletion request until a cancel or restore
-  (`RevocationEpochService.clear`).
-- `SUPPORT_READ` records `params`; the export mail links to Settings; erasure tombstones
-  `InboundEmail.fromAddress`; an inbound reference attaches a link only when the sender could have
-  made it through the API; `/session/refresh` uses `parseNext`.
-- Actions pinned to commits, mutable images to digests, Dependabot moves both; the browser suite's hosts
-  are in the runner's hosts file; the webhook has its own per-address limit; `X-Request-Id` is honoured
-  only in a proxy's shape.
-
-### Tests at the boundary
-
-| Suite | Count |
-| --- | --- |
-| `apps/api` unit | 1007 |
-| `apps/api` integration | 204 |
-| `pnpm test:tenancy` | 13 catalog + 37 (3 pointers skipped) |
-| `pnpm test:authz` | 384 |
-| `packages/database` unit / catalog | 8 / 13 |
-| `packages/contracts` | 194 |
-| `apps/app` unit | 59 |
-| `apps/app` browser suite | 8 scenarios |
-
-Browser walkthroughs live in the git-ignored `node_modules/.cache/shots/` at the repository root
-(`mfa.mjs`, `review-ui.mjs`, `grafana.mjs`, `reset-alice.mjs`), run with `node` from the root against
-`pnpm dev`; see the `browser-walkthrough-scripts` memory for the resolution and selector lessons. The
-M8 scripts under `apps/app/node_modules/.cache/shots/` were lost with a `node_modules` wipe.
-
----
+**CI is green on `main`.**
 
 ## Earlier milestones, in brief
 
+- **M9** gave hardening: member MFA with a step-up proof before the four irreversible actions (ADR-0045),
+  the eight-scenario browser suite across two tenants, OpenTelemetry with top-25-tenant metrics and a
+  Grafana dashboard (ADR-0046), the security review with sixteen findings fixed (`THREAT-MODEL.md` §7),
+  OpenAPI at `/api/docs`, and the load check at a hundred thousand tickets.
 - **M8** gave the platform layer: the operators' own credential and back-office, owner-granted
   read-only support sessions, scoped API tokens, workspace deletion with a 30-day window, streamed
   exports, self-service erasure and retention sweeps.
@@ -158,50 +80,57 @@ M8 scripts under `apps/app/node_modules/.cache/shots/` were lost with a `node_mo
 
 The detail is in the git history of this file, at those boundaries.
 
-## Decisions made in M9
+## Tests at the boundary
+
+| Suite | Count |
+| --- | --- |
+| `apps/api` unit | 1007 |
+| `apps/api` integration | 204 |
+| `pnpm test:tenancy` | 13 catalog + 37 (3 pointers skipped) |
+| `pnpm test:authz` | 384 |
+| `packages/database` unit / catalog | 8 / 13 |
+| `packages/contracts` | 194 |
+| `apps/app` unit | 59 |
+| `apps/app` browser suite | 8 scenarios |
+
+M10 added no API behaviour; the counts are M9's.
+
+## Decisions made in M10
 
 | Decision | Where |
 | --- | --- |
-| Login stops at the password; the policy gates the next authentication; step-up is a `sua` claim on the access token | ADR-0045 |
-| Enrolling a factor takes the password | ADR-0045 erratum |
-| The SDK starts before the app; instruments are lazy; `org` is top-25 and `other`; the trace id is the request id | ADR-0046 |
-| Inviting an owner is the transfer of ownership, step-up included | THREAT-MODEL §7 (4) |
-| Per-org limits count verified requests only | THREAT-MODEL §7 (1) |
-| The export mail links to Settings, never to the archive | THREAT-MODEL §7 (7) |
-| The browser suite runs on `main` only, without the per-IP throttle, hosts pinned locally | `ci.yml` |
+| No public deployment; the DNS, TLS and mail design stays a design; M7's models run in local Compose | ADR-0047 |
+| The API image keeps the workspace's shape: packages as TypeScript source, not copied into `node_modules` | `ARCHITECTURE.md` §Production images |
+| `TRUST_PROXY_HOPS` is configuration, default 1 | `ARCHITECTURE.md`, THREAT-MODEL §7 |
 
 ---
 
-## Recommended next steps — M10
+## Recommended next steps — M7
 
-`FEATURES.md` §M10, ship. Its exit: a stranger clones the repo, runs three commands, signs up and uses a
-realistic system; the public demo is live; the README explains the decisions. In order:
+`FEATURES.md` §M7. Its exit: new tickets get an LLM suggestion an agent can accept; a phishing report is
+scored and lands in the Security queue; likely duplicates surface with a merge action; admins define
+automation rules that demonstrably fire — all per tenant, none blocking ticket creation. Everything runs
+in the local Compose stack (ADR-0047). A suggested order, cheapest dependency first:
 
-1. **The demo seed**: two tenants across every type, age and status, KB, assets, inbound mail; an
-   idempotent `db:reset`. `load:tickets` exists for volume.
-2. **`apps/www` finished**: docs, pricing, blog, `/problems/*`, OG images, sitemap, robots, Lighthouse.
-3. **Dockerfiles** (multi-stage `turbo prune`) for the three apps and `docker-compose.prod.yml`. The
-   API's `main.ts` starts telemetry before the app; keep that order in the image's entrypoint.
-4. **DNS and TLS** (ADR-0026, ADR-0027): wildcard, DNS-01 via the delegated zone, CAA, SPF/DKIM/DMARC,
-   MX for `inbound.`.
-5. **Deploy** on Coolify/Hetzner with managed Postgres, Redis and MinIO, migrations in a post-deploy
-   hook, the nightly demo reset. **Set `trust proxy` to the real hop count** (THREAT-MODEL §7) and keep
-   `MFA_ENCRYPTION_KEY` apart from the database.
-6. **README**: diagram, screenshots, "why these decisions", run instructions.
+1. **The automation rule engine** (`DOMAIN.md` §10): needs no model, so it lands first and gives the
+   seed its escalation rules. Per-tenant evaluation, per-rule execution audit, the admin UI.
+2. **The ports and their `Noop` implementations** (`TicketClassifier`, `EmbeddingProvider`,
+   `UrlRiskScorer`, ADR-0010), so every later item is testable without a model.
+3. **Embeddings and similar tickets**: `nomic-embed-text` in Ollama, `TicketEmbedding` with a pgvector
+   HNSW index under RLS, the similar-tickets panel scoped to the tenant, merge via `DUPLICATE_OF`.
+4. **LLM triage**: the per-tenant `triage` queue, `TicketTriage`, accept/dismiss, gated on plan.
+5. **`apps/phishing-svc`**: FastAPI around the thesis model, the "Report phishing" form, the risk badge,
+   Security routing.
+6. **The prompt-injection posture and its review against TB8**: model output is data an agent accepts,
+   never an instruction and never auto-applied.
 
-Then M7, last, on the running system.
-
----
+Write an ADR for each "as built" decision the way M8 and M9 did.
 
 ## Still open
 
 | Item | Needed by | Notes |
 | --- | --- | --- |
 | **External requesters** (`allowExternalRequesters`) | when asked for | Deferred by ADR-0039 |
-| **A production inbound adapter** | deploy | Verify the provider's signature, re-sign in ADR-0039's shape |
-| `MFA_ENCRYPTION_KEY` kept apart from the database | deploy | A dump without it yields no second factors (ADR-0040) |
-| Set `TRUST_PROXY_HOPS` to the deployment's real hop count | deploy | Default 1; with a CDN in front it is 2, and a wrong value makes every per-IP limit attacker-chosen (THREAT-MODEL §7) |
-| SMTP has no credentials or TLS setting | deploy | `SMTP_HOST`/`SMTP_PORT` only; every real provider needs both |
 | The API image is ~525 MB of `node_modules` | any time | The Prisma CLI, Studio and TypeScript ride in as resolved peers of `@prisma/client` |
 | `@nestjs/swagger` warns of duplicate `CreateDto`/`UpdateDto` names | any time | "Will throw in a future version"; name the DTO classes per module |
 | `org:manage_plan` has no tenant route yet; it gets the step-up when it gets the route | spec decision | ADR-0045 |
@@ -214,7 +143,6 @@ Then M7, last, on the running system.
 | The back-office "Restore workspace" button was not walked in a browser | any time | Unit- and integration-tested |
 | Plan-limit-reached notification (`DOMAIN.md` §8) | any time | Needs its own event, type and dedupe key |
 | A usage-counter reconcile | any time | Nothing recomputes `KB_ARTICLES` or `STORAGE_BYTES` after a bug |
-| Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | deploy | Local MinIO sets the rule in `docker/minio/init.sh` |
 | CLAUDE.md says no raw SQL outside `packages/database`, but the lint allows `src/**/repositories/**` | docs | Align the rule with the lint |
 | Requester receipt can repeat if a notify job stalls after commit | any time | Email-only, so there is no row to fold against |
 | `ProjectionRepository` duplicates part of `UserOrgIndexRepository` | any time | Merge them |
@@ -222,7 +150,6 @@ Then M7, last, on the running system.
 | Rule 3 can be engineered: an owner may assign their change to the only other admin | spec decision | What DOMAIN.md §2.3 says today |
 | Per-member capabilities in the admin UI | any time | Member actions are offered by role |
 | Doc formatting drift | any time | Docs and API code are not Prettier-clean at 80 cols; commits skip the format hook |
-| **The public demo shares one password** | deploy | Anyone can sign in as a seeded owner, enrol a factor, request deletion or accept invitations; needs a demo mode (an ADR) before it is public |
 | A new workspace gets no starter KB articles | any time | `TENANCY.md` §4, ADR-0017 and `PROJECT.md` promise them; provisioning creates none |
 | Joining by email domain is not built | spec decision | `TENANCY.md` §5 describes it; the domain is stored only |
 | Per-host cookie pairs are never pruned to five | any time | `TENANCY.md` §6 and ADR-0024 say they are; `auth/cookies.ts` keeps them all |
@@ -232,6 +159,27 @@ Then M7, last, on the running system.
 | `DOMAIN.md` §8 offers a reassigned agent to keep watching; nothing does | spec decision | They can watch by hand |
 | `TENANCY.md` §7 and ADR-0022 show `runAsTenant(orgId, fn)`; the code takes a `crossing` too | docs | `CLAUDE.md` has it right |
 | Marketing LCP is 3.3 s on Lighthouse's mobile profile | any time | Five font files contend on simulated 4G; dropping the mono preload is the cheap lever, in `@patchgrid/ui` for both apps |
+
+## If it is ever deployed
+
+Dropped by ADR-0047, kept so that reversing it starts from a list rather than from memory. None of it
+blocks M7.
+
+| Item | Notes |
+| --- | --- |
+| Three registered domains: the product, attachments on their own registrable domain, an ops zone | ADR-0026, ADR-0037 |
+| Wildcard certificate by DNS-01 through the delegated `_acme-challenge`; CAA; the renewal canary | `DNS.md` §3 |
+| SPF, DKIM and DMARC progressed on evidence; MX for `inbound.` | `DNS.md` §4, ADR-0027 |
+| SMTP has no credentials or TLS setting | `SMTP_HOST`/`SMTP_PORT` only; every real provider needs both |
+| A production inbound adapter | Verify the provider's signature, re-sign in ADR-0039's shape |
+| `MFA_ENCRYPTION_KEY` kept apart from the database and its backups | A dump without it yields no second factors (ADR-0040) |
+| `TRUST_PROXY_HOPS` set to the real hop count | Default 1; with a CDN in front it is 2, and a wrong value makes every per-IP limit attacker-chosen (THREAT-MODEL §7) |
+| Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | Local MinIO sets the rule in `docker/minio/init.sh` |
+| A public demo needs a demo mode first (an ADR) | The seed shares one password: anyone could sign in as an owner, enrol a factor, request deletion or send invitations |
+| Postgres that allows a `BYPASSRLS` migration role and `pgvector` | Many managed services refuse the first; self-hosted needs backups |
+| HSTS with a short max-age first, `preload` last | `DNS.md` §3 |
+| Ollama and `phishing-svc` sized for a server | M7 sizes them for a laptop |
+
 
 ## Running it
 
@@ -264,6 +212,17 @@ files are served by MinIO at `http://localhost:9000`, a different site from `lvh
 Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session cookies are scoped to
 `.lvh.me`, so a `localhost` cookie jar stays empty and every call is a `401`.
 
+## Gotchas paid for in M10
+
+- **Node strips TypeScript at load, but not under `node_modules`.** The packages ship as source, so the
+  API image keeps the workspace's shape with `packages/*` as real directories; `pnpm deploy`, which copies
+  them into `node_modules`, fails at the first import.
+- **`NEXT_PUBLIC_*` is inlined at build time.** A frontend image is built per environment; changing the
+  variable at run time does nothing.
+- **Prisma 7 removed `migrate reset --skip-seed`.** `db:reset` runs the reset and then the seed itself.
+- **A Tailwind source scan across the monorepo picks up the other app's classes.** Each app scans only
+  its own files.
+
 ## Gotchas paid for in M9
 
 - **Importing a module for one provider imports its global guards too.** `TelemetryModule` importing
@@ -290,38 +249,5 @@ Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session
   container.
 - **commitlint's 100-character header rejects the commit but leaves the files staged**, and the next
   commit sweeps them in. Check `git log --stat` before pushing a series.
-
-## Gotchas paid for in M8
-
-- **A bare string in a Zod object shape is not a schema.** `z.object({ kind: "operator" })` type-checks and
-  throws the first time it parses; use `z.literal`. It crashed the workspace whenever a support session
-  was active.
-- **A role check is not a permission check.** The transition table decides by role, so a narrowed actor
-  (support, a token) was offered an admin's buttons until `view()` asked `ticket:transition` first.
-- **The revocation epoch revokes the second it was bumped in.** A token minted in the same second as a
-  bump is dead; `bump(key, { before: true })` is how a recovery code ends older sessions but not its own.
-- **A synchronous zip callback has no backpressure, and lib-storage ends a failed upload's stream with
-  `close`, not `error`.** A drain wait on it never settles. Pipe a real stream into the upload.
-- **Postgres cannot use an enum value in the transaction that adds it.** `DELETED` and the CHECKs that
-  name it are two migrations.
-- **Run `prisma migrate diff` before `mkdir` of the migration folder**, or the empty folder makes the diff
-  fail and the SQL is empty.
-- **Anything derived from a person's address can be recomputed by anyone who knew it.** Tombstone by id.
-
-## Gotchas paid for in M6
-
-- **A signature is over bytes.** Mount the raw body parser for the webhook path before Nest's JSON
-  parser. In specs, send the signed body as a string: supertest JSON-encodes a `Buffer` when the content
-  type is JSON, and the signature then fails.
-- **mailparser takes the last of two `From:` headers**, and returns `In-Reply-To` with several ids as
-  one string. Count the header lines; split on whitespace.
-- **Postgres `text` refuses NUL.** An encoded-word in a subject decodes to one, and the insert fails
-  every attempt.
-- **Anything a sender chooses can be pre-claimed by a forger.** The Message-ID, the From address: key
-  limits and duplicates on authenticated facts.
-- **A retry after the commit repeats the commit's work.** Record "done" inside the transaction that does
-  it, and make everything after it best effort.
-- **gitleaks scans history.** A high-entropy dev fixture needs a reviewed fingerprint in
-  `.gitleaksignore` with a reason.
 
 Older gotchas are in the previous handoffs in git history, and in the module headers where they bite.
