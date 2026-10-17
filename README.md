@@ -116,6 +116,10 @@ members who could open that ticket — a CI test holds that decision equal to th
     queues and ticket pages that refresh themselves;
   - email for assignments, replies, status changes and SLA events, with
     preferences per membership and a workspace-wide off switch.
+- **Reports** — SLA compliance by priority, type, team, category or assignee, time to resolve
+  (median and p90), the open backlog by age, and who holds the work, with a CSV download.
+- **Saved views and bulk actions** — a queue's filters saved for oneself or a team, and up to two
+  hundred tickets assigned or moved at once, each ticket answering for itself.
 - **Webhooks** — an admin subscribes an https endpoint to ticket events. Requests are signed
   (Standard Webhooks), carry ids and states but never a ticket's words, are retried with growing
   waits, pause a failing endpoint behind a circuit breaker, and can be replayed from a delivery log.
@@ -164,6 +168,9 @@ Every choice here has a decision record with the alternatives it beat. The ones 
   transaction and read in transaction-id order below the snapshot horizon, so nothing is lost, repeated
   or skipped; each consumer keeps its own cursor.
   [ADR-0049](docs/decisions/0049-transactional-outbox-as-a-tenant-log.md)
+- **Reports from a read model of their own** — a fact row per ticket, refreshed from the log and
+  checked nightly against the tickets, so reports never compete with the queues.
+  [ADR-0051](docs/decisions/0051-reporting-read-side.md)
 - **Webhooks nobody else pays for** — thin signed events, at least once, a circuit with one probe, a
   per-tenant in-flight cap, and SSRF checked in the connection's own `lookup`.
   [ADR-0050](docs/decisions/0050-outbound-webhooks.md)
@@ -243,7 +250,7 @@ The docs are the specification, not a description written afterwards.
 | [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
 | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
 | [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
-| [`docs/decisions/`](docs/decisions/)                                                | 50 ADRs — _why_ any of it is this way                         |
+| [`docs/decisions/`](docs/decisions/)                                                | 52 ADRs — _why_ any of it is this way                         |
 
 ## Status
 
@@ -260,7 +267,8 @@ The docs are the specification, not a description written afterwards.
   Grafana dashboard, a security review of every trust boundary (`docs/THREAT-MODEL.md` §7), OpenAPI
   at `/api/docs`, and a load check at a hundred thousand tickets;
 - shipping, locally (ADR-0047);
-- reliable delivery: the outbox, webhooks and their retention.
+- reliable delivery: the outbox, webhooks and their retention;
+- insight: reports from a read side, saved views and bulk actions.
 
 **M10, ship, is complete**: the demo seed across every type and status, the marketing site with its
 docs and blog, production images and `docker-compose.prod.yml`, and this README. Patchgrid is not
@@ -271,8 +279,12 @@ that runs on a laptop, and the wildcard DNS, TLS and mail design in `docs/DNS.md
 notifications on it, outbound webhooks as its second consumer, retention, and a review of all three
 (`docs/THREAT-MODEL.md` §8).
 
-**Next is M12**, insight: a reporting read side, saved views and bulk actions. Then M13 (passkeys and
-per-tenant OIDC), M14 (a production rehearsal on a laptop), and M7 last, because it needs local models
+**M12, insight, is complete**: SLA, backlog and workload reports from a read model of their own, every
+one under 25 ms at a hundred thousand tickets; saved views; and bulk actions that are the single action
+per ticket (`docs/THREAT-MODEL.md` §9).
+
+**Next is M13**, identity: passkeys, and per-tenant OIDC single sign-on against a local Keycloak. Then
+M14 (a production rehearsal on a laptop), and M7 last, because it needs local models
 ([ADR-0048](docs/decisions/0048-roadmap-after-m10.md)). `docs/HANDOFF.md` has the detail.
 
 MIT licensed — the value of this repository is that people read it.
