@@ -248,6 +248,9 @@ describe("4 · RLS holds when the repository does not", () => {
         "SupportSession",
         "ApiToken",
         "OrgExport",
+        "OutboxEvent",
+        "EventConsumer",
+        "EventDeadLetter",
       ])
     )
 

@@ -157,6 +157,9 @@ model Organization {
   supportSessions SupportSession[]
   apiTokens       ApiToken[]
   exports         OrgExport[]
+  outboxEvents    OutboxEvent[]
+  eventConsumers  EventConsumer[]
+  deadLetters     EventDeadLetter[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -1189,6 +1192,65 @@ model OrgExport {
   @@index([orgId, requestedAt(sort: Desc), id(sort: Desc)])
   /// Ready exports by expiry, for the retention sweep.
   @@index([orgId, status, expiresAt])
+}
+
+/// The transactional outbox, read as a per-tenant log (ADR-0049). Written in the
+/// transaction that makes the change it reports, so it exists exactly when the
+/// change does. Consumers read it in (txn, id) order, below the snapshot
+/// horizon, from their own cursor in `EventConsumer`.
+model OutboxEvent {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  orgId      String   @db.Uuid
+  /// The writing transaction, `pg_current_xact_id()`: the log's order. Ids are
+  /// assigned at insert and rows appear at commit, so an id order skips events.
+  txn        BigInt   @default(dbgenerated("((pg_current_xact_id())::text)::bigint"))
+  type       String
+  payload    Json
+  occurredAt DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [orgId], references: [id])
+  deadLetters  EventDeadLetter[]
+
+  @@unique([orgId, id])
+  @@index([orgId, txn, id])
+}
+
+/// One consumer's place in one tenant's log (ADR-0049). Its handler's database
+/// effects commit with the cursor that moves past them. A failing event is
+/// counted here, and parked once it has failed often enough.
+model EventConsumer {
+  orgId          String   @db.Uuid
+  consumer       String
+  cursorTxn      BigInt   @default(0)
+  cursorEventId  String   @default(dbgenerated("'00000000-0000-0000-0000-000000000000'::uuid")) @db.Uuid
+  failingEventId String?  @db.Uuid
+  failures       Int      @default(0)
+  lastError      String?
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@id([orgId, consumer])
+}
+
+/// An event a consumer gave up on, and why (ADR-0049). The cursor has moved past
+/// it; replaying it is a decision, not a retry.
+model EventDeadLetter {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  orgId      String    @db.Uuid
+  consumer   String
+  eventId    String    @db.Uuid
+  failures   Int
+  error      String
+  parkedAt   DateTime  @default(now()) @db.Timestamptz(3)
+  replayedAt DateTime? @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  event        OutboxEvent  @relation(fields: [orgId, eventId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, consumer, eventId])
+  @@index([orgId, consumer, parkedAt(sort: Desc)])
 }
 
 /// An API token (ADR-0021, ADR-0042): one per service-account membership,
