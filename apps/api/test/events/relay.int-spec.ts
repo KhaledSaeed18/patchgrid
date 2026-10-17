@@ -61,6 +61,10 @@ const crossing = { actor: "relay-spec", reason: "drive the relay by hand" }
 const drain = (orgId: string, batch?: number): Promise<DrainOutcome> =>
   runAsTenant(orgId, crossing, () => app.get(EventRelay).drain(orgId, "notify", batch))
 
+/** Stands in for the backoff passing: the failure is made older than any wait. */
+const waitOut = (orgId: string) =>
+  owner.$executeRaw`UPDATE "EventConsumer" SET "updatedAt" = now() - interval '1 hour' WHERE "orgId" = ${orgId}::uuid`
+
 /** Records what the consumer was handed, batch by batch; `fail` makes chosen events throw. */
 function watch(fail: (e: StoredEvent) => boolean = () => false) {
   const batches: number[][] = []
@@ -186,12 +190,17 @@ describe("poison events", () => {
     const poisoned = await owner.outboxEvent.findFirstOrThrow({ where: { orgId, payload: { equals: { n: 2 } } } })
     expect(await owner.eventConsumer.findFirstOrThrow({ where: { orgId } })).toMatchObject({ failingEventId: poisoned.id, failures: 1 })
 
+    // A drain that comes straight back, from a wake or the sweep, waits out the backoff and blames nothing.
+    expect(await drain(orgId)).toMatchObject({ kind: "backoff" })
+    expect(await owner.eventConsumer.findFirstOrThrow({ where: { orgId } })).toMatchObject({ failures: 1 })
     for (let attempt = 2; attempt <= OUTBOX_MAX_FAILURES; attempt += 1) {
+      await waitOut(orgId)
       await expect(drain(orgId)).rejects.toBeInstanceOf(ConsumerEventFailed)
     }
     expect(await owner.eventConsumer.findFirstOrThrow({ where: { orgId } })).toMatchObject({ failures: OUTBOX_MAX_FAILURES })
 
     // Given up on: parked with its error, and the stream goes on without it.
+    await waitOut(orgId)
     expect(await drain(orgId)).toMatchObject({ kind: "drained", parked: 1 })
     expect(await owner.eventDeadLetter.findFirstOrThrow({ where: { orgId } })).toMatchObject({
       consumer: "notify",
@@ -210,8 +219,19 @@ describe("poison events", () => {
     await owner.outboxEvent.create({ data: event(orgId, 1) })
     await expect(drain(orgId)).rejects.toBeInstanceOf(ConsumerEventFailed)
     broken = false
+    await waitOut(orgId)
     expect(await drain(orgId)).toMatchObject({ kind: "drained", count: 1, parked: 0 })
     expect(batches).toEqual([[1]])
     expect(await owner.eventDeadLetter.count({ where: { orgId } })).toBe(0)
+  })
+
+  it("never blames an event for the database's trouble: a deadlock is retried as the job's, uncounted", async () => {
+    const orgId = await org()
+    await owner.outboxEvent.create({ data: event(orgId, 1) })
+    vi.spyOn(consumer, "handle").mockRejectedValueOnce(Object.assign(new Error("deadlock detected"), { code: "40P01" }))
+    await expect(drain(orgId)).rejects.toThrow("deadlock detected")
+    expect(await owner.eventConsumer.findFirst({ where: { orgId } })).toBeNull()
+    watch()
+    expect(await drain(orgId)).toMatchObject({ kind: "drained", count: 1 })
   })
 })
