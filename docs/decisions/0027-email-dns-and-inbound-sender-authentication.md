@@ -5,6 +5,10 @@
 - **Date:** 2026-09-22
 - **Refines:** [0018](0018-tenant-aware-jobs-and-events.md), which specified tenant-scoped mail rendering but not its authentication
 
+> **Note (2026-10-17).** Patchgrid is not deployed publicly ([0047](0047-no-public-deployment.md)). The
+> DNS records here are design only; the inbound pipeline is built and runs locally on the signed feed
+> (ADR-0039).
+
 ## Context
 
 Two mail problems, and the second is a security hole rather than a deliverability one.

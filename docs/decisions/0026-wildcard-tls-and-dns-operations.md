@@ -4,6 +4,9 @@
 - **Date:** 2026-09-22
 - **Refines:** [0014](0014-subdomain-per-tenant-routing.md), which fixed the hostnames and deferred everything about how they are served
 
+> **Note (2026-10-17).** Patchgrid is not deployed publicly ([0047](0047-no-public-deployment.md)). This
+> decision stands as the design of how the system would be served; nothing in it is operated.
+
 ## Context
 
 Subdomain-per-tenant means every customer's address is created by a database insert, not by a DNS change.

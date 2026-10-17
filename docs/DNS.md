@@ -3,8 +3,9 @@
 Decisions behind this file: ADR-0014 (which hostnames exist), ADR-0024 (how a request names its tenant),
 ADR-0026 (wildcard TLS and zone operations), ADR-0027 (mail DNS and inbound authentication).
 
-Deployment is M10. This document is written now because the choices constrain code from M1: the cookie
-domain, the host parser, `RESERVED_SLUGS`, and the inbound mail address are all downstream of it.
+**Patchgrid is not deployed publicly (ADR-0047)**, so nothing here is operated. It is the design of how the
+system would be served, kept because the choices constrain code from M1: the cookie domain, the host
+parser, `RESERVED_SLUGS`, and the inbound mail address are all downstream of it. §8 is what actually runs.
 
 ---
 

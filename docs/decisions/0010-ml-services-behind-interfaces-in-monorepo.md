@@ -7,6 +7,9 @@
 > M8". The roadmap now builds M7 last, after M10 ships (`FEATURES.md`, build order). Deploying the models,
 > Ollama on-server or the degraded mode, is an M7 item, and the ADR it calls for is written then. The
 > shipped system before M7 calls no model at all.
+>
+> **Note (2026-10-17).** There is no public deployment ([0047](0047-no-public-deployment.md)): the models run
+> in the local Compose stack, and the on-server-or-degraded question does not arise.
 
 ## Context
 
