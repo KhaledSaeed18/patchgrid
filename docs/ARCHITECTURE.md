@@ -429,6 +429,9 @@ outbox_wake() trigger ── pg_notify(orgId) ──► OutboxListener (worker) 
   commit, best effort.
 - **Fairness**: one waiting drain per tenant and consumer, a bounded batch, then the back of the queue.
 - **Poison events** are narrowed to one, retried, then parked in `EventDeadLetter`.
+- **Retention**: `retention-sweep` deletes events past 30 days that every consumer has read and no
+  delivery or dead letter points at. A consumer that has never run holds everything back, so a new
+  consumer can start from the beginning of whatever is still kept.
 - Raw SQL on the log goes through `PrismaService.tx`, which throws outside a transaction rather than let
   RLS answer "nothing".
 
