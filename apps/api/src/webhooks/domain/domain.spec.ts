@@ -7,6 +7,7 @@ import { newWebhookSecret, sign, signatureHeaders, verify } from "./signature"
 
 describe("the Standard Webhooks signature", () => {
   it("matches the specification's published test vector", () => {
+    // The specification's own published example: public, and signing nothing.
     const secret = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" // gitleaks:allow
     expect(sign(secret, "msg_p5jXN8AQM9LWM0D4loKWxJek", 1614265330, '{"test": 2432232314}')).toBe("v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=") // gitleaks:allow
   })
