@@ -302,6 +302,12 @@ export class TicketsService {
    * as the `assign` transition.
    */
   async assign(id: string, request: AssignTicketRequest): Promise<Ticket> {
+    await this.applyAssign(id, request)
+    return this.get(id)
+  }
+
+  /** The assignment without the read-back: what a bulk action runs per ticket (ADR-0052). */
+  async applyAssign(id: string, request: AssignTicketRequest): Promise<void> {
     const actor = this.actors.requireTenantActor()
     const orgId = this.tenant.requireOrgId()
     await this.prisma.transaction(async () => {
@@ -321,7 +327,6 @@ export class TicketsService {
       }
     })
     await this.pulse.changed(orgId, id)
-    return this.get(id)
   }
 
   /**
@@ -331,6 +336,12 @@ export class TicketsService {
    * transaction, and a public one from an agent is the response.
    */
   async transition(id: string, request: TransitionRequest): Promise<Ticket> {
+    await this.applyTransition(id, request)
+    return this.get(id)
+  }
+
+  /** The move without the read-back: what a bulk action runs per ticket (ADR-0052). */
+  async applyTransition(id: string, request: TransitionRequest): Promise<void> {
     const actor = this.actors.requireTenantActor()
     const orgId = this.tenant.requireOrgId()
     await this.prisma.transaction(async () => {
@@ -456,7 +467,6 @@ export class TicketsService {
       await this.notifier.notifyAll(orgId, movedEvents(id, request, actor.membershipId, check.row.to, changes.assigneeMembershipId ?? null, row.assigneeMembershipId))
     })
     await this.pulse.changed(orgId, id)
-    return this.get(id)
   }
 
   /**
@@ -544,7 +554,13 @@ export class TicketsService {
   /** The view's own narrowing, before scope; `null` for a view this actor has nothing in. */
   private viewWhere(actor: TenantActor, query: TicketListQuery): ListFilter["where"] | null {
     const where = this.queueWhere(actor, query)
-    return where === null || query.assetId === undefined ? where : { ...where, assets: { some: { assetId: query.assetId } } }
+    if (where === null) return null
+    return {
+      ...where,
+      // The view decides who; priority and asset only narrow it (ADR-0052).
+      ...(query.priority === undefined ? {} : { priority: query.priority }),
+      ...(query.assetId === undefined ? {} : { assets: { some: { assetId: query.assetId } } }),
+    }
   }
 
   private queueWhere(actor: TenantActor, query: TicketListQuery): ListFilter["where"] | null {

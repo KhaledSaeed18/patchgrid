@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common"
-import { idSchema, type NotificationEvent, type TicketUpdatedEvent } from "@patchgrid/contracts"
+import { type BulkProgressEvent, idSchema, type NotificationEvent, type TicketUpdatedEvent } from "@patchgrid/contracts"
 import { concat, from, Observable, Subject } from "rxjs"
 
 import { ActorService, type MemberActor } from "../../auth/actor"
@@ -16,6 +16,7 @@ import { StreamBus, type StreamMessage } from "./stream-bus"
 export type StreamFrame =
   | { event: "notification"; id: string; data: NotificationEvent }
   | { event: "ticket-updated"; data: TicketUpdatedEvent }
+  | { event: "bulk-progress"; data: BulkProgressEvent }
   | { comment: string }
 
 export const HEARTBEAT_MS = 25_000
@@ -128,6 +129,8 @@ export class NotificationStreamService {
     switch (message.kind) {
       case "notification":
         return message.membershipId === reader.membershipId ? { event: "notification", id: message.event.id, data: message.event } : null
+      case "bulk-progress":
+        return message.membershipId === reader.membershipId ? { event: "bulk-progress", data: message.event } : null
       case "ticket-updated": {
         const ticket = { ...message.ticket, watcherMembershipIds: new Set(message.ticket.watcherMembershipIds) }
         return this.audience.mayRead(orgId, reader, ticket, message.visibility, message.content)

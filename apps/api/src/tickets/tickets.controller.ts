@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common"
 import {
+  bulkTicketRequestSchema,
+  type BulkTicketResult,
   type AuditEntry,
   assignTicketRequestSchema,
   type Comment,
@@ -22,6 +24,7 @@ import { createZodDto } from "nestjs-zod"
 import { z } from "zod"
 
 import { RequirePermission } from "../authz/require-permission"
+import { BulkTicketsService } from "./bulk.service"
 import { CommentsService } from "./comments.service"
 import { LinksService } from "./links.service"
 import { TicketAssetsService } from "./ticket-assets.service"
@@ -42,6 +45,7 @@ class CreateDto extends createZodDto(createTicketRequestSchema) {}
 class UpdateDto extends createZodDto(updateTicketRequestSchema) {}
 class AssignDto extends createZodDto(assignTicketRequestSchema) {}
 class TransitionDto extends createZodDto(transitionRequestSchema) {}
+class BulkDto extends createZodDto(bulkTicketRequestSchema) {}
 class CommentDto extends createZodDto(commentInputSchema) {}
 class EditCommentDto extends createZodDto(editCommentRequestSchema) {}
 
@@ -60,6 +64,7 @@ export class TicketsController {
     private readonly links: LinksService,
     private readonly assets: TicketAssetsService,
     private readonly audit: TicketAuditService,
+    private readonly bulkTickets: BulkTicketsService,
   ) {}
 
   @Get()
@@ -81,6 +86,18 @@ export class TicketsController {
   @Idempotent()
   create(@Body() body: CreateDto): Promise<Ticket> {
     return this.tickets.create(body)
+  }
+
+  /**
+   * One action over many tickets, each decided as the single action would be
+   * (ADR-0052). Declared before `:id`. Not `@Idempotent`: a retry is already
+   * safe, because each ticket the first run changed answers `conflict`.
+   */
+  @Post("bulk")
+  @HttpCode(200)
+  @RequirePermission("ticket:bulk")
+  bulk(@Body() body: BulkDto): Promise<BulkTicketResult> {
+    return this.bulkTickets.run(body)
   }
 
   @Get(":id")

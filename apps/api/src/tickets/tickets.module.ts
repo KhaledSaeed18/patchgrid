@@ -8,6 +8,7 @@ import { MembershipRepositoryModule } from "../memberships/membership-repository
 import { NotificationsModule } from "../notifications/notifications.module"
 import { SlaModule } from "../sla/sla.module"
 import { TeamsModule } from "../teams/teams.module"
+import { BulkTicketsService } from "./bulk.service"
 import { CommentsService } from "./comments.service"
 import { LinksService } from "./links.service"
 import { CommentRepository } from "./repositories/comment.repository"
@@ -43,6 +44,7 @@ import { WatchersService } from "./watchers.service"
     WatcherRepository,
     TicketAccess,
     TicketsService,
+    BulkTicketsService,
     CommentsService,
     WatchersService,
     LinksService,
