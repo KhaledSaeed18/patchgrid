@@ -4,6 +4,15 @@
 - **Date:** 2026-10-17
 - **Refines:** [0018](0018-tenant-aware-jobs-and-events.md), which put side effects after commit as queued jobs
 
+> **Erratum (2026-10-17, the M11 review).** "Effects outside the database (email, the live stream, later
+> an HTTP call) run after that commit and are at-least-once" is true of webhooks, whose deliveries are
+> rows a sweep re-queues, and not of email: it is queued in-process after the cursor commits, so a crash
+> or a Redis refusal at that instant loses it. Email is **best effort** until a `mail` consumer of the log
+> exists. The column this ADR calls `txId` is `txn` in the schema. As built after the review, an event's
+> failures back off on the cursor (2 s, 8 s, 32 s) before it is parked, and a deadlock, serialization
+> failure or timeout is retried as the job's own failure without counting against the event
+> (THREAT-MODEL §8).
+
 ## Context
 
 Since M3 a service commits its change and *then* queues what should follow: a `notify` job on BullMQ,
