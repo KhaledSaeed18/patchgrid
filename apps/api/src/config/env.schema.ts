@@ -119,6 +119,25 @@ export const envSchema = z
       .refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
         error: "MFA_ENCRYPTION_KEY must be base64 of exactly 32 bytes",
       }),
+    /**
+     * Seals webhook signing secrets at rest (ADR-0050). We sign with them, so
+     * they cannot be hashed; base64 of exactly 32 bytes, kept apart from the
+     * database like the MFA key, so a dump alone signs nothing.
+     */
+    WEBHOOK_SECRETS_KEY: z
+      .string()
+      .refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
+        error: "WEBHOOK_SECRETS_KEY must be base64 of exactly 32 bytes",
+      }),
+    /**
+     * Lets webhooks reach private and loopback addresses, over http — local
+     * development only, where the receiver is on this machine. Refused in
+     * production (ADR-0050, SSRF).
+     */
+    WEBHOOK_ALLOW_PRIVATE_TARGETS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     INBOUND_AUTHSERV_ID: z.string().regex(/^[A-Za-z0-9.-]+$/, { error: "INBOUND_AUTHSERV_ID must be a host name" }),
 
     /**
@@ -200,6 +219,14 @@ export const envSchema = z
         code: "custom",
         path: ["WEB_APP_PORT"],
         message: "WEB_APP_PORT must be one of WEB_ORIGIN_PORTS, or links in mail would point at an origin CORS refuses",
+      })
+    }
+
+    if (env.NODE_ENV === "production" && env.WEBHOOK_ALLOW_PRIVATE_TARGETS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["WEBHOOK_ALLOW_PRIVATE_TARGETS"],
+        message: "WEBHOOK_ALLOW_PRIVATE_TARGETS must be false in production — webhooks could reach the internal network",
       })
     }
 

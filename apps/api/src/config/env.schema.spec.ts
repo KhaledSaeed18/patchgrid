@@ -14,6 +14,7 @@ const valid = {
   INBOUND_WEBHOOK_SECRET: "whsec_cGF0Y2hncmlkLWxvY2FsLWluYm91bmQtc2VjcmV0",
   INBOUND_AUTHSERV_ID: "mx.inbound.lvh.me",
   MFA_ENCRYPTION_KEY: "cGF0Y2hncmlkLWxvY2FsLW1mYS1rZXktMzJieXRlcyE=",
+  WEBHOOK_SECRETS_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 }
 
 const issues = (overrides: Record<string, string>) => {
@@ -74,5 +75,12 @@ describe("the attachments origin (ADR-0037)", () => {
     expect(issues({ FILES_PUBLIC_ORIGIN: "http://files.lvh.me:9000" })).toContain("FILES_PUBLIC_ORIGIN")
     expect(issues({ FILES_PUBLIC_ORIGIN: "http://lvh.me:9000" })).toContain("FILES_PUBLIC_ORIGIN")
     expect(issues({ FILES_PUBLIC_ORIGIN: "https://patchgrid-files.net" })).not.toContain("FILES_PUBLIC_ORIGIN")
+  })
+
+  it("keeps webhooks off private networks unless told, and never in production (ADR-0050)", () => {
+    expect(envSchema.parse(valid).WEBHOOK_ALLOW_PRIVATE_TARGETS).toBe(false)
+    expect(envSchema.parse({ ...valid, WEBHOOK_ALLOW_PRIVATE_TARGETS: "true" }).WEBHOOK_ALLOW_PRIVATE_TARGETS).toBe(true)
+    expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "", WEBHOOK_ALLOW_PRIVATE_TARGETS: "true" })).toContain("WEBHOOK_ALLOW_PRIVATE_TARGETS")
+    expect(issues({ WEBHOOK_SECRETS_KEY: "too-short" })).toContain("WEBHOOK_SECRETS_KEY")
   })
 })
