@@ -436,7 +436,9 @@ retried and parked, and replays them, and a slow or hostile endpoint harms nobod
       Settings → Webhooks (list, add with the secret shown once, edit, turn off and on, rotate, remove,
       the delivery log with replay), walked in a browser against a local receiver; `/docs/webhooks`
       renders the catalogue from the same constant as the picker
-- [ ] Event retention: consumed events deleted past the retention window, never ahead of a cursor
+- [x] Event retention: consumed events deleted past the retention window, never ahead of a cursor.
+      Daily in `retention-sweep`: finished deliveries past 30 days, then events past 30 days that every
+      consumer has read and nothing points at, in batches of 5,000
 
 ## M12 — Insight
 
