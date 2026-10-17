@@ -93,7 +93,10 @@ describe("minting", () => {
       expect.objectContaining({ id: reader.id, name: "Dashboard", status: "ACTIVE", expiresAt: null }),
       expect.objectContaining({ id: writer.id, prefix: API_TOKEN_PATTERN.exec(writer.secret)?.[1], role: "AGENT", lastUsedAt: null }),
     ])
-    expect(JSON.stringify(listed.body)).not.toContain(writer.secret.split("_")[2])
+    // The secret is base64url and may contain "_": take it from the pattern, not a split.
+    const secret = API_TOKEN_PATTERN.exec(writer.secret)?.[2] ?? ""
+    expect(secret).toHaveLength(43)
+    expect(JSON.stringify(listed.body)).not.toContain(secret)
   })
 
   it("is an admin's and an owner's only, and refuses a role or scope a token may not have", async () => {
