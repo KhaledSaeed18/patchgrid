@@ -25,6 +25,7 @@ const SOURCE = {
   responseBreached: true,
   resolutionBreached: true,
   reopenCount: true,
+  updatedAt: true,
 } as const
 
 export type SlaRow = {
@@ -77,6 +78,16 @@ export class ReportingRepository {
   sources(orgId: string, ids: readonly string[]): Promise<FactSource[]> {
     if (ids.length === 0) return Promise.resolve([])
     return this.prisma.db.ticket.findMany({ where: { orgId, id: { in: [...ids] } }, select: SOURCE })
+  }
+
+  /**
+   * Holds the reporting consumer's own lock for this transaction (the key
+   * `EventRelay` takes for it), so the reconcile and the consumer never write
+   * facts at once: a reconcile batch that read a ticket before a write cannot
+   * land its older fact after the consumer's newer one.
+   */
+  async lockFacts(orgId: string): Promise<void> {
+    await this.prisma.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`outbox:${orgId}:reporting`}, 0))`
   }
 
   /** The reconcile's walk: tickets after `afterId`, in id order. */
@@ -167,7 +178,9 @@ export class ReportingRepository {
           count(*) FILTER (WHERE f."response" = 'BREACHED')::int AS "responseBreached",
           count(*) FILTER (WHERE f."response" = 'RUNNING')::int AS "responseRunning"
         FROM "TicketFact" f ${g.join}
-        WHERE f."orgId" = $1::uuid AND f."createdAt" >= $2 AND f."createdAt" < $3 AND f."state" <> 'CANCELLED'
+        -- A cancelled ticket counts only if its response had already breached: cancelling hides no breach.
+        WHERE f."orgId" = $1::uuid AND f."createdAt" >= $2 AND f."createdAt" < $3
+          AND (f."state" <> 'CANCELLED' OR f."response" = 'BREACHED')
         GROUP BY 1, 2
       ),
       resolved AS (
@@ -178,7 +191,9 @@ export class ReportingRepository {
           percentile_cont(0.5) WITHIN GROUP (ORDER BY f."resolutionMinutes") AS median,
           percentile_cont(0.9) WITHIN GROUP (ORDER BY f."resolutionMinutes") AS p90
         FROM "TicketFact" f ${g.join}
+        -- Only tickets with a resolution clock: a Change's or a Problem's lead time is not a time to resolve.
         WHERE f."orgId" = $1::uuid AND f."resolvedAt" >= $2 AND f."resolvedAt" < $3 AND f."state" <> 'CANCELLED'
+          AND f."resolution" <> 'NONE'
         GROUP BY 1, 2
       )
       SELECT COALESCE(r.key, s.key) AS key, COALESCE(r.label, s.label) AS label,
@@ -204,7 +219,8 @@ export class ReportingRepository {
       SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY "resolutionMinutes") AS median,
              percentile_cont(0.9) WITHIN GROUP (ORDER BY "resolutionMinutes") AS p90
         FROM "TicketFact"
-       WHERE "orgId" = ${orgId}::uuid AND "resolvedAt" >= ${from} AND "resolvedAt" < ${to} AND "state" <> 'CANCELLED'`
+       WHERE "orgId" = ${orgId}::uuid AND "resolvedAt" >= ${from} AND "resolvedAt" < ${to} AND "state" <> 'CANCELLED'
+         AND "resolution" <> 'NONE'`
     return { median: row?.median ?? null, p90: row?.p90 ?? null }
   }
 
