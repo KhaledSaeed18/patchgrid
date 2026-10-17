@@ -28,6 +28,7 @@ import { PermissionService } from "../authz/permission.service"
 import type { ScopeBranch } from "../authz/scope-filter"
 import { CategoriesService } from "../categories/categories.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
+import { Outbox } from "../events/outbox"
 import {
   ChangeWindowEarlyProblem,
   ConflictProblem,
@@ -101,6 +102,7 @@ export class TicketsService {
     private readonly audit: AuditService,
     private readonly quota: QuotaService,
     private readonly notifier: Notifier,
+    private readonly outbox: Outbox,
     private readonly pulse: TicketPulse,
     @InjectClock() private readonly clock: Clock,
   ) {}
@@ -285,6 +287,8 @@ export class TicketsService {
         ...diffOf(row.change ?? {}, changeChanges),
       }
       await this.audit.record(orgId, [{ action: "TICKET_UPDATED", entityType: "Ticket", entityId: id, diff }])
+      // An edit tells nobody, but the log still hears of it: reporting reads its facts from there (ADR-0051).
+      await this.outbox.append(orgId, [{ type: "ticket-changed", payload: { ticketId: id } }])
       return true
     })
     // An edit tells nobody (DOMAIN.md §8), but the pages showing the ticket refetch.
