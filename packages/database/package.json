@@ -27,8 +27,8 @@
     "load:tickets": "prisma generate && tsx scripts/load-tickets.ts"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "pg": "^8.23.1"
   },
   "devDependencies": {
@@ -39,7 +39,7 @@
     "@types/node": "^24",
     "@types/pg": "^8.23.1",
     "eslint": "^9",
-    "prisma": "7.10.0",
+    "prisma": "7.10.1",
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.3"
