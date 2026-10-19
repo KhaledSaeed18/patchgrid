@@ -15,7 +15,7 @@
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
-    "@next/mdx": "16.4.0",
+    "@next/mdx": "16.4.2",
     "@patchgrid/contracts": "workspace:*",
     "@patchgrid/ui": "workspace:*",
     "next": "16.4.0",
