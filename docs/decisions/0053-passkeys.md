@@ -2,6 +2,25 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-17
+
+> **Erratum (2026-10-22), from building it.** Four corrections; the decision stands.
+>
+> 1. **Setting up the authenticator app takes the same fresh proof as registering a passkey.** The
+>    body leaves TOTP enrolment on the password, as ADR-0045's erratum set it. With a passkey held, that
+>    lets a password thief with a `pg_id` add an authenticator of their own and sign in with password
+>    and code, around the passkey. `POST /auth/mfa/enrol` takes the step-up rule's proof: a factor if
+>    one is held, the password only when none is.
+> 2. **Erasure does not delete the user row; it tombstones it** (ADR-0044). "Rows cascade with the
+>    user" never fires; the tombstone deletes the person's passkeys itself.
+> 3. **A refused passkey is neither counted nor gated by the lockout**, in the second step and step-up
+>    as well as the passwordless login: the lockout exists against guessing, and a passkey is not
+>    guessable. A code is still counted and gated as before.
+> 4. **Two routes the body implies but does not name.** A passkey proof for a `pg_id` holder (step-up,
+>    removal, a new factor) starts from `POST /auth/passkeys/proof/options`; the second step of a
+>    password login, which has no `pg_id` yet, starts from `POST /auth/mfa/passkey/options`,
+>    authenticated by the challenge cookie. Removal is `POST /auth/passkeys/:id/remove`, carrying its
+>    proof in the body as turning TOTP off does. Recovery codes are replaced with a live factor — a
+>    code or a passkey, never a recovery code.
 - **Refines:** [0029](0029-mfa-and-step-up-authentication.md), [0045](0045-member-mfa-as-built.md); builds on
   [0024](0024-per-tenant-cookies-and-api-tenant-resolution.md), [0040](0040-platform-credential-and-the-admin-host.md)
 
