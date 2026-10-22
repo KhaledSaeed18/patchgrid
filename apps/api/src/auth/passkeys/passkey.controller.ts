@@ -24,11 +24,11 @@ import { CookieService } from "../cookies"
 import { PasskeyService } from "./passkey.service"
 
 class PasskeyParamsDto extends createZodDto(z.object({ id: idSchema })) {}
-class RegistrationOptionsDto extends createZodDto(passkeyRegistrationOptionsRequestSchema) {}
-class RegisterDto extends createZodDto(passkeyRegisterRequestSchema) {}
-class RenameDto extends createZodDto(passkeyRenameRequestSchema) {}
-class RemoveDto extends createZodDto(memberFactorProofSchema) {}
-class LoginDto extends createZodDto(passkeyLoginRequestSchema) {}
+class PasskeyRegistrationOptionsDto extends createZodDto(passkeyRegistrationOptionsRequestSchema) {}
+class PasskeyRegisterDto extends createZodDto(passkeyRegisterRequestSchema) {}
+class PasskeyRenameDto extends createZodDto(passkeyRenameRequestSchema) {}
+class PasskeyRemoveDto extends createZodDto(memberFactorProofSchema) {}
+class PasskeyLoginDto extends createZodDto(passkeyLoginRequestSchema) {}
 
 /**
  * Passkeys (ADR-0053). Tenant-less like the rest of `/auth`: self-service is
@@ -56,19 +56,19 @@ export class PasskeyController {
   @Post("registration/options")
   @TenantOptional()
   @HttpCode(200)
-  registrationOptions(@Body() body: RegistrationOptionsDto): Promise<PasskeyCreationCeremony> {
+  registrationOptions(@Body() body: PasskeyRegistrationOptionsDto): Promise<PasskeyCreationCeremony> {
     return this.passkeys.registrationOptions(this.actors.requireIdentity().userId, body)
   }
 
   @Post()
   @TenantOptional()
-  register(@Body() body: RegisterDto): Promise<PasskeyRegistered> {
+  register(@Body() body: PasskeyRegisterDto): Promise<PasskeyRegistered> {
     return this.passkeys.register(this.actors.requireIdentity().userId, body)
   }
 
   @Patch(":id")
   @TenantOptional()
-  rename(@Param() params: PasskeyParamsDto, @Body() body: RenameDto): Promise<Passkey> {
+  rename(@Param() params: PasskeyParamsDto, @Body() body: PasskeyRenameDto): Promise<Passkey> {
     return this.passkeys.rename(this.actors.requireIdentity().userId, params.id, body.label)
   }
 
@@ -76,7 +76,7 @@ export class PasskeyController {
   @Post(":id/remove")
   @TenantOptional()
   @HttpCode(204)
-  async remove(@Param() params: PasskeyParamsDto, @Body() body: RemoveDto): Promise<void> {
+  async remove(@Param() params: PasskeyParamsDto, @Body() body: PasskeyRemoveDto): Promise<void> {
     await this.passkeys.remove(this.actors.requireIdentity().userId, params.id, body)
   }
 
@@ -99,7 +99,7 @@ export class PasskeyController {
   @Post("login")
   @Public()
   @HttpCode(200)
-  async login(@Body() body: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<SignedInResponse> {
+  async login(@Body() body: PasskeyLoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<SignedInResponse> {
     const result = await this.passkeys.login(body, clientOf(request))
     this.cookies.set(response, result.cookies)
     return result.response
