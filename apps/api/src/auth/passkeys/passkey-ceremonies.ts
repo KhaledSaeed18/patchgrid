@@ -28,6 +28,14 @@ import { PasskeyChallengeStore } from "./passkey-challenges"
 
 const RP_NAME = "Patchgrid"
 
+/**
+ * EdDSA, ES256, RS256 — fixed, not the library's default. That default leads
+ * with ML-DSA whenever the runtime can verify it, so a passkey made on one
+ * Node could fail to verify on another, and its multi-kilobyte signatures
+ * would slip past the wire bounds (ADR-0053 erratum).
+ */
+export const PASSKEY_ALGORITHMS = [-8, -7, -257] as const
+
 /** A verified assertion: whose passkey it was. */
 export type Asserted = { userId: string; passkeyId: string }
 
@@ -72,6 +80,7 @@ export class PasskeyCeremonies {
       timeout: PASSKEY_CHALLENGE_TTL_SECONDS * 1000,
       // Patchgrid keeps no allow-list of authenticator makes, so proof of make would be checked against nothing.
       attestationType: "none",
+      supportedAlgorithmIDs: [...PASSKEY_ALGORITHMS],
       excludeCredentials: existing.map((p) => ({ id: base64url(p.credentialId), transports: p.transports })),
       authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },
     })
@@ -108,6 +117,7 @@ export class PasskeyCeremonies {
         expectedOrigin: origin,
         expectedRPID: this.config.ROOT_DOMAIN,
         requireUserVerification: true,
+        supportedAlgorithmIDs: [...PASSKEY_ALGORITHMS],
       })
       if (!result.verified) return null
       const info = result.registrationInfo

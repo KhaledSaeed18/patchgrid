@@ -82,6 +82,8 @@ describe("registration", () => {
     expect(ceremony.options.rp).toEqual({ id: "lvh.me", name: "Patchgrid" })
     expect(ceremony.options.authenticatorSelection).toMatchObject({ residentKey: "required", userVerification: "required" })
     expect(ceremony.options.attestation).toBe("none")
+    // Fixed, not whatever the runtime could verify: no multi-kilobyte post-quantum signatures.
+    expect(ceremony.options.pubKeyCredParams.map((p) => p.alg)).toEqual([-8, -7, -257])
     expect(ceremony.options.excludeCredentials?.map((c) => c.id)).toEqual([Buffer.from(row.credentialId).toString("base64url")])
     // The user handle is the id's bytes, nothing personal.
     expect(Buffer.from(ceremony.options.user.id, "base64url").toString("hex")).toBe(ada.id.replace(/-/g, ""))
