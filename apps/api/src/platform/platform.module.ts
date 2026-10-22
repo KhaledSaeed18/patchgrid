@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common"
 import { ApiTokenIndexRepository } from "./repositories/api-token-index.repository"
 import { CredentialRetentionRepository } from "./repositories/credential-retention.repository"
 import { MfaRepository } from "./repositories/mfa.repository"
+import { PasskeyRepository } from "./repositories/passkey.repository"
 import { PlatformAdminRepository } from "./repositories/platform-admin.repository"
 import { PlatformAuditRepository } from "./repositories/platform-audit.repository"
 import { EmailVerificationRepository, PasswordResetTokenRepository } from "./repositories/one-time-token.repository"
@@ -28,6 +29,7 @@ import { UserRepository } from "./repositories/user.repository"
     PasswordResetTokenRepository,
     PlatformAdminRepository,
     MfaRepository,
+    PasskeyRepository,
     PlatformAuditRepository,
   ],
   exports: [
@@ -41,6 +43,7 @@ import { UserRepository } from "./repositories/user.repository"
     PasswordResetTokenRepository,
     PlatformAdminRepository,
     MfaRepository,
+    PasskeyRepository,
     PlatformAuditRepository,
   ],
 })
