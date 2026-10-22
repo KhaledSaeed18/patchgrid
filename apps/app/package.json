@@ -18,7 +18,7 @@
     "@hugeicons/react": "^1.1.10",
     "@patchgrid/contracts": "workspace:*",
     "@patchgrid/ui": "workspace:*",
-    "@tanstack/react-query": "^5.104.1",
+    "@tanstack/react-query": "^5.104.4",
     "next": "16.4.2",
     "next-themes": "^0.4.6",
     "qrcode": "^1.5.4",
@@ -28,12 +28,12 @@
     "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@patchgrid/eslint-config": "workspace:*",
     "@patchgrid/typescript-config": "workspace:*",
-    "@playwright/test": "^1.64.0",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -43,7 +43,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9",
-    "jsdom": "^30.1.2",
+    "jsdom": "^30.1.3",
     "typescript": "^5",
     "vitest": "^5.0.5"
   },
