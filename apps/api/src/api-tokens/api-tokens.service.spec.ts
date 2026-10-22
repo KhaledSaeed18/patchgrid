@@ -99,15 +99,7 @@ const request = {
 
 /** The real condition, on a fixed clock: the window is what is under test, not a stub of it. */
 function stepUpWith(now: Date): StepUpService {
-  return new StepUpService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    new FixedClock(now),
-  )
+  return new StepUpService({} as never, {} as never, {} as never, new FixedClock(now))
 }
 
 describe("ApiTokensService", () => {

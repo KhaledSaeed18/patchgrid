@@ -20,7 +20,7 @@ import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.p
 import { RedisService } from "../../src/redis/redis.service"
 import { MAIL_QUEUE } from "../../src/mail/mail.service"
 import { type Settler, settler } from "../support/queues"
-import { browser, HEADERS, PASSWORD, seedWorkspace, type Workspace } from "../support/workspace"
+import { browser, jarredBrowser, PASSWORD, seedWorkspace, type Workspace } from "../support/workspace"
 
 type Who = "owner" | "admin" | "agent"
 
@@ -49,29 +49,7 @@ afterAll(async () => {
   await db.$disconnect()
 })
 
-/** A browser with a cookie jar, as a real one keeps and clears what `Set-Cookie` says. */
-function jarred(origin: string, jar: Map<string, string> = new Map()) {
-  const cookie = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ")
-  const keep = (response: request.Response) => {
-    for (const line of (response.headers["set-cookie"] as unknown as string[] | undefined) ?? []) {
-      const [pair = "", ...attributes] = line.split(";")
-      const [name, value] = pair.split("=")
-      const expired = attributes.some((a) => /^\s*Max-Age=0\b/i.test(a) || /Expires=Thu, 01 Jan 1970/i.test(a))
-      if (name !== undefined) {
-        if (expired || value === undefined || value === "") jar.delete(name)
-        else jar.set(name, value)
-      }
-    }
-    return response
-  }
-  const http = () => request(app.getHttpServer())
-  return {
-    jar,
-    get: async (path: string) => keep(await http().get(`/api/v1${path}`).set("Origin", origin).set("Cookie", cookie())),
-    post: async (path: string, body: object = {}) => keep(await http().post(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
-    patch: async (path: string, body: object) => keep(await http().patch(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
-  }
-}
+const jarred = (origin: string, jar?: Map<string, string>) => jarredBrowser(app, origin, jar)
 
 const APP_ORIGIN = "http://app.lvh.me:3001"
 const as = (who: Who) => browser(app, ws.origin, ws.people[who].access)
@@ -90,7 +68,7 @@ let recovery: string[] = []
 describe("enrolling", () => {
   it("starts from the picker, confirms with one code, and shows ten recovery codes once", async () => {
     const owner = picker("owner")
-    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, recoveryCodesRemaining: 0 })
+    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: [], recoveryCodesRemaining: 0 })
     expect((await owner.get("/auth/identity")).body.mfa).toEqual({ enrolled: false })
     // The password, not the cookie alone, sets the factor (M9 review).
     expect((await owner.post("/auth/mfa/enrol", { password: "nope-nope-nope" })).status).toBe(400)
@@ -122,7 +100,7 @@ describe("signing in with a factor", () => {
     const browserA = jarred(APP_ORIGIN)
     const login = await browserA.post("/auth/login", { email: ws.people.owner.email, password: PASSWORD, slug: ws.slug })
     expect(login.status).toBe(200)
-    expect(login.body).toEqual({ status: "mfa-required" })
+    expect(login.body).toEqual({ status: "mfa-required", methods: ["totp"] })
     expect([...browserA.jar.keys()]).toEqual(["pg_mc"])
     expect(String(login.headers["set-cookie"])).toMatch(/pg_mc=[^;]+;.*Path=\/api\/v1\/auth/)
     expect((await browserA.get("/auth/identity")).status).toBe(401)

@@ -70,7 +70,7 @@ const membership = (orgId: string, status: MembershipRecord["status"] = "ACTIVE"
 function harness(memberships: MembershipRecord[] = [membership(acme.id)], options: { enrolled?: string[] } = {}) {
   const clock = new FixedClock(new Date("2026-10-05T12:00:00Z"))
   const enrolled = new Set(options.enrolled ?? [])
-  const mfa = { confirmed: vi.fn(async (userId: string) => (enrolled.has(userId) ? { id: "f-1", secretEncrypted: "x", confirmedAt: clock.now(), lastUsedStep: null } : null)) }
+  const mfa = { methods: vi.fn(async (userId: string) => (enrolled.has(userId) ? (["totp"] as const) : [])) }
   const tokens = new Map<string, RefreshTokenRecord>()
   let nextId = 0
   const refreshTokens = {
@@ -221,7 +221,7 @@ describe("SessionService with a second factor (ADR-0045)", () => {
   it("answers the right password with a challenge, not a session, when a factor is confirmed", async () => {
     const { service, tokens } = harness([membership(acme.id)], { enrolled: [owner.id] })
     const { response, cookies } = await service.login("owner@acme.test", "correct horse battery staple", "acme", client)
-    expect(response).toEqual({ status: "mfa-required" })
+    expect(response).toEqual({ status: "mfa-required", methods: ["totp"] })
     expect(cookies.map((c) => [c.name, c.path, c.maxAgeSeconds])).toEqual([["pg_mc", "/api/v1/auth", 300]])
     // Nothing was issued: no identity, no pair.
     expect(tokens.size).toBe(0)

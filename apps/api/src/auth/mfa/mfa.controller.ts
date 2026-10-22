@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common"
 import { Throttle } from "@nestjs/throttler"
 import {
+  type FactorAdded,
   type LoginResponse,
   MFA_CHALLENGE_COOKIE,
   mfaConfirmRequestSchema,
@@ -10,6 +11,7 @@ import {
   mfaLoginRequestSchema,
   mfaRegenerateRecoveryRequestSchema,
   type MfaStatus,
+  type PasskeyRequestCeremony,
   type RecoveryCodes,
   stepUpRequestSchema,
   type StepUpResponse,
@@ -21,6 +23,7 @@ import { Public, TenantOptional } from "../../common/decorators/route-markers"
 import { ActorService } from "../actor"
 import { clientOf } from "../auth.controller"
 import { CookieService, readCookie } from "../cookies"
+import { PasskeyService } from "../passkeys/passkey.service"
 import { MemberMfaService } from "./member-mfa.service"
 import { StepUpService } from "./step-up.service"
 
@@ -44,9 +47,18 @@ export class MfaController {
   constructor(
     private readonly factors: MemberMfaService,
     private readonly stepUp: StepUpService,
+    private readonly passkeys: PasskeyService,
     private readonly cookies: CookieService,
     private readonly actors: ActorService,
   ) {}
+
+  /** A passkey challenge for the second step, authenticated by the challenge cookie the password step set (ADR-0053). */
+  @Post("mfa/passkey/options")
+  @Public()
+  @HttpCode(200)
+  secondStepOptions(@Req() request: Request): Promise<PasskeyRequestCeremony> {
+    return this.passkeys.secondStepOptions(readCookie(request, MFA_CHALLENGE_COOKIE))
+  }
 
   /** The second step of login. Same `400` for a wrong code and a wrong recovery code. */
   @Post("mfa")
@@ -65,18 +77,18 @@ export class MfaController {
     return this.factors.status(this.actors.requireIdentity().userId)
   }
 
-  /** Proved by the password: a `pg_id` alone must not be able to set the factor (THREAT-MODEL §7). */
+  /** Proved by a factor, or the password when there is none: a `pg_id` alone must not be able to set the factor (THREAT-MODEL §7, ADR-0053). */
   @Post("mfa/enrol")
   @TenantOptional()
   @HttpCode(200)
   enrol(@Body() body: EnrolDto): Promise<MfaEnrolment> {
-    return this.factors.enrol(this.actors.requireIdentity().userId, body.password)
+    return this.factors.enrol(this.actors.requireIdentity().userId, body)
   }
 
   @Post("mfa/confirm")
   @TenantOptional()
   @HttpCode(200)
-  confirm(@Body() body: ConfirmDto): Promise<RecoveryCodes> {
+  confirm(@Body() body: ConfirmDto): Promise<FactorAdded> {
     return this.factors.confirm(this.actors.requireIdentity().userId, body.code)
   }
 
@@ -84,7 +96,7 @@ export class MfaController {
   @TenantOptional()
   @HttpCode(200)
   regenerate(@Body() body: RegenerateDto): Promise<RecoveryCodes> {
-    return this.factors.regenerateRecoveryCodes(this.actors.requireIdentity().userId, body.code)
+    return this.factors.regenerateRecoveryCodes(this.actors.requireIdentity().userId, body)
   }
 
   @Post("mfa/disable")
