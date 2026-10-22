@@ -56,7 +56,7 @@ services:
     # healthcheck and the init script use. It runs as a non-root user, which is
     # why the volume was renamed: one created by the old root image is not
     # writable by it.
-    image: cgr.dev/chainguard/minio:latest-dev@sha256:8534c7e8768711491b353aec5c88d89a7de97d3592e055f551e0975529b87ec0
+    image: cgr.dev/chainguard/minio:latest-dev@sha256:1195e844c6b5594ea26def1dd88dae4d9ee766c4db6b3ff7a2d2f0398e7dd164
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -81,7 +81,7 @@ services:
   # One-shot: create the bucket and set CORS so the browser can PUT directly to
   # storage with a presigned URL (ADR-0005). Exits 0 and stays exited.
   minio-init:
-    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:8d736271bb105639f2348d04186e748bbed63c5392e4ce86641453c11b53f3c8
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:f4ffdb6d79586e6255d138641ab5e6b0dca8f188df4291fd62a3278785bbe468
     depends_on:
       minio:
         condition: service_healthy
