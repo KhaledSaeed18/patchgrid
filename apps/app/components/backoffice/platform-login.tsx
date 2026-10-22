@@ -135,7 +135,10 @@ export function PlatformLogin({ next }: { next: string }) {
   if (stage.kind === "verify") {
     return (
       <FactorForm
-        onSubmit={(proof) => verify.mutate(proof)}
+        // Operators never use a passkey (ADR-0053): the form offers none, and the platform's schema takes none.
+        onSubmit={(proof) => {
+          if (!("passkey" in proof)) verify.mutate(proof)
+        }}
         pending={verify.isPending || verify.isSuccess}
         error={verify.error}
         submitLabel="Sign in"
