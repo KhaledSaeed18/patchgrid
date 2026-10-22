@@ -4,7 +4,7 @@ import type { ReactElement } from "react"
 import { z } from "zod"
 
 import { AccountExists } from "./account-exists"
-import { AccountSecurity, accountSecuritySubject } from "./account-security"
+import { ACCOUNT_SECURITY_EVENTS, AccountSecurity, accountSecuritySubject } from "./account-security"
 import { Invite } from "./invite"
 import { ResetPassword } from "./reset-password"
 import { ApiTokenExpiring, apiTokenExpiringSubject } from "./api-token-expiring"
@@ -128,7 +128,7 @@ export const MAIL_KINDS = {
   },
   "account-security": {
     params: z.object({
-      event: z.enum(["factor-enabled", "factor-disabled", "factor-locked", "recovery-code-used", "recovery-codes-regenerated"]),
+      event: z.enum(ACCOUNT_SECURITY_EVENTS),
       remaining: z.int().nonnegative(),
     }),
     subject: accountSecuritySubject,
