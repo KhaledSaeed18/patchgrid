@@ -7,9 +7,9 @@ import { serverIdentity } from "@/lib/api/server"
 
 import { Security } from "./security"
 
-export const metadata: Metadata = { title: "Two-factor authentication" }
+export const metadata: Metadata = { title: "Sign-in security" }
 
-/** The second factor, on the account rather than any workspace (ADR-0029, ADR-0045). */
+/** Second factors — passkeys and an authenticator app — on the account rather than any workspace (ADR-0029, ADR-0045, ADR-0053). */
 export default async function SecurityPage({
   searchParams,
 }: {
@@ -20,7 +20,7 @@ export default async function SecurityPage({
   const { required } = await searchParams
   return (
     <AuthShell
-      title="Two-factor authentication"
+      title="Sign-in security"
       description={
         <>
           For{" "}
@@ -37,10 +37,7 @@ export default async function SecurityPage({
         </Link>
       }
     >
-      <Security
-        initialEnrolled={identity.mfa.enrolled}
-        requiredBy={typeof required === "string" ? required : null}
-      />
+      <Security requiredBy={typeof required === "string" ? required : null} />
     </AuthShell>
   )
 }
