@@ -1,6 +1,7 @@
 import { z } from "zod"
 
-import { factorMethodSchema, holderProofSchema, memberFactorProofSchema, passkeyProofSchema } from "./passkeys.ts"
+import { factorMethodSchema } from "./auth.ts"
+import { holderProofSchema, memberFactorProofSchema, passkeyProofSchema } from "./passkeys.ts"
 import { totpCodeSchema } from "./platform.ts"
 import { slugSchema } from "./slug.ts"
 

@@ -35,38 +35,42 @@ const hintSchema = z.enum(["hybrid", "security-key", "client-device"])
 const credentialDescriptorSchema = z.object({
   id: base64url(1024),
   type: z.literal("public-key"),
-  transports: z.array(transportSchema).optional(),
+  transports: z.array(transportSchema).exactOptional(),
 })
 
-/** `navigator.credentials.create()`'s options, as JSON. */
+/**
+ * `navigator.credentials.create()`'s options, as JSON. Optional fields are
+ * exactly optional — absent, never `undefined` — as the browser's WebAuthn
+ * types expect and as JSON carries them.
+ */
 export const passkeyCreationOptionsSchema = z.object({
-  rp: z.object({ id: z.string().optional(), name: z.string() }),
+  rp: z.object({ id: z.string().exactOptional(), name: z.string() }),
   user: z.object({ id: base64url(128), name: z.string(), displayName: z.string() }),
   challenge: base64url(128),
   pubKeyCredParams: z.array(z.object({ alg: z.int(), type: z.literal("public-key") })),
-  timeout: z.int().positive().optional(),
-  excludeCredentials: z.array(credentialDescriptorSchema).optional(),
+  timeout: z.int().positive().exactOptional(),
+  excludeCredentials: z.array(credentialDescriptorSchema).exactOptional(),
   authenticatorSelection: z
     .object({
-      authenticatorAttachment: z.enum(["platform", "cross-platform"]).optional(),
-      requireResidentKey: z.boolean().optional(),
-      residentKey: z.enum(["discouraged", "preferred", "required"]).optional(),
-      userVerification: userVerificationSchema.optional(),
+      authenticatorAttachment: z.enum(["platform", "cross-platform"]).exactOptional(),
+      requireResidentKey: z.boolean().exactOptional(),
+      residentKey: z.enum(["discouraged", "preferred", "required"]).exactOptional(),
+      userVerification: userVerificationSchema.exactOptional(),
     })
-    .optional(),
-  hints: z.array(hintSchema).optional(),
-  attestation: z.enum(["direct", "enterprise", "indirect", "none"]).optional(),
+    .exactOptional(),
+  hints: z.array(hintSchema).exactOptional(),
+  attestation: z.enum(["direct", "enterprise", "indirect", "none"]).exactOptional(),
 })
 export type PasskeyCreationOptions = z.infer<typeof passkeyCreationOptionsSchema>
 
 /** `navigator.credentials.get()`'s options, as JSON. */
 export const passkeyRequestOptionsSchema = z.object({
   challenge: base64url(128),
-  timeout: z.int().positive().optional(),
-  rpId: z.string().optional(),
-  allowCredentials: z.array(credentialDescriptorSchema).optional(),
-  userVerification: userVerificationSchema.optional(),
-  hints: z.array(hintSchema).optional(),
+  timeout: z.int().positive().exactOptional(),
+  rpId: z.string().exactOptional(),
+  allowCredentials: z.array(credentialDescriptorSchema).exactOptional(),
+  userVerification: userVerificationSchema.exactOptional(),
+  hints: z.array(hintSchema).exactOptional(),
 })
 export type PasskeyRequestOptions = z.infer<typeof passkeyRequestOptionsSchema>
 
@@ -186,7 +190,3 @@ export const passkeyLoginRequestSchema = z.strictObject({
   slug: slugSchema.optional(),
 })
 export type PasskeyLoginRequest = z.infer<typeof passkeyLoginRequestSchema>
-
-/** The kinds of factor a person holds, as the second step of login and step-up name them. */
-export const factorMethodSchema = z.enum(["totp", "passkey"])
-export type FactorMethod = z.infer<typeof factorMethodSchema>

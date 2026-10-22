@@ -1,7 +1,6 @@
 import { z } from "zod"
 
 import { idSchema } from "./id.ts"
-import { factorMethodSchema } from "./passkeys.ts"
 import { slugSchema } from "./slug.ts"
 import { membershipStatusSchema, organizationStatusSchema, roleSchema } from "./tenancy.ts"
 
@@ -68,6 +67,14 @@ export const signedInResponseSchema = z.object({
   session: z.object({ slug: slugSchema }).nullable(),
 })
 export type SignedInResponse = z.infer<typeof signedInResponseSchema>
+
+/**
+ * The kinds of second factor a person holds (ADR-0053): an authenticator
+ * app, passkeys, or both. Here rather than beside the passkey shapes, which
+ * import the platform's, which import this file.
+ */
+export const factorMethodSchema = z.enum(["totp", "passkey"])
+export type FactorMethod = z.infer<typeof factorMethodSchema>
 
 /**
  * The password was right and a second factor is held (ADR-0045): no session
