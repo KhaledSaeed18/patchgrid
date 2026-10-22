@@ -21,6 +21,10 @@
 >    authenticated by the challenge cookie. Removal is `POST /auth/passkeys/:id/remove`, carrying its
 >    proof in the body as turning TOTP off does. Recovery codes are replaced with a live factor — a
 >    code or a passkey, never a recovery code.
+> 5. **The algorithms are fixed: EdDSA, ES256, RS256.** `@simplewebauthn/server` offers ML-DSA-44 first
+>    whenever the runtime can verify it, so a passkey made on one Node could fail on another, and its
+>    signatures (kilobytes) exceed the wire bounds. Registration offers, and verification accepts, only
+>    the three.
 - **Refines:** [0029](0029-mfa-and-step-up-authentication.md), [0045](0045-member-mfa-as-built.md); builds on
   [0024](0024-per-tenant-cookies-and-api-tenant-resolution.md), [0040](0040-platform-credential-and-the-admin-host.md)
 
