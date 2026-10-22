@@ -464,8 +464,9 @@ and closes two hundred tickets in one action, with every refusal and conflict re
 _Exit: a member signs in with a passkey and uses it for step-up; a workspace with SSO configured sends its
 members to their identity provider, and a new member is provisioned on first sign-in._
 
-- [ ] Passkeys (WebAuthn): register, sign in without a password, step-up with a passkey (ADR-0045's
-      `sua`), list and revoke
+- [x] Passkeys (WebAuthn): register, sign in without a password, step-up with a passkey (ADR-0045's
+      `sua`), list and revoke. ADR-0053 and its erratum; the browser suite drives a virtual authenticator.
+      Done 2026-10-22
 - [ ] Per-tenant OIDC (authorization code with PKCE) against a local Keycloak profile in Compose; the
       workspace's verified email domain routes sign-in; just-in-time membership at a default role;
       "SSO required" mirrors `requireMfa`
