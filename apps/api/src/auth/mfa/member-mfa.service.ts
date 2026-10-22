@@ -118,7 +118,7 @@ export class MemberMfaService {
     if (factor === null || step === null) throw await this.refused(userId)
     const fresh = (await this.mfa.methods(userId)).length === 0 ? newRecoveryCodes() : null
     const hashes = fresh === null ? null : await this.hashAll(fresh)
-    const result = await this.mfa.confirm(userId, factor.id, step, now, hashes)
+    const result = await this.mfa.confirm(userId, factor.id, step, now, hashes, "if-first")
     if (!result.confirmed) throw await this.refused(userId)
     await this.lockout.clear(userId)
     const recoveryCodes = result.codesIssued ? fresh : null

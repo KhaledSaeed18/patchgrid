@@ -89,7 +89,7 @@ export class PlatformAuthService {
     if (factor === null || step === null) throw await this.refused(challenge)
     const recoveryCodes = Array.from({ length: RECOVERY_CODES }, recoveryCode)
     const hashes = await Promise.all(recoveryCodes.map((c) => this.passwords.hash(normaliseRecoveryCode(c))))
-    if (!(await this.mfa.confirm(challenge.userId, factor.id, step, now, hashes))) throw await this.refused(challenge)
+    if (!(await this.mfa.confirm(challenge.userId, factor.id, step, now, hashes, "always")).confirmed) throw await this.refused(challenge)
     await this.lockout.clear(challenge.userId)
     await this.audit.record({ platformAdminId: challenge.platformAdminId, action: "PLATFORM_MFA_ENROLLED", targetUserId: challenge.userId })
     return { ...(await this.signIn(challenge, "totp")), recoveryCodes }

@@ -275,7 +275,7 @@ describe("MemberMfaService with passkeys (ADR-0053)", () => {
     const enrolment = await h.service.enrol(ada.id, { passkey: passkey("good") })
     const added = await h.service.confirm(ada.id, codeAt(enrolment.secret, NOW))
     expect(added.recoveryCodes).toBeNull()
-    expect(h.mfa.confirm).toHaveBeenCalledWith(ada.id, "f-new", expect.any(Number), NOW, null)
+    expect(h.mfa.confirm).toHaveBeenCalledWith(ada.id, "f-new", expect.any(Number), NOW, null, "if-first")
     expect(h.recovery).toHaveLength(1)
     expect(await h.service.status(ada.id)).toMatchObject({ enrolled: true, methods: ["totp", "passkey"], recoveryCodesRemaining: 1 })
   })

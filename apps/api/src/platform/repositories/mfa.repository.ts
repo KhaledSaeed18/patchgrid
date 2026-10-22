@@ -55,20 +55,21 @@ export class MfaRepository {
   }
 
   /**
-   * Confirms the factor with its first accepted step and, when it is the
-   * person's first factor of any kind, issues the recovery codes with it.
-   * `recoveryHashes` is what the caller prepared expecting to be first; with a
-   * passkey already held the codes they have stand.
+   * Confirms the factor with its first accepted step and issues recovery
+   * codes with it. A member's codes come only with their first factor of any
+   * kind (`codes: "if-first"`): with a passkey already held, the codes they
+   * have stand. An operator's are replaced every time (`codes: "always"`),
+   * as their enrolment has always done (ADR-0040).
    */
-  async confirm(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[] | null): Promise<Confirmed> {
+  async confirm(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[] | null, codes: "if-first" | "always"): Promise<Confirmed> {
     // Two enrolments confirmed at once: the one-confirmed-factor index lets one win; the other is a refusal, not a 500.
-    return this.confirmOnce(userId, factorId, step, now, recoveryHashes).catch((error: unknown) => {
+    return this.confirmOnce(userId, factorId, step, now, recoveryHashes, codes).catch((error: unknown) => {
       if (isUniqueViolation(error)) return { confirmed: false, codesIssued: false }
       throw error
     })
   }
 
-  private confirmOnce(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[] | null): Promise<Confirmed> {
+  private confirmOnce(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[] | null, codes: "if-first" | "always"): Promise<Confirmed> {
     return this.prisma.db.$transaction(async (tx) => {
       await lockPerson(tx, userId)
       const { count } = await tx.userMfaFactor.updateMany({
@@ -76,8 +77,8 @@ export class MfaRepository {
         data: { confirmedAt: now, lastUsedStep: step, lastUsedAt: now },
       })
       if (count !== 1) return { confirmed: false, codesIssued: false }
-      const first = (await tx.userPasskey.count({ where: { userId } })) === 0
-      if (!first || recoveryHashes === null) return { confirmed: true, codesIssued: false }
+      const issue = codes === "always" || (await tx.userPasskey.count({ where: { userId } })) === 0
+      if (!issue || recoveryHashes === null) return { confirmed: true, codesIssued: false }
       await tx.userMfaRecovery.deleteMany({ where: { userId } })
       await tx.userMfaRecovery.createMany({ data: recoveryHashes.map((codeHash) => ({ userId, codeHash })) })
       return { confirmed: true, codesIssued: true }
