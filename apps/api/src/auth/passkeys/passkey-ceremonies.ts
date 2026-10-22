@@ -75,7 +75,7 @@ export class PasskeyCeremonies {
       excludeCredentials: existing.map((p) => ({ id: base64url(p.credentialId), transports: p.transports })),
       authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },
     })
-    return { challengeId: issued.id, options: passkeyCreationOptionsSchema.parse(options) }
+    return { challengeId: issued.id, options: passkeyCreationOptionsSchema.parse(asSent(options)) }
   }
 
   /**
@@ -92,7 +92,7 @@ export class PasskeyCeremonies {
       userVerification: "required",
       ...(purpose === "login" ? {} : { allowCredentials: allow.map((p) => ({ id: base64url(p.credentialId), transports: p.transports })) }),
     })
-    return { challengeId: issued.id, options: passkeyRequestOptionsSchema.parse(options) }
+    return { challengeId: issued.id, options: passkeyRequestOptionsSchema.parse(asSent(options)) }
   }
 
   /** The new credential, verified against the challenge issued to this person; `null` for anything else. */
@@ -193,6 +193,11 @@ export class PasskeyCeremonies {
     const where = classifyOrigin(origin, originPolicyFrom(this.config))
     return where.kind === "tenant" || (where.kind === "infrastructure" && where.label === "app") ? origin : null
   }
+}
+
+/** Options as the browser will receive them: through JSON, which drops the keys the library leaves `undefined`. */
+function asSent(options: object): unknown {
+  return JSON.parse(JSON.stringify(options))
 }
 
 /** The WebAuthn user handle: the person's id as its sixteen bytes, nothing personal. */
