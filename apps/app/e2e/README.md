@@ -16,6 +16,8 @@ pnpm --filter @patchgrid/app test:e2e
 | `change-approval` | An agent drafts a Change with its plan and submits it; the requester of a change is never offered its approval; an admin who did not raise it approves; the agent takes it, starts, records the outcome, marks it implemented and closes it |
 | `isolation` | **Cross-tenant:** a session for Acme is sent away from Globex's pages, answers `401` when the same cookies are asked as Globex, and cannot open a workspace it is not a member of. **Role escalation:** an agent gets "Nothing here" on admin pages and `403` promoting anyone, themselves included, inviting an admin or minting a token. **Two tabs, two tenants:** one person in Acme and Globex at once, raising a ticket in each, each tab keeping its own workspace and neither list showing the other's ticket (ADR-0024) |
 
+| `passkeys` | A fresh owner adds a passkey from the account page against the password and is shown recovery codes once; signs back in with nothing typed, straight into the workspace the login was for; mints an API token behind a step-up the passkey proves (no password field offered); and removes the passkey, proved by itself. Chromium's virtual authenticator answers the prompts, and the two development hosts are treated as secure for WebAuthn (ADR-0053) |
+
 The negatives are the point. The happy paths are the easy part.
 
 Every run makes its own rows — a workspace `e2e-<run>` and tickets titled with the run id — so a
