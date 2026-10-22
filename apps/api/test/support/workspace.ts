@@ -117,3 +117,27 @@ export function browser(app: INestApplication, origin: string, access: string) {
     delete: (path: string) => http().delete(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", access),
   }
 }
+
+/** A browser with a cookie jar, as a real one keeps and clears what `Set-Cookie` says. */
+export function jarredBrowser(app: INestApplication, origin: string, jar: Map<string, string> = new Map()) {
+  const cookie = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ")
+  const keep = (response: request.Response) => {
+    for (const line of (response.headers["set-cookie"] as unknown as string[] | undefined) ?? []) {
+      const [pair = "", ...attributes] = line.split(";")
+      const [name, value] = pair.split("=")
+      const expired = attributes.some((a) => /^\s*Max-Age=0\b/i.test(a) || /Expires=Thu, 01 Jan 1970/i.test(a))
+      if (name !== undefined) {
+        if (expired || value === undefined || value === "") jar.delete(name)
+        else jar.set(name, value)
+      }
+    }
+    return response
+  }
+  const http = () => request(app.getHttpServer())
+  return {
+    jar,
+    get: async (path: string) => keep(await http().get(`/api/v1${path}`).set("Origin", origin).set("Cookie", cookie())),
+    post: async (path: string, body: object = {}) => keep(await http().post(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
+    patch: async (path: string, body: object) => keep(await http().patch(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
+  }
+}

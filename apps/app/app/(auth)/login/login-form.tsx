@@ -1,7 +1,9 @@
 "use client"
 
 import {
+  type FactorMethod,
   loginResponseSchema,
+  signedInResponseSchema,
   type SignedInResponse,
 } from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
@@ -17,17 +19,27 @@ import { FactorForm, type FactorProof } from "@/components/mfa/factor-form"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { parseNext } from "@/lib/next-url"
+import {
+  assertWithPasskey,
+  PasskeyCancelled,
+  usePasskeysAvailable,
+} from "@/lib/passkeys"
 
 /**
- * Email and password — then, for an account with a second factor, the code
- * (ADR-0045). When the browser arrived from a workspace, the login asks for
- * that workspace's session in the same request and goes straight back;
- * otherwise it goes to the picker. One message for every failure: the API
- * does not say whether the address exists, and neither does this page.
+ * A passkey alone, or email and password — then, for an account with a
+ * second factor, the factor (ADR-0045, ADR-0053). When the browser arrived
+ * from a workspace, the login asks for that workspace's session in the same
+ * request and goes straight back; otherwise it goes to the picker. One
+ * message for every failure: the API does not say whether the address
+ * exists, and neither does this page.
  */
 export function LoginForm({ next }: { next: string | undefined }) {
   const target = parseNext(next)
-  const [stage, setStage] = useState<"password" | "factor">("password")
+  const slug = target?.kind === "workspace" ? { slug: target.slug } : {}
+  const [stage, setStage] = useState<
+    { kind: "password" } | { kind: "factor"; methods: FactorMethod[] }
+  >({ kind: "password" })
+  const canPasskey = usePasskeysAvailable()
   const go = (response: SignedInResponse) => {
     if (target?.kind === "workspace" && response.session !== null) {
       window.location.assign(target.url)
@@ -43,16 +55,27 @@ export function LoginForm({ next }: { next: string | undefined }) {
       clientApi("/auth/login", {
         method: "POST",
         anonymous: true,
-        body: {
-          ...form,
-          ...(target?.kind === "workspace" ? { slug: target.slug } : {}),
-        },
+        body: { ...form, ...slug },
         schema: loginResponseSchema,
       }),
     onSuccess: (response) => {
-      if (response.status === "mfa-required") setStage("factor")
+      if (response.status === "mfa-required")
+        setStage({ kind: "factor", methods: response.methods })
       else go(response)
     },
+  })
+  // Nothing typed: the passkey is both factors (ADR-0053).
+  const passkey = useMutation({
+    mutationFn: async () => {
+      const proof = await assertWithPasskey("/auth/passkeys/login/options", true)
+      return clientApi("/auth/passkeys/login", {
+        method: "POST",
+        anonymous: true,
+        body: { ...proof, ...slug },
+        schema: signedInResponseSchema,
+      })
+    },
+    onSuccess: go,
   })
   const factor = useMutation({
     mutationFn: (proof: FactorProof) =>
@@ -67,21 +90,29 @@ export function LoginForm({ next }: { next: string | undefined }) {
     },
   })
 
-  if (stage === "factor") {
+  if (stage.kind === "factor") {
     return (
       <FactorForm
+        methods={stage.methods}
+        passkeyOptions="/auth/mfa/passkey/options"
+        anonymous
         onSubmit={(proof) => factor.mutate(proof)}
         pending={factor.isPending || factor.isSuccess}
         error={factor.error}
         submitLabel="Sign in"
       >
         <p className="text-sm text-pretty text-muted-foreground">
-          Your account has two-factor authentication on. Enter the code from
-          your authenticator app.
+          Your account has two-factor authentication on.{" "}
+          {stage.methods.includes("totp")
+            ? "Enter the code from your authenticator app."
+            : "Confirm with your passkey."}
         </p>
       </FactorForm>
     )
   }
+
+  const passkeyFailed =
+    passkey.error !== null && !(passkey.error instanceof PasskeyCancelled)
 
   return (
     <form
@@ -98,6 +129,12 @@ export function LoginForm({ next }: { next: string | undefined }) {
       <FieldGroup>
         {login.error !== null && (
           <FormAlert>{messageFor(login.error)}</FormAlert>
+        )}
+        {passkeyFailed && (
+          <FormAlert>
+            That passkey didn&apos;t sign you in. Try again, or use your email
+            and password.
+          </FormAlert>
         )}
         <FormField
           id="email"
@@ -132,6 +169,18 @@ export function LoginForm({ next }: { next: string | undefined }) {
           {(login.isPending || login.isSuccess) && <Spinner />}
           Sign in
         </Button>
+        {canPasskey && (
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            disabled={passkey.isPending || passkey.isSuccess}
+            onClick={() => passkey.mutate()}
+          >
+            {(passkey.isPending || passkey.isSuccess) && <Spinner />}
+            Sign in with a passkey
+          </Button>
+        )}
       </FieldGroup>
     </form>
   )

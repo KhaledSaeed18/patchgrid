@@ -18,11 +18,16 @@ import { CookieService } from "./cookies"
 import { IdentityController } from "./identity/identity.controller"
 import { IdentityService } from "./identity/identity.service"
 import { ApiTokenCoreModule } from "../api-tokens/api-token-core.module"
+import { AccountSecurityNotifier } from "./mfa/account-security-notifier"
 import { FactorLockout } from "./mfa/factor-lockout"
 import { MemberMfaService } from "./mfa/member-mfa.service"
 import { MfaChallengeService } from "./mfa/mfa-challenge.service"
 import { MfaController } from "./mfa/mfa.controller"
 import { StepUpService } from "./mfa/step-up.service"
+import { PasskeyCeremonies } from "./passkeys/passkey-ceremonies"
+import { PasskeyChallengeStore } from "./passkeys/passkey-challenges"
+import { PasskeyController } from "./passkeys/passkey.controller"
+import { PasskeyService } from "./passkeys/passkey.service"
 import { PasswordService } from "./passwords/password.service"
 import { PlatformAuthController } from "./platform/platform-auth.controller"
 import { PlatformAuthService } from "./platform/platform-auth.service"
@@ -52,7 +57,7 @@ import { OrgThrottlerGuard } from "../throttling/throttler.guards"
     ApiTokenCoreModule,
     BullModule.registerQueue({ name: CREDENTIAL_RETENTION_QUEUE }),
   ],
-  controllers: [AuthController, IdentityController, PlatformAuthController, MfaController, AccountController],
+  controllers: [AuthController, IdentityController, PlatformAuthController, MfaController, PasskeyController, AccountController],
   providers: [
     CookieService,
     PasswordService,
@@ -70,6 +75,10 @@ import { OrgThrottlerGuard } from "../throttling/throttler.guards"
     MfaChallengeService,
     MemberMfaService,
     StepUpService,
+    AccountSecurityNotifier,
+    PasskeyChallengeStore,
+    PasskeyCeremonies,
+    PasskeyService,
     AccountErasureRepository,
     AccountErasureService,
     CredentialRetentionService,

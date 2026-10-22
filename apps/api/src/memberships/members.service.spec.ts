@@ -141,7 +141,7 @@ function harness(actorId: string, seeds: Seed[], seatsFree = true, options: { st
     } as unknown as AuditService,
     epochs as unknown as RevocationEpochService,
     quota as unknown as QuotaService,
-    new StepUpService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, new FixedClock(NOW)),
+    new StepUpService({} as never, {} as never, {} as never, new FixedClock(NOW)),
   )
   return { service, rows, events, audit, memberships, workspaces, epochs, seats }
 }

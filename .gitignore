@@ -55,3 +55,7 @@ next-env.d.ts
 
 # nest build output
 dist/
+
+# Playwright output
+test-results/
+playwright-report/

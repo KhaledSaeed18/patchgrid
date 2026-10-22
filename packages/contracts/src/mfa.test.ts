@@ -7,10 +7,11 @@ import { PROBLEM_TYPES } from "./problems.ts"
 
 describe("loginResponseSchema", () => {
   it("is either a session or a pending second factor, never both", () => {
-    expect(loginResponseSchema.parse({ status: "mfa-required" })).toEqual({ status: "mfa-required" })
+    expect(loginResponseSchema.parse({ status: "mfa-required", methods: ["totp"] })).toEqual({ status: "mfa-required", methods: ["totp"] })
+    expect(loginResponseSchema.safeParse({ status: "mfa-required", methods: [] }).success).toBe(false)
     const signedIn = { status: "signed-in", user: { id: "01939f4e-6d4e-7c1a-9a0e-3c1e4b6f8a21", email: "a@b.io", name: "A" }, workspaces: [], session: null }
     expect(loginResponseSchema.safeParse(signedIn).success).toBe(true)
-    expect(loginResponseSchema.safeParse({ status: "mfa-required", user: signedIn.user }).success).toBe(true)
+    expect(loginResponseSchema.safeParse({ status: "mfa-required", methods: ["passkey"], user: signedIn.user }).success).toBe(true)
     expect(loginResponseSchema.safeParse({ user: signedIn.user, workspaces: [], session: null }).success).toBe(false)
   })
 })

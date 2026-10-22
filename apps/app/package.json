@@ -18,6 +18,7 @@
     "@hugeicons/react": "^1.1.10",
     "@patchgrid/contracts": "workspace:*",
     "@patchgrid/ui": "workspace:*",
+    "@simplewebauthn/browser": "14.0.0",
     "@tanstack/react-query": "^5.104.4",
     "next": "16.4.2",
     "next-themes": "^0.4.6",

@@ -56,9 +56,10 @@ export type LogoutInput = {
  * - Refresh rotates; presenting a rotated token revokes its whole chain.
  * - Login answers uniformly: unknown address, wrong password, unverified or
  *   anonymised account are one 401, at one Argon2id cost.
- * - A confirmed second factor turns the right password into a challenge, not
- *   a session (ADR-0045); and a workspace that requires one opens for nobody
- *   without it — at open and refresh, never mid-session.
+ * - A second factor — a confirmed authenticator app or a passkey — turns the
+ *   right password into a challenge, not a session (ADR-0045, ADR-0053); and a
+ *   workspace that requires one opens for nobody without it — at open and
+ *   refresh, never mid-session.
  */
 @Injectable()
 export class SessionService {
@@ -93,10 +94,11 @@ export class SessionService {
       throw new NotAuthenticatedProblem("Invalid email or password")
     }
 
-    // The password was right; with a factor enrolled that is a challenge, not a session.
-    if ((await this.mfa.confirmed(account.id)) !== null) {
+    // The password was right; with a factor held that is a challenge, not a session.
+    const methods = await this.mfa.methods(account.id)
+    if (methods.length > 0) {
       const challenge = await this.challenges.issue(account.id, slug)
-      return { response: { status: "mfa-required" }, cookies: [this.cookies.mfaChallenge(challenge, MFA_CHALLENGE_TTL_SECONDS)] }
+      return { response: { status: "mfa-required", methods }, cookies: [this.cookies.mfaChallenge(challenge, MFA_CHALLENGE_TTL_SECONDS)] }
     }
 
     return this.startIdentity(account, client, slug)
@@ -169,7 +171,7 @@ export class SessionService {
     return {
       user: { id: account.id, email: account.email, name: account.name },
       workspaces: await this.workspaces.listWorkspacesForUser(account.id),
-      mfa: { enrolled: (await this.mfa.confirmed(account.id)) !== null },
+      mfa: { enrolled: (await this.mfa.methods(account.id)).length > 0 },
     }
   }
 
@@ -262,9 +264,9 @@ export class SessionService {
     return this.mint(userId, org, membership, client, now)
   }
 
-  /** ADR-0045: a workspace that requires a second factor opens only for someone with one confirmed. */
+  /** ADR-0045, ADR-0053: a workspace that requires a second factor opens only for someone holding one, of either kind. */
   private async meetsFactorPolicy(org: OrganizationSummary, userId: string): Promise<boolean> {
-    return !org.requireMfa || (await this.mfa.confirmed(userId)) !== null
+    return !org.requireMfa || (await this.mfa.methods(userId)).length > 0
   }
 
   private async assertFactorPolicy(org: OrganizationSummary, userId: string): Promise<void> {

@@ -47,12 +47,13 @@ export class AccountErasureRepository {
 
   /**
    * The account itself: a tombstone address nobody can sign in with or be
-   * mailed at, no name, no password, no second factor, no tokens, no picker.
+   * mailed at, no name, no password, no second factor or passkey, no tokens, no picker.
    * Must run inside `transaction()`.
    */
   async tombstoneAccount(userId: string, tombstoneEmail: string, at: Date): Promise<void> {
     await this.prisma.db.userMfaRecovery.deleteMany({ where: { userId } })
     await this.prisma.db.userMfaFactor.deleteMany({ where: { userId } })
+    await this.prisma.db.userPasskey.deleteMany({ where: { userId } })
     await this.prisma.db.passwordResetToken.deleteMany({ where: { userId } })
     await this.prisma.db.emailVerification.deleteMany({ where: { userId } })
     await this.prisma.db.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: at } })

@@ -105,7 +105,7 @@ function harness(options: Options = {}) {
     } as unknown as MailService,
     { app: (path: string) => `http://app.lvh.me:3001${path}` } as unknown as PublicUrls,
     { hasRoom: async () => options.seatsFull !== true } as unknown as QuotaService,
-    new StepUpService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, new FixedClock(NOW)),
+    new StepUpService({} as never, {} as never, {} as never, new FixedClock(NOW)),
     new FixedClock(NOW),
   )
   return { service, events, audit, created, mail, invitations }

@@ -69,11 +69,21 @@ export const signedInResponseSchema = z.object({
 export type SignedInResponse = z.infer<typeof signedInResponseSchema>
 
 /**
- * The password was right and a second factor is enrolled (ADR-0045): no
- * session yet, only a five-minute challenge cookie that `POST /auth/mfa`
- * completes. Nothing about the account is disclosed before the factor.
+ * The kinds of second factor a person holds (ADR-0053): an authenticator
+ * app, passkeys, or both. Here rather than beside the passkey shapes, which
+ * import the platform's, which import this file.
  */
-export const mfaRequiredResponseSchema = z.object({ status: z.literal("mfa-required") })
+export const factorMethodSchema = z.enum(["totp", "passkey"])
+export type FactorMethod = z.infer<typeof factorMethodSchema>
+
+/**
+ * The password was right and a second factor is held (ADR-0045): no session
+ * yet, only a five-minute challenge cookie that `POST /auth/mfa` completes.
+ * `methods` names the kinds the person holds (ADR-0053) — it reaches only
+ * someone who typed the right password, so it tells them nothing the password
+ * did not. Nothing else about the account is disclosed before the factor.
+ */
+export const mfaRequiredResponseSchema = z.object({ status: z.literal("mfa-required"), methods: z.array(factorMethodSchema).min(1) })
 
 export const loginResponseSchema = z.discriminatedUnion("status", [signedInResponseSchema, mfaRequiredResponseSchema])
 export type LoginResponse = z.infer<typeof loginResponseSchema>
@@ -85,7 +95,7 @@ export type LoginResponse = z.infer<typeof loginResponseSchema>
 export const identityResponseSchema = z.object({
   user: sessionUserSchema,
   workspaces: z.array(workspaceSummarySchema),
-  /** Whether a confirmed second factor exists — the picker routes to enrolment when a workspace demands one. */
+  /** Whether any second factor exists, TOTP or passkey — the picker routes to setup when a workspace demands one. */
   mfa: z.object({ enrolled: z.boolean() }),
 })
 export type IdentityResponse = z.infer<typeof identityResponseSchema>

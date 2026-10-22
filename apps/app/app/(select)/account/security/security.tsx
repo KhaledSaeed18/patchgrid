@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  factorAddedSchema,
   type MfaEnrolment,
   mfaEnrolmentSchema,
   mfaStatusSchema,
@@ -14,65 +15,59 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@patchgrid/ui/components/dialog"
-import { FieldGroup } from "@patchgrid/ui/components/field"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { FormAlert } from "@/components/form-alert"
-import { FormField } from "@/components/form-field"
 import {
   EnrolForm,
   FactorForm,
   factorMessage,
   type FactorProof,
 } from "@/components/mfa/factor-form"
+import {
+  type HolderProof,
+  HolderProofForm,
+  PROOF_OPTIONS,
+} from "@/components/mfa/holder-proof-form"
 import { RecoveryCodes } from "@/components/mfa/recovery-codes"
 import { clientApi } from "@/lib/api/client"
-import { ApiError } from "@/lib/api/errors"
 import { ROOT_DOMAIN } from "@/lib/config"
+
+import { Passkeys } from "./passkeys"
 
 type Stage =
   | { kind: "idle" }
+  | { kind: "prove" }
   | { kind: "enrol"; enrolment: MfaEnrolment }
   | { kind: "recovery"; codes: string[] }
   | { kind: "regenerate" }
   | { kind: "disable" }
-  | { kind: "password" }
 
 /**
- * Set up, replace the recovery codes, or turn off (ADR-0029). Every change
- * is proved by the factor itself — never by the password alone — and the
- * recovery codes are shown exactly once.
+ * A person's second factors, on the account rather than any workspace
+ * (ADR-0029, ADR-0053): passkeys, an authenticator app, and the recovery
+ * codes that outlive either. Every change is proved by a factor the person
+ * already holds — the password only when they hold none — and the recovery
+ * codes are shown exactly once.
  */
-export function Security({
-  initialEnrolled,
-  requiredBy,
-}: {
-  initialEnrolled: boolean
-  requiredBy: string | null
-}) {
+export function Security({ requiredBy }: { requiredBy: string | null }) {
   const queryClient = useQueryClient()
   const [stage, setStage] = useState<Stage>({ kind: "idle" })
   const status = useQuery({
     queryKey: ["mfa-status"],
     queryFn: () => clientApi("/auth/mfa", { schema: mfaStatusSchema }),
-    initialData: {
-      enrolled: initialEnrolled,
-      confirmedAt: null,
-      recoveryCodesRemaining: 0,
-    },
   })
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ["mfa-status"] })
 
-  // The password first: a session alone must not be able to set the factor (ADR-0045).
   const enrol = useMutation({
-    mutationFn: (password: string) =>
+    mutationFn: (proof: HolderProof) =>
       clientApi("/auth/mfa/enrol", {
         method: "POST",
-        body: { password },
+        body: proof,
         schema: mfaEnrolmentSchema,
       }),
     onSuccess: (enrolment) => setStage({ kind: "enrol", enrolment }),
@@ -82,11 +77,16 @@ export function Security({
       clientApi("/auth/mfa/confirm", {
         method: "POST",
         body: { code },
-        schema: recoveryCodesSchema,
+        schema: factorAddedSchema,
       }),
     onSuccess: (result) => {
-      setStage({ kind: "recovery", codes: result.recoveryCodes })
       void refresh()
+      if (result.recoveryCodes !== null)
+        setStage({ kind: "recovery", codes: result.recoveryCodes })
+      else {
+        setStage({ kind: "idle" })
+        toast.success("Your authenticator app is set up.")
+      }
     },
   })
   const regenerate = useMutation({
@@ -110,7 +110,7 @@ export function Security({
       }),
     onSuccess: () => {
       setStage({ kind: "idle" })
-      toast.success("Two-factor authentication is off.")
+      toast.success("Your authenticator app is off.")
       void refresh()
     },
   })
@@ -138,113 +138,122 @@ export function Security({
     )
   }
 
-  const enrolled = status.data.enrolled
+  if (status.data === undefined) return <Spinner />
+  const { methods, enrolled } = status.data
+  const close = () => setStage({ kind: "idle" })
   return (
-    <div className="grid gap-6">
-      {requiredBy !== null && !enrolled && (
+    <div className="grid gap-8">
+      {requiredBy !== null && methods.length === 0 && (
         <FormAlert tone="info">
           <span className="font-mono">
             {requiredBy}.{ROOT_DOMAIN}
           </span>{" "}
-          requires two-factor authentication. Set it up here, then open the
-          workspace again.
+          requires a second factor. Add a passkey or an authenticator app
+          here, then open the workspace again.
         </FormAlert>
       )}
-      <div className="grid gap-2 text-sm leading-relaxed">
-        <p className="font-medium">
-          {enrolled ? "On" : "Off"}
-          {enrolled && status.data.confirmedAt !== null && (
+
+      <Passkeys
+        methods={methods}
+        onRecoveryCodes={(codes) => setStage({ kind: "recovery", codes })}
+      />
+
+      <section
+        className="grid gap-4 border-t border-border pt-6"
+        aria-labelledby="totp-heading"
+      >
+        <div className="grid gap-1 text-sm leading-relaxed">
+          <h2 id="totp-heading" className="font-medium">
+            Authenticator app{" "}
             <span className="font-normal text-muted-foreground">
-              {" "}
-              since {new Date(status.data.confirmedAt).toLocaleDateString()}
+              — {enrolled ? "on" : "off"}
+              {enrolled &&
+                status.data.confirmedAt !== null &&
+                ` since ${new Date(status.data.confirmedAt).toLocaleDateString()}`}
             </span>
-          )}
-        </p>
-        <p className="text-muted-foreground">
-          {enrolled
-            ? `Signing in takes your password and a code from your authenticator app. ${String(status.data.recoveryCodesRemaining)} of 10 recovery codes left.`
-            : "Your password alone signs you in. An authenticator app adds a code that changes every 30 seconds, so a stolen password is not enough."}
-        </p>
-      </div>
-      {enrolled ? (
-        <div className="flex flex-wrap gap-3">
+          </h2>
+          <p className="text-muted-foreground">
+            {enrolled
+              ? "Signing in with your password also takes a code from your authenticator app."
+              : "A code that changes every 30 seconds, asked for after your password, so a stolen password is not enough."}
+          </p>
+        </div>
+        {enrolled ? (
           <Button
             variant="outline"
-            onClick={() => setStage({ kind: "regenerate" })}
-          >
-            New recovery codes
-          </Button>
-          <Button
-            variant="outline"
+            className="w-fit"
             onClick={() => setStage({ kind: "disable" })}
           >
             Turn off
           </Button>
-        </div>
-      ) : (
-        <Button
-          size="lg"
-          className="w-fit"
-          onClick={() => setStage({ kind: "password" })}
+        ) : (
+          <Button
+            variant="outline"
+            className="w-fit"
+            onClick={() => setStage({ kind: "prove" })}
+          >
+            Set up an authenticator app
+          </Button>
+        )}
+      </section>
+
+      {methods.length > 0 && (
+        <section
+          className="grid gap-4 border-t border-border pt-6"
+          aria-labelledby="recovery-heading"
         >
-          Set up an authenticator app
-        </Button>
+          <div className="grid gap-1 text-sm leading-relaxed">
+            <h2 id="recovery-heading" className="font-medium">
+              Recovery codes
+            </h2>
+            <p className="text-muted-foreground">
+              {String(status.data.recoveryCodesRemaining)} of 10 left. Each
+              signs you in once if every device you use is lost.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="w-fit"
+            onClick={() => setStage({ kind: "regenerate" })}
+          >
+            New recovery codes
+          </Button>
+        </section>
       )}
 
-      <Dialog
-        open={stage.kind === "password"}
-        onOpenChange={(open) => !open && setStage({ kind: "idle" })}
-      >
+      <Dialog open={stage.kind === "prove"} onOpenChange={(o) => !o && close()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm your password</DialogTitle>
+            <DialogTitle>Confirm it&apos;s you</DialogTitle>
             <DialogDescription>
-              Setting up a second factor starts with the first one.
+              Setting up a second factor starts with a proof you already hold.
             </DialogDescription>
           </DialogHeader>
-          <form
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault()
-              enrol.mutate(
-                String(new FormData(event.currentTarget).get("password") ?? "")
-              )
-            }}
-          >
-            <FieldGroup>
-              {enrol.error !== null && (
-                <FormAlert>{passwordMessage(enrol.error)}</FormAlert>
-              )}
-              <FormField
-                id="enrol-password"
-                name="password"
-                type="password"
-                label="Your password"
-                autoComplete="current-password"
-                required
-                autoFocus
-              />
-              <Button type="submit" size="lg" disabled={enrol.isPending}>
-                {enrol.isPending && <Spinner />}
-                Continue
-              </Button>
-            </FieldGroup>
-          </form>
+          <HolderProofForm
+            methods={methods}
+            onSubmit={(proof) => enrol.mutate(proof)}
+            pending={enrol.isPending}
+            error={enrol.error}
+            submitLabel="Continue"
+          />
         </DialogContent>
       </Dialog>
 
       <Dialog
         open={stage.kind === "regenerate"}
-        onOpenChange={(open) => !open && setStage({ kind: "idle" })}
+        onOpenChange={(o) => !o && close()}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New recovery codes</DialogTitle>
             <DialogDescription>
-              The ten you have stop working. Enter a current code to continue.
+              The ones you have stop working. Confirm with a second factor to
+              continue.
             </DialogDescription>
           </DialogHeader>
           <FactorForm
+            methods={methods}
+            passkeyOptions={PROOF_OPTIONS}
             onSubmit={(proof) => regenerate.mutate(proof)}
             pending={regenerate.isPending}
             error={regenerate.error}
@@ -256,18 +265,21 @@ export function Security({
 
       <Dialog
         open={stage.kind === "disable"}
-        onOpenChange={(open) => !open && setStage({ kind: "idle" })}
+        onOpenChange={(o) => !o && close()}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Turn off two-factor authentication?</DialogTitle>
+            <DialogTitle>Turn off the authenticator app?</DialogTitle>
             <DialogDescription>
-              Your password alone will sign you in again. Workspaces that
-              require a second factor will ask you to set one up before they
-              open. Using a recovery code here signs you out everywhere.
+              Signing in will no longer ask for its code. If it is your only
+              second factor, workspaces that require one will ask you to set
+              one up before they open. Using a recovery code here signs you
+              out everywhere.
             </DialogDescription>
           </DialogHeader>
           <FactorForm
+            methods={methods}
+            passkeyOptions={PROOF_OPTIONS}
             onSubmit={(proof) => disable.mutate(proof)}
             pending={disable.isPending}
             error={disable.error}
@@ -280,12 +292,4 @@ export function Security({
       )}
     </div>
   )
-}
-
-function passwordMessage(error: Error): string {
-  if (error instanceof ApiError && error.type === "rate-limited")
-    return "Too many wrong attempts. Try again later."
-  if (error instanceof ApiError && error.status === 400)
-    return "That password didn't match."
-  return "Setting up didn't start. Try again in a moment."
 }

@@ -249,6 +249,12 @@ describe("3 · timestamps", () => {
   })
 })
 
+/**
+ * Identifiers Patchgrid did not issue and never compares under RLS: a
+ * WebAuthn credential id is the authenticator's own opaque bytes (ADR-0053).
+ */
+const EXTERNAL_IDENTIFIERS: ReadonlySet<string> = new Set(["UserPasskey.credentialId"])
+
 describe("4 · identifiers", () => {
   it("every id and *Id column is uuid", async () => {
     // RLS compares against `current_setting(…)::uuid`; a text id would neither
@@ -258,7 +264,7 @@ describe("4 · identifiers", () => {
         WHERE table_schema = 'public' AND (column_name = 'id' OR column_name LIKE '%Id')`,
     )
     const bad = found
-      .filter((r) => !TOOLING_TABLES.has(r.table_name) && r.udt_name !== "uuid")
+      .filter((r) => !TOOLING_TABLES.has(r.table_name) && !EXTERNAL_IDENTIFIERS.has(`${r.table_name}.${r.column_name}`) && r.udt_name !== "uuid")
       .map((r) => `${r.table_name}.${r.column_name} is ${r.udt_name}`)
     expect(bad).toEqual([])
   })

@@ -1,7 +1,6 @@
 "use client"
 
 import { mfaStatusSchema, stepUpResponseSchema } from "@patchgrid/contracts"
-import { Button } from "@patchgrid/ui/components/button"
 import {
   Dialog,
   DialogContent,
@@ -9,25 +8,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@patchgrid/ui/components/dialog"
-import { FieldGroup } from "@patchgrid/ui/components/field"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useCallback, useState } from "react"
 
-import { FormAlert } from "@/components/form-alert"
-import { FormField } from "@/components/form-field"
 import { clientApi, currentSlug } from "@/lib/api/client"
-import { ApiError } from "@/lib/api/errors"
 import { isStepUpRequired, StepUpCancelled } from "@/lib/step-up"
 
-import { FactorForm, type FactorProof } from "./factor-form"
+import { type HolderProof, HolderProofForm } from "./holder-proof-form"
 
 /**
  * Step-up re-authentication (ADR-0029): the API refused an irreversible
- * action until the session re-proves itself. The proof is the authenticator
- * when one is enrolled, and only then the password. On success the API
- * re-issued this workspace's cookies with the proof on them, and the caller
- * retries exactly what it was doing.
+ * action until the session re-proves itself. The proof is any factor the
+ * person holds — a passkey, a code — and only when they hold none, the
+ * password. On success the API re-issued this workspace's cookies with the
+ * proof on them, and the caller retries exactly what it was doing.
  */
 export function StepUpDialog({
   open,
@@ -44,7 +39,7 @@ export function StepUpDialog({
     enabled: open,
   })
   const prove = useMutation({
-    mutationFn: (proof: FactorProof | { password: string }) =>
+    mutationFn: (proof: HolderProof) =>
       clientApi("/auth/step-up", {
         method: "POST",
         body: { slug: currentSlug(), ...proof },
@@ -65,57 +60,19 @@ export function StepUpDialog({
         </DialogHeader>
         {status.data === undefined ? (
           <Spinner />
-        ) : status.data.enrolled ? (
-          <FactorForm
+        ) : (
+          <HolderProofForm
+            methods={status.data.methods}
             onSubmit={(proof) => prove.mutate(proof)}
             pending={prove.isPending}
             error={prove.error}
             submitLabel="Confirm"
+            passwordHint="Add a passkey or an authenticator app under your account to confirm with that instead."
           />
-        ) : (
-          <form
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault()
-              prove.mutate({
-                password: String(
-                  new FormData(event.currentTarget).get("password") ?? ""
-                ),
-              })
-            }}
-          >
-            <FieldGroup>
-              {prove.error !== null && (
-                <FormAlert>{passwordMessage(prove.error)}</FormAlert>
-              )}
-              <FormField
-                id="step-up-password"
-                name="password"
-                type="password"
-                label="Your password"
-                autoComplete="current-password"
-                required
-                autoFocus
-                description="Set up an authenticator under your account to confirm with a code instead."
-              />
-              <Button type="submit" size="lg" disabled={prove.isPending}>
-                {prove.isPending && <Spinner />}
-                Confirm
-              </Button>
-            </FieldGroup>
-          </form>
         )}
       </DialogContent>
     </Dialog>
   )
-}
-
-function passwordMessage(error: Error): string {
-  if (error instanceof ApiError && error.type === "rate-limited")
-    return "Too many wrong attempts. Try again later."
-  if (error instanceof ApiError && error.status === 400)
-    return "That password didn't match."
-  return "That didn't work just now. Try again in a moment."
 }
 
 /**
