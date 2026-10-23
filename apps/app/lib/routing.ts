@@ -21,6 +21,7 @@ import { needsRefresh } from "./session"
 const APP_PATHS: Record<string, "public" | "identity"> = {
   "/login": "public",
   "/reset-password": "public",
+  "/erase-account": "public",
   "/verify-email": "public",
   "/invite": "public",
   "/workspaces": "identity",
