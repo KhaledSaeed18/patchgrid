@@ -1,6 +1,6 @@
-# Handoff — M12 complete, M13 next
+# Handoff — M13 complete, M14 next
 
-Written 2026-10-17, at the M12 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
+Written 2026-10-23, at the M13 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
 whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
 an ADR, they are right and this is stale.
 
@@ -32,39 +32,45 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6 and M8–M12 are complete. M13 (Identity) is next**, then M14 and M7 last (ADR-0048). Milestone
-numbers did not change.
+**M0–M6 and M8–M13 are complete. M14 (production rehearsal, locally) is next**, then M7 last
+(ADR-0048). Milestone numbers did not change.
 
-**M12 (Insight): complete 2026-10-17.** Its exit holds: an admin's reports page answers "are we meeting
-our SLAs, and where not?" in well under 100 ms at a hundred thousand tickets, with numbers the reconcile
-holds to the tickets; an agent saves a view and acts on two hundred tickets at once, every refusal and
-conflict reported per ticket. Four PRs (#49–#51 and this handoff), closed by a review (`THREAT-MODEL.md`
-§9).
+**M13 (Identity): complete 2026-10-23.** Its exit holds: a member signs in with a passkey and uses it
+for step-up; a workspace with SSO configured sends its members to their identity provider, and a new
+member is provisioned on first sign-in. Passkeys landed as #61; per-tenant SSO, the review and this
+handoff as the PR after it. A review closed it (`THREAT-MODEL.md` §10).
 
-What M12 built:
+What M13 built:
 
-- **The reporting read side** (ADR-0051). `TicketFact`, one tenant-owned row per ticket, holds what reports
-  group by and what they measure, already computed by `factOf`: minutes to respond, minutes to resolve
-  less the paused minutes, each clock's outcome (`MET`, `BREACHED`, `RUNNING`, `NONE`), with no "now" in
-  it. The `reporting` consumer of M11's log refreshes the facts of the tickets a batch names, from the
-  ticket as it is, guarded by `sourceVersion`. Every ticket write is in the log: edits and team-only
-  assignments append `ticket-changed`. `reporting-reconcile` builds what the log never saw (at worker
-  boot and nightly), holds the consumer's lock while it writes, and counts drift past a grace.
-- **Reports**: `/reports/sla` (by priority, type, team, category or assignee; half-open ranges up to a
-  year; `percentile_cont` medians and p90), `/backlog`, `/workload`, under `report:read`; a Reports page
-  with tiles, one-hue meters, a backlog heat and CSV export. Every report under 25 ms at 100k tickets, so
-  no rollups (`ENGINEERING.md`).
-- **Saved views** (ADR-0052): a name and a list query, never results; run as the reader, so a view shared
-  with a team shows each member their own tickets. A `priority` filter on lists, indexed.
-- **Bulk actions** (ADR-0052): `POST /tickets/bulk`, up to 200 tickets, each through the single route's
-  own `applyAssign` or `applyTransition` in its own transaction; per-ticket `done`, `conflict`, `refused`,
-  `not-found` or `failed`; progress frames on the actor's own live stream; one run per member, throttled;
-  approvals stay one decision at a time.
+- **Passkeys** (ADR-0053). `UserPasskey`, platform-class beside the TOTP factor: one relying party,
+  the root domain, with the origin partitioned by `classifyOrigin` so `admin.` and `www.` never count.
+  UV required, discoverable credentials, challenges in Redis under a purpose and spent with `GETDEL`. A
+  passkey signs in alone, completes the second step of a password login, and proves a step-up. "Has a
+  factor" now means TOTP or a passkey everywhere it is asked, and recovery codes belong to the person's
+  factors, not to one kind. Adding one takes a fresh proof, never a recovery code (erratum).
+- **The domain proof** (ADR-0054). An owner claims `Organization.domain` and publishes one TXT record,
+  `_patchgrid-verify.<domain>`. First verified wins by the partial unique index; free-mail domains are
+  refused in the contracts.
+- **Per-tenant OIDC** (ADR-0054). `SsoConnection` and `SsoIdentity`, tenant-owned. Authorization code
+  with PKCE through `openid-client`, every request to the provider through the guarded fetch webhooks
+  use, the ID token's signature checked against its keys. The callback holds the state to the browser's
+  `pg_sso` cookie and the address to the proved domain, links an existing member or provisions one at
+  the default role (never above agent), and never revives a removed one.
+- **The scope of an SSO session.** `RefreshToken.ssoOrgId` and an `sso` claim on the access token: the
+  session opens its workspace and no other, satisfies that workspace's `requireMfa`, and every
+  tenant-less route refuses it unless it admits it (only "who am I" and "open my workspace"). Step-up is
+  at the provider, never for an owner. "SSO required" spares owners, who are the way back in when the
+  provider is down. Withdrawing the connection ends what it started.
+- **Keycloak** under `docker compose --profile sso`, with an `acme` realm the seed points Acme at; an
+  in-process OpenID provider for the integration specs; an SSO scenario in the browser suite, which CI
+  runs against Keycloak.
 
-**CI is green on `main`.**
+**CI is green on `main`** as of the passkeys merge; this PR's run is the check for the rest.
 
 ## Earlier milestones, in brief
 
+- **M12** gave insight: reports from a fact row per ticket refreshed by a consumer of the log and checked
+  by a nightly reconcile (ADR-0051), saved views and bulk actions (ADR-0052), §9 of the threat model.
 - **M11** gave reliable delivery: the transactional outbox read as a per-tenant log below the snapshot
   horizon (ADR-0049), ticket notifications on it, outbound webhooks as its second consumer (ADR-0050),
   retention, and the event-age dashboard (`THREAT-MODEL.md` §8).
@@ -83,44 +89,44 @@ The detail is in the git history of this file, at those boundaries.
 
 | Suite | Count |
 | --- | --- |
-| `apps/api` unit | 1083 |
-| `apps/api` integration | 240 (`test/reporting/` and `test/tickets/views-and-bulk` are M12's) |
+| `apps/api` unit | 1173 |
+| `apps/api` integration | 265 (`test/auth/passkeys` and `test/auth/sso` are M13's) |
 | `pnpm test:tenancy` | 13 catalog + 37 (3 pointers skipped) |
-| `pnpm test:authz` | 400 |
+| `pnpm test:authz` | 408 |
 | `packages/database` unit / catalog | 8 / 13 |
-| `packages/contracts` | 203 |
-| `apps/app` unit | 64 |
+| `packages/contracts` | 227 |
+| `apps/app` unit | 68 |
 | `apps/www` | 19 |
-| `apps/app` browser suite | 8 scenarios |
+| `apps/app` browser suite | 12 scenarios (`passkeys` and `sso` are M13's) |
 
-## Decisions made in M12
+## Decisions made in M13
 
 | Decision | Where |
 | --- | --- |
-| Reports read a fact row per ticket, refreshed from the log and checked against the source; no rollups unless measured | ADR-0051 (erratum: reports describe tickets as they are now) |
-| A saved view is a query run as its reader; a bulk action is the single action per ticket | ADR-0052 (erratum: the review's settlements) |
-| Every ticket write is in the log, including those that notify nobody | ADR-0051 erratum |
+| A passkey is a credential that signs in alone and a factor; one RP across the workspace hosts, the origin partitioned; recovery codes belong to the person | ADR-0053 (errata: as built; the review's settlements) |
+| Per-tenant OIDC routed by a DNS-proved domain; a session an IdP starts is scoped to its workspace; owners exempt from "SSO required" and never step up at the IdP | ADR-0054 (erratum: the review's settlements) |
+| The identity provider as trust boundary TB12 | `THREAT-MODEL.md` §6, §10 |
 
 ---
 
-## Recommended next steps — M13
+## Recommended next steps — M14
 
-`FEATURES.md` §M13, Identity. Its exit: a member signs in with a passkey and uses it for step-up; a
-workspace with SSO configured sends its members to their identity provider, and a new member is
-provisioned on first sign-in. In order:
+`FEATURES.md` §M14, production rehearsal, locally. Its exit: `pnpm local:prod` serves the production
+images over HTTPS on `*.patchgrid.test`, through PgBouncer in transaction mode, with reads optionally
+served by a replica, and the tenancy suite passes through all of it. In order:
 
-1. **An ADR for passkeys**: WebAuthn registration and authentication (`@simplewebauthn/server`), where the
-   credential lives (a platform-class table beside `UserMfaFactor`, since a passkey is a person's, not a
-   workspace's), how it satisfies both the first factor and ADR-0045's step-up (`sua`), the challenge's
-   home (Redis, spent once, like the MFA challenge's `jti`), and the RP id across `*.lvh.me`.
-2. **Passkeys built**: register, sign in without a password, step up, list and revoke, in the account
-   pages; a browser test with a virtual authenticator (Playwright's CDP WebAuthn).
-3. **An ADR for per-tenant OIDC**: authorization code with PKCE against a Keycloak profile in Compose;
-   routing by the workspace's verified email domain (`TENANCY.md` §5, stored, not yet used); just-in-time
-   membership at a default role; "SSO required" mirroring `requireMfa`; what a break-glass owner keeps.
-4. **SSO built**, the threat model's new boundary (an external identity provider), and the review.
+1. **An ADR for the shape**: Caddy in front of `docker-compose.prod.yml` with a locally trusted
+   wildcard (mkcert) for `*.patchgrid.test`; what HTTPS changes (`Secure` cookies, HSTS short first,
+   passkeys without the Chrome flag, `SSO_ALLOW_PRIVATE_ISSUERS` off against a Keycloak behind Caddy).
+2. **PgBouncer in transaction mode** between the API and Postgres. ADR-0015's transaction-local
+   `set_config` is exactly what makes this safe; prove it by running `pnpm test:tenancy` through the
+   pooler, and look for anything session-scoped (advisory locks are transaction-scoped already; `LISTEN`
+   for the outbox is session-scoped and must bypass the pooler).
+3. **A streaming replica**, with only reads that tolerate lag routed to it (reports are the candidate),
+   and RLS checked on the replica too.
+4. **A short runbook**: what a real deployment would still need (ADR-0047's list below).
 
-Then M14 and M7, per `FEATURES.md`.
+Then M7, per `FEATURES.md`.
 
 ## Still open
 
@@ -149,13 +155,19 @@ Then M14 and M7, per `FEATURES.md`.
 | Per-member capabilities in the admin UI | any time | Member actions are offered by role |
 | Doc formatting drift | any time | Docs and API code are not Prettier-clean at 80 cols; commits skip the format hook |
 | A new workspace gets no starter KB articles | any time | `TENANCY.md` §4, ADR-0017 and `PROJECT.md` promise them; provisioning creates none |
-| Joining by email domain is not built | spec decision | `TENANCY.md` §5 describes it; the domain is stored only |
+| Joining by email domain without an identity provider is not built | spec decision | `TENANCY.md` §5; the domain proof exists now (ADR-0054), and SSO's just-in-time join is the only domain-based way in |
 | Per-host cookie pairs are never pruned to five | any time | `TENANCY.md` §6 and ADR-0024 say they are; `auth/cookies.ts` keeps them all |
 | `POST /tickets/:id/comments` ignores `Idempotency-Key` | any time | Every other entity-creating `POST` honours it |
 | Audit-log retention per plan is not enforced | any time | ADR-0028's two and seven years; the sweep covers notifications and exports only |
 | `DOMAIN.md` §4.3 skips a warning against `createdAt`; the code uses the clock's own start | docs | The code is right; the doc needs the same correction ADR-0003 got |
 | `DOMAIN.md` §8 offers a reassigned agent to keep watching; nothing does | spec decision | They can watch by hand |
 | `TENANCY.md` §7 and ADR-0022 show `runAsTenant(orgId, fn)`; the code takes a `crossing` too | docs | `CLAUDE.md` has it right |
+| SAML, SCIM and IdP-initiated sign-in | out of scope | ADR-0048; deprovisioning at the provider ends nothing here (R-10) |
+| A domain cannot be proved locally by DNS | any time | No zone to publish a TXT record into; the seed marks `acme.test` proved. `DNS_RESOLVERS` can point the proof at a local nameserver (CoreDNS in Compose would make it walkable) |
+| An SSO-provisioned person has no password, so cannot erase their own account until they set one | spec decision | The reset mail sets one; erasure takes the password (ADR-0044) |
+| SSO step-up needs a provider that honours `max_age=0` | docs | One that ignores it answers `stale`; its members confirm with Patchgrid credentials (ADR-0054 erratum 8) |
+| Google's `hd` is not checked; a provider must be the workspace's own | spec decision | ADR-0054 erratum 8; a social or multi-tenant issuer would trust addresses verified elsewhere |
+| Passkeys need a secure context; locally that is Chrome with a flag until M14's HTTPS | M14 | ADR-0053 |
 | Marketing LCP is 3.3 s on Lighthouse's mobile profile | any time | Five font files contend on simulated 4G; dropping the mono preload is the cheap lever, in `@patchgrid/ui` for both apps |
 
 ## If it is ever deployed
@@ -170,7 +182,8 @@ blocks M7.
 | SPF, DKIM and DMARC progressed on evidence; MX for `inbound.` | `DNS.md` §4, ADR-0027 |
 | SMTP has no credentials or TLS setting | `SMTP_HOST`/`SMTP_PORT` only; every real provider needs both |
 | A production inbound adapter | Verify the provider's signature, re-sign in ADR-0039's shape |
-| `MFA_ENCRYPTION_KEY` and `WEBHOOK_SECRETS_KEY` kept apart from the database and its backups | A dump without them yields no second factors and signs no webhooks (ADR-0040, ADR-0050) |
+| `MFA_ENCRYPTION_KEY`, `WEBHOOK_SECRETS_KEY` and `SSO_SECRETS_KEY` kept apart from the database and its backups | A dump without them yields no second factors, signs no webhooks and authenticates to no identity provider (ADR-0040, ADR-0050, ADR-0054) |
+| `SSO_ALLOW_PRIVATE_ISSUERS` off (boot refuses it in production) and `DNS_RESOLVERS` unset or trusted | ADR-0054 |
 | `TRUST_PROXY_HOPS` set to the real hop count | Default 1; with a CDN in front it is 2, and a wrong value makes every per-IP limit attacker-chosen (THREAT-MODEL §7) |
 | Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | Local MinIO sets the rule in `docker/minio/init.sh` |
 | A public demo needs a demo mode first (an ADR) | The seed shares one password: anyone could sign in as an owner, enrol a factor, request deletion or send invitations |
@@ -197,6 +210,7 @@ pnpm --filter @patchgrid/app exec playwright install chromium
 pnpm dev                         # www :3000, app :3001, api :4000; Mailpit UI :8025
 pnpm --filter @patchgrid/app test:e2e                  # the browser suite, against the running stack
 docker compose --profile observability up -d           # collector, Tempo, Prometheus, Grafana :3100
+docker compose --profile sso up -d                     # Keycloak :8180, Acme's identity provider (ADR-0054)
 ```
 
 To see traces and the tenant dashboard, set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` in
@@ -207,8 +221,31 @@ seeded operator at `http://admin.lvh.me:3001` (she enrols a TOTP factor on first
 requester at Acme and `sam@` an agent. Notification email lands in Mailpit at `http://localhost:8025`;
 files are served by MinIO at `http://localhost:9000`, a different site from `lvh.me` on purpose.
 
+With `--profile sso` up, "Sign in with SSO" on the login page takes `kim@acme.test` or `lee@acme.test`
+(password `patchgrid-demo`) through Keycloak into Acme, provisioned as requesters on first sign-in.
+`nora@acme.test` is unverified at the provider and is refused. Alice (Acme's owner) manages it under
+Settings → Single sign-on. Passkeys need a secure context: start Chrome with
+`--unsafely-treat-insecure-origin-as-secure=http://app.lvh.me:3001,http://acme.lvh.me:3001` until M14.
+
 Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session cookies are scoped to
 `.lvh.me`, so a `localhost` cookie jar stays empty and every call is a `401`.
+
+## Gotchas paid for in M13
+
+- **`openid-client` checks an ID token's signature only when asked** (`enableNonRepudiationChecks`); by
+  default it trusts TLS to the token endpoint.
+- **`openid-client` hands a custom fetch a `Headers` object**, whatever its type says; spreading one
+  copies nothing, and the token request went out without client authentication.
+- **RFC 6749 form-encodes both halves of client-secret Basic auth** before base64, so a `-` in a client
+  id arrives as `%2D`. A test provider that compares raw strings refuses a correct client.
+- **The server render has no `window`.** A dialog that reads the host while closed fails every page that
+  offers it; read it only when open.
+- **`Sec-Fetch-Site` tells a navigation another site started from one the app made**; the `state`
+  cookie cannot, because the victim's own browser holds it.
+- **A recovery code ends every session, including the one the next request needs.** Never take one as
+  the proof for a two-request flow.
+- **Killing `nest start --watch` stops `pnpm --filter … dev` too, and the app dev server can go with
+  it.** Check both ports before a browser run; eight connection refusals are not eight bugs.
 
 ## Gotchas paid for in M12
 
