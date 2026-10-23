@@ -71,6 +71,7 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   WEBHOOK_SECRET_ROTATED: "rotated a webhook's signing secret",
   WEBHOOK_DELIVERIES_REPLAYED: "replayed webhook deliveries",
   WEBHOOK_DISABLED: "turned off a webhook that kept failing",
+  EVENT_REPLAYED: "replayed an event that had been set aside",
   ORG_DELETION_REQUESTED: "asked for this workspace to be deleted",
   ORG_DELETION_CANCELLED: "cancelled this workspace's deletion",
   ORG_EXPORTED: "exported this workspace",

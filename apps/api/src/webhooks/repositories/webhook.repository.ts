@@ -225,6 +225,28 @@ export class WebhookRepository {
     return count === 1
   }
 
+  /**
+   * Who hears that an endpoint was turned off (ADR-0050): the workspace and
+   * where the endpoint sent, and its active human admins and owners — the
+   * people `webhook:manage` lets act on it.
+   */
+  async disabledNotice(orgId: string, endpointId: string): Promise<{ org: { name: string; slug: string }; url: string; to: { membershipId: string; email: string }[] } | null> {
+    const endpoint = await this.prisma.db.webhookEndpoint.findFirst({
+      where: { orgId, id: endpointId },
+      select: { url: true, organization: { select: { name: true, slug: true } } },
+    })
+    if (endpoint === null) return null
+    const managers = await this.prisma.db.membership.findMany({
+      where: { orgId, kind: "HUMAN", status: "ACTIVE", role: { in: ["ADMIN", "OWNER"] } },
+      select: { id: true, user: { select: { email: true } } },
+    })
+    return {
+      org: endpoint.organization,
+      url: endpoint.url,
+      to: managers.flatMap((m) => (m.user === null ? [] : [{ membershipId: m.id, email: m.user.email }])),
+    }
+  }
+
   /** The tenant's plan, which sets its in-flight cap. */
   async plan(orgId: string): Promise<"FREE" | "PRO"> {
     const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { plan: true } })

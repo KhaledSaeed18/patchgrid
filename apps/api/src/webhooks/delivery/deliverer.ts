@@ -2,7 +2,9 @@ import { Injectable, Logger } from "@nestjs/common"
 
 import { AuditService } from "../../audit/audit.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
+import { PublicUrls } from "../../common/urls"
 import { type AppConfig, InjectConfig } from "../../config/app-config"
+import { MailService } from "../../mail/mail.service"
 import { PrismaService } from "../../prisma/prisma.service"
 import { afterFailure, afterSuccess, nextDelayMs, waitForCircuit } from "../domain/schedule"
 import { signatureHeaders } from "../domain/signature"
@@ -10,6 +12,8 @@ import { WebhookRepository } from "../repositories/webhook.repository"
 import { WebhookSecrets } from "../webhook-secrets"
 import { BlockedTargetError, describeFailure, postSafely, type SafeResponse } from "../../common/http/safe-request"
 
+/** Why the circuit turned an endpoint off, on the endpoint and in the mail to its admins. */
+const DISABLED_REASON = "Failed for five days without a success"
 /** Long enough for the request's whole timeout and the bookkeeping either side of it. */
 const CLAIM_LEASE_MS = 60_000
 /** How far a delivery may be early and still count as due: clocks on two hosts differ by a little. */
@@ -42,6 +46,8 @@ export class WebhookDeliverer {
     private readonly secrets: WebhookSecrets,
     private readonly audit: AuditService,
     private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly urls: PublicUrls,
     @InjectConfig() private readonly config: AppConfig,
     @InjectClock() private readonly clock: Clock,
   ) {}
@@ -141,11 +147,40 @@ export class WebhookDeliverer {
         await this.webhooks.updateEndpoint(orgId, endpointId, state)
         return
       }
-      await this.webhooks.updateEndpoint(orgId, endpointId, { ...state, status: "DISABLED", disabledReason: "Failed for five days without a success" })
+      await this.webhooks.updateEndpoint(orgId, endpointId, { ...state, status: "DISABLED", disabledReason: DISABLED_REASON })
       await this.audit.record(orgId, [{ action: "WEBHOOK_DISABLED", entityType: "WebhookEndpoint", entityId: endpointId, diff: { consecutiveFailures: verdict.consecutiveFailures } }], { kind: "system" })
+      await this.tellManagers(orgId, endpointId, recordedAt)
       this.logger.warn({ msg: "webhook endpoint disabled after days of failure", orgId, endpointId })
     })
     return outcome
+  }
+
+  /**
+   * The admins and owners hear of it, queued in the transaction that turned it
+   * off: a queue that refuses rolls the attempt back and the job tries again,
+   * so the mail is at least once. Each job's id is the endpoint, the person and
+   * the moment, so a retry queues nothing twice.
+   */
+  private async tellManagers(orgId: string, endpointId: string, at: Date): Promise<void> {
+    const notice = await this.webhooks.disabledNotice(orgId, endpointId)
+    if (notice === null) return
+    await this.mail.enqueueAll(
+      notice.to.map((person) => ({
+        entityId: `${endpointId}-disabled-${String(at.getTime())}-${person.membershipId}`,
+        job: {
+          kind: "webhook-disabled" as const,
+          to: person.email,
+          orgId,
+          fromName: notice.org.name,
+          params: {
+            orgName: notice.org.name,
+            endpointUrl: notice.url,
+            reason: DISABLED_REASON,
+            settingsUrl: this.urls.workspace(notice.org.slug, `/settings/webhooks/${endpointId}`),
+          },
+        },
+      })),
+    )
   }
 
   /**

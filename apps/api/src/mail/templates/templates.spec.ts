@@ -34,6 +34,21 @@ describe("mail templates", () => {
     expect(mail.subject).toBe("You're invited to <script>alert(1)</script> on Patchgrid")
   })
 
+  it("names a turned-off webhook's address as text, never a link", async () => {
+    const mail = await renderMail({
+      ...base,
+      kind: "webhook-disabled",
+      orgId: ORG,
+      fromName: "Acme",
+      params: { orgName: "Acme", endpointUrl: "https://hooks.example.test/in", reason: "Failed for five days without a success", settingsUrl: "https://acme.patchgrid.xyz/settings/webhooks/w-1" },
+    })
+    expect(mail.subject).toBe("A webhook in Acme was turned off")
+    expect(mail.html).toContain('href="https://acme.patchgrid.xyz/settings/webhooks/w-1"')
+    expect(mail.html).not.toContain('href="https://hooks.example.test/in"')
+    expect(mail.text).toContain("https://hooks.example.test/in")
+    expect(mail.text).toContain("failed for five days without a success")
+  })
+
   it("names the organization in the invitation subject", async () => {
     const mail = await renderMail({ ...base, kind: "invite", orgId: ORG, fromName: "Acme", params: { orgName: "Acme", inviterName: "Ada", role: "AGENT", acceptUrl: "https://a.b/", expiresInDays: 7 } })
     expect(mail.subject).toBe("You're invited to Acme on Patchgrid")

@@ -27,10 +27,23 @@ export function failureBackoffMs(failures: number): number {
  */
 const TRANSIENT = new Set(["40P01", "40001", "55P03", "57014", "08006", "P2028", "P2034", "P1001", "P1017"])
 export function isTransient(error: unknown, depth = 0): boolean {
+  if (error instanceof TransientFailure) return true
   if (typeof error !== "object" || error === null || depth > 4) return false
   const record = error as Record<string, unknown>
   if (typeof record.code === "string" && TRANSIENT.has(record.code)) return true
   return ["cause", "meta", "driverAdapterError", "originalError"].some((key) => isTransient(record[key], depth + 1))
+}
+
+/**
+ * A consumer's own way of saying "not the event's fault": a dependency
+ * refused for a moment (Redis turning away a mail job). Retried as the job's
+ * failure, never counted against the event, so it cannot park a good one.
+ */
+export class TransientFailure extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options)
+    this.name = "TransientFailure"
+  }
 }
 
 /**

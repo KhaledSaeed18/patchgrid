@@ -319,9 +319,13 @@ one can hold it.
 Checked and left as they are, with the reason:
 
 - **Email after a drain is best effort.** ADR-0049's erratum says so; a `mail` consumer of the log is
-  the fix when it matters (HANDOFF).
+  the fix when it matters (HANDOFF). *Closed 2026-10-23:* the `notify` consumer queues its emails
+  inside the cursor's transaction, so a refusal rolls the batch back and the email is at least once
+  (ADR-0049's second erratum).
 - **Parked events have no replay path** yet. They are on record with their error; replaying them is an
-  admin action to build with the dead-letter view.
+  admin action to build with the dead-letter view. *Closed 2026-10-23:* `org:manage_events` lists them
+  at `/org/events/dead-letters` (Settings → Event delivery) and replays one through its consumer's own
+  handler, under the consumer's lock, audited as `EVENT_REPLAYED`; another tenant's is a `404`.
 - **A pending flag can lapse behind a long queue**, costing a duplicate drain: fairness, not
   correctness.
 

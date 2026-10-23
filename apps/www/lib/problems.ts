@@ -112,6 +112,12 @@ const PROBLEM_COPY: Record<ProblemTypeSlug, ProblemCopy> = {
     resolution:
       "Retry with `confirm: true` to require it anyway, or change those members' access first.",
   },
+  "replay-failed": {
+    detail:
+      "An event its consumer had given up on failed again when replayed. It stays set aside, and the error it failed with this time replaces the one before.",
+    resolution:
+      "Fix what the error names, then replay it again from Settings → Event delivery.",
+  },
   conflict: {
     detail:
       "A uniqueness constraint was violated — a slug, a team name, a category name within its parent, an asset serial, or a knowledge-base slug.",

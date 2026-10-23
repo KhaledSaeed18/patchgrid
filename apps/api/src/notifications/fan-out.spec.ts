@@ -125,29 +125,30 @@ describe("who is also emailed (DOMAIN.md §8)", () => {
   const assigned = () =>
     deliveriesFor({ kind: "ticket-assigned", ticketId: TICKET, actorMembershipId: LEAD.membershipId, assigneeMembershipId: AGENT.membershipId }, circle())
   const row = (inserted: boolean) => new Map([[AGENT.membershipId, { id: ID(500), inserted }]])
+  const EVENT = ID(900)
 
-  it("emails a new inbox row, idempotent on it, saying why", () => {
-    expect(mailingsFor(circle(), assigned(), row(true))).toEqual([
-      { person: AGENT, type: "TICKET_ASSIGNED", headline: "Assigned to you — INC-000042: Printer", reason: "this ticket is assigned to you", entityId: ID(500) },
+  it("emails a new inbox row, idempotent on the event and the person, saying why", () => {
+    expect(mailingsFor(circle(), assigned(), row(true), EVENT)).toEqual([
+      { person: AGENT, type: "TICKET_ASSIGNED", headline: "Assigned to you — INC-000042: Printer", reason: "this ticket is assigned to you", entityId: `${EVENT}-${AGENT.membershipId}` },
     ])
   })
 
   it("does not email a burst folded into an unread row", () => {
-    expect(mailingsFor(circle(), assigned(), row(false))).toEqual([])
+    expect(mailingsFor(circle(), assigned(), row(false), EVENT)).toEqual([])
   })
 
   it("respects the member's choice and the workspace's kill switch", () => {
     const muted = circle({ assignee: { ...AGENT, emailPrefs: { TICKET_ASSIGNED: false } } })
     const deliveries = deliveriesFor({ kind: "ticket-assigned", ticketId: TICKET, actorMembershipId: LEAD.membershipId, assigneeMembershipId: AGENT.membershipId }, muted)
-    expect(mailingsFor(muted, deliveries, row(true))).toEqual([])
+    expect(mailingsFor(muted, deliveries, row(true), EVENT)).toEqual([])
     const off = circle({ org: { name: "Acme", slug: "acme", visibility: "ALL_TICKETS", emailEnabled: false } })
-    expect(mailingsFor(off, assigned(), row(true))).toEqual([])
+    expect(mailingsFor(off, assigned(), row(true), EVENT)).toEqual([])
   })
 
-  it("emails a requester's confirmation once per ticket, and never the team", () => {
+  it("emails a requester's confirmation once per event, and never the team", () => {
     const out = deliveriesFor({ kind: "ticket-created", ticketId: TICKET, actorMembershipId: REQ.membershipId }, circle())
-    expect(mailingsFor(circle(), out, new Map())).toEqual([
-      expect.objectContaining({ person: REQ, entityId: `${TICKET}-ticket_created`, reason: "you raised this ticket" }),
+    expect(mailingsFor(circle(), out, new Map(), EVENT)).toEqual([
+      expect.objectContaining({ person: REQ, entityId: `${EVENT}-${REQ.membershipId}`, reason: "you raised this ticket" }),
     ])
   })
 

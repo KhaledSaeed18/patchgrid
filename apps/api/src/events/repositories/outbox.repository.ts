@@ -45,6 +45,15 @@ export class OutboxRepository {
     return rows[0]?.locked === true
   }
 
+  /**
+   * The same lock, waited for: a replay runs one event through its consumer
+   * and must not interleave with a drain of it, but a person asked for it and
+   * a drain holds the lock for one batch at most.
+   */
+  async lock(orgId: string, consumer: string): Promise<void> {
+    await this.prisma.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`outbox:${orgId}:${consumer}`}, 0))`
+  }
+
   /** The consumer's place; a consumer that has never run starts before every event. Reads only. */
   async cursor(orgId: string, consumer: string): Promise<ConsumerCursor> {
     const row = await this.prisma.db.eventConsumer.findUnique({

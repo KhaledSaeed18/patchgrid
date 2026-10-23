@@ -13,11 +13,12 @@ import { createPrismaClient, type PrismaClient } from "@patchgrid/database"
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import process from "node:process"
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AppModule } from "../../src/app.module"
 import { EventRelay } from "../../src/events/relay"
 import { MAIL_PROVIDER } from "../../src/mail/mail-provider"
+import { MailService } from "../../src/mail/mail.service"
 import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.provider"
 import { runAsTenant } from "../../src/platform/run-as-tenant"
 import { WebhookDeliverer } from "../../src/webhooks/delivery/deliverer"
@@ -276,6 +277,29 @@ describe("failure", () => {
     await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: false })
     const back = await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: true })
     expect(back.body).toMatchObject({ status: "ACTIVE", consecutiveFailures: 0, circuitOpenUntil: null })
+    await as("owner").delete(`/org/webhooks/${hook.id}`)
+  })
+})
+
+describe("five days without a success", () => {
+  it("turns the endpoint off and tells the workspace's admins and owners, in the same transaction", async () => {
+    const hook = await endpoint(["ticket.created"])
+    await owner.webhookEndpoint.update({ where: { id: hook.id }, data: { failingSince: new Date(Date.now() - 6 * 24 * 60 * 60_000), consecutiveFailures: 1 } })
+    respondWith = 500
+    await newTicket("Still down")
+    await drainLog()
+    const [delivery] = await deliveriesOf(hook.id)
+    if (delivery === undefined) throw new Error("no delivery")
+    const mail = app.get(MailService)
+    const queued: { kind: string; to: string; settingsUrl: string }[] = []
+    const spy = vi.spyOn(mail, "enqueueAll").mockImplementation(async (mails) => {
+      for (const { job } of mails) if (job.kind === "webhook-disabled") queued.push({ kind: job.kind, to: job.to, settingsUrl: job.params.settingsUrl })
+    })
+    await attempt(delivery.id)
+    spy.mockRestore()
+    expect(await owner.webhookEndpoint.findUniqueOrThrow({ where: { id: hook.id } })).toMatchObject({ status: "DISABLED" })
+    // The owner manages webhooks; the agent and the requester do not hear of it.
+    expect(queued).toEqual([{ kind: "webhook-disabled", to: ws.people.owner.email, settingsUrl: expect.stringContaining(`/settings/webhooks/${hook.id}`) }])
     await as("owner").delete(`/org/webhooks/${hook.id}`)
   })
 })

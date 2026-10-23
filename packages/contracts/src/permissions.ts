@@ -157,6 +157,8 @@ export const PERMISSION_MATRIX = {
   "report:read": admins,
   /** Endpoints, their deliveries, rotation and replay (ADR-0050). Never a token's: a service account is at most an agent. */
   "webhook:manage": admins,
+  /** The events a consumer gave up on, and running one through it again (ADR-0049). */
+  "org:manage_events": admins,
   "support:read_sessions": admins,
   "support:grant_access": owners,
   "support:revoke_access": owners,
