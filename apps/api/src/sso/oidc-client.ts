@@ -145,8 +145,11 @@ export class OidcClient {
               : ArrayBuffer.isView(body)
                 ? Buffer.from(body.buffer, body.byteOffset, body.byteLength)
                 : null
+    // Typed as a record, handed over as `Headers` at run time; spreading a `Headers` copies nothing.
+    const given: unknown = options.headers
+    const headers = given instanceof Headers ? Object.fromEntries(given.entries()) : options.headers
     const answer = await requestSafely(options.method, url, payload, {
-      headers: options.headers,
+      headers,
       timeoutMs: TIMEOUT_MS,
       maxBodyBytes: MAX_BODY_BYTES,
       allowPrivate: this.allowPrivate,
