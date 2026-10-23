@@ -5,6 +5,7 @@ import type {
   AssetStatus,
   AssetType,
   ChangeRisk,
+  EventConsumerName,
   Impact,
   LinkKind,
   MembershipStatus,
@@ -172,6 +173,13 @@ export const INBOUND_OUTCOME_LABEL: Record<InboundOutcome, string> = {
   AUTO_REPLY: "Automatic mail",
   RATE_LIMITED: "Too many from this sender",
   FAILED: "Could not be processed",
+}
+
+/** What each reader of the event log does with an event (ADR-0049), as an admin would put it. */
+export const EVENT_CONSUMER_LABEL: Record<EventConsumerName, string> = {
+  notify: "Notifications",
+  webhooks: "Webhooks",
+  reporting: "Reports",
 }
 
 export const AUTH_VERDICT_LABEL: Record<AuthVerdict, string> = {
