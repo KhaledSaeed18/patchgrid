@@ -42,10 +42,11 @@ export const envSchema = z
       )
       .pipe(z.array(z.int().min(1).max(65535))),
 
-    /** The application role. Holds neither BYPASSRLS nor CREATE (ADR-0022). */
+    /** The application role. Holds neither BYPASSRLS nor CREATE, and is no member of the owner (ADR-0022, ADR-0059). */
     DATABASE_URL: url("DATABASE_URL"),
     /**
-     * The migration role, which *does* hold BYPASSRLS. Present so the API can
+     * The migration role, which owns the tables and is therefore exempt from
+     * their policies (ADR-0059). Present so the API can
      * refuse to start when someone points both at the same role — see below.
      */
     DATABASE_MIGRATION_URL: url("DATABASE_MIGRATION_URL"),
@@ -214,8 +215,8 @@ export const envSchema = z
         code: "custom",
         path: ["DATABASE_URL"],
         message:
-          "DATABASE_URL must not equal DATABASE_MIGRATION_URL — the migration role holds BYPASSRLS " +
-          "and would ignore every row-level security policy",
+          "DATABASE_URL must not equal DATABASE_MIGRATION_URL — the migration role owns the tables " +
+          "and is exempt from every row-level security policy",
       })
     }
 

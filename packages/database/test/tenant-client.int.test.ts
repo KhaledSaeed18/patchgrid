@@ -4,7 +4,7 @@
  *
  * Two organizations get a team with the SAME name — the lookalike data that
  * makes a leak visible rather than plausible (TENANCY.md §10). Rows are seeded
- * and removed through the owner role, which holds BYPASSRLS.
+ * and removed through the owner role, exempt from the policies by ownership.
  *
  * The app client's pool is capped at ONE connection, so every query reuses the
  * connection the previous one used: a tenant setting that outlived its

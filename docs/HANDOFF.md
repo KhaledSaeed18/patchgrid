@@ -181,7 +181,6 @@ Dropped by ADR-0047, kept so that reversing it starts from a list rather than fr
 | `TRUST_PROXY_HOPS` set to the real hop count | Default 1; with a CDN in front it is 2, and a wrong value makes every per-IP limit attacker-chosen (THREAT-MODEL §7) |
 | Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | Local MinIO sets the rule in `docker/minio/init.sh` |
 | A public demo needs a demo mode first (an ADR) | The seed shares one password: anyone could sign in as an owner, enrol a factor, request deletion or send invitations |
-| Postgres that allows a `BYPASSRLS` migration role | Many managed services refuse the first; self-hosted needs backups |
 | HSTS with a short max-age first, `preload` last | `DNS.md` §3 |
 
 
