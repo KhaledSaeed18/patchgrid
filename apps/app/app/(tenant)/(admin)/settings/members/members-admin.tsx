@@ -173,7 +173,9 @@ export function MembersAdmin({
             const self = member.id === membership.id
             // A service account is its API token's to change (ADR-0042).
             const service = member.kind === "SERVICE_ACCOUNT"
-            const editable = !self && !service && member.status !== "REMOVED"
+            // What may be done to this member is the server's answer, per member (RBAC.md §7).
+            const { roles, canDisable, canEnable, canRemove } =
+              member.capabilities
             return (
               <TableRow
                 key={member.id}
@@ -211,7 +213,7 @@ export function MembersAdmin({
                     )}
                 </TableCell>
                 <TableCell>
-                  {editable && holds("member:update_role") ? (
+                  {roles.length > 0 ? (
                     <NativeSelect
                       aria-label={`Role of ${member.displayName}`}
                       value={member.role}
@@ -226,7 +228,7 @@ export function MembersAdmin({
                       }
                     >
                       {ROLES.filter(
-                        (r) => assignable.includes(r) || r === member.role
+                        (r) => roles.includes(r) || r === member.role
                       ).map((r) => (
                         <option key={r} value={r}>
                           {ROLE_LABEL[r]}
@@ -260,7 +262,7 @@ export function MembersAdmin({
                   )}
                 </TableCell>
                 <TableCell>
-                  {editable && holds("member:disable") && (
+                  {(canDisable || canEnable || canRemove) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -274,7 +276,7 @@ export function MembersAdmin({
                         Manage
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {member.status === "ACTIVE" ? (
+                        {canDisable && (
                           <DropdownMenuItem
                             onClick={() =>
                               act.mutate({ member, kind: "disable" })
@@ -282,7 +284,8 @@ export function MembersAdmin({
                           >
                             Pause access
                           </DropdownMenuItem>
-                        ) : (
+                        )}
+                        {canEnable && (
                           <DropdownMenuItem
                             onClick={() =>
                               act.mutate({ member, kind: "enable" })
@@ -291,7 +294,7 @@ export function MembersAdmin({
                             Restore access
                           </DropdownMenuItem>
                         )}
-                        {holds("member:remove") && (
+                        {canRemove && (
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() => setRemoving(member)}
