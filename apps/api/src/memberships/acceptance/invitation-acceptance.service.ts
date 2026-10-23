@@ -8,8 +8,10 @@ import { AuditService } from "../../audit/audit.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import {
   ConflictProblem,
+  MfaRequiredProblem,
   NotFoundProblem,
   OrganizationSuspendedProblem,
+  SsoRequiredProblem,
 } from "../../common/problems/problem.exception"
 import { type OrganizationProfile, OrganizationRepository } from "../../platform/repositories/organization.repository"
 import { UserOrgIndexRepository } from "../../platform/repositories/user-org-index.repository"
@@ -83,8 +85,14 @@ export class InvitationAcceptanceService {
       throw new NotFoundProblem("This invitation was sent to a different address")
     }
     const { membershipId } = await this.join(resolved, () => Promise.resolve(account))
-    const cookies = await this.sessions.open(account.id, resolved.org.slug, client)
-    return { response: responseFor(resolved.org, membershipId), cookies }
+    // The join has committed; a policy that withholds the session is the picker's to explain, not an error (M13 review).
+    let cookies: CookieSpec[] = []
+    try {
+      cookies = await this.sessions.open(account.id, resolved.org.slug, client)
+    } catch (error) {
+      if (!(error instanceof SsoRequiredProblem) && !(error instanceof MfaRequiredProblem)) throw error
+    }
+    return { response: responseFor(resolved.org, membershipId, cookies.length > 0), cookies }
   }
 
   /** A holder with no account creates one, verified, and joins with it. */
@@ -110,8 +118,8 @@ export class InvitationAcceptanceService {
         verifiedAt: this.clock.now(),
       }),
     )
-    const { cookies } = await this.sessions.startIdentity(account, client, resolved.org.slug)
-    return { response: responseFor(resolved.org, membershipId), cookies }
+    const started = await this.sessions.startIdentity(account, client, resolved.org.slug)
+    return { response: responseFor(resolved.org, membershipId, started.response.session !== null), cookies: started.cookies }
   }
 
   /** Token → organization and live invitation, or the one generic `404`. */
@@ -215,6 +223,6 @@ export class InvitationAcceptanceService {
   }
 }
 
-function responseFor(org: OrganizationProfile, membershipId: string): AcceptInvitationResponse {
-  return { organization: { id: org.id, name: org.name, slug: org.slug }, membershipId, session: { slug: org.slug } }
+function responseFor(org: OrganizationProfile, membershipId: string, opened: boolean): AcceptInvitationResponse {
+  return { organization: { id: org.id, name: org.name, slug: org.slug }, membershipId, session: opened ? { slug: org.slug } : null }
 }

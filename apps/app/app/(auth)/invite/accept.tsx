@@ -15,8 +15,9 @@ import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { workspaceOrigin } from "@/lib/config"
 
-const enterWorkspace = (response: { session: { slug: string } }) => {
-  window.location.assign(workspaceOrigin(response.session.slug))
+/** Into the workspace — or, when its policy withholds the session (SSO or a factor required), the picker says what next. */
+const enterWorkspace = (response: { session: { slug: string } | null }) => {
+  window.location.assign(response.session === null ? "/workspaces" : workspaceOrigin(response.session.slug))
 }
 
 export function AcceptAsMember({
