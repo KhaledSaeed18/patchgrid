@@ -34,10 +34,12 @@ export function startTelemetry(env: NodeJS.ProcessEnv = process.env): NodeSDK | 
       "deployment.environment.name": env.NODE_ENV ?? "development",
     }),
     traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
-    metricReader: new PeriodicExportingMetricReader({
-      exporter: new OTLPMetricExporter({ url: `${endpoint}/v1/metrics` }),
-      exportIntervalMillis: Number(env.OTEL_METRIC_EXPORT_INTERVAL ?? 15_000),
-    }),
+    metricReaders: [
+      new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter({ url: `${endpoint}/v1/metrics` }),
+        exportIntervalMillis: Number(env.OTEL_METRIC_EXPORT_INTERVAL ?? 15_000),
+      }),
+    ],
     instrumentations: [
       new HttpInstrumentation({
         // Probes every few seconds would be most of the traces and none of the signal.
