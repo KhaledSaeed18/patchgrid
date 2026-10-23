@@ -1,12 +1,9 @@
--- Per-database setup. Idempotent. Requires superuser (ALTER SCHEMA OWNER and
--- DROP EXTENSION are not available to the owner role).
+-- Per-database setup, run as patchgrid_owner itself (ADR-0059). Idempotent.
+-- Nothing here needs a superuser: the owner owns the database, so it owns the
+-- schema and every table, and grants on its own objects.
 --
 -- Run against EVERY database the application touches — `patchgrid` and
 -- `patchgrid_test` — because privileges and default privileges are per-database.
-
--- pgvector was installed for M7's embeddings, which were dropped (ADR-0056).
--- A database bootstrapped before then still has it; nothing uses it.
-DROP EXTENSION IF EXISTS "vector";
 
 -- The owner role owns the schema and creates every object in it.
 ALTER SCHEMA public OWNER TO patchgrid_owner;
@@ -27,6 +24,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE patchgrid_owner IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE patchgrid_owner IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO patchgrid_app;
 
--- Deliberately NOT granted to patchgrid_app: CREATE on the schema, and any form
--- of BYPASSRLS. The application cannot create tables and cannot disable its own
--- isolation — asserted at API boot (ADR-0015, ADR-0022).
+-- Deliberately NOT granted to patchgrid_app: CREATE on the schema, BYPASSRLS, or
+-- membership in patchgrid_owner, whose ownership exempts it from every policy.
+-- The application cannot create tables and cannot disable its own isolation —
+-- asserted at API boot (ADR-0015, ADR-0022, ADR-0059).

@@ -67,7 +67,7 @@ try {
     "mailpit",
   ])
   step("The attachments bucket and its lifecycle rule", "docker", ["compose", "run", "--rm", "minio-init"])
-  step("Database roles and grants (ADR-0015, ADR-0022)", "pnpm", ["db:bootstrap"])
+  step("Database roles and grants (ADR-0015, ADR-0059)", "pnpm", ["db:bootstrap"])
   // `deploy`, not `migrate dev`: apply what is committed, never author a migration.
   step("Migrations, RLS policies included", "pnpm", ["--filter", "@patchgrid/database", "run", "migrate:deploy"])
   step("The Prisma client", "pnpm", ["db:generate"])
