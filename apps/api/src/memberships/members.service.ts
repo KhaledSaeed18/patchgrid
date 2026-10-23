@@ -23,6 +23,7 @@ import { UserOrgIndexRepository } from "../platform/repositories/user-org-index.
 import { PrismaService } from "../prisma/prisma.service"
 import { holdsSeat, QuotaService } from "../quota/quota.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
+import { memberCapabilities } from "./member-capabilities"
 import { type MembershipRecord, MembershipRepository, type MemberRow } from "./repositories/membership.repository"
 
 const PRIVILEGED: ReadonlySet<Role> = new Set(["ADMIN", "OWNER"])
@@ -76,7 +77,7 @@ export class MembersService {
     const page = rows.slice(0, query.limit)
     const last = page.at(-1)
     return {
-      items: page.map(toMember),
+      items: page.map((row) => toMember(row, memberCapabilities(this.permissions, actor, row))),
       nextCursor:
         rows.length > query.limit && last !== undefined
           ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id })
@@ -93,7 +94,7 @@ export class MembersService {
       this.permissions.can(actor, "member:read_contact"),
     )
     if (row === null || (row.status === "REMOVED" && !this.seesRemoved(actor))) throw new NotFoundProblem()
-    return toMember(row)
+    return toMember(row, memberCapabilities(this.permissions, actor, row))
   }
 
   async changeRole(id: string, role: Role): Promise<Member> {
@@ -228,7 +229,7 @@ function subjectOf(actor: TenantActor, target: MembershipRecord) {
   return { self: target.id === actor.membershipId, targetRole: target.role }
 }
 
-function toMember(row: MemberRow): Member {
+function toMember(row: MemberRow, capabilities: Member["capabilities"]): Member {
   return {
     id: row.id,
     displayName: row.displayName,
@@ -242,6 +243,7 @@ function toMember(row: MemberRow): Member {
       row.contact === null
         ? null
         : { email: row.contact.email, lastLoginAt: row.contact.lastLoginAt?.toISOString() ?? null },
+    capabilities,
   }
 }
 
