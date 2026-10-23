@@ -51,6 +51,7 @@ import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { failureMessage } from "@/lib/failure"
+import { newIdempotencyKey } from "@/lib/idempotency"
 import { fileProblem, uploadAttachment, uploadFailure } from "@/lib/upload"
 import {
   IMPACT_LABEL,
@@ -262,6 +263,9 @@ function Reply({ ticket }: { ticket: Ticket }) {
   const router = useRouter()
   const { canCommentPublic, canCommentInternal } = ticket.capabilities
   const [body, setBody] = useState("")
+  // One key per reply as typed: a retry after a dropped answer replays the
+  // comment instead of posting it twice; an edit is a new reply.
+  const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey)
   const [picked, setPicked] = useState<File[]>([])
   const send = useMutation({
     mutationFn: async (visibility: "PUBLIC" | "INTERNAL") => {
@@ -269,6 +273,7 @@ function Reply({ ticket }: { ticket: Ticket }) {
         method: "POST",
         body: { body: body.trim(), visibility },
         schema: commentSchema,
+        idempotencyKey: `${idempotencyKey}-${visibility}`,
       })
       // The files go on the comment just written, sharing its visibility.
       for (const file of picked) {
@@ -285,6 +290,7 @@ function Reply({ ticket }: { ticket: Ticket }) {
     },
     onSuccess: () => {
       setBody("")
+      setIdempotencyKey(newIdempotencyKey())
       setPicked([])
       router.refresh()
     },
@@ -307,7 +313,10 @@ function Reply({ ticket }: { ticket: Ticket }) {
         id="reply"
         rows={4}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={(e) => {
+          setBody(e.target.value)
+          setIdempotencyKey(newIdempotencyKey())
+        }}
         placeholder={
           canCommentInternal
             ? "Reply to the requester, or add a note only agents see"
