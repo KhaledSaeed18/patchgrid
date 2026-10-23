@@ -1,14 +1,14 @@
 import { trace } from "@opentelemetry/api"
-import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base"
+import { TracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { OtelTracer } from "./otel-tracer"
 
 const exporter = new InMemorySpanExporter()
-let provider: BasicTracerProvider
+let provider: TracerProvider
 
 beforeAll(() => {
-  provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+  provider = new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({ exporter })] })
   trace.setGlobalTracerProvider(provider)
 })
 
