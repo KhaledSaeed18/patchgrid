@@ -64,8 +64,10 @@ export function createPrismaClient({ connectionString, maxConnections, onPool }:
  * failed deploy.
  *
  * The owner is read from the catalog, not assumed by name: it is whoever owns
- * `Organization`, which the first migration creates. `pg_class` is readable by
- * every role, so the answer never depends on the role being checked.
+ * schema `public`, which the bootstrap gives to the owner before any migration
+ * runs, and which owns every tenant table after (the schema test asserts both).
+ * The catalog is readable by every role, so the answer never depends on the
+ * role being checked, and it holds before the first migration as after.
  *
  * Throws rather than returning a boolean: there is no caller for whom "the app
  * can read every tenant's data" is recoverable.
@@ -75,11 +77,10 @@ export async function assertAppRoleCannotBypassRls(client: Pick<PrismaClient, "$
     { rolname: string; rolbypassrls: boolean; rolsuper: boolean; owner: string | null; actsAsOwner: boolean | null }[]
   >(
     `SELECT r.rolname, r.rolbypassrls, r.rolsuper,
-            pg_get_userbyid(t.relowner) AS owner,
-            pg_has_role(current_user, t.relowner, 'MEMBER') AS "actsAsOwner"
+            pg_get_userbyid(t.nspowner) AS owner,
+            pg_has_role(current_user, t.nspowner, 'MEMBER') AS "actsAsOwner"
        FROM pg_roles r
-       LEFT JOIN (pg_class t JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = 'public')
-              ON t.relname = 'Organization' AND t.relkind = 'r'
+       LEFT JOIN pg_namespace t ON t.nspname = 'public'
       WHERE r.rolname = current_user`,
   )
 
@@ -95,7 +96,7 @@ export async function assertAppRoleCannotBypassRls(client: Pick<PrismaClient, "$
     )
   }
   if (role.owner === null || role.actsAsOwner === null) {
-    throw new Error("The schema is not migrated: no table owner to check the application role against. Refusing to start.")
+    throw new Error("There is no schema public to check the application role against. Refusing to start.")
   }
   if (role.actsAsOwner) {
     throw new Error(

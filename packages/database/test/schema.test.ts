@@ -115,8 +115,13 @@ describe("1 · row-level security", () => {
       `SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname IN ('patchgrid_owner', 'patchgrid_app', 'patchgrid_admin')`,
     )
     expect(roles.filter((r) => r.rolsuper || r.rolbypassrls).map((r) => r.rolname)).toEqual([])
-    const [membership] = await rows<{ member: boolean }>(`SELECT pg_has_role('patchgrid_app', 'patchgrid_owner', 'MEMBER') AS member`)
+    const [membership] = await rows<{ member: boolean; schemaOwner: string }>(
+      `SELECT pg_has_role('patchgrid_app', 'patchgrid_owner', 'MEMBER') AS member,
+              (SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'public') AS "schemaOwner"`,
+    )
     expect(membership?.member).toBe(false)
+    // The boot assertion checks the app role against the schema's owner, so it must be the tables' owner.
+    expect(membership?.schemaOwner).toBe("patchgrid_owner")
   })
 
   it("every tenant-owned table carries exactly the template policy, and nothing else", async () => {
