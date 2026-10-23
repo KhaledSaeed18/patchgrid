@@ -1,0 +1,61 @@
+{
+  "realm": "acme",
+  "displayName": "Acme Corp (local identity provider)",
+  "enabled": true,
+  "sslRequired": "none",
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "clients": [
+    {
+      "clientId": "patchgrid",
+      "name": "Patchgrid",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "patchgrid-local-sso",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://api.lvh.me:4000/api/v1/auth/sso/callback"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://app.lvh.me:3001/*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "basic", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "kim",
+      "email": "kim@acme.test",
+      "emailVerified": true,
+      "firstName": "Kim",
+      "lastName": "Okafor",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "patchgrid-demo", "temporary": false }]
+    },
+    {
+      "username": "lee",
+      "email": "lee@acme.test",
+      "emailVerified": true,
+      "firstName": "Lee",
+      "lastName": "Moreau",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "patchgrid-demo", "temporary": false }]
+    },
+    {
+      "username": "nora",
+      "email": "nora@acme.test",
+      "emailVerified": false,
+      "firstName": "Nora",
+      "lastName": "Unverified",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "patchgrid-demo", "temporary": false }]
+    }
+  ]
+}

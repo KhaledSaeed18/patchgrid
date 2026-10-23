@@ -165,6 +165,25 @@ services:
       - prometheus
       - tempo
 
+  # ─── Single sign-on (ADR-0054) — `docker compose --profile sso up -d` ───────
+  # A Keycloak with one realm, `acme`, imported at start: the identity provider
+  # the seed points Acme's SSO connection at. Browser and API both reach it as
+  # http://localhost:8180, so the issuer is the same string on both sides — the
+  # API allows that private, plain-http issuer only because .env sets
+  # SSO_ALLOW_PRIVATE_ISSUERS. Admin console: http://localhost:8180/admin.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007
+    profiles: ["sso"]
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm", "--http-port=8180"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: patchgrid-demo
+    volumes:
+      - ./docker/keycloak/acme-realm.json:/opt/keycloak/data/import/acme-realm.json:ro
+    ports:
+      - "${KEYCLOAK_PORT:-8180}:8180"
+
 volumes:
   postgres-data:
   redis-data:
