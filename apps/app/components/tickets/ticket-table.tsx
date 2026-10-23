@@ -9,6 +9,7 @@ import {
 } from "@patchgrid/ui/components/table"
 import Link from "next/link"
 
+import { RequesterName } from "@/components/tickets/requester-name"
 import { PriorityBadge, SourceBadge, StatusBadge } from "./badges"
 import { DueBadge } from "./due-badge"
 import { RelativeTime } from "./relative-time"
@@ -104,7 +105,7 @@ export function TicketTable({
             {columns === "console" ? (
               <>
                 <TableCell className="text-muted-foreground">
-                  {ticket.requester.displayName}
+                  <RequesterName requester={ticket.requester} />
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {ticket.assignee?.displayName ?? ticket.team?.name ?? "—"}
