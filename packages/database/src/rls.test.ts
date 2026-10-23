@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest"
 import { tenantPolicySql } from "./rls.ts"
 
 describe("tenantPolicySql", () => {
-  it("enables and FORCES row security, then filters and checks on orgId", () => {
+  it("enables row security without forcing it, then filters and checks on orgId", () => {
     expect(tenantPolicySql("Team")).toBe(
       [
         `ALTER TABLE "Team" ENABLE ROW LEVEL SECURITY;`,
-        `ALTER TABLE "Team" FORCE ROW LEVEL SECURITY;`,
         `CREATE POLICY tenant_isolation ON "Team"`,
         `  USING      ("orgId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid)`,
         `  WITH CHECK ("orgId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid);`,

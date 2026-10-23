@@ -8,7 +8,10 @@
  * actually in the database matches this template, so a hand-edited variant fails.
  *
  * Why each part:
- *  · FORCE — the table owner is otherwise exempt; only BYPASSRLS roles should be
+ *  · no FORCE — the owner, which runs migrations and the test harness, is exempt
+ *    by owning the table; every other role is bound. A managed Postgres cannot
+ *    grant BYPASSRLS, so ownership is the only exemption there is (ADR-0059), and
+ *    the app role is asserted to be no member of the owner
  *  · USING — filters reads, updates and deletes
  *  · WITH CHECK — refuses writing a row into another tenant
  *  · NULLIF(…, '') — an unset GUC yields NULL and filters everything (fail-closed);
@@ -27,7 +30,6 @@ export function tenantPolicySql(table: string): string {
   const t = `"${table}"`
   return [
     `ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY;`,
-    `ALTER TABLE ${t} FORCE ROW LEVEL SECURITY;`,
     `CREATE POLICY ${TENANT_POLICY_NAME} ON ${t}`,
     `  USING      (${TENANT_POLICY_EXPRESSION})`,
     `  WITH CHECK (${TENANT_POLICY_EXPRESSION});`,

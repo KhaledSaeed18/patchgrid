@@ -94,18 +94,29 @@ describe("table classes", () => {
 })
 
 describe("1 · row-level security", () => {
-  it("every tenant-owned table has RLS enabled AND forced", async () => {
-    const found = await rows<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }>(
-      `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+  it("every tenant-owned table has RLS enabled, unforced, and is owned by the migration owner", async () => {
+    const found = await rows<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean; owner: string }>(
+      `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relname = ANY($1)`,
       [tenantTables],
     )
-    // Without FORCE the table owner is exempt — ADR-0015 erratum.
+    // Ownership is the one exemption from the policies (ADR-0059): the owner
+    // runs migrations, and nobody else may own a tenant table. FORCE stays off,
+    // because a managed Postgres cannot give the owner BYPASSRLS to override it.
     const bad = found
-      .filter((r) => !r.relrowsecurity || !r.relforcerowsecurity)
-      .map((r) => `${r.relname} (enabled=${r.relrowsecurity}, forced=${r.relforcerowsecurity})`)
+      .filter((r) => !r.relrowsecurity || r.relforcerowsecurity || r.owner !== "patchgrid_owner")
+      .map((r) => `${r.relname} (enabled=${r.relrowsecurity}, forced=${r.relforcerowsecurity}, owner=${r.owner})`)
     expect(bad).toEqual([])
+  })
+
+  it("no application role can bypass the policies, and the app role is no member of the owner", async () => {
+    const roles = await rows<{ rolname: string; rolsuper: boolean; rolbypassrls: boolean }>(
+      `SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname IN ('patchgrid_owner', 'patchgrid_app', 'patchgrid_admin')`,
+    )
+    expect(roles.filter((r) => r.rolsuper || r.rolbypassrls).map((r) => r.rolname)).toEqual([])
+    const [membership] = await rows<{ member: boolean }>(`SELECT pg_has_role('patchgrid_app', 'patchgrid_owner', 'MEMBER') AS member`)
+    expect(membership?.member).toBe(false)
   })
 
   it("every tenant-owned table carries exactly the template policy, and nothing else", async () => {
