@@ -242,6 +242,7 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `org:delete` / `org:cancel_deletion` | — | — | — | ✅ |
 | `token:read` / `token:create` / `token:revoke` | — | — | ✅ | ✅ |
 | `webhook:manage` | — | — | ✅ | ✅ |
+| `org:manage_events` | — | — | ✅ | ✅ |
 | `report:read` | — | — | ✅ | ✅ |
 | `support:read_sessions` | — | — | ✅ | ✅ |
 | `support:grant_access` / `support:revoke_access` | — | — | — | ✅ |
@@ -434,7 +435,7 @@ Beyond ticket mutations (`DOMAIN.md` §7), these are audited into the tenant's `
 `ORG_DELETION_REQUESTED/CANCELLED`, `ORG_EXPORTED`, `ORG_MFA_REQUIREMENT_CHANGED`, `OWNERSHIP_TRANSFERRED`,
 `AGENT_VISIBILITY_CHANGED`,
 `ORG_DOMAIN_CLAIMED/VERIFIED/REMOVED`, `SSO_CONNECTION_SAVED`, `ORG_SSO_REQUIREMENT_CHANGED`, `SSO_IDENTITY_LINKED`,
-`TOKEN_CREATED/REVOKED`, `WEBHOOK_CREATED/UPDATED/DELETED/DISABLED`, `WEBHOOK_SECRET_ROTATED`, `WEBHOOK_DELIVERIES_REPLAYED`, `SUPPORT_ACCESS_REQUESTED/GRANTED/DECLINED/REVOKED/EXPIRED`, `SUPPORT_READ`,
+`TOKEN_CREATED/REVOKED`, `WEBHOOK_CREATED/UPDATED/DELETED/DISABLED`, `WEBHOOK_SECRET_ROTATED`, `WEBHOOK_DELIVERIES_REPLAYED`, `EVENT_REPLAYED`, `SUPPORT_ACCESS_REQUESTED/GRANTED/DECLINED/REVOKED/EXPIRED`, `SUPPORT_READ`,
 `WATCHER_ADDED/REMOVED`, `SLA_POLICY_CHANGED`, `AUTOMATION_RULE_CHANGED`,
 `COMMENT_EDITED`, `COMMENT_DELETED`, `CHANGE_SELF_APPROVED`.
 

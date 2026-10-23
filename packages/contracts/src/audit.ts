@@ -79,6 +79,7 @@ export const auditActionSchema = z.enum([
   "WEBHOOK_SECRET_ROTATED",
   "WEBHOOK_DELIVERIES_REPLAYED",
   "WEBHOOK_DISABLED",
+  "EVENT_REPLAYED",
 ])
 export type AuditAction = z.infer<typeof auditActionSchema>
 
