@@ -14,6 +14,8 @@ import { exportJWK, generateKeyPair, type JWK, SignJWT } from "jose"
 
 export type IdpPerson = { sub: string; email: string; emailVerified?: boolean; name?: string; authTime?: number }
 
+type SigningKey = Awaited<ReturnType<typeof generateKeyPair>>["privateKey"]
+
 type Grant = { person: IdpPerson; nonce: string; challenge: string; redirectUri: string; clientId: string }
 
 export class FakeIdp {
@@ -23,8 +25,11 @@ export class FakeIdp {
   readonly requests: URL[] = []
   /** A different issuer name in discovery: what a provider impersonating another would say. */
   claimedIssuer: string | null = null
+  /** Tamper with the next ID tokens: sign them with a key not in the published set, or name another audience. */
+  forge: { rogueKey?: boolean; audience?: string } = {}
   private server: Server | null = null
-  private key: CryptoKey | null = null
+  private key: SigningKey | null = null
+  private rogue: SigningKey | null = null
   private jwk: JWK | null = null
   private readonly grants = new Map<string, Grant>()
   private port = 0
@@ -36,6 +41,7 @@ export class FakeIdp {
   async start(): Promise<void> {
     const { privateKey, publicKey } = await generateKeyPair("ES256", { extractable: true })
     this.key = privateKey
+    this.rogue = (await generateKeyPair("ES256")).privateKey
     this.jwk = { ...(await exportJWK(publicKey)), kid: "spec-1", alg: "ES256", use: "sig" }
     this.server = createServer((request, response) => {
       void this.handle(request).then(({ status, body }) => {
@@ -117,11 +123,11 @@ export class FakeIdp {
     })
       .setProtectedHeader({ alg: "ES256", kid: "spec-1" })
       .setIssuer(this.issuer)
-      .setAudience(grant.clientId)
+      .setAudience(this.forge.audience ?? grant.clientId)
       .setSubject(grant.person.sub)
       .setIssuedAt(now)
       .setExpirationTime(now + 300)
-      .sign(this.key as CryptoKey)
+      .sign((this.forge.rogueKey === true ? this.rogue : this.key) as SigningKey)
     return { status: 200, body: { access_token: randomBytes(16).toString("base64url"), token_type: "Bearer", expires_in: 300, id_token: idToken } }
   }
 }

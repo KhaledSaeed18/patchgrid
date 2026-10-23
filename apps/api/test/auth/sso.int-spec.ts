@@ -85,7 +85,8 @@ const ownerBrowser = async () => browser(app, ws.origin, await stepUp(app, ws.sl
 
 /** A whole round trip: start, the person at the provider, the callback in the same browser. */
 async function signIn(start: string, person: IdpPerson, extra: { pgId?: string; dropState?: boolean } = {}) {
-  const started = await http().get(`/api/v1/auth/sso/start?${start}`)
+  // What a browser says when the login page on app. navigates to api.: the same site.
+  const started = await http().get(`/api/v1/auth/sso/start?${start}`).set("Sec-Fetch-Site", "same-site")
   expect(started.status).toBe(302)
   const state = cookiesOf(started).get("pg_sso") ?? ""
   const callback = idp.authorize(started.headers.location as string, person)
@@ -184,7 +185,8 @@ describe("signing in", () => {
     const pgId = `pg_id=${cookies.get("pg_id") ?? ""}`
     const identity = await http().get("/api/v1/auth/identity").set("Cookie", pgId)
     expect(identity.body.sso).toEqual({ slug: ws.slug })
-    expect(identity.body.workspaces).toHaveLength(2)
+    // Acme's provider learns nothing of the person's other workspaces (M13 review).
+    expect(identity.body.workspaces.map((w: { slug: string }) => w.slug)).toEqual([ws.slug])
     const elsewhere = await http().post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", pgId).send({ slug: other.slug })
     expect(elsewhere.status).toBe(403)
     expect(elsewhere.body.type).toMatch(/sso-session-scoped$/)
@@ -193,6 +195,9 @@ describe("signing in", () => {
     // Nothing account-wide: an identity provider vouched for one workspace, not for the account.
     for (const [path, body] of [
       ["/api/v1/auth/passkeys/registration/options", { password: PASSWORD }],
+      // Its own factors are not the provider's to try: a wrong code would lock them everywhere.
+      ["/api/v1/auth/step-up", { slug: ws.slug, password: PASSWORD }],
+      ["/api/v1/auth/passkeys/proof/options", {}],
       ["/api/v1/auth/mfa/enrol", { password: PASSWORD }],
       ["/api/v1/auth/password", { currentPassword: PASSWORD, newPassword: "a brand new passphrase" }],
       ["/api/v1/orgs", { name: "Mine", slug: `mine-${suffix}` }],
@@ -215,6 +220,28 @@ describe("signing in", () => {
     expect(replay.headers.location).toMatch(/\/login\?sso=expired$/)
   })
 
+  it("refuses an ID token the provider's keys did not sign, or one for another client", async () => {
+    idp.forge = { rogueKey: true }
+    try {
+      expect((await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}` })).location).toMatch(/\/login\?sso=denied$/)
+    } finally {
+      idp.forge = {}
+    }
+    idp.forge = { audience: "someone-else" }
+    try {
+      expect((await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}` })).location).toMatch(/\/login\?sso=denied$/)
+    } finally {
+      idp.forge = {}
+    }
+  })
+
+  it("refuses a round trip another site started", async () => {
+    const started = await http().get(`/api/v1/auth/sso/start?email=kim@${DOMAIN}`).set("Sec-Fetch-Site", "cross-site")
+    expect(started.status).toBe(302)
+    expect(started.headers.location).toMatch(/\/login\?sso=foreign$/)
+    expect(cookiesOf(started).has("pg_sso")).toBe(false)
+  })
+
   it("never revives a removed or disabled member", async () => {
     const kim = await db.user.findUniqueOrThrow({ where: { email: `kim@${DOMAIN}` } })
     await db.membership.update({ where: { orgId_userId: { orgId: ws.orgId, userId: kim.id } }, data: { status: "DISABLED" } })
@@ -235,7 +262,11 @@ describe("signing in", () => {
 describe("SSO required", () => {
   it("is refused before the domain and connection allow it, then admits non-owners only through the provider", async () => {
     const owner = await ownerBrowser()
-    const required = await owner.put("/org/sso/requirement", { required: true })
+    // The seeded agent's address is not at the domain: the provider can never sign them in, so it asks first.
+    const asked = await owner.put("/org/sso/requirement", { required: true })
+    expect(asked.status).toBe(409)
+    expect(asked.body.detail).toMatch(/outside/)
+    const required = await owner.put("/org/sso/requirement", { required: true, confirm: true })
     expect(required.status).toBe(200)
     expect(required.body.required).toBe(true)
     // The domain cannot move from under it, nor the connection be turned off.
@@ -281,6 +312,26 @@ describe("step-up at the provider", () => {
     const lee = await signIn(`slug=${ws.slug}&intent=step-up`, { sub: "lee-sub", email: `lee@${DOMAIN}` }, { pgId })
     expect(lee.location).toBe(`http://${ws.slug}.lvh.me:3001/?sso=mismatch`)
     expect(lee.cookies.has(`pg_at_${ws.slug}`)).toBe(false)
+  })
+})
+
+describe("withdrawing the provider", () => {
+  it("ends every session it started when the connection is switched off", async () => {
+    const { cookies } = await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}` })
+    const refresh = `pg_rt_${ws.slug}=${cookies.get(`pg_rt_${ws.slug}`) ?? ""}`
+    const owner = await ownerBrowser()
+    expect((await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, defaultRole: "REQUESTER", enabled: false })).status).toBe(200)
+    const renewed = await http().post("/api/v1/auth/refresh").set(HEADERS).set("Cookie", refresh).send({ slug: ws.slug })
+    expect(renewed.status).toBe(401)
+    // The old secret stands for the same issuer and client.
+    expect((await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, defaultRole: "REQUESTER", enabled: true })).status).toBe(200)
+  })
+
+  it("will not send the stored secret to a new issuer", async () => {
+    const owner = await ownerBrowser()
+    const refused = await owner.put("/org/sso/connection", { issuer: "http://127.0.0.1:1/realms/elsewhere", clientId: idp.clientId, defaultRole: "REQUESTER", enabled: true })
+    expect(refused.status).toBe(400)
+    expect(refused.body.errors[0].path).toBe("clientSecret")
   })
 })
 
