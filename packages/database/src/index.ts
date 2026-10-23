@@ -55,17 +55,32 @@ export function createPrismaClient({ connectionString, maxConnections, onPool }:
 }
 
 /**
- * Boot assertion (ADR-0022). A role holding BYPASSRLS ignores every tenant
- * policy in the database, so the whole isolation story would be off — silently,
- * and only in whichever environment was misconfigured. Refusing to start turns
- * that into a failed deploy.
+ * Boot assertion (ADR-0022, ADR-0059). Three ways a role escapes every tenant
+ * policy in the database: being a superuser, holding BYPASSRLS, or having the
+ * privileges of the role that owns the tables. Tables are not forced, so their
+ * owner is exempt, and so is anyone who can act as it (ADR-0059). Any of the
+ * three would turn the whole isolation story off, silently, and only in
+ * whichever environment was misconfigured. Refusing to start turns that into a
+ * failed deploy.
+ *
+ * The owner is read from the catalog, not assumed by name: it is whoever owns
+ * `Organization`, which the first migration creates. `pg_class` is readable by
+ * every role, so the answer never depends on the role being checked.
  *
  * Throws rather than returning a boolean: there is no caller for whom "the app
  * can read every tenant's data" is recoverable.
  */
 export async function assertAppRoleCannotBypassRls(client: Pick<PrismaClient, "$queryRawUnsafe">): Promise<void> {
-  const rows = await client.$queryRawUnsafe<{ rolname: string; rolbypassrls: boolean; rolsuper: boolean }[]>(
-    `SELECT rolname, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user`,
+  const rows = await client.$queryRawUnsafe<
+    { rolname: string; rolbypassrls: boolean; rolsuper: boolean; owner: string | null; actsAsOwner: boolean | null }[]
+  >(
+    `SELECT r.rolname, r.rolbypassrls, r.rolsuper,
+            pg_get_userbyid(t.relowner) AS owner,
+            pg_has_role(current_user, t.relowner, 'MEMBER') AS "actsAsOwner"
+       FROM pg_roles r
+       LEFT JOIN (pg_class t JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = 'public')
+              ON t.relname = 'Organization' AND t.relkind = 'r'
+      WHERE r.rolname = current_user`,
   )
 
   const role = rows[0]
@@ -77,6 +92,15 @@ export async function assertAppRoleCannotBypassRls(client: Pick<PrismaClient, "$
       `Database role "${role.rolname}" can bypass row-level security ` +
         `(superuser=${role.rolsuper}, bypassrls=${role.rolbypassrls}). ` +
         `The application must connect as patchgrid_app. Refusing to start.`,
+    )
+  }
+  if (role.owner === null || role.actsAsOwner === null) {
+    throw new Error("The schema is not migrated: no table owner to check the application role against. Refusing to start.")
+  }
+  if (role.actsAsOwner) {
+    throw new Error(
+      `Database role "${role.rolname}" is, or is a member of, "${role.owner}", which owns the tenant tables ` +
+        `and is therefore exempt from their policies (ADR-0059). Refusing to start.`,
     )
   }
 }
