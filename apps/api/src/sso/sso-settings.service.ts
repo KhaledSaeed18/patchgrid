@@ -144,7 +144,8 @@ export class SsoSettingsService {
     this.permissions.assert(actor, "org:manage_sso")
     this.stepUp.assert(actor)
     const orgId = this.tenant.requireOrgId()
-    const [existing, org] = await Promise.all([this.connections.find(orgId), this.domains.find(orgId)])
+    const existing = await this.connections.find(orgId)
+    const org = await this.domains.find(orgId)
     if (org === null) throw new NotFoundProblem()
     // The stored secret is for the provider it was given to: a new issuer or client gets a new one, or it
     // would be presented to whatever host the new issuer names (M13 review).
@@ -233,7 +234,8 @@ export class SsoSettingsService {
   }
 
   private async read(orgId: string): Promise<SsoSettings> {
-    const [org, connection] = await Promise.all([this.domains.find(orgId), this.connections.find(orgId)])
+    const org = await this.domains.find(orgId)
+    const connection = await this.connections.find(orgId)
     if (org === null) throw new NotFoundProblem()
     return {
       redirectUri: this.urls.ssoCallback(),

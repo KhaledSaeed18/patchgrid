@@ -52,11 +52,9 @@ export class MeService {
       }
     }
 
-    const [member, profile, account] = await Promise.all([
-      this.memberships.findMember(resolved.id, actor.membershipId, true),
-      this.organizations.findProfileById(resolved.id),
-      actor.kind === "member" ? this.users.findById(actor.userId) : Promise.resolve(null),
-    ])
+    const member = await this.memberships.findMember(resolved.id, actor.membershipId, true)
+    const profile = await this.organizations.findProfileById(resolved.id)
+    const account = actor.kind === "member" ? await this.users.findById(actor.userId) : null
     // The guard read this membership moments ago; its absence now is a session to end, not a 404.
     if (member === null || profile === null) throw new NotAuthenticatedProblem()
 

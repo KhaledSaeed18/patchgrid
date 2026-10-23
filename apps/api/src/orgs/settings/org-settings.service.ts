@@ -58,7 +58,8 @@ export class OrgSettingsService {
   async get(): Promise<OrganizationSettings> {
     this.permissions.assert(this.actors.requireTenantActor(), "org:read_settings")
     const orgId = this.tenant.requireOrgId()
-    const [record, lastRelease] = await Promise.all([this.settings.find(orgId), this.settings.lastSlugRelease(orgId)])
+    const record = await this.settings.find(orgId)
+    const lastRelease = await this.settings.lastSlugRelease(orgId)
     if (record === null) throw new NotFoundProblem()
     return toSettings(record, this.nextSlugChange(lastRelease), this.config.ROOT_DOMAIN)
   }
