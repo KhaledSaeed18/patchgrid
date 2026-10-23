@@ -16,7 +16,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0007](0007-web-calls-api-directly-no-bff.md) | Next.js calls the NestJS API directly; no BFF layer | Accepted |
 | [0008](0008-sse-for-in-app-notifications.md) | Server-Sent Events for live notifications | Accepted — refined by 0036 |
 | [0009](0009-ticket-numbering.md) | Per-type ticket numbers from a counter table | Accepted |
-| [0010](0010-ml-services-behind-interfaces-in-monorepo.md) | LLM and phishing model as swappable, non-blocking services inside the monorepo | Accepted — erratum: model deployment is M7, now built last |
+| [0010](0010-ml-services-behind-interfaces-in-monorepo.md) | LLM and phishing model as swappable, non-blocking services inside the monorepo | Superseded by 0056 |
 | [0011](0011-testing-strategy.md) | Testing strategy: Vitest everywhere, real Postgres for integration, Playwright for E2E | Accepted |
 | [0012](0012-error-format-and-pagination.md) | RFC 9457 Problem Details and cursor pagination | Accepted — erratum: domain, search exception |
 | [0013](0013-full-multi-tenant-saas.md) | Patchgrid is a full multi-tenant SaaS | Accepted |
@@ -54,7 +54,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0045](0045-member-mfa-as-built.md) | Member MFA as built: a challenge before the session, a proof on the token | Accepted |
 | [0046](0046-observability-as-built.md) | Observability as built: the SDK before the app, metrics by top-N tenant, a trace id as the request id | Accepted |
 | [0047](0047-no-public-deployment.md) | No public deployment: Patchgrid runs locally, and the deployment design stays a design | Accepted |
-| [0048](0048-roadmap-after-m10.md) | The roadmap after M10: four architecture milestones before M7 | Accepted |
+| [0048](0048-roadmap-after-m10.md) | The roadmap after M10: four architecture milestones before M7 | Accepted — M7 dropped by 0056 |
 | [0049](0049-transactional-outbox-as-a-tenant-log.md) | A transactional outbox, read as a per-tenant log below the snapshot horizon | Accepted |
 | [0050](0050-outbound-webhooks.md) | Outbound webhooks: thin signed events, at least once, and nobody else's problem | Accepted |
 | [0051](0051-reporting-read-side.md) | Reporting: a fact row per ticket, refreshed from the log, checked against the source | Accepted |
@@ -62,6 +62,7 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0053](0053-passkeys.md) | Passkeys: a credential that signs in alone, scoped to the workspace hosts | Accepted — erratum: the review's settlements |
 | [0054](0054-per-tenant-oidc-sso.md) | Per-tenant SSO: an identity provider vouches for its own workspace only | Accepted — erratum: the review's settlements |
 | [0055](0055-external-requesters.md) | External requesters are memberships without an account | Accepted |
+| [0056](0056-m7-dropped.md) | M7 is dropped: no models, no automation rule engine | Accepted |
 
 ## Reading order for someone new
 

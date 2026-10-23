@@ -11,10 +11,6 @@ export const metadata: Metadata = pageMetadata({
   path: "/pricing",
 })
 
-/**
- * `AUTOMATION_RULES` has a limit in contracts but no feature behind it until
- * M7; it joins the table when rules can be written.
- */
 const ROWS: {
   metric: UsageMetric
   label: string

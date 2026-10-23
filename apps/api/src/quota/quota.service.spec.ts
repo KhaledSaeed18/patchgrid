@@ -114,7 +114,7 @@ describe("QuotaService", () => {
   it("answers hasRoom without consuming", async () => {
     const { service, values } = harness("FREE", { "AGENT_SEATS@current": 3n })
     expect(await service.hasRoom("o-1", "AGENT_SEATS")).toBe(false)
-    expect(await service.hasRoom("o-1", "AUTOMATION_RULES")).toBe(true)
+    expect(await service.hasRoom("o-1", "KB_ARTICLES")).toBe(true)
     expect(values.get("AGENT_SEATS@current")).toBe(3n)
   })
 

@@ -46,7 +46,7 @@ export const WEBHOOK_EVENT_DESCRIPTIONS: Readonly<Record<WebhookEventType, strin
 /** The ticket every event is about: what never changes about it, so a stale copy is never wrong. */
 const ticketRef = z.object({ id: idSchema, number: z.string(), type: ticketTypeSchema })
 
-/** Who did it: a member, or `null` for the system (a sweep, an automation). */
+/** Who did it: a member, or `null` for the system (a sweep). */
 const actor = idSchema.nullable()
 
 export const webhookEventDataSchema = z.discriminatedUnion("type", [

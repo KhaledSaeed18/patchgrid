@@ -1,6 +1,6 @@
 # 0010 — LLM and phishing model as swappable, non-blocking services inside the monorepo
 
-- **Status:** Accepted
+- **Status:** Superseded by [0056](0056-m7-dropped.md) — M7, and with it every model, is dropped
 - **Date:** 2026-09-22
 
 > **Erratum (2026-10-15).** Consequences says the deployment of Ollama for a public demo "is deferred to

@@ -61,7 +61,7 @@ NEW ──assign──▶ ASSIGNED ──start──▶ IN_PROGRESS ──resolv
 
 | From | Action | To | Who | Guards | Effects |
 | --- | --- | --- | --- | --- | --- |
-| `NEW` | `assign` | `ASSIGNED` | Agent+, automation | assignee or team is a member/team of this org | sets `assigneeMembershipId` and/or `teamId` |
+| `NEW` | `assign` | `ASSIGNED` | Agent+ | assignee or team is a member/team of this org | sets `assigneeMembershipId` and/or `teamId` |
 | `NEW`, `ASSIGNED` | `start` | `IN_PROGRESS` | Assignee, Admin+ | — | if unassigned, the actor becomes assignee |
 | `IN_PROGRESS` | `wait` | `PENDING` | Assignee, Admin+ | public comment required (the reason the requester must act) | `pausedAt = now`; resolution clock pauses |
 | `PENDING` | `resume` | `IN_PROGRESS` | Assignee, Admin+, **or automatically when the ticket's own requester posts a `PUBLIC` comment** | — | `pausedMinutes += now − pausedAt`; `pausedAt = null` |
@@ -74,7 +74,7 @@ NEW ──assign──▶ ASSIGNED ──start──▶ IN_PROGRESS ──resolv
 
 `IN_PROGRESS → CANCELLED` exists deliberately: spam, duplicates and mistaken tickets are most often
 recognised *while being worked*, and forcing them through `RESOLVED` would pollute the resolution and
-SLA statistics this product exists to report on. Duplicate merging (§10) depends on it.
+SLA statistics this product exists to report on. Closing a duplicate (a `DUPLICATE_OF` link, then `cancel`) depends on it.
 
 **Everything not in the table is denied**, and the following denials are deliberate rather than
 oversights: `PENDING → RESOLVED` (resume first, so the pause arithmetic closes cleanly),
@@ -171,7 +171,6 @@ that the requester must open a new ticket (the UI offers "open a new ticket link
 
 - Computed in the Ticket service on create and whenever `impact` or `urgency` changes. A client-supplied `priority` is rejected with `400`.
 - Applies to all four types (it is a useful sort key for Problems and Changes too), but **SLA policies are attached only to Incidents and Service Requests**.
-- The LLM triage (later milestone) produces `suggestedImpact` / `suggestedUrgency`, never a priority, so the matrix remains the single source of truth.
 
 ## 4. SLA rules
 
@@ -250,9 +249,8 @@ Incidents and Service Requests with an active clock and:
 2. **Breach**: `now ≥ target` and not yet breached → set `responseBreached` / `resolutionBreached`,
    notify assignee + team lead + all Admins, audit-log `SLA_BREACHED`.
 
-Escalation in the core milestones is exactly the above — hard-coded. When the automation rule engine
-lands (§10), `SLA_WARNING` / `SLA_BREACHED` become rule *triggers* and the hard-coded notifications
-become the default rules in the seed.
+Escalation is exactly the above — hard-coded. There is no automation rule engine to make it
+configurable (it went with M7, ADR-0056; §10).
 
 The worker is idempotent: every flag it sets is checked before it acts, so a job that runs twice does
 nothing twice — and the write itself is conditional on the flag still being unset, so two scans racing
@@ -327,7 +325,7 @@ What matters for the rules in *this* file:
   settings, tokens, support sessions) are audited into the same log — the catalogue of actions is in
   `RBAC.md` §12.
 - Every audit row records **what kind** of actor performed it (`MEMBER`, `SERVICE`, `SYSTEM`,
-  `PLATFORM`), so a change made by an API token, an automation rule or a platform admin during a support
+  `PLATFORM`), so a change made by an API token, a sweep or a platform admin during a support
   session is never misread as a colleague's action.
 
 ### 7.1 Tickets and replies by email
@@ -470,9 +468,10 @@ set), `purchaseDate`, `warrantyExpiresAt`, `notes`. Tickets ↔ assets are many-
 - **An asset with tickets is never deleted** (`409`); it is `RETIRED`, which keeps its history. Deleting
   is for an asset entered by mistake.
 
-## 10. Later-milestone domain additions (do not build yet)
+## 10. Not part of the domain
 
-- **LLM triage** writes a `TicketTriage { suggestedCategoryId, suggestedImpact, suggestedUrgency, summary, model, latencyMs }` row; an agent *accepts* or *dismisses* the suggestion (audit-logged). Suggestions never auto-apply.
-- **Phishing subtype** is a `Category` (Security → Phishing) plus a `PhishingReport` 1:1 row. Routing to the Security team is the ordinary `defaultTeamId` rule; the risk score is extra data on the ticket.
-- **Duplicate detection** stores an embedding per ticket (`pgvector`) and surfaces the top-3 similar open tickets in the same root category above a similarity threshold. Merging = closing the duplicate as `CANCELLED` with a `DUPLICATE_OF` link and copying its public comments as a system note on the survivor.
-- **Automation rules**: `{ trigger: TICKET_CREATED | TICKET_UPDATED | SLA_WARNING | SLA_BREACHED, conditions: [{ field, op, value }] (AND-only), actions: [{ type: ASSIGN_TEAM | ASSIGN_USER | SET_IMPACT | SET_URGENCY | ADD_INTERNAL_NOTE | NOTIFY_EMAIL }] }`. Evaluated in a BullMQ job after the triggering transaction commits, never inline. Every rule execution is audit-logged with the rule id.
+M7 is dropped (ADR-0056), and with it everything it would have added: LLM triage suggestions, a
+phishing risk score, embedding-based duplicate detection and automation rules. Phishing is an ordinary
+category (Security → Phishing) routed by its `defaultTeamId`; a duplicate is linked by hand
+(`DUPLICATE_OF`) and cancelled; escalation is §4.3's hard-coded rule. `FEATURES.md` lists both under
+"Explicitly out of scope".

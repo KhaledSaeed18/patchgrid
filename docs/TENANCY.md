@@ -265,10 +265,8 @@ impersonation.
 | Requesters | unlimited | unlimited |
 | Tickets per calendar month (UTC) | 200 | 10 000 |
 | Attachment storage | 1 GB | 25 GB |
-| Automation rules | 3 | 50 |
 | Knowledge articles | 25 | unlimited |
 | API tokens (unrevoked) | 5 | 50 |
-| LLM triage | off | on |
 
 `QuotaService` returns `402` with a Problem Details `type` the UI maps to an upgrade prompt. Three rules
 make the numbers mean something:
@@ -286,12 +284,12 @@ make the numbers mean something:
 
 The metrics and the numbers above have one definition, `UsageMetric` and `PLAN_LIMITS` in
 `@patchgrid/contracts`; a test holds that table to this one. `TICKETS_CREATED` is cumulative, its
-`period` the month as `YYYY-MM` in **UTC**; `AGENT_SEATS`, `STORAGE_BYTES`, `AUTOMATION_RULES` and
-`KB_ARTICLES` are point-in-time, their `period` the literal `current`, and therefore recomputable. A
+`period` the month as `YYYY-MM` in **UTC**; `AGENT_SEATS`, `STORAGE_BYTES`, `KB_ARTICLES` and
+`API_TOKENS` are point-in-time, their `period` the literal `current`, and therefore recomputable. A
 seat is an `ACTIVE` human membership at `AGENT` or above (ADR-0033): a disabled agent frees one, a
 service account and a requester never hold one. The nightly `usage-reconcile` job recomputes the point-in-time metrics from source and
 reports drift on the cumulative one. Each recount locks its counter row before it counts, so a create
-racing it waits and is counted once; automation rules join the recount when M7 gives them rows.
+racing it waits and is counted once.
 
 **Downgrade below current usage** never destroys data: the downgrade is allowed, *new* creation is
 blocked with `402`, and an over-limit banner appears for admins and owners until usage fits.

@@ -1,10 +1,12 @@
--- Per-database setup. Idempotent. Requires superuser (CREATE EXTENSION and
--- ALTER SCHEMA OWNER are not available to the owner role).
+-- Per-database setup. Idempotent. Requires superuser (ALTER SCHEMA OWNER and
+-- DROP EXTENSION are not available to the owner role).
 --
 -- Run against EVERY database the application touches — `patchgrid` and
 -- `patchgrid_test` — because privileges and default privileges are per-database.
 
-CREATE EXTENSION IF NOT EXISTS "vector";
+-- pgvector was installed for M7's embeddings, which were dropped (ADR-0056).
+-- A database bootstrapped before then still has it; nothing uses it.
+DROP EXTENSION IF EXISTS "vector";
 
 -- The owner role owns the schema and creates every object in it.
 ALTER SCHEMA public OWNER TO patchgrid_owner;

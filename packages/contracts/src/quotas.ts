@@ -12,14 +12,7 @@ import { type Plan, planSchema } from "./tenancy.ts"
  * A token's service account holds no seat; the tokens have their own limit,
  * counted while unrevoked.
  */
-export const usageMetricSchema = z.enum([
-  "AGENT_SEATS",
-  "TICKETS_CREATED",
-  "STORAGE_BYTES",
-  "AUTOMATION_RULES",
-  "KB_ARTICLES",
-  "API_TOKENS",
-])
+export const usageMetricSchema = z.enum(["AGENT_SEATS", "TICKETS_CREATED", "STORAGE_BYTES", "KB_ARTICLES", "API_TOKENS"])
 export type UsageMetric = z.infer<typeof usageMetricSchema>
 
 /** Cumulative per calendar month (UTC); everything else is a point-in-time count. */
@@ -28,8 +21,8 @@ export const MONTHLY_METRICS: ReadonlySet<UsageMetric> = new Set(["TICKETS_CREAT
 const GB = 1024 ** 3
 
 export const PLAN_LIMITS = {
-  FREE: { AGENT_SEATS: 3, TICKETS_CREATED: 200, STORAGE_BYTES: GB, AUTOMATION_RULES: 3, KB_ARTICLES: 25, API_TOKENS: 5 },
-  PRO: { AGENT_SEATS: 25, TICKETS_CREATED: 10_000, STORAGE_BYTES: 25 * GB, AUTOMATION_RULES: 50, KB_ARTICLES: null, API_TOKENS: 50 },
+  FREE: { AGENT_SEATS: 3, TICKETS_CREATED: 200, STORAGE_BYTES: GB, KB_ARTICLES: 25, API_TOKENS: 5 },
+  PRO: { AGENT_SEATS: 25, TICKETS_CREATED: 10_000, STORAGE_BYTES: 25 * GB, KB_ARTICLES: null, API_TOKENS: 50 },
 } as const satisfies Record<Plan, Record<UsageMetric, number | null>>
 
 /**
