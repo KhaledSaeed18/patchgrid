@@ -11,6 +11,11 @@
 > path; a second rotation inside the 24-hour overlap is refused; replay needs the endpoint on; an endpoint
 > hears only of events after its creation (THREAT-MODEL §8).
 
+> **Erratum (2026-10-23).** An endpoint turned off for failing five days now emails the workspace's
+> active admins and owners (`webhook-disabled`), queued in the transaction that turns it off, so a
+> refused queue rolls the attempt back to be retried. The audit row and the settings page were the
+> only signals before, and nobody looks at either when an integration silently stops.
+
 ## Context
 
 M11's last feature: a workspace subscribes an HTTPS endpoint to its events. Webhooks are where a
