@@ -81,6 +81,14 @@ export type SsoConnectionRequest = z.infer<typeof ssoConnectionRequestSchema>
  * the domain — whom no provider of this workspace can vouch for — is a `409`
  * the owner retries with `confirm: true` (M13 review).
  */
+/**
+ * `PUT /org/domain/join` (TENANCY.md §5): letting anyone with a verified
+ * address at the proved domain join, at `REQUESTER` or `AGENT`. A step-up
+ * action, as the SSO connection is: it opens the workspace to a whole domain.
+ */
+export const domainJoinRequestSchema = z.strictObject({ enabled: z.boolean(), role: ssoDefaultRoleSchema })
+export type DomainJoinRequest = z.infer<typeof domainJoinRequestSchema>
+
 export const ssoRequirementRequestSchema = z.strictObject({ required: z.boolean(), confirm: z.boolean().optional() })
 export type SsoRequirementRequest = z.infer<typeof ssoRequirementRequestSchema>
 
@@ -94,6 +102,8 @@ export const ssoSettingsSchema = z.object({
       verifiedAt: z.iso.datetime().nullable(),
       /** The TXT record to publish; `null` once verified. */
       record: z.object({ name: z.string(), value: z.string() }).nullable(),
+      /** Whether a verified address at the proved domain may join on its own, and at which role (TENANCY.md §5). */
+      join: z.object({ enabled: z.boolean(), role: ssoDefaultRoleSchema }),
     })
     .nullable(),
   connection: z
