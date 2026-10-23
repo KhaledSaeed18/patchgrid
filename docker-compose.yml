@@ -60,7 +60,7 @@ services:
     # healthcheck and the init script use. It runs as a non-root user, which is
     # why the volume was renamed: one created by the old root image is not
     # writable by it.
-    image: cgr.dev/chainguard/minio:latest-dev@sha256:1195e844c6b5594ea26def1dd88dae4d9ee766c4db6b3ff7a2d2f0398e7dd164
+    image: cgr.dev/chainguard/minio:latest-dev@sha256:2cddf415c1f6eefc223204467cc49e9dabae494e4b23a1b4935e85f5347a8894
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -85,7 +85,7 @@ services:
   # One-shot: create the bucket and set CORS so the browser can PUT directly to
   # storage with a presigned URL (ADR-0005). Exits 0 and stays exited.
   minio-init:
-    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:f4ffdb6d79586e6255d138641ab5e6b0dca8f188df4291fd62a3278785bbe468
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:7e046421a370426ea57eec3f077653aa997f17c689145a48225c140ce7c7d5bd
     depends_on:
       minio:
         condition: service_healthy
@@ -119,7 +119,7 @@ services:
   # Prometheus; Grafana is provisioned with both and the tenant dashboard.
   # Off by default so the everyday stack stays light.
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.162.0-386
+    image: otel/opentelemetry-collector-contrib:0.163.1-386
     profiles: ["observability"]
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yaml"]
@@ -132,7 +132,7 @@ services:
       - tempo
 
   tempo:
-    image: grafana/tempo:2.10.8
+    image: grafana/tempo:2.10.9
     profiles: ["observability"]
     restart: unless-stopped
     command: ["-config.file=/etc/tempo.yaml"]
@@ -173,7 +173,7 @@ services:
   # Answers for domains nobody can publish to, from the zone files in
   # docker/coredns/zones. Point the API at it with DNS_RESOLVERS=127.0.0.1:5354.
   coredns:
-    image: coredns/coredns:1.12.1@sha256:e8c262566636e6bc340ece6473b0eed193cad045384401529721ddbe6463d31c
+    image: coredns/coredns:1.14.7@sha256:7efd3c635b03efd68c4e8398fc45f0d993d0e9ab016f72c1cefb0fd6d01aa286
     profiles: ["dns"]
     restart: unless-stopped
     command: ["-conf", "/etc/coredns/Corefile"]
@@ -191,7 +191,7 @@ services:
   # API allows that private, plain-http issuer only because .env sets
   # SSO_ALLOW_PRIVATE_ISSUERS. Admin console: http://localhost:8180/admin.
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007
+    image: quay.io/keycloak/keycloak:26.8@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
     profiles: ["sso"]
     restart: unless-stopped
     command: ["start-dev", "--import-realm", "--http-port=8180"]
