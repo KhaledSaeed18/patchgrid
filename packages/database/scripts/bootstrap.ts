@@ -41,9 +41,13 @@ const ownerPassword = requireEnv("PATCHGRID_OWNER_PASSWORD")
 const appPassword = requireEnv("PATCHGRID_APP_PASSWORD")
 const mainDb = process.env.POSTGRES_DB ?? "patchgrid"
 const testDb = process.env.POSTGRES_TEST_DB ?? "patchgrid_test"
+// Prisma's scratch database for `migrate dev`. A deployed environment sets it
+// empty: it has no use for one.
 const shadowDb = process.env.POSTGRES_SHADOW_DB ?? "patchgrid_shadow"
-// Comma-separated, for an environment with no test database (a deployed one).
+// The databases the application uses, and is granted on. Comma-separated; a
+// deployed environment names only its own (no test database).
 const databases = (process.env.BOOTSTRAP_DATABASES ?? `${mainDb},${testDb}`).split(",").filter((name) => name !== "")
+const ownedDatabases = [...new Set([...databases, ...(shadowDb === "" ? [] : [shadowDb])])]
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -117,7 +121,7 @@ async function provisionInstance(url: string): Promise<void> {
       await client.query(`GRANT ${quoteIdent(role)} TO ${quoteIdent(ADMIN)} WITH ADMIN TRUE, INHERIT FALSE, SET TRUE`)
       console.log(`  adopted role ${role}`)
     }
-    for (const database of [mainDb, testDb, shadowDb]) {
+    for (const database of ownedDatabases) {
       const found = await client.query<{ owner: string }>("SELECT pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname = $1", [
         database,
       ])
@@ -176,7 +180,7 @@ async function provisionDatabases(): Promise<void> {
     // CREATE DATABASE … OWNER needs the right to become the owner; INHERIT stays
     // off, so the admin holds none of the owner's privileges by default.
     await client.query(`GRANT ${quoteIdent(OWNER)} TO current_user WITH INHERIT FALSE, SET TRUE`)
-    for (const database of [mainDb, testDb, shadowDb]) await ensureDatabase(client, database)
+    for (const database of ownedDatabases) await ensureDatabase(client, database)
   })
 
   // Privileges and default privileges are per-database. The owner grants them
