@@ -10,6 +10,9 @@
 > password, counted against the same lockout as a wrong code. Confirming, replacing the codes and
 > turning the factor off are proved by the factor, as the body says. (M9 security review, finding 3.)
 
+> **Erratum (2026-10-23).** `org:manage_plan` is gone from the catalogue (ADR-0029's erratum): plans are
+> the back-office's, so "it gets the assertion when it gets the route" will not happen.
+
 ## Context
 
 ADR-0029 decided TOTP for everyone, optional per person and enforceable per workspace, with step-up
