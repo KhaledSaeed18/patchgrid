@@ -218,6 +218,25 @@ describe("PermissionService — escalation negatives (RBAC.md §13.6)", () => {
   })
 })
 
+describe("PermissionService — external requesters (ADR-0027 §4)", () => {
+  const external = { kind: "external" as const, orgId: "o-1", membershipId: "m-ext", role: "REQUESTER" as const }
+  const own = { own: true, watch: false, scope: false, ticketType: "INCIDENT" as const, ticketStatus: "NEW" as const }
+
+  it("may raise, read and answer their own tickets, and attach files to them — no more", () => {
+    expect(service.permissionsFor(external).toSorted()).toEqual(["attachment:download", "attachment:upload", "comment:create_public", "ticket:create", "ticket:read"])
+    expect(service.can(external, "ticket:read", own)).toBe(true)
+    expect(service.can(external, "comment:create_public", own)).toBe(true)
+  })
+
+  it("reads nobody else's ticket, watches nothing and changes nothing else", () => {
+    expect(service.can(external, "ticket:read", { ...own, own: false })).toBe(false)
+    expect(service.can(external, "ticket:watch", own)).toBe(false)
+    expect(service.can(external, "ticket:update", own)).toBe(false)
+    expect(service.can(external, "ticket:transition", own)).toBe(false)
+    expect(service.can(external, "kb:read_published")).toBe(false)
+  })
+})
+
 describe("PermissionService — service accounts (RBAC.md §13.8)", () => {
   const scopeSets: TokenScope[][] = [
     [],

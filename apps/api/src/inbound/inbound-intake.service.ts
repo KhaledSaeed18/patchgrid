@@ -6,7 +6,7 @@ import { type ParsedMail, simpleParser } from "mailparser"
 import { v7 as uuidv7 } from "uuid"
 
 import { AttachmentsService } from "../attachments/attachments.service"
-import type { MemberActor } from "../auth/actor"
+import type { TenantActor } from "../auth/actor"
 import { PermissionService } from "../authz/permission.service"
 import { AuditService } from "../audit/audit.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
@@ -158,20 +158,10 @@ export class InboundIntakeService {
     const org = await this.lookup.byId(orgId)
     // Suspended between the webhook and this job: nothing more lands in it.
     if (org === null || org.status !== "ACTIVE") return settle("FAILED", { error: "The workspace is not active" })
-    const member = await this.memberships.findByEmail(orgId, fromAddress)
-    if (member === null || member.status !== "ACTIVE" || member.kind !== "HUMAN" || member.userId === null) {
-      return settle("UNKNOWN_SENDER")
-    }
-    // The verified address is the credential: the member as AuthGuard would build them from a token.
-    const actor: MemberActor = {
-      kind: "member",
-      userId: member.userId,
-      orgId,
-      membershipId: member.id,
-      role: member.role,
-      teamIds: member.teamIds,
-      leadOfTeamIds: member.leadOfTeamIds,
-    }
+    // The verified address is the credential.
+    const actor = await this.senderActor(orgId, fromAddress, mail)
+    if (actor === null) return settle("UNKNOWN_SENDER")
+    const member = { id: actor.membershipId }
     const acting: Acting = { actor, visibility: org.agentVisibility }
     const text = storableText(bodyText(mail))
 
@@ -207,6 +197,34 @@ export class InboundIntakeService {
     }
     const skipped = await this.files(acting, mail, ticketId, null)
     return settle("CREATED", { senderMembershipId: member.id, ticketId, skippedAttachments: skipped })
+  }
+
+  /**
+   * Who the verified address acts as. An active member, as AuthGuard would
+   * build them from a token. Otherwise, when the workspace takes outside
+   * mail (ADR-0027 §4), the address's external requester — made on their
+   * first message, and refused once an admin has paused or removed them.
+   * `null`: nobody this workspace takes mail from.
+   */
+  private async senderActor(orgId: string, address: string, mail: ParsedMail): Promise<TenantActor | null> {
+    const member = await this.memberships.findByEmail(orgId, address)
+    if (member !== null) {
+      if (member.status !== "ACTIVE" || member.kind !== "HUMAN" || member.userId === null) return null
+      return {
+        kind: "member",
+        userId: member.userId,
+        orgId,
+        membershipId: member.id,
+        role: member.role,
+        teamIds: member.teamIds,
+        leadOfTeamIds: member.leadOfTeamIds,
+      }
+    }
+    if (!(await this.inbound.acceptsExternal(orgId))) return null
+    const name = truncate(storableText(mail.from?.value[0]?.name ?? ""), 100) || address.split("@")[0] || address
+    const external = await this.prisma.transaction(() => this.memberships.findOrCreateExternal(orgId, address, name, this.clock.now()))
+    if (external?.status !== "ACTIVE") return null
+    return { kind: "external", orgId, membershipId: external.id, role: "REQUESTER" }
   }
 
   /** The ticket a message is about, if it names one in this org; whether the sender may post there is `reply`'s question. */

@@ -7,7 +7,7 @@ import { memberCapabilities } from "./member-capabilities"
 
 const permissions = new PermissionService()
 const actor = (role: Role): MemberActor => ({ kind: "member", userId: "u-me", orgId: "o-1", membershipId: "m-me", role, teamIds: [], leadOfTeamIds: [] })
-const member = (role: Role, over: Partial<{ id: string; status: "ACTIVE" | "DISABLED" | "REMOVED" | "INVITED"; kind: "HUMAN" | "SERVICE_ACCOUNT" }> = {}) => ({
+const member = (role: Role, over: Partial<{ id: string; status: "ACTIVE" | "DISABLED" | "REMOVED" | "INVITED"; kind: "HUMAN" | "SERVICE_ACCOUNT" | "EXTERNAL" }> = {}) => ({
   id: "m-them",
   role,
   status: "ACTIVE" as const,
@@ -37,5 +37,10 @@ describe("memberCapabilities (RBAC.md §6)", () => {
     expect(memberCapabilities(permissions, actor("OWNER"), member("AGENT", { kind: "SERVICE_ACCOUNT" }))).toEqual(none)
     expect(memberCapabilities(permissions, actor("OWNER"), member("AGENT", { status: "REMOVED" }))).toEqual(none)
     expect(memberCapabilities(permissions, actor("AGENT"), member("REQUESTER"))).toEqual(none)
+  })
+
+  it("lets an admin pause or remove an external requester, and never give them a role", () => {
+    expect(memberCapabilities(permissions, actor("ADMIN"), member("REQUESTER", { kind: "EXTERNAL" }))).toEqual({ roles: [], canDisable: true, canEnable: false, canRemove: true })
+    expect(memberCapabilities(permissions, actor("AGENT"), member("REQUESTER", { kind: "EXTERNAL" }))).toEqual({ roles: [], canDisable: false, canEnable: false, canRemove: false })
   })
 })

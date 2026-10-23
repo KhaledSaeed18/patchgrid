@@ -63,6 +63,7 @@ const memberSelect = (withContact: boolean) =>
     createdAt: true,
     teams: { select: { isLead: true, team: { select: { id: true, name: true } } } },
     user: withContact ? { select: { email: true, lastLoginAt: true } } : false,
+    contactEmail: withContact,
   }) as const
 
 /**
@@ -115,6 +116,24 @@ export class MembershipRepository {
       where: { orgId, user: { email } },
       select: RECORD,
     })
+    return row === null ? null : toRecord(row)
+  }
+
+  /**
+   * The external requester who writes from this address (ADR-0027 §4), made
+   * on their first message: a `REQUESTER` with no account and the address as
+   * its contact. A concurrent first message finds the other's row through the
+   * partial unique index, and is told so by `null`.
+   */
+  async findOrCreateExternal(orgId: string, email: string, displayName: string, at: Date): Promise<MembershipRecord | null> {
+    const existing = await this.prisma.db.membership.findFirst({ where: { orgId, kind: "EXTERNAL", contactEmail: email }, select: RECORD })
+    if (existing !== null) return toRecord(existing)
+    const created = await this.prisma.db.membership.createMany({
+      data: [{ orgId, kind: "EXTERNAL", role: "REQUESTER", status: "ACTIVE", contactEmail: email, displayName, joinedAt: at }],
+      skipDuplicates: true,
+    })
+    if (created.count === 0) return null
+    const row = await this.prisma.db.membership.findFirst({ where: { orgId, kind: "EXTERNAL", contactEmail: email }, select: RECORD })
     return row === null ? null : toRecord(row)
   }
 
@@ -236,12 +255,14 @@ function toRecord({ teams, ...membership }: Row): MembershipRecord {
 type MemberQueryRow = Omit<MemberRow, "teams" | "contact"> & {
   teams: { isLead: boolean; team: { id: string; name: string } }[]
   user?: { email: string; lastLoginAt: Date | null } | null
+  contactEmail?: string | null
 }
 
-function toMemberRow({ teams, user, ...row }: MemberQueryRow, withContact: boolean): MemberRow {
+function toMemberRow({ teams, user, contactEmail, ...row }: MemberQueryRow, withContact: boolean): MemberRow {
   return {
     ...row,
     teams: teams.map((t) => ({ id: t.team.id, name: t.team.name, isLead: t.isLead })),
-    contact: withContact ? { email: user?.email ?? null, lastLoginAt: user?.lastLoginAt ?? null } : null,
+    // An external requester's address is their contact (ADR-0027 §4); they never sign in.
+    contact: withContact ? { email: user?.email ?? contactEmail ?? null, lastLoginAt: user?.lastLoginAt ?? null } : null,
   }
 }

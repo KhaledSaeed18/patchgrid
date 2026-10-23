@@ -13,6 +13,7 @@ export type OrganizationSettingsRecord = {
   agentVisibility: AgentVisibility
   emailNotificationsEnabled: boolean
   requireMfa: boolean
+  allowExternalRequesters: boolean
   createdAt: Date
 }
 
@@ -26,6 +27,7 @@ const RECORD = {
   agentVisibility: true,
   emailNotificationsEnabled: true,
   requireMfa: true,
+  allowExternalRequesters: true,
   createdAt: true,
 } as const
 
@@ -44,7 +46,7 @@ export class OrganizationSettingsRepository {
 
   async update(
     orgId: string,
-    data: { name?: string; agentVisibility?: AgentVisibility; emailNotificationsEnabled?: boolean; requireMfa?: boolean },
+    data: { name?: string; agentVisibility?: AgentVisibility; emailNotificationsEnabled?: boolean; requireMfa?: boolean; allowExternalRequesters?: boolean },
   ): Promise<void> {
     await this.prisma.db.organization.update({ where: { id: orgId }, data })
   }

@@ -66,6 +66,8 @@ export class PermissionService {
     if (actor.kind === "service" && !scopesAllow(actor, permission)) return false
     // A support session reads as an admin reads, and does nothing else (ADR-0020, ADR-0041).
     if (actor.kind === "support" && !SUPPORT_READS.has(permission)) return false
+    // Someone outside the workspace, by email: a requester's own tickets, and nothing more (ADR-0027 §4).
+    if (actor.kind === "external" && !EXTERNAL_ALLOWS.has(permission)) return false
 
     const grant = grantFor(actor.role, permission)
     if (typeof grant === "boolean") return grant
@@ -98,7 +100,8 @@ export class PermissionService {
       (permission) =>
         grantFor(actor.role, permission) !== false &&
         (actor.kind !== "service" || scopesAllow(actor, permission)) &&
-        (actor.kind !== "support" || SUPPORT_READS.has(permission)),
+        (actor.kind !== "support" || SUPPORT_READS.has(permission)) &&
+        (actor.kind !== "external" || EXTERNAL_ALLOWS.has(permission)),
     )
   }
 
@@ -171,8 +174,22 @@ export class PermissionService {
 }
 
 function isTenantActor(actor: Actor): actor is TenantActor {
-  return actor.kind === "member" || actor.kind === "service" || actor.kind === "support"
+  return actor.kind === "member" || actor.kind === "service" || actor.kind === "support" || actor.kind === "external"
 }
+
+/**
+ * What an external requester's email may do (ADR-0027 §4): raise a ticket,
+ * read and answer their own, and attach files to it — the requester grants
+ * for these still decide, and "own" still has to hold. Watching, other
+ * people's tickets and every setting stay out of reach.
+ */
+const EXTERNAL_ALLOWS: ReadonlySet<Permission> = new Set<Permission>([
+  "ticket:create",
+  "ticket:read",
+  "comment:create_public",
+  "attachment:upload",
+  "attachment:download",
+])
 
 const SUPPORT_READS: ReadonlySet<Permission> = new Set(SUPPORT_READ_PERMISSIONS)
 

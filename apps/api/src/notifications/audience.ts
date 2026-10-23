@@ -1,14 +1,18 @@
 import { Injectable } from "@nestjs/common"
 import type { AgentVisibility, Role, TicketStatus, TicketType } from "@patchgrid/contracts"
 
-import type { MemberActor } from "../auth/actor"
+import type { TenantActor } from "../auth/actor"
 import { PermissionService } from "../authz/permission.service"
 import { type ScopedTicket, ticketInScope } from "../authz/scope-filter"
 
-/** A member as authorization sees them: what `can()` and `scopeFor()` read off an actor. */
+/**
+ * A member as authorization sees them: what `can()` and `scopeFor()` read off
+ * an actor. `userId` is `null` for an external requester (ADR-0027 §4), who
+ * reads as one: their own tickets, nothing else.
+ */
 export type Reader = {
   membershipId: string
-  userId: string
+  userId: string | null
   role: Role
   teamIds: string[]
   leadOfTeamIds: string[]
@@ -41,7 +45,10 @@ export class TicketAudience {
     visibility: AgentVisibility,
     content: "ticket" | "internal" = "ticket",
   ): boolean {
-    const actor: MemberActor = { kind: "member", orgId, ...reader }
+    const actor: TenantActor =
+      reader.userId === null
+        ? { kind: "external", orgId, membershipId: reader.membershipId, role: "REQUESTER" }
+        : { kind: "member", orgId, ...reader, userId: reader.userId }
     const own = ticket.requesterMembershipId === reader.membershipId
     const watch = !own && ticket.watcherMembershipIds.has(reader.membershipId)
     const subject = {

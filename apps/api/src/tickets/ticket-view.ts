@@ -30,7 +30,7 @@ export function toSummary(row: TicketSummaryRow, now: Date): TicketSummary {
     priority: row.priority,
     version: row.version,
     source: row.source,
-    requester: { membershipId: row.requester.id, displayName: row.requester.displayName },
+    requester: { membershipId: row.requester.id, displayName: row.requester.displayName, external: row.requester.kind === "EXTERNAL" },
     assignee: person(row.assignee),
     team: row.team,
     dueAt: iso(dueAt),

@@ -105,7 +105,7 @@ describe("erasing", () => {
     expect(await db.membership.findUniqueOrThrow({ where: { id: formerMembershipId } })).toMatchObject({ displayName: "Former member" })
 
     const ticket = await as("owner").get(`/tickets/${ticketId}`)
-    expect(ticket.body.requester).toEqual({ membershipId: ws.people.agent.membershipId, displayName: "Former member" })
+    expect(ticket.body.requester).toEqual({ membershipId: ws.people.agent.membershipId, displayName: "Former member", external: false })
     expect(await db.auditLog.findFirst({ where: { orgId: ws.orgId, action: "MEMBER_REMOVED", entityId: ws.people.agent.membershipId } })).toMatchObject({
       actorMembershipId: ws.people.agent.membershipId,
       diff: { erased: true },

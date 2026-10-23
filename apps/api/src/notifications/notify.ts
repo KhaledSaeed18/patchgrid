@@ -109,11 +109,12 @@ export class NotifyService {
     const deliveries = deliveriesFor(event, circle).filter((d) =>
       this.audience.mayRead(orgId, d.person, ticket, circle.org.visibility, d.type === "COMMENT_INTERNAL" ? "internal" : "ticket"),
     )
-    const inApp = deliveries.filter((d) => d.channels.inApp)
+    // An inbox is an account's: an external requester (ADR-0027 §4) is told by email alone.
+    const inApp = deliveries.flatMap((d) => (d.channels.inApp && d.person.userId !== null ? [{ ...d, userId: d.person.userId }] : []))
     const rows = await this.notifications.addMany(
       orgId,
       inApp.map((d) => ({
-        userId: d.person.userId,
+        userId: d.userId,
         membershipId: d.person.membershipId,
         type: d.type,
         title: d.title,
@@ -143,7 +144,7 @@ export class NotifyService {
     if (stewards === null) return null
     const rows = await this.notifications.addMany(
       orgId,
-      stewards.people.map((person) => ({
+      stewards.people.flatMap((person) => (person.userId === null ? [] : [{ ...person, userId: person.userId }])).map((person) => ({
         userId: person.userId,
         membershipId: person.membershipId,
         type: "PLAN_LIMIT_REACHED" as const,

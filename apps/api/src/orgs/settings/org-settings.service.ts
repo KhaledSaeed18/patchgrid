@@ -161,6 +161,9 @@ function auditFor(before: OrganizationSettingsRecord, request: UpdateOrganizatio
   if (request.emailNotificationsEnabled !== undefined && request.emailNotificationsEnabled !== before.emailNotificationsEnabled) {
     diff.emailNotificationsEnabled = { from: before.emailNotificationsEnabled, to: request.emailNotificationsEnabled }
   }
+  if (request.allowExternalRequesters !== undefined && request.allowExternalRequesters !== before.allowExternalRequesters) {
+    diff.allowExternalRequesters = { from: before.allowExternalRequesters, to: request.allowExternalRequesters }
+  }
   if (Object.keys(diff).length > 0) {
     entries.push({ action: "ORG_SETTINGS_UPDATED", entityType: "Organization", entityId: before.id, diff })
   }
@@ -191,6 +194,7 @@ function stripUndefined(request: UpdateOrganizationSettingsRequest) {
       ? {}
       : { emailNotificationsEnabled: request.emailNotificationsEnabled }),
     ...(request.requireMfa === undefined ? {} : { requireMfa: request.requireMfa }),
+    ...(request.allowExternalRequesters === undefined ? {} : { allowExternalRequesters: request.allowExternalRequesters }),
   }
 }
 
@@ -206,6 +210,7 @@ function toSettings(record: OrganizationSettingsRecord, slugChangeAvailableAt: D
     emailNotificationsEnabled: record.emailNotificationsEnabled,
     requireMfa: record.requireMfa,
     inboundAddress: inboundAddress(record.slug, rootDomain),
+    allowExternalRequesters: record.allowExternalRequesters,
     slugChangeAvailableAt: slugChangeAvailableAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
   }
