@@ -7,5 +7,21 @@
   "printWidth": 80,
   "plugins": ["prettier-plugin-tailwindcss"],
   "tailwindStylesheet": "packages/ui/src/styles/globals.css",
-  "tailwindFunctions": ["cn", "cva"]
+  "tailwindFunctions": ["cn", "cva"],
+  "overrides": [
+    {
+      "files": [
+        "apps/api/**",
+        "packages/contracts/**",
+        "packages/database/**",
+        "packages/eslint-config/**",
+        "scripts/**"
+      ],
+      "options": { "printWidth": 140, "trailingComma": "all" }
+    },
+    {
+      "files": ["*.md"],
+      "options": { "printWidth": 100, "proseWrap": "preserve" }
+    }
+  ]
 }
