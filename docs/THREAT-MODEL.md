@@ -385,10 +385,13 @@ and the SSO form follow the API's answers.
 Checked and left as they are, with the reason:
 
 - **The provider is trusted to be single-tenant for the workspace** (ADR-0054 erratum 8): `email_verified`
-  is believed and Google's `hd` is not checked. Configuring a social or multi-tenant issuer is the
-  workspace owner's error, and the settings page asks for the workspace's own provider.
+  is believed. Configuring a social or multi-tenant issuer is the workspace owner's error, and the
+  settings page asks for the workspace's own provider. *Since 2026-10-23* Google, the one shared issuer
+  a workspace is invited to use, must send an `hd` equal to the proved domain (ADR-0054's second
+  erratum).
 - **Step-up at the provider depends on it honouring `max_age=0`.** One that ignores it answers `stale`;
-  its members confirm with Patchgrid credentials instead.
+  its members confirm with Patchgrid credentials instead. The settings page says so where the issuer is
+  entered.
 - **A passkey assertion counts on any workspace host and `app.`.** One RP ID across the hosts is the
   design (ADR-0053), so script injected on any tenant host could run a ceremony for a visitor. This is
   no wider than the credentialed CORS those hosts already have, and no such injection is known.
