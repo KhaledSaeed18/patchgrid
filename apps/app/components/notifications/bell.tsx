@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation"
 
 import { RelativeTime } from "@/components/tickets/relative-time"
 import { clientApi } from "@/lib/api/client"
+import { notificationHref } from "@/lib/notification-link"
 
 import { useMarkAllRead, useMarkRead } from "./mutations"
 
@@ -88,7 +89,8 @@ export function NotificationBell({
               className="items-start gap-2 py-1.5"
               onClick={() => {
                 if (n.readAt === null) markRead.mutate(n.id)
-                if (n.ticketId !== null) router.push(`/tickets/${n.ticketId}`)
+                const href = notificationHref(n)
+                if (href !== null) router.push(href)
               }}
             >
               <span

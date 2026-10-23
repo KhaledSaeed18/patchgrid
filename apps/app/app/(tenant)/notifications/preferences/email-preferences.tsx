@@ -11,6 +11,7 @@ import { useMutation } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { failureMessage } from "@/lib/failure"
 import { NOTIFICATION_TYPE_LABEL } from "@/lib/labels"
@@ -25,7 +26,12 @@ export function EmailPreferences({
 }: {
   initial: NotificationPreferences
 }) {
+  const { holds } = useTenant()
   const [preferences, setPreferences] = useState(initial)
+  // A limit reached is told to the workspace's admins and owners alone.
+  const types = notificationTypeSchema.options.filter(
+    (type) => type !== "PLAN_LIMIT_REACHED" || holds("org:update_settings")
+  )
   const save = useMutation({
     mutationFn: ({ type, on }: { type: NotificationType; on: boolean }) =>
       clientApi("/notifications/preferences", {
@@ -50,7 +56,7 @@ export function EmailPreferences({
       )}
       <fieldset className="grid gap-1" disabled={save.isPending}>
         <legend className="mb-2 text-sm font-semibold">Email me when</legend>
-        {notificationTypeSchema.options.map((type) => (
+        {types.map((type) => (
           <label
             key={type}
             className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted"
