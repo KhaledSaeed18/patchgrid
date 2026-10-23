@@ -117,8 +117,10 @@ model Organization {
   domainVerifiedAt          DateTime?          @db.Timestamptz(3)
   /// The random value the `_patchgrid-verify` TXT record must carry; null once proved or with no domain (ADR-0054).
   domainChallenge           String?
+  /// TENANCY.md §5: a verified address at the proved domain may join on its own, at `defaultJoinRole`
+  /// (REQUESTER or AGENT, by a check constraint). Off by default; never on without a proved domain.
   allowDomainJoin           Boolean            @default(false)
-  defaultJoinRole           Role?
+  defaultJoinRole           Role               @default(REQUESTER)
   agentVisibility           AgentVisibility    @default(ALL_TICKETS)
   emailNotificationsEnabled Boolean            @default(true)
   /// Members without a confirmed second factor cannot open this workspace (ADR-0029, ADR-0045).
