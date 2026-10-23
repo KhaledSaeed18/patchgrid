@@ -1,6 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common"
 
-import { formatTicketNumber } from "@patchgrid/contracts"
+import { emailWanted, formatTicketNumber } from "@patchgrid/contracts"
 
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { PublicUrls } from "../common/urls"
@@ -9,18 +9,23 @@ import { Outbox } from "../events/outbox"
 import { TransientFailure } from "../events/relay"
 import type { StoredEvent } from "../events/repositories/outbox.repository"
 import { MailService } from "../mail/mail.service"
+import type { MailJob } from "../mail/templates"
+import { PLAN_LIMIT_REACHED } from "../quota/quota.service"
 import { TicketAudience } from "./audience"
 import { StreamBus } from "./live/stream-bus"
 import { deliveriesFor, type Mailing, mailingsFor, type Person, type TicketCircle } from "./fan-out"
-import { type NotifyEvent, notifyEventSchema } from "./notify-events"
+import { type NotifyEvent, notifyEventSchema, type PlanLimitEvent, planLimitEventSchema } from "./notify-events"
 import { type AddedNotification, NotificationRepository } from "./repositories/notification.repository"
 import { TicketCircleRepository } from "./repositories/ticket-circle.repository"
 
 /** One inbox row written for one person — what the live stream announces. */
 export type Delivered = { person: Person; row: AddedNotification }
 
-/** What one event wrote, and what is left to do once it has committed. */
-export type Written = { circle: TicketCircle; delivered: Delivered[]; mailings: Mailing[] }
+/** One email, idempotent on its `entityId`. */
+type MailEntry = { entityId: string; job: MailJob }
+
+/** What one event wrote: the inbox rows the stream announces after commit, and the emails queued before it. */
+export type Written = { delivered: Delivered[]; mail: MailEntry[] }
 
 /** The event types the `notify` consumer reads; the log carries others it skips. */
 const NOTIFY_TYPES: ReadonlySet<string> = new Set(notifyEventSchema.options.map((o) => o.shape.kind.value))
@@ -87,9 +92,9 @@ export class NotifyService {
    * twice, and each job's id, the event and the person, keeps that to the
    * moment the first is still queued.
    */
-  async queueMail(orgId: string, written: readonly Written[]): Promise<void> {
+  async queueMail(written: readonly Written[]): Promise<void> {
     try {
-      await this.mail.enqueueAll(written.flatMap(({ circle, mailings }) => this.jobsFor(orgId, circle, mailings)))
+      await this.mail.enqueueAll(written.flatMap((w) => w.mail))
     } catch (error) {
       throw new TransientFailure(`notification email not queued: ${String(error)}`, { cause: error })
     }
@@ -124,10 +129,64 @@ export class NotifyService {
       return person === undefined ? [] : [{ person, row }]
     })
     const written = new Map(rows.map((row) => [row.membershipId, row]))
-    return { circle, delivered, mailings: mailingsFor(circle, deliveries, written, eventId) }
+    return { delivered, mail: this.jobsFor(orgId, circle, mailingsFor(circle, deliveries, written, eventId)) }
   }
 
-  private jobsFor(orgId: string, circle: TicketCircle, mailings: readonly Mailing[]) {
+  /**
+   * A plan limit reached (DOMAIN.md §8): the workspace's admins and owners
+   * each get an inbox row, folded by metric and period so a limit reached,
+   * freed and reached again while unread is one row, and an email when the
+   * row is new and their choices allow it.
+   */
+  async writePlanLimit(orgId: string, event: PlanLimitEvent, eventId: string): Promise<Written | null> {
+    const stewards = await this.circles.stewards(orgId)
+    if (stewards === null) return null
+    const rows = await this.notifications.addMany(
+      orgId,
+      stewards.people.map((person) => ({
+        userId: person.userId,
+        membershipId: person.membershipId,
+        type: "PLAN_LIMIT_REACHED" as const,
+        title: event.message,
+        body: null,
+        ticketId: null,
+        dedupeKey: `plan-limit:${event.metric}:${event.period}`,
+      })),
+      this.clock.now(),
+    )
+    const byMember = new Map(stewards.people.map((p) => [p.membershipId, p]))
+    const delivered = rows.flatMap((row) => {
+      const person = byMember.get(row.membershipId)
+      return person === undefined ? [] : [{ person, row }]
+    })
+    const { org } = stewards
+    const mail = !org.emailEnabled
+      ? []
+      : delivered.flatMap(({ person, row }) =>
+          !row.inserted || !emailWanted(person.emailPrefs, "PLAN_LIMIT_REACHED")
+            ? []
+            : [
+                {
+                  entityId: `${eventId}-${person.membershipId}`,
+                  job: {
+                    kind: "plan-limit-reached" as const,
+                    to: person.email,
+                    orgId,
+                    fromName: org.name,
+                    params: {
+                      orgName: org.name,
+                      headline: event.message,
+                      usageUrl: this.urls.workspace(org.slug, "/settings"),
+                      preferencesUrl: this.urls.workspace(org.slug, "/notifications/preferences"),
+                    },
+                  },
+                },
+              ],
+        )
+    return { delivered, mail }
+  }
+
+  private jobsFor(orgId: string, circle: TicketCircle, mailings: readonly Mailing[]): MailEntry[] {
     const { org, ticket } = circle
     return mailings.map((m) => ({
       entityId: m.entityId,
@@ -176,12 +235,15 @@ export class NotifyConsumer implements EventConsumer, OnModuleInit {
   async handle(orgId: string, events: readonly StoredEvent[]): Promise<AfterCommit> {
     const written: Written[] = []
     for (const stored of events) {
-      if (!NOTIFY_TYPES.has(stored.type)) continue
-      const event = notifyEventSchema.parse(stored.payload)
-      const outcome = await this.service.write(orgId, event, stored.id)
+      let outcome: Written | null = null
+      if (stored.type === PLAN_LIMIT_REACHED) {
+        outcome = await this.service.writePlanLimit(orgId, planLimitEventSchema.parse(stored.payload), stored.id)
+      } else if (NOTIFY_TYPES.has(stored.type)) {
+        outcome = await this.service.write(orgId, notifyEventSchema.parse(stored.payload), stored.id)
+      }
       if (outcome !== null) written.push(outcome)
     }
-    await this.service.queueMail(orgId, written)
+    await this.service.queueMail(written)
     return async () => {
       await Promise.all(
         written.flatMap(({ delivered }) =>

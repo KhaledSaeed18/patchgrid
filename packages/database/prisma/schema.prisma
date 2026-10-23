@@ -83,6 +83,7 @@ enum UsageMetric {
   STORAGE_BYTES
   AUTOMATION_RULES
   KB_ARTICLES
+  API_TOKENS
 }
 
 /// Who performed an audited change (DOMAIN.md §7) — so a token's or a platform
@@ -589,6 +590,7 @@ enum NotificationType {
   CHANGE_AWAITING_APPROVAL
   CHANGE_APPROVED
   CHANGE_REJECTED
+  PLAN_LIMIT_REACHED
 }
 
 /// An upload's life (ADR-0005): `PENDING` from the presign until `complete`

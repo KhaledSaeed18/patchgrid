@@ -131,6 +131,8 @@ afterAll(async () => {
   const userIds = users.map((u) => u.id)
   if (orgId !== "") {
     await db.auditLog.deleteMany({ where: { orgId } })
+    // Filling the seats tells the owner the plan's limit was reached.
+    await db.notification.deleteMany({ where: { orgId } })
     await db.invitation.deleteMany({ where: { orgId } })
     await db.teamMembership.deleteMany({ where: { orgId } })
     await db.membership.updateMany({ where: { orgId }, data: { invitedByMembershipId: null } })
@@ -142,6 +144,8 @@ afterAll(async () => {
     await db.team.deleteMany({ where: { orgId } })
     await db.usageCounter.deleteMany({ where: { orgId } })
     await db.refreshToken.deleteMany({ where: { userId: { in: userIds } } })
+    await db.eventConsumer.deleteMany({ where: { orgId } })
+    await db.outboxEvent.deleteMany({ where: { orgId } })
     await db.organization.delete({ where: { id: orgId } })
   }
   await db.refreshToken.deleteMany({ where: { userId: { in: userIds } } })

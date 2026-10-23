@@ -4,6 +4,10 @@
 - **Date:** 2026-09-22
 - **Refines:** [0004](0004-auth-invite-only-jwt-cookies.md)
 
+> **Erratum (2026-10-23).** `org:manage_plan` is no longer a permission. A plan is set by a platform
+> admin in the back-office (ADR-0040, `ORG_PLAN_CHANGED`); self-serve billing is out of scope
+> (`FEATURES.md`), so no tenant route would ever assert it. The rest of the step-up list stands.
+
 ## Context
 
 The original specification had no second factor anywhere — not for owners, not for admins, not even for

@@ -14,6 +14,7 @@ import {
 } from "@/components/notifications/mutations"
 import { RelativeTime } from "@/components/tickets/relative-time"
 import { clientApi } from "@/lib/api/client"
+import { notificationHref } from "@/lib/notification-link"
 
 type Filter = "all" | "unread"
 
@@ -130,11 +131,12 @@ export function Inbox() {
                 </span>
               </>
             )
+            const href = notificationHref(n)
             return (
               <li key={n.id} className="flex items-start gap-2">
-                {n.ticketId !== null ? (
+                {href !== null ? (
                   <Link
-                    href={`/tickets/${n.ticketId}`}
+                    href={href}
                     onClick={() => {
                       if (n.readAt === null) markRead.mutate(n.id)
                     }}

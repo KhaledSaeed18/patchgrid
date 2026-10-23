@@ -54,6 +54,7 @@ const METRIC: Record<Usage["metrics"][number]["metric"], string> = {
   STORAGE_BYTES: "Attachment storage",
   AUTOMATION_RULES: "Automation rules",
   KB_ARTICLES: "Knowledge articles",
+  API_TOKENS: "API tokens",
 }
 
 export function WorkspaceSettings({

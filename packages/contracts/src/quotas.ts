@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { MAX_ATTACHMENT_BYTES } from "./limits.ts"
 import { type Plan, planSchema } from "./tenancy.ts"
 
 /**
@@ -8,6 +9,8 @@ import { type Plan, planSchema } from "./tenancy.ts"
  *
  * `null` is unlimited. Seats are `ACTIVE` human memberships at `AGENT` or
  * above (ADR-0033): a disabled agent frees one, requesters never use one.
+ * A token's service account holds no seat; the tokens have their own limit,
+ * counted while unrevoked.
  */
 export const usageMetricSchema = z.enum([
   "AGENT_SEATS",
@@ -15,6 +18,7 @@ export const usageMetricSchema = z.enum([
   "STORAGE_BYTES",
   "AUTOMATION_RULES",
   "KB_ARTICLES",
+  "API_TOKENS",
 ])
 export type UsageMetric = z.infer<typeof usageMetricSchema>
 
@@ -24,12 +28,28 @@ export const MONTHLY_METRICS: ReadonlySet<UsageMetric> = new Set(["TICKETS_CREAT
 const GB = 1024 ** 3
 
 export const PLAN_LIMITS = {
-  FREE: { AGENT_SEATS: 3, TICKETS_CREATED: 200, STORAGE_BYTES: GB, AUTOMATION_RULES: 3, KB_ARTICLES: 25 },
-  PRO: { AGENT_SEATS: 25, TICKETS_CREATED: 10_000, STORAGE_BYTES: 25 * GB, AUTOMATION_RULES: 50, KB_ARTICLES: null },
+  FREE: { AGENT_SEATS: 3, TICKETS_CREATED: 200, STORAGE_BYTES: GB, AUTOMATION_RULES: 3, KB_ARTICLES: 25, API_TOKENS: 5 },
+  PRO: { AGENT_SEATS: 25, TICKETS_CREATED: 10_000, STORAGE_BYTES: 25 * GB, AUTOMATION_RULES: 50, KB_ARTICLES: null, API_TOKENS: 50 },
 } as const satisfies Record<Plan, Record<UsageMetric, number | null>>
+
+/**
+ * How long a workspace's audit log is kept, by plan (ADR-0028). The longest is
+ * the partition archival's window (ADR-0034); a shorter one is a per-tenant
+ * delete in the retention sweep.
+ */
+export const AUDIT_RETENTION_YEARS = { FREE: 2, PRO: 7 } as const satisfies Record<Plan, number>
 
 export function limitFor(plan: Plan, metric: UsageMetric): number | null {
   return PLAN_LIMITS[plan][metric]
+}
+
+/**
+ * The usage at which a limit counts as reached, for the admins' notification
+ * (DOMAIN.md §8): the limit itself, except storage, which is full once the
+ * largest file a member may upload no longer fits.
+ */
+export function limitReachedAt(metric: UsageMetric, limit: number): number {
+  return metric === "STORAGE_BYTES" ? Math.max(0, limit - MAX_ATTACHMENT_BYTES) : limit
 }
 
 /** `YYYY-MM` in UTC for a monthly metric; `current` for a point-in-time one. */

@@ -161,6 +161,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   CHANGE_AWAITING_APPROVAL: "A change awaits my approval",
   CHANGE_APPROVED: "A change I raised or carry out is approved",
   CHANGE_REJECTED: "A change I raised or carry out is rejected",
+  PLAN_LIMIT_REACHED: "The workspace reaches a limit of its plan",
 }
 
 /** What became of an inbound message, as the admins' log says it (ADR-0027). */

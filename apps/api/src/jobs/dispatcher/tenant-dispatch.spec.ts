@@ -43,6 +43,7 @@ function harness(mode: AppConfig["WORKER_MODE"] = "all") {
     queue() as unknown as Queue,
     queue() as unknown as Queue,
     queue() as unknown as Queue,
+    queue() as unknown as Queue,
   )
   return { service, dispatch, slaScan, autoClose, projectionReconcile, orgPurge }
 }

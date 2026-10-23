@@ -234,7 +234,6 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `org:read_audit` | — | — | ✅ | ✅ |
 | `org:export` | — | — | — | ✅ |
 | `org:change_slug` | — | — | — | ✅ |
-| `org:manage_plan` | — | — | — | ✅ |
 | `org:require_mfa` | — | — | — | ✅ |
 | `org:manage_domain` | — | — | — | ✅ |
 | `org:manage_sso` | — | — | — | ✅ |

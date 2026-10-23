@@ -8,6 +8,11 @@
 > person who erases a second account under the same address collides with the first tombstone, and the
 > erasure can never finish. The tombstone is `deleted+<userId>@invalid` (ids are not secret). See ADR-0044.
 
+> **Erratum (2026-10-23).** Only the seven-year window is "monthly partitions detached": partitions are
+> shared by every tenant (ADR-0034). A `FREE` workspace's two years is the daily `retention-sweep`
+> deleting its own rows past the window, in batches, inside its tenant. `AUDIT_RETENTION_YEARS` in
+> `@patchgrid/contracts` holds both numbers.
+
 ## Context
 
 Patchgrid holds other companies' operational data — including, by design, their security incidents. The

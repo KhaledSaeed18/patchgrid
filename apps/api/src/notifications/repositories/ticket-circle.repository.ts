@@ -118,4 +118,18 @@ export class TicketCircleRepository {
       actorName: actor?.displayName ?? null,
     }
   }
+
+  /**
+   * The workspace's stewards — its active human admins and owners — for a
+   * notice about the workspace rather than a ticket (DOMAIN.md §8).
+   */
+  async stewards(orgId: string): Promise<{ org: { name: string; slug: string; emailEnabled: boolean }; people: Person[] } | null> {
+    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { name: true, slug: true, emailNotificationsEnabled: true } })
+    if (org === null) return null
+    const rows = await this.prisma.db.membership.findMany({
+      where: { orgId, role: { in: ["ADMIN", "OWNER"] }, status: "ACTIVE", kind: "HUMAN" },
+      select: PERSON,
+    })
+    return { org: { name: org.name, slug: org.slug, emailEnabled: org.emailNotificationsEnabled }, people: people(rows) }
+  }
 }

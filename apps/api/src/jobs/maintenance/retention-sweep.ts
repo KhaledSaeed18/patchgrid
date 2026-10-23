@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq"
 import { Injectable, type OnApplicationBootstrap } from "@nestjs/common"
+import { AUDIT_RETENTION_YEARS } from "@patchgrid/contracts"
 import type { Job } from "bullmq"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
@@ -19,9 +20,13 @@ export const NOTIFICATION_RETENTION_DAYS = 90
 export const EVENT_RETENTION_DAYS = 30
 /** Events deleted per statement: a tenant with a long backlog of history is trimmed over several, not in one lock. */
 const EVENT_BATCH = 5_000
+/** Audit rows deleted per statement, for a plan whose window is shorter than the archival's. */
+const AUDIT_BATCH = 5_000
 const DAY_MS = 24 * 60 * 60_000
+/** The archival's window (ADR-0034): a plan that keeps this long is trimmed by detaching whole months, not here. */
+const ARCHIVED_AFTER_YEARS = Math.max(...Object.values(AUDIT_RETENTION_YEARS))
 
-export type RetentionSwept = { notifications: number; exports: number; deliveries: number; events: number }
+export type RetentionSwept = { notifications: number; exports: number; deliveries: number; events: number; audit: number }
 
 /**
  * Daily, per tenant (ADR-0028, ADR-0044): notifications past 90 days go, and
@@ -29,6 +34,8 @@ export type RetentionSwept = { notifications: number; exports: number; deliverie
  * says `EXPIRED`, so a failure between leaves a row that is retried tomorrow,
  * never an object nothing points at. Finished webhook deliveries past 30 days
  * go, then the outbox events every consumer has read and nothing points at.
+ * On a plan that keeps its audit log for less than the archival's seven
+ * years, the rows past its window go too, a batch at a time.
  */
 @Injectable()
 export class RetentionSweepService {
@@ -64,7 +71,23 @@ export class RetentionSweepService {
       events += deleted
       if (deleted < EVENT_BATCH) break
     }
-    return { notifications, exports: lapsed.length, deliveries, events }
+    const audit = await this.trimAudit(orgId, now)
+    return { notifications, exports: lapsed.length, deliveries, events, audit }
+  }
+
+  private async trimAudit(orgId: string, now: Date): Promise<number> {
+    const plan = await this.prisma.transaction(() => this.retention.plan(orgId))
+    if (plan === null) return 0
+    const years = AUDIT_RETENTION_YEARS[plan]
+    if (years >= ARCHIVED_AFTER_YEARS) return 0
+    const before = new Date(now)
+    before.setUTCFullYear(before.getUTCFullYear() - years)
+    let audit = 0
+    for (;;) {
+      const deleted = await this.prisma.transaction(() => this.retention.deleteAuditBefore(orgId, before, AUDIT_BATCH))
+      audit += deleted
+      if (deleted < AUDIT_BATCH) return audit
+    }
   }
 }
 

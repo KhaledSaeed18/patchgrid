@@ -136,7 +136,6 @@ export const PERMISSION_MATRIX = {
   "org:read_audit": admins,
   "org:export": owners,
   "org:change_slug": owners,
-  "org:manage_plan": owners,
   /** Requiring a second factor of everyone is the owner's policy, not an admin's setting (ADR-0029). */
   "org:require_mfa": owners,
   /** Claiming and proving the workspace's email domain (ADR-0054); proving it needs control of its DNS. */

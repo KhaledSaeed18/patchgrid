@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common"
+import type { Plan } from "@patchgrid/contracts"
 
 import { PrismaService } from "../../../prisma/prisma.service"
 
@@ -39,6 +40,26 @@ export class RetentionRepository {
            AND NOT EXISTS (SELECT 1 FROM "EventDeadLetter" l WHERE l."orgId" = e."orgId" AND l."eventId" = e."id")
          ORDER BY e."txn", e."id"
          LIMIT ${limit})`
+  }
+
+  /** The workspace's plan, which sets how long its audit log is kept. */
+  async plan(orgId: string): Promise<Plan | null> {
+    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { plan: true } })
+    return org?.plan ?? null
+  }
+
+  /**
+   * Audit rows older than the plan's window, at most `limit` of them, oldest
+   * first (ADR-0028, ADR-0034): a plan shorter than the archival window loses
+   * its oldest months a batch at a time. Raw for the `LIMIT`; the range on
+   * `createdAt` lets Postgres prune to the old partitions.
+   */
+  async deleteAuditBefore(orgId: string, before: Date, limit: number): Promise<number> {
+    return this.prisma.tx.$executeRaw`
+      DELETE FROM "AuditLog" WHERE "orgId" = ${orgId}::uuid AND "createdAt" < ${before} AND ("id", "createdAt") IN (
+        SELECT "id", "createdAt" FROM "AuditLog"
+         WHERE "orgId" = ${orgId}::uuid AND "createdAt" < ${before}
+         ORDER BY "createdAt" LIMIT ${limit})`
   }
 
   /** Notifications are delivery state, kept 90 days. */

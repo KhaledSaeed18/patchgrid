@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
 
-import { limitFor, PLAN_LIMITS, usagePeriod } from "./quotas.ts"
+import { MAX_ATTACHMENT_BYTES } from "./limits.ts"
+import { limitFor, limitReachedAt, PLAN_LIMITS, usagePeriod } from "./quotas.ts"
 
 const TENANCY = readFileSync(new URL("../../../docs/TENANCY.md", import.meta.url), "utf8")
 
@@ -24,6 +25,7 @@ describe("plan limits", () => {
       STORAGE_BYTES: row("Attachment storage"),
       AUTOMATION_RULES: row("Automation rules"),
       KB_ARTICLES: row("Knowledge articles"),
+      API_TOKENS: row("API tokens"),
     }
     for (const [metric, [free = "", pro = ""]] of Object.entries(rows)) {
       expect([parse(free), parse(pro)], metric).toEqual([
@@ -37,5 +39,14 @@ describe("plan limits", () => {
     expect(usagePeriod("TICKETS_CREATED", new Date("2026-10-31T23:30:00-02:00"))).toBe("2026-11")
     expect(usagePeriod("AGENT_SEATS", new Date("2026-10-09T00:00:00Z"))).toBe("current")
     expect(limitFor("PRO", "KB_ARTICLES")).toBeNull()
+  })
+})
+
+describe("a limit reached", () => {
+  it("is the limit, except storage, which is full once the largest file no longer fits", () => {
+    expect(limitReachedAt("AGENT_SEATS", 3)).toBe(3)
+    expect(limitReachedAt("TICKETS_CREATED", 200)).toBe(200)
+    expect(limitReachedAt("STORAGE_BYTES", 1024 ** 3)).toBe(1024 ** 3 - MAX_ATTACHMENT_BYTES)
+    expect(limitReachedAt("STORAGE_BYTES", 1)).toBe(0)
   })
 })
