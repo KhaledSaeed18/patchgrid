@@ -251,9 +251,10 @@ describe("3 · timestamps", () => {
 
 /**
  * Identifiers Patchgrid did not issue and never compares under RLS: a
- * WebAuthn credential id is the authenticator's own opaque bytes (ADR-0053).
+ * WebAuthn credential id is the authenticator's own opaque bytes (ADR-0053),
+ * and an OAuth client id is whatever the identity provider assigned (ADR-0054).
  */
-const EXTERNAL_IDENTIFIERS: ReadonlySet<string> = new Set(["UserPasskey.credentialId"])
+const EXTERNAL_IDENTIFIERS: ReadonlySet<string> = new Set(["UserPasskey.credentialId", "SsoConnection.clientId"])
 
 describe("4 · identifiers", () => {
   it("every id and *Id column is uuid", async () => {

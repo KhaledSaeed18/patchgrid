@@ -427,6 +427,21 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       data: { orgId: org.id, endpointId: endpoint.id, eventId: event.id, eventType: "ticket.created", payload: {}, status: "DEAD", attempts: 7, lastError: "Lookalike failure" },
     })
 
+    // A disabled SSO connection and one linked identity, so isolation has a row on each side (ADR-0054).
+    // Disabled, and its secret is not a sealed one, so no sign-in can route to it.
+    const connection = await db.ssoConnection.create({
+      data: {
+        orgId: org.id,
+        issuer: `https://idp.example.com/realms/${slug}`,
+        clientId: "lookalike",
+        clientSecretSealed: "lookalike-not-a-sealed-secret",
+        defaultRole: "REQUESTER",
+        enabled: false,
+      },
+      select: { id: true },
+    })
+    await db.ssoIdentity.create({ data: { orgId: org.id, connectionId: connection.id, subject: "lookalike-subject", membershipId: owner } })
+
     // What the rows above use of the plan, so a delete releases what a create consumed (TENANCY.md §8).
     await db.usageCounter.createMany({
       data: [
@@ -467,6 +482,8 @@ export async function removeLookalikes(db: PrismaClient, seeded: { orgIds: strin
   await db.orgExport.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.ticketFact.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.savedView.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ssoIdentity.deleteMany({ where: { orgId: { in: orgIds } } })
+  await db.ssoConnection.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.webhookDelivery.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.webhookEndpoint.deleteMany({ where: { orgId: { in: orgIds } } })
   await db.eventDeadLetter.deleteMany({ where: { orgId: { in: orgIds } } })
