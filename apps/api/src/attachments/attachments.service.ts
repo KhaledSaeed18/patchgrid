@@ -136,7 +136,11 @@ export class AttachmentsService {
 
     const now = this.clock.now()
     await this.prisma.transaction(async () => {
-      if (!(await this.attachments.markReady(orgId, id, sniffed, now))) throw new NotFoundProblem()
+      if (!(await this.attachments.markReady(orgId, id, sniffed, now))) {
+        // The sweep took the row between the copy and now: the copy is ours to remove, or nothing ever would.
+        await this.removeObject(row.storageKey)
+        throw new NotFoundProblem()
+      }
       await this.audit.record(orgId, [
         { action: "ATTACHMENT_ADDED", entityType: "Ticket", entityId: row.ticketId, diff: { attachmentId: id, filename: row.filename, sizeBytes: row.sizeBytes, internal: row.comment?.visibility === "INTERNAL" } },
       ])

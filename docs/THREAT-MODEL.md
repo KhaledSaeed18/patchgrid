@@ -289,6 +289,8 @@ Checked and left as they are, with the reason:
   must set it to the real hop count or every per-IP limit becomes attacker-chosen. Recorded for M10.
 - **A `complete` racing the attachment sweep** can orphan a final object (suspected). Bounded by quota
   and a stale presign; a leak, not a bypass. Left for the sweep to learn `storageKey` when it matters.
+  *Closed 2026-10-23:* a `complete` whose row the sweep took removes its own copy, and the sweep removes
+  an abandoned upload's final key as well as its staging key.
 - **Raw SQL outside `prisma.transaction()`** runs with no GUC and so returns nothing (fail-closed).
   Every site reads inside a transaction today; a lint is the right fix when a second site appears.
   *Closed 2026-10-23:* every raw statement on a tenant table reads `PrismaService.tx`, and every lock

@@ -126,6 +126,15 @@ describe("AttachmentsService.complete", () => {
     }
   })
 
+  it("removes its own copy when the sweep took the row meanwhile, instead of orphaning it", async () => {
+    const h = harness("AGENT")
+    h.attachments.markReady.mockResolvedValueOnce(false)
+    await expect(h.service.complete("a-1")).rejects.toBeInstanceOf(NotFoundProblem)
+    expect(h.storage.copy).toHaveBeenCalledWith("staging/org/o/tickets/t-1/x-shot.png", "org/o/tickets/t-1/x-shot.png")
+    expect(h.storage.remove).toHaveBeenCalledWith("org/o/tickets/t-1/x-shot.png")
+    expect(h.audit.record).not.toHaveBeenCalled()
+  })
+
   it("is a 409 before anything is uploaded, and a 404 for someone else's upload", async () => {
     await expect(harness("AGENT", row(), { stored: null }).service.complete("a-1")).rejects.toBeInstanceOf(ConflictProblem)
     await expect(harness("AGENT", row({ uploaderMembershipId: "m-other" })).service.complete("a-1")).rejects.toBeInstanceOf(NotFoundProblem)
