@@ -66,7 +66,7 @@ export class TeamRepository {
 
   /** Serialises changes to one team's membership and lead, so "at most one lead" is decided on committed data. */
   async lock(orgId: string, id: string): Promise<void> {
-    await this.prisma.db.$queryRaw`SELECT id FROM "Team" WHERE "orgId" = ${orgId}::uuid AND id = ${id}::uuid FOR UPDATE`
+    await this.prisma.tx.$queryRaw`SELECT id FROM "Team" WHERE "orgId" = ${orgId}::uuid AND id = ${id}::uuid FOR UPDATE`
   }
 
   async create(orgId: string, data: { name: string; description: string | null }): Promise<string | NameTaken> {

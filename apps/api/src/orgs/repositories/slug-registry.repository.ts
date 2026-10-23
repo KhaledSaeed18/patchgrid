@@ -19,7 +19,7 @@ export class SlugRegistryRepository {
    */
   async lock(...slugs: string[]): Promise<void> {
     for (const slug of [...new Set(slugs)].toSorted()) {
-      await this.prisma.db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`slug:${slug}`}))`
+      await this.prisma.lockTx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`slug:${slug}`}))`
     }
   }
 

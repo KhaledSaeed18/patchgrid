@@ -154,7 +154,7 @@ export class MembershipRepository {
    * the first's commit. Must run inside `transaction()`.
    */
   async lockOrganization(orgId: string): Promise<void> {
-    await this.prisma.db.$queryRaw`SELECT id FROM "Organization" WHERE id = ${orgId}::uuid FOR UPDATE`
+    await this.prisma.tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${orgId}::uuid FOR UPDATE`
   }
 
   countActiveOwners(orgId: string): Promise<number> {

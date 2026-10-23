@@ -267,7 +267,7 @@ export class TicketRepository {
    */
   async lock(orgId: string, ids: readonly string[]): Promise<void> {
     const sorted = [...new Set(ids)].toSorted()
-    await this.prisma.db.$queryRaw`
+    await this.prisma.tx.$queryRaw`
       SELECT id FROM "Ticket" WHERE "orgId" = ${orgId}::uuid AND id = ANY(${sorted}::uuid[]) ORDER BY id FOR UPDATE`
   }
 
@@ -499,7 +499,7 @@ export class TicketRepository {
    */
   async search(orgId: string, text: string, filter: SearchFilter, limit: number): Promise<TicketSummaryRow[]> {
     const scope = scopeParams(filter.scope)
-    const hits = await this.prisma.db.$queryRaw<{ id: string }[]>`
+    const hits = await this.prisma.tx.$queryRaw<{ id: string }[]>`
       SELECT t.id
       FROM "Ticket" t, websearch_to_tsquery('english', ${text}) query
       WHERE t."orgId" = ${orgId}::uuid

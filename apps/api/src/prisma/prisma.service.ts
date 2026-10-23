@@ -95,6 +95,21 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * The open transaction for the current scope, tenant or platform, or a
+   * thrown programming error. For locks on platform rows: a lock taken outside
+   * a transaction is released by the statement that took it, so it guards
+   * nothing and fails silently.
+   */
+  get lockTx(): TenantTransactionClient {
+    const open = this.cls.isActive() ? this.cls.get("prismaTransaction") : undefined
+    const current = this.tenantContext.current()?.orgId ?? null
+    if (open === undefined || open.orgId !== current) {
+      throw new Error("a lock is taken inside prisma.transaction() for the current scope")
+    }
+    return open.client
+  }
+
+  /**
    * Runs `fn` in one interactive transaction scoped to the current tenant
    * (ENGINEERING.md §Transactions and side effects): the mutation, its audit
    * rows and any counter increment commit or roll back together.

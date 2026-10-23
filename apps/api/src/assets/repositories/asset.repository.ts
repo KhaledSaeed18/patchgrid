@@ -132,7 +132,7 @@ export class AssetRepository {
   async lockMany(orgId: string, ids: readonly string[]): Promise<void> {
     if (ids.length === 0) return
     const sorted = [...new Set(ids)].toSorted()
-    await this.prisma.db.$queryRaw`
+    await this.prisma.tx.$queryRaw`
       SELECT id FROM "Asset" WHERE "orgId" = ${orgId}::uuid AND id = ANY(${sorted}::uuid[]) ORDER BY id FOR UPDATE`
   }
 

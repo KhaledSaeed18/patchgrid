@@ -100,7 +100,7 @@ export class AttachmentRepository {
    * Raw for `FOR UPDATE SKIP LOCKED`, so inside `transaction()`.
    */
   async removeAbandoned(orgId: string, cutoff: Date, limit: number): Promise<Abandoned[]> {
-    const rows = await this.prisma.db.$queryRaw<Abandoned[]>`
+    const rows = await this.prisma.tx.$queryRaw<Abandoned[]>`
       SELECT id, "sizeBytes", "storageKey" FROM "Attachment"
       WHERE "orgId" = ${orgId}::uuid AND status = 'PENDING' AND "createdAt" < ${cutoff}
       ORDER BY "createdAt" LIMIT ${limit}

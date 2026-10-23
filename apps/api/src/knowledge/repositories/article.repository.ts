@@ -142,7 +142,7 @@ export class ArticleRepository {
    * reader who may not open it.
    */
   async search(orgId: string, text: string, readable: Readable, limit: number): Promise<ArticleSummaryRow[]> {
-    const hits = await this.prisma.db.$queryRaw<{ id: string }[]>`
+    const hits = await this.prisma.tx.$queryRaw<{ id: string }[]>`
       SELECT a.id
       FROM "KnowledgeArticle" a, websearch_to_tsquery('english', ${text}) query
       WHERE a."orgId" = ${orgId}::uuid
@@ -171,7 +171,7 @@ export class ArticleRepository {
 
   /** A read of the article's page. Not a write the reader made, so no version and no `updatedAt`. */
   async countView(orgId: string, id: string): Promise<void> {
-    await this.prisma.db.$executeRaw`
+    await this.prisma.tx.$executeRaw`
       UPDATE "KnowledgeArticle" SET "viewCount" = "viewCount" + 1 WHERE "orgId" = ${orgId}::uuid AND id = ${id}::uuid`
   }
 
