@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/metadata"
 export const metadata: Metadata = pageMetadata({
   title: "Pricing",
   description:
-    "Patchgrid's Free and Pro plans: agent seats, tickets, storage and knowledge articles, side by side.",
+    "Patchgrid's Free and Pro plans: agent seats, tickets, storage, knowledge articles and API tokens, side by side.",
   path: "/pricing",
 })
 
@@ -38,6 +38,11 @@ const ROWS: {
   {
     metric: "KB_ARTICLES",
     label: "Knowledge base articles",
+    unit: (n) => `${n}`,
+  },
+  {
+    metric: "API_TOKENS",
+    label: "API tokens for integrations",
     unit: (n) => `${n}`,
   },
 ]
