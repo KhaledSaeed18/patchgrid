@@ -6,6 +6,9 @@
 
 > **Erratum (2026-10-23).** "And then M7" no longer holds: M7 is dropped ([0056](0056-m7-dropped.md)),
 > and the build order ends at M14.
+>
+> **Erratum (2026-10-24).** M14's content is replaced by [0058](0058-production-rehearsal-on-emulated-aws.md):
+> a rehearsal on emulated AWS. Caddy and the streaming replica are not built; PgBouncer is.
 
 ## Context
 

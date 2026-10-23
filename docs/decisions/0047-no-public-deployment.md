@@ -4,6 +4,10 @@
 - **Date:** 2026-10-17
 - **Amends:** [0026](0026-wildcard-tls-and-dns-operations.md), [0027](0027-email-dns-and-inbound-sender-authentication.md), [0010](0010-ml-services-behind-interfaces-in-monorepo.md)
 
+> **Erratum (2026-10-24).** "The production images and `docker-compose.prod.yml` stay" is superseded by
+> [0058](0058-production-rehearsal-on-emulated-aws.md): the images stay and run on emulated AWS, and the
+> single-host Compose file is retired once they do. Nothing is deployed publicly; that decision stands.
+
 ## Context
 
 M10 ended with two items that cost money and an ongoing operator: DNS and TLS for `patchgrid.xyz`

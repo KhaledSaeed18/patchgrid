@@ -477,19 +477,37 @@ members to their identity provider, and a new member is provisioned on first sig
       owner recovers when the provider is down. `THREAT-MODEL.md` TB12 and §10 (the M13 review),
       `RBAC.md` §2, `TENANCY.md` §5–§6. Done 2026-10-23
 
-## M14 — Production rehearsal, locally
+## M14 — Production rehearsal on emulated AWS
 
-_Exit: `pnpm local:prod` serves the production images over HTTPS on `*.patchgrid.test`, through
-PgBouncer in transaction mode, with reads optionally served by a replica, and the tenancy suite passes
-against it._
+_Planned 2026-10-24 by ADR-0058, replacing ADR-0048's Caddy-and-replica plan. Floci emulates AWS
+locally and OpenTofu provisions it; the infrastructure is written for real AWS with only the endpoints
+overridden, and no AWS-native rewrite of tested architecture is made._
 
-- [ ] Caddy in front of `docker-compose.prod.yml`: locally trusted wildcard TLS (mkcert), HSTS,
-      `Secure` cookies, `TRUST_PROXY_HOPS` at its real value
-- [ ] PgBouncer in transaction mode between the API and Postgres; the isolation suite run through it,
-      proving the transaction-local tenant setting (ADR-0015) is what makes pooling safe
-- [ ] A streaming replica, with reads that tolerate lag routed to it; the replica's RLS and its lag
-      on the dashboard
-- [ ] A short runbook: what a real deployment would still need (ADR-0047's list)
+_Exit: `pnpm aws:up` builds the three production images, pushes them to ECR and applies the
+infrastructure; migrations run as a one-off ECS task; the API, worker, app, www and PgBouncer run as
+ECS services behind an HTTPS ALB on `*.patchgrid.test`, on an RDS database whose roles RDS itself could
+create, with ElastiCache, S3, SES, Secrets Manager under KMS and CloudWatch Logs; the tenancy suite
+passes through PgBouncer and the browser suite passes through the ALB, passkeys included, with no
+Chrome flag._
+
+- [ ] Database roles a managed Postgres can create (ADR-0059): no `FORCE`, no `BYPASSRLS` anywhere, the
+      bootstrap run as a `CREATEROLE`-only admin, the app role asserted to be no member of the owner
+- [ ] The application ready for AWS: S3 credentials from the default provider chain (task role), an SES
+      `MailProvider`, a direct `LISTEN` URL beside a pooled one, graceful drain on `SIGTERM`
+- [ ] Floci pinned by digest, its CA exported and trusted; OpenTofu state in S3 with DynamoDB locking
+- [ ] Network, data and secrets: VPC, two subnets, security groups by tier; RDS PostgreSQL 17 with
+      parameter group and TLS; ElastiCache; S3 buckets with CORS, versioning, encryption and the
+      `staging/` lifecycle rule; KMS key and Secrets Manager secrets; least-privilege task roles
+- [ ] Compute and edge: ECR repositories with lifecycle policies; one ECS cluster running api, worker,
+      app, www and PgBouncer; ALB with ACM certificate, host rules, 80 → 443, HSTS, health checks and
+      deregistration delay; Route 53 private zone for the workspace hosts, public zones for domain
+      proof
+- [ ] Deploy as one command: build → push → `tofu apply` → migrations task → rolling update → healthy
+      targets; `aws:down` and `aws:deploy` beside it
+- [ ] Verification: the tenancy suite through PgBouncer, the browser suite (passkeys included) through
+      the ALB, a CI job that deploys to Floci; `docker-compose.prod.yml` retired
+- [ ] Runbook: what a real AWS account still needs beyond this code, and each place Floci differs from
+      AWS with the decision that covers it
 
 ---
 

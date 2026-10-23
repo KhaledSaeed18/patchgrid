@@ -53,8 +53,8 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0044](0044-data-protection-as-built.md) | Data protection as built: a streamed export, self-service erasure, retention sweeps | Accepted |
 | [0045](0045-member-mfa-as-built.md) | Member MFA as built: a challenge before the session, a proof on the token | Accepted |
 | [0046](0046-observability-as-built.md) | Observability as built: the SDK before the app, metrics by top-N tenant, a trace id as the request id | Accepted |
-| [0047](0047-no-public-deployment.md) | No public deployment: Patchgrid runs locally, and the deployment design stays a design | Accepted |
-| [0048](0048-roadmap-after-m10.md) | The roadmap after M10: four architecture milestones before M7 | Accepted — M7 dropped by 0056 |
+| [0047](0047-no-public-deployment.md) | No public deployment: Patchgrid runs locally, and the deployment design stays a design | Accepted — the design is rehearsed on emulated AWS by 0058 |
+| [0048](0048-roadmap-after-m10.md) | The roadmap after M10: four architecture milestones before M7 | Accepted — M7 dropped by 0056; M14 replanned by 0058 |
 | [0049](0049-transactional-outbox-as-a-tenant-log.md) | A transactional outbox, read as a per-tenant log below the snapshot horizon | Accepted |
 | [0050](0050-outbound-webhooks.md) | Outbound webhooks: thin signed events, at least once, and nobody else's problem | Accepted |
 | [0051](0051-reporting-read-side.md) | Reporting: a fact row per ticket, refreshed from the log, checked against the source | Accepted |
@@ -64,6 +64,8 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0055](0055-external-requesters.md) | External requesters are memberships without an account | Accepted — the account case settled by 0057 |
 | [0056](0056-m7-dropped.md) | M7 is dropped: no models, no automation rule engine | Accepted |
 | [0057](0057-an-account-takes-over-its-external-membership.md) | An account joining under an external requester's address takes that membership over | Accepted |
+| [0058](0058-production-rehearsal-on-emulated-aws.md) | M14 is a production rehearsal on emulated AWS: Floci, provisioned by OpenTofu | Accepted |
+| [0059](0059-rds-compatible-database-roles.md) | Database roles a managed Postgres can create: the owner is exempt by ownership, not by `BYPASSRLS` | Accepted |
 
 ## Reading order for someone new
 
