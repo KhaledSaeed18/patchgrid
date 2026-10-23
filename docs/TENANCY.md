@@ -151,6 +151,9 @@ pg_id          identity, tenant-less — used by app.patchgrid.xyz and read by w
 - `app.patchgrid.xyz` is tenant-less: it lists the caller's workspaces from `UserOrgIndex` and mints a
   tenant cookie pair on selection, then redirects to that subdomain. Existing pairs are untouched.
 - On mint, prune to the 5 most recently used tenant pairs to stay inside the per-domain cookie budget.
+  Recency is `pg_ws`, an httpOnly list of slugs sent to `/api/v1` only: every mint or refresh moves its
+  workspace to the front, and the pairs past five expire in the same response. A pair the list does
+  not name (or a list the browser mangled) counts as the oldest.
 - A slug change re-mints under the new cookie name and expires the old one in the same response.
 - **Revocation epoch**: Redis `rev:<membershipId>` holds a timestamp; a token whose `iat` predates it is
   rejected. Bumped on membership disable/remove, role change, team change, org suspension, password
