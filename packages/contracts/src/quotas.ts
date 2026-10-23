@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { MAX_ATTACHMENT_BYTES } from "./limits.ts"
 import { type Plan, planSchema } from "./tenancy.ts"
 
 /**
@@ -37,6 +38,15 @@ export const AUDIT_RETENTION_YEARS = { FREE: 2, PRO: 7 } as const satisfies Reco
 
 export function limitFor(plan: Plan, metric: UsageMetric): number | null {
   return PLAN_LIMITS[plan][metric]
+}
+
+/**
+ * The usage at which a limit counts as reached, for the admins' notification
+ * (DOMAIN.md §8): the limit itself, except storage, which is full once the
+ * largest file a member may upload no longer fits.
+ */
+export function limitReachedAt(metric: UsageMetric, limit: number): number {
+  return metric === "STORAGE_BYTES" ? Math.max(0, limit - MAX_ATTACHMENT_BYTES) : limit
 }
 
 /** `YYYY-MM` in UTC for a monthly metric; `current` for a point-in-time one. */

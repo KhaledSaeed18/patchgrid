@@ -18,6 +18,7 @@ export const notificationTypeSchema = z.enum([
   "CHANGE_AWAITING_APPROVAL",
   "CHANGE_APPROVED",
   "CHANGE_REJECTED",
+  "PLAN_LIMIT_REACHED",
 ])
 export type NotificationType = z.infer<typeof notificationTypeSchema>
 
