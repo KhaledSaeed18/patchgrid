@@ -589,6 +589,7 @@ enum NotificationType {
   CHANGE_AWAITING_APPROVAL
   CHANGE_APPROVED
   CHANGE_REJECTED
+  PLAN_LIMIT_REACHED
 }
 
 /// An upload's life (ADR-0005): `PENDING` from the presign until `complete`
