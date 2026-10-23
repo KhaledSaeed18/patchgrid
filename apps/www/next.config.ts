@@ -1,6 +1,7 @@
 import path from "node:path"
 
 import createMDX from "@next/mdx"
+import { STRICT_TRANSPORT_SECURITY } from "@patchgrid/contracts"
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
@@ -24,6 +25,22 @@ const nextConfig: NextConfig = {
   // Development serves the apex as lvh.me; without this the dev server refuses
   // its own scripts there and nothing hydrates.
   allowedDevOrigins: ["lvh.me"],
+  // HSTS whenever the build is for HTTPS (DNS.md §HSTS, ADR-0058). Development
+  // is plain HTTP on lvh.me, where the header would be ignored anyway.
+  async headers() {
+    if (process.env.NEXT_PUBLIC_PROTOCOL !== "https") return []
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: STRICT_TRANSPORT_SECURITY,
+          },
+        ],
+      },
+    ]
+  },
 }
 
 // The docs and the blog are MDX in the repository (ADR-0016). Plugins are named
