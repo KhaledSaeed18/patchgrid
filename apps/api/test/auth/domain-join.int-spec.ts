@@ -84,9 +84,9 @@ it("offers nothing to another domain, and lets no removed member back in", async
 
   const pgId = await person("rem", domain)
   expect((await join(pgId, ws.slug)).status).toBe(200)
-  const user = people.at(-1)
-  await db.membership.updateMany({ where: { orgId: ws.orgId, userId: user?.id }, data: { status: "REMOVED" } })
-  await db.userOrgIndex.updateMany({ where: { orgId: ws.orgId, userId: user?.id }, data: { statusForDisplay: "REMOVED" } })
+  const userId = people.at(-1)?.id ?? ""
+  await db.membership.updateMany({ where: { orgId: ws.orgId, userId }, data: { status: "REMOVED" } })
+  await db.userOrgIndex.updateMany({ where: { orgId: ws.orgId, userId }, data: { statusForDisplay: "REMOVED" } })
   expect((await identity(pgId)).body.joinable).toBeNull()
   expect((await join(pgId, ws.slug)).status).toBe(404)
 })
