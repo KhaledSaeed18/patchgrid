@@ -20,7 +20,10 @@ export default async function EraseAccountPage({
       title="Erase your account"
       description="Your name and address leave every workspace you are in, and you are signed out everywhere. What you wrote — tickets, comments — stays with those workspaces, under “Former member”. This cannot be undone."
       footer={
-        <Link href="/login" className="text-foreground underline underline-offset-4">
+        <Link
+          href="/login"
+          className="text-foreground underline underline-offset-4"
+        >
           Back to sign in
         </Link>
       }
@@ -29,7 +32,8 @@ export default async function EraseAccountPage({
         <ConfirmErasure token={token} />
       ) : (
         <FormAlert>
-          This page needs the link from the email. Ask for a new one from your account page.
+          This page needs the link from the email. Ask for a new one from your
+          account page.
         </FormAlert>
       )}
     </AuthShell>

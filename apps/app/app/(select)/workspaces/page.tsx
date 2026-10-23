@@ -39,8 +39,8 @@ export default async function WorkspacesPage() {
               <span className="font-mono text-foreground">
                 {identity.sso.slug}
               </span>
-              . Any other workspaces you belong to open with your own
-              Patchgrid sign-in.
+              . Any other workspaces you belong to open with your own Patchgrid
+              sign-in.
             </>
           )}
         </>
@@ -73,10 +73,10 @@ export default async function WorkspacesPage() {
       )}
       {identity.workspaces.length === 0 ? (
         identity.joinable !== null ? null : (
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Create one for your team, or ask a colleague to invite you to theirs.
-          Invitations arrive by email.
-        </p>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Create one for your team, or ask a colleague to invite you to
+            theirs. Invitations arrive by email.
+          </p>
         )
       ) : (
         <WorkspaceList

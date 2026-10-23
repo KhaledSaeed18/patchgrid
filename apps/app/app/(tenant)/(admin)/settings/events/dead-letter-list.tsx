@@ -83,7 +83,10 @@ function Row({ letter }: { letter: DeadLetter }) {
         </p>
       </TableCell>
       <TableCell className="max-w-md whitespace-normal">
-        <p className="line-clamp-3 font-mono text-xs break-words" title={letter.error}>
+        <p
+          className="line-clamp-3 font-mono text-xs break-words"
+          title={letter.error}
+        >
           {letter.error}
         </p>
         <p className="text-xs text-muted-foreground">

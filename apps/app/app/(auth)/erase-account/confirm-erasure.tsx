@@ -33,10 +33,13 @@ export function ConfirmErasure({ token }: { token: string }) {
   return (
     <div className="grid gap-4">
       {confirm.error !== null && (
-        <FormAlert>{failureMessage(confirm.error, "Your account wasn't erased.")}</FormAlert>
+        <FormAlert>
+          {failureMessage(confirm.error, "Your account wasn't erased.")}
+        </FormAlert>
       )}
       <p className="text-sm text-muted-foreground">
-        If you are a workspace&apos;s only owner, make someone else an owner, or delete it, first.
+        If you are a workspace&apos;s only owner, make someone else an owner, or
+        delete it, first.
       </p>
       <Button
         variant="destructive"

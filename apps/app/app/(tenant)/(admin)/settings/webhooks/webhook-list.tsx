@@ -60,8 +60,8 @@ export function WebhookList({ initial }: { initial: WebhookEndpoint[] }) {
       )}
       {initial.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">
-          No webhooks yet. Add one to tell a chat channel, a status page or your own service when tickets
-          change.
+          No webhooks yet. Add one to tell a chat channel, a status page or your
+          own service when tickets change.
         </p>
       ) : (
         <Table className="mt-6">
@@ -74,13 +74,23 @@ export function WebhookList({ initial }: { initial: WebhookEndpoint[] }) {
           </TableHeader>
           <TableBody>
             {initial.map((endpoint) => (
-              <TableRow key={endpoint.id} className={endpoint.status === "ACTIVE" ? undefined : "opacity-60"}>
+              <TableRow
+                key={endpoint.id}
+                className={
+                  endpoint.status === "ACTIVE" ? undefined : "opacity-60"
+                }
+              >
                 <TableCell>
-                  <Link href={`/settings/webhooks/${endpoint.id}`} className="font-mono text-xs break-all hover:underline">
+                  <Link
+                    href={`/settings/webhooks/${endpoint.id}`}
+                    className="font-mono text-xs break-all hover:underline"
+                  >
                     {endpoint.url}
                   </Link>
                   {endpoint.description !== null && (
-                    <p className="text-xs text-muted-foreground">{endpoint.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {endpoint.description}
+                    </p>
                   )}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -106,7 +116,11 @@ export function WebhookList({ initial }: { initial: WebhookEndpoint[] }) {
           router.refresh()
         }}
       />
-      <SecretDialog secret={secret} rotated={false} onClose={() => setSecret(null)} />
+      <SecretDialog
+        secret={secret}
+        rotated={false}
+        onClose={() => setSecret(null)}
+      />
     </div>
   )
 }
@@ -129,7 +143,9 @@ function AddDialog({
         method: "POST",
         body: {
           url: url.trim(),
-          ...(description.trim() === "" ? {} : { description: description.trim() }),
+          ...(description.trim() === ""
+            ? {}
+            : { description: description.trim() }),
           eventTypes: events,
         },
         schema: createdWebhookEndpointSchema,
@@ -140,7 +156,8 @@ function AddDialog({
       setEvents(["ticket.created"])
       onAdded(created.secret)
     },
-    onError: (error) => toast.error(failureMessage(error, "The webhook wasn't added.")),
+    onError: (error) =>
+      toast.error(failureMessage(error, "The webhook wasn't added.")),
   })
 
   return (
@@ -149,8 +166,8 @@ function AddDialog({
         <DialogHeader>
           <DialogTitle>Add a webhook</DialogTitle>
           <DialogDescription>
-            Patchgrid POSTs a small JSON body to this address whenever one of the chosen events happens. It must
-            be a public https address.
+            Patchgrid POSTs a small JSON body to this address whenever one of
+            the chosen events happens. It must be a public https address.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
@@ -165,7 +182,9 @@ function AddDialog({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="webhook-description">Description (optional)</FieldLabel>
+            <FieldLabel htmlFor="webhook-description">
+              Description (optional)
+            </FieldLabel>
             <Input
               id="webhook-description"
               value={description}
@@ -180,7 +199,10 @@ function AddDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={add.isPending || url.trim() === "" || events.length === 0} onClick={() => add.mutate()}>
+          <Button
+            disabled={add.isPending || url.trim() === "" || events.length === 0}
+            onClick={() => add.mutate()}
+          >
             {add.isPending && <Spinner />}
             Add webhook
           </Button>

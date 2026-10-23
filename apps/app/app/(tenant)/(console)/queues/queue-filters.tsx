@@ -16,7 +16,11 @@ import { Input } from "@patchgrid/ui/components/input"
 import { useRouter } from "next/navigation"
 
 import { NativeSelect } from "@/components/native-select"
-import { PRIORITY_LABEL, TICKET_STATUS_LABEL, TICKET_TYPE_LABEL } from "@/lib/labels"
+import {
+  PRIORITY_LABEL,
+  TICKET_STATUS_LABEL,
+  TICKET_TYPE_LABEL,
+} from "@/lib/labels"
 
 /** Every status, in the order the types' lifecycles first meet them. */
 const ALL_STATUSES: TicketStatus[] = [

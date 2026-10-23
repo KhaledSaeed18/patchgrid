@@ -25,14 +25,25 @@ export function ErasureLink({ email }: { email: string }) {
   if (request.isSuccess) {
     return (
       <FormAlert tone="info">
-        A link to erase this account is on its way to {email}. It works once, for 30 minutes.
+        A link to erase this account is on its way to {email}. It works once,
+        for 30 minutes.
       </FormAlert>
     )
   }
   return (
     <div className="grid gap-2">
-      {request.error !== null && <FormAlert>{failureMessage(request.error, "The link wasn't sent.")}</FormAlert>}
-      <Button type="button" variant="outline" className="w-fit" disabled={request.isPending} onClick={() => request.mutate()}>
+      {request.error !== null && (
+        <FormAlert>
+          {failureMessage(request.error, "The link wasn't sent.")}
+        </FormAlert>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        className="w-fit"
+        disabled={request.isPending}
+        onClick={() => request.mutate()}
+      >
         {request.isPending && <Spinner />}
         Email me a link to erase it instead
       </Button>

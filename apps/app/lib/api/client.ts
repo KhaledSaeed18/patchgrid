@@ -56,8 +56,16 @@ async function attemptRefresh(slug: string): Promise<boolean> {
     )
     const response = await fetch(url, { ...init, credentials: "include" })
     // The workspace now requires its identity provider (ADR-0054): there, not the login page.
-    if (response.status === 403 && (await problemType(response)) === "sso-required") {
-      window.location.assign(ssoStartUrl({ slug }, { next: window.location.pathname + window.location.search }))
+    if (
+      response.status === 403 &&
+      (await problemType(response)) === "sso-required"
+    ) {
+      window.location.assign(
+        ssoStartUrl(
+          { slug },
+          { next: window.location.pathname + window.location.search }
+        )
+      )
       return new Promise<never>(() => undefined)
     }
     return response.ok
@@ -69,7 +77,10 @@ async function attemptRefresh(slug: string): Promise<boolean> {
 async function problemType(response: Response): Promise<string | null> {
   try {
     const body: unknown = await response.json()
-    const type = typeof body === "object" && body !== null && "type" in body ? body.type : null
+    const type =
+      typeof body === "object" && body !== null && "type" in body
+        ? body.type
+        : null
     return typeof type === "string" ? (type.split("/").at(-1) ?? null) : null
   } catch {
     return null

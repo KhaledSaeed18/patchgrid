@@ -18,7 +18,13 @@ import { ssoStartUrl } from "@/lib/sso"
  * identity provider vouches for it, and the browser goes there. Whether a
  * domain has single sign-on is a fact about the domain, not about the person.
  */
-export function SsoForm({ target, onBack }: { target: NextTarget | null; onBack: () => void }) {
+export function SsoForm({
+  target,
+  onBack,
+}: {
+  target: NextTarget | null
+  onBack: () => void
+}) {
   const discover = useMutation({
     mutationFn: async (email: string) => {
       const answer = await clientApi("/auth/sso/discover", {
@@ -32,8 +38,13 @@ export function SsoForm({ target, onBack }: { target: NextTarget | null; onBack:
     onSuccess: ({ email, sso }) => {
       if (sso === null) return
       // Back to where the browser was going, when that is the same workspace.
-      const next = target?.kind === "workspace" && target.slug === sso.slug ? pathOf(target.url) : undefined
-      window.location.assign(ssoStartUrl({ email }, next === undefined ? {} : { next }))
+      const next =
+        target?.kind === "workspace" && target.slug === sso.slug
+          ? pathOf(target.url)
+          : undefined
+      window.location.assign(
+        ssoStartUrl({ email }, next === undefined ? {} : { next })
+      )
     },
   })
   const none = discover.data?.sso === null
@@ -52,23 +63,43 @@ export function SsoForm({ target, onBack }: { target: NextTarget | null; onBack:
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
-        const email = String(new FormData(event.currentTarget).get("email") ?? "").trim()
+        const email = String(
+          new FormData(event.currentTarget).get("email") ?? ""
+        ).trim()
         if (email === "") return
         discover.mutate(email)
       }}
     >
       <FieldGroup>
         <p className="text-sm text-pretty text-muted-foreground">
-          Your organization signs you in. Enter your work email and we&apos;ll send you there.
+          Your organization signs you in. Enter your work email and we&apos;ll
+          send you there.
         </p>
         {none && (
           <FormAlert tone="info">
-            No workspace signs in that address through single sign-on. Use your email and password.
+            No workspace signs in that address through single sign-on. Use your
+            email and password.
           </FormAlert>
         )}
-        {discover.error !== null && <FormAlert>Single sign-on couldn&apos;t start just now. Try again in a moment.</FormAlert>}
-        <FormField id="sso-email" name="email" type="email" label="Work email" autoComplete="email" required autoFocus />
-        <Button type="submit" size="lg" disabled={discover.isPending || (discover.isSuccess && !none)}>
+        {discover.error !== null && (
+          <FormAlert>
+            Single sign-on couldn&apos;t start just now. Try again in a moment.
+          </FormAlert>
+        )}
+        <FormField
+          id="sso-email"
+          name="email"
+          type="email"
+          label="Work email"
+          autoComplete="email"
+          required
+          autoFocus
+        />
+        <Button
+          type="submit"
+          size="lg"
+          disabled={discover.isPending || (discover.isSuccess && !none)}
+        >
           {(discover.isPending || (discover.isSuccess && !none)) && <Spinner />}
           Continue
         </Button>

@@ -148,8 +148,8 @@ export function Security({ requiredBy }: { requiredBy: string | null }) {
           <span className="font-mono">
             {requiredBy}.{ROOT_DOMAIN}
           </span>{" "}
-          requires a second factor. Add a passkey or an authenticator app
-          here, then open the workspace again.
+          requires a second factor. Add a passkey or an authenticator app here,
+          then open the workspace again.
         </FormAlert>
       )}
 
@@ -273,9 +273,9 @@ export function Security({ requiredBy }: { requiredBy: string | null }) {
             <DialogTitle>Turn off the authenticator app?</DialogTitle>
             <DialogDescription>
               Signing in will no longer ask for its code. If it is your only
-              second factor, workspaces that require one will ask you to set
-              one up before they open. Using a recovery code here signs you
-              out everywhere.
+              second factor, workspaces that require one will ask you to set one
+              up before they open. Using a recovery code here signs you out
+              everywhere.
             </DialogDescription>
           </DialogHeader>
           <FactorForm

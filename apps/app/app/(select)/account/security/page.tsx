@@ -24,8 +24,7 @@ export default async function SecurityPage({
       title="Sign-in security"
       description={
         <>
-          For{" "}
-          <span className="text-foreground">{identity.user.email}</span>, in
+          For <span className="text-foreground">{identity.user.email}</span>, in
           every workspace.
         </>
       }

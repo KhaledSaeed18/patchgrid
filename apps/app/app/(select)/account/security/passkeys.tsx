@@ -191,8 +191,8 @@ export function Passkeys({
         </Button>
       ) : (
         <FormAlert tone="info">
-          This browser can&apos;t create a passkey here: passkeys need a
-          secure (HTTPS) connection.
+          This browser can&apos;t create a passkey here: passkeys need a secure
+          (HTTPS) connection.
         </FormAlert>
       )}
 
@@ -201,8 +201,8 @@ export function Passkeys({
           <DialogHeader>
             <DialogTitle>Name this passkey</DialogTitle>
             <DialogDescription>
-              So you can tell it apart later — the device or password manager
-              it lives in.
+              So you can tell it apart later — the device or password manager it
+              lives in.
             </DialogDescription>
           </DialogHeader>
           <LabelForm
@@ -277,8 +277,8 @@ export function Passkeys({
               ?
             </DialogTitle>
             <DialogDescription>
-              It will no longer sign you in. Confirm with a second factor —
-              this passkey included.
+              It will no longer sign you in. Confirm with a second factor — this
+              passkey included.
             </DialogDescription>
           </DialogHeader>
           {stage.kind === "remove" && (
