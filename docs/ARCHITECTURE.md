@@ -454,7 +454,7 @@ provider, is dropped (ADR-0056).
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `postgres` | `postgres:17-bookworm` | 5432 | main DB + `patchgrid_test`; init script creates the migration owner (**with** `BYPASSRLS`), and `patchgrid_app` (**without**), transfers database and schema ownership to the owner role, and issues the `GRANT`s + `ALTER DEFAULT PRIVILEGES` the app depends on |
+| `postgres` | `postgres:17-bookworm` | 5432 | an instance with no application database, as RDS gives you; the init script creates only `patchgrid_admin` (`CREATEROLE`, `CREATEDB`), and `db:bootstrap`, as that admin, creates the owner, the app role, `patchgrid` and `patchgrid_test`, and the `GRANT`s + `ALTER DEFAULT PRIVILEGES` the app depends on (ADR-0059) |
 | `redis` | `redis:7-alpine` | 6379 | BullMQ, throttler, tenant cache, quota counters |
 | `minio` | `quay.io/minio/minio` | 9000 / 9001 | S3 API / console. **quay.io, not Docker Hub** — `docker.io/minio/minio` is no longer publicly pullable. Bucket `patchgrid-attachments` created by an init container; **CORS is a server setting** (`MINIO_API_CORS_ALLOW_ORIGIN`), not per-bucket — `mc cors set` reports "functionality that is not implemented" |
 | `mailpit` | `axllent/mailpit` | 1025 / 8025 | SMTP sink + web inbox |
@@ -506,11 +506,12 @@ layer is cached on the lockfile alone:
 
 ## Security posture
 
-- **Two database roles.** An owner/migration role (holds `BYPASSRLS`, reachable only via
-  `DATABASE_MIGRATION_URL`, never by the running app) and `patchgrid_app` with **no** `BYPASSRLS` and no
-  table ownership. `FORCE ROW LEVEL SECURITY` means ownership alone does not exempt anyone. The API
-  asserts at boot that its own role lacks `BYPASSRLS` and refuses to start otherwise; the config
-  validator refuses to start if the two URLs are equal.
+- **Two database roles, neither holding `BYPASSRLS`** (ADR-0059). The owner (reachable only via
+  `DATABASE_MIGRATION_URL`, never by the running app) owns every table, and ownership is what exempts it
+  from the policies. `patchgrid_app` owns nothing and is bound by every policy. The API asserts at boot
+  that its role is no superuser, holds no `BYPASSRLS` and is no member of the owner, and refuses to start
+  otherwise; the config validator refuses to start if the two URLs are equal. All of it can be created
+  by a `CREATEROLE`-only admin, so it runs on RDS.
 - **The schema itself resists cross-tenant data.** Composite foreign keys on `(orgId, id)` make a
   cross-tenant reference unrepresentable, which matters because PostgreSQL runs referential-integrity
   checks with row security disabled (ADR-0023).

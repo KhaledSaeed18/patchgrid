@@ -14,7 +14,7 @@ try {
   // no local .env — variables come from the environment
 }
 
-// Migrations run as the OWNER role, which holds BYPASSRLS. The application never
+// Migrations run as the OWNER role, exempt from RLS by owning the tables (ADR-0059). The application never
 // sees this URL (ADR-0015, ADR-0022).
 //
 // The datasource is omitted entirely when the variable is unset rather than passed

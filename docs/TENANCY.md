@@ -204,7 +204,7 @@ Five layers. No single mistake is sufficient to leak data.
 | 1. Request context | Credential → org, cross-checked against `Origin`/tenant header, stored in `AsyncLocalStorage` (`nestjs-cls`) | Wrong or missing tenant → 403/404 before any handler runs |
 | 2. Repository arguments | Every repository method takes an explicit `orgId` and filters on it | Visible in code review and unit tests |
 | 3. Prisma client extension | Wraps every operation in a transaction that sets `app.current_org_id` transaction-locally; throws if a tenant-owned model is queried with no context | Loud runtime error, never a silent unscoped query |
-| 4. Postgres RLS | `ENABLE` + `FORCE ROW LEVEL SECURITY` and a `USING`/`WITH CHECK` policy on every tenant-owned table; the app connects as a non-superuser role without `BYPASSRLS` | The database returns nothing and refuses foreign-tenant writes |
+| 4. Postgres RLS | `ENABLE ROW LEVEL SECURITY` and a `USING`/`WITH CHECK` policy on every tenant-owned table; the app connects as a non-superuser role without `BYPASSRLS` and no member of the owner, whose ownership is the only exemption (ADR-0059) | The database returns nothing and refuses foreign-tenant writes |
 
 Layer 0 is new and matters because layers 1–4 all inspect rows *individually*. PostgreSQL performs
 referential-integrity checks with row security disabled, so before ADR-0023 a correctly-tenanted

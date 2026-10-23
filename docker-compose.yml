@@ -13,11 +13,10 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-patchgrid}
-      POSTGRES_TEST_DB: ${POSTGRES_TEST_DB:-patchgrid_test}
-      POSTGRES_SHADOW_DB: ${POSTGRES_SHADOW_DB:-patchgrid_shadow}
-      PATCHGRID_OWNER_PASSWORD: ${PATCHGRID_OWNER_PASSWORD:-owner}
-      PATCHGRID_APP_PASSWORD: ${PATCHGRID_APP_PASSWORD:-app}
+      # The instance starts with no application database, as an RDS instance
+      # does: `pnpm db:bootstrap` creates them, as the admin (ADR-0059).
+      POSTGRES_DB: postgres
+      PATCHGRID_ADMIN_PASSWORD: ${PATCHGRID_ADMIN_PASSWORD:-admin}
       # Everything is UTC on the wire and in the database (ADR-0023).
       TZ: UTC
       PGTZ: UTC
@@ -25,15 +24,14 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Runs ONCE, against an empty volume only. The same SQL is available as
-      # `pnpm db:bootstrap` for volumes that already exist.
+      # Runs ONCE, against an empty volume only: the instance's admin, nothing
+      # more. `pnpm db:bootstrap` does the rest, as that admin.
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
-      - ./packages/database/sql:/opt/patchgrid/sql:ro
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-patchgrid}",
+          "pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d postgres",
         ]
       interval: 5s
       timeout: 5s

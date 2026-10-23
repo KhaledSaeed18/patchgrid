@@ -39,7 +39,7 @@ const checks: Check[] = [
       if (appUrl === migrationUrl) {
         throw new Error(
           "DATABASE_URL equals DATABASE_MIGRATION_URL — the app would run as the migration role, " +
-            "which holds BYPASSRLS and ignores every tenant policy",
+            "which owns the tables and is therefore exempt from every tenant policy",
         )
       }
       return "the application never connects as the migration role"
@@ -50,7 +50,25 @@ const checks: Check[] = [
     run: async () => {
       await assertAppRoleCannotBypassRls(app)
       const [role] = await app.$queryRawUnsafe<{ current_user: string }[]>("SELECT current_user")
-      return `connected as ${role?.current_user ?? "?"}, no superuser, no BYPASSRLS`
+      return `connected as ${role?.current_user ?? "?"}: no superuser, no BYPASSRLS, no member of the owner`
+    },
+  },
+  {
+    name: "owner is one RDS could create",
+    run: async () => {
+      // ADR-0059: a managed Postgres withholds SUPERUSER and BYPASSRLS. An owner
+      // that holds either works here and nowhere else.
+      const [row] = await app.$queryRawUnsafe<{ rolsuper: boolean; rolbypassrls: boolean }[]>(
+        "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = 'patchgrid_owner'",
+      )
+      if (row === undefined) throw new Error("patchgrid_owner does not exist. Run: pnpm db:bootstrap")
+      if (row.rolsuper || row.rolbypassrls) {
+        throw new Error(
+          `patchgrid_owner holds ${row.rolsuper ? "SUPERUSER" : "BYPASSRLS"}, which no managed Postgres grants. ` +
+            "Ownership is its exemption (ADR-0059). Run: pnpm db:bootstrap",
+        )
+      }
+      return "exempt by ownership alone: no SUPERUSER, no BYPASSRLS"
     },
   },
   {

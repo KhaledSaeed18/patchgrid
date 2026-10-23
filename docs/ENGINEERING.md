@@ -215,8 +215,8 @@ Rules:
   migrated template: `CREATE DATABASE patchgrid_test_w<N> TEMPLATE patchgrid_test_template`. Instant, and
   fully isolated.
 - **The test harness connects as the owner role; the application under test connects as
-  `patchgrid_app`.** `TRUNCATE` requires ownership, and `FORCE ROW LEVEL SECURITY` means ownership alone
-  does not exempt the owner from policies — so both connection strings exist in tests too.
+  `patchgrid_app`.** `TRUNCATE` requires ownership, and ownership is what exempts the owner from the
+  tenant policies (ADR-0059) — so both connection strings exist in tests too.
 - **Shared enums are asserted at compile time.** A type-level test proves each Zod union and its Prisma
   enum are mutually assignable, so adding `KNOWN_ERROR` to one and forgetting the other fails
   `pnpm typecheck` — CI step 2, before any test runs.
@@ -259,7 +259,7 @@ takes, for when one needs doing on its own:
 cp .env.example .env            # ports are overridable; 5432 is often already taken
 pnpm install
 docker compose up -d            # postgres, redis, minio, mailpit
-pnpm db:bootstrap               # roles, grants, default privileges, extensions
+pnpm db:bootstrap               # roles, databases, grants, default privileges — as the admin
 pnpm db:generate                # Prisma client — the database package imports it
 pnpm db:doctor                  # asserts the above actually took effect
 pnpm db:migrate && pnpm db:seed # schema + RLS policies + two demo orgs
@@ -267,8 +267,8 @@ pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
 `db:doctor` is not decoration: it asserts that the app role holds neither `BYPASSRLS` nor `CREATE` on
-the schema, that `ALTER DEFAULT PRIVILEGES` is in place and that the session is
-UTC. Each is a way the isolation model fails *silently* if it drifts, and each is far cheaper to
+the schema nor membership in the owner, that the owner is a role RDS could create, that
+`ALTER DEFAULT PRIVILEGES` is in place and that the session is UTC. Each is a way the isolation model fails *silently* if it drifts, and each is far cheaper to
 learn about at setup time than from a confusing error three hours later.
 
 `db:reset` runs `prisma migrate reset` **then** `db:bootstrap` — in that order, because resetting drops
@@ -316,13 +316,23 @@ run their own OpenID provider in-process (`test/support/fake-idp.ts`).
 
 `pnpm db:reset` drops, re-migrates (including RLS policies) and re-seeds; run twice, it leaves the same data. `pnpm db:seed -- --reset` replaces only the two demo workspaces, and refuses when a demo person has since joined another one — that is a `db:reset`. The seed is the script that will reset the public demo nightly later.
 
-The database init script creates two roles: the migration owner (which **does** hold `BYPASSRLS`, so
-data migrations and the test harness can operate — `FORCE ROW LEVEL SECURITY` means ownership alone does
-not exempt it), and `patchgrid_app` (no `BYPASSRLS`, no table ownership) which the application uses.
-`DATABASE_URL` points at `patchgrid_app`; `DATABASE_MIGRATION_URL` at the owner. The config validator
-refuses to start if they are the same, and the API asserts at boot that its own role lacks `BYPASSRLS`.
+The roles are the ones a managed Postgres allows (ADR-0059), and no role holds `BYPASSRLS`:
 
-The same script issues the grants the app depends on — including the line people forget:
+| Role | Attributes | Made by | Does |
+| --- | --- | --- | --- |
+| `postgres` | superuser | the image | stands in for the cloud provider: makes the admin, nothing else |
+| `patchgrid_admin` | `CREATEROLE`, `CREATEDB` | the Compose init script (RDS: the provider) | runs `db:bootstrap`: the two roles below, their databases |
+| `patchgrid_owner` | none | `db:bootstrap` | owns the schema and every table, so is exempt from the policies; runs migrations, seeds and the test harness |
+| `patchgrid_app` | none | `db:bootstrap` | the application; bound by every policy, and no member of the owner |
+
+Tables are not forced, so ownership is the exemption, and acting as the owner would be too. The API
+asserts at boot that its role is no superuser, holds no `BYPASSRLS`, and is no member of the role that
+owns the tenant tables. `DATABASE_URL` points at `patchgrid_app`; `DATABASE_MIGRATION_URL` at the owner;
+the config validator refuses to start if they are the same. A volume made before ADR-0059 is adopted by
+running `db:bootstrap` once with `DATABASE_SUPERUSER_URL` set: the owner loses `BYPASSRLS` and the admin
+takes over the roles.
+
+The bootstrap, run as the owner, issues the grants the app depends on — including the line people forget:
 
 ```sql
 GRANT USAGE ON SCHEMA public TO patchgrid_app;
@@ -348,7 +358,7 @@ least-privilege permissions and a timeout.
 | Job | What it proves |
 | --- | --- |
 | **verify** | `turbo lint typecheck test build`. No services. Fails fastest, so it runs first |
-| **database** | Brings up a bare Postgres service container, runs `db:bootstrap`, then `db:doctor` — and runs both **twice**, because the bootstrap is the recovery path for an existing volume and "safe to run again" is a property, not a nicety |
+| **database** | Brings up a bare Postgres service container, runs `db:bootstrap`, then `db:doctor` — and runs both **twice**, the second time with no superuser at all: the bootstrap is the recovery path for an existing volume, "safe to run again" is a property, and needing nothing above `CREATEROLE` is what lets it run on RDS (ADR-0059) |
 | **smoke** | The whole Compose stack, the way a developer starts it, with the API booted against it and `/health/ready` asserted. This is what proves the README's three commands work on a machine that has never seen the project |
 | **schema** | Migration safety (no unannotated `DROP`), `migrate deploy` into a bare database, the five catalog assertions (`pnpm test:schema`), the tenant client extension against the live schema (`test:integration`), and `prisma migrate diff` proving the migrations reproduce `schema.prisma` exactly |
 | **security** | `gitleaks` over the full history — a secret that was committed and later "removed" is still in the repository — and `pnpm audit --audit-level=high` |

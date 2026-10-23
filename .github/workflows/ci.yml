@@ -42,7 +42,8 @@ jobs:
   # The two-role database setup, created in CI exactly as it is locally.
   #
   # `db:doctor` is the assertion that matters: the application role must hold
-  # neither BYPASSRLS nor CREATE, and ALTER DEFAULT PRIVILEGES must be in place
+  # neither BYPASSRLS nor CREATE nor membership in the owner, the owner must be
+  # one RDS could create (ADR-0059), and ALTER DEFAULT PRIVILEGES must be in place
   # so that tables a future migration adds are readable. Each is a way the
   # isolation model fails silently, which is precisely why it is a gate.
   # ───────────────────────────────────────────────────────────────────────────
@@ -56,19 +57,22 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: patchgrid
+          POSTGRES_DB: postgres
           TZ: UTC
           PGTZ: UTC
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U postgres -d patchgrid"
+          --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     env:
       # The service container starts bare; `db:bootstrap` does the rest, which
       # is the same path a developer with a pre-existing volume takes.
-      DATABASE_SUPERUSER_URL: postgresql://postgres:postgres@localhost:5432/patchgrid
+      # The service container is a bare instance: the first step of `db:bootstrap`
+      # makes its admin as the superuser, the provider's part on RDS (ADR-0059).
+      DATABASE_SUPERUSER_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DATABASE_ADMIN_URL: postgresql://patchgrid_admin:admin@localhost:5432/postgres
       DATABASE_URL: postgresql://patchgrid_app:app@localhost:5432/patchgrid?schema=public
       DATABASE_MIGRATION_URL: postgresql://patchgrid_owner:owner@localhost:5432/patchgrid?schema=public
       PATCHGRID_OWNER_PASSWORD: owner
@@ -83,10 +87,12 @@ jobs:
       - name: Assert the isolation invariants hold
         run: pnpm db:doctor
 
-      # Re-running must be a no-op. The bootstrap is the recovery path for an
-      # existing volume, so "safe to run twice" is a property, not a nicety.
-      - name: Bootstrap is idempotent
+      # Re-running must be a no-op, and must need nothing above the admin: this
+      # run has no superuser, which is all a managed Postgres would give it.
+      - name: Bootstrap is idempotent, as the admin alone
         run: pnpm db:bootstrap && pnpm db:doctor
+        env:
+          DATABASE_SUPERUSER_URL: ""
 
   # ───────────────────────────────────────────────────────────────────────────
   # The whole local stack, brought up the way a developer brings it up, with the
@@ -283,12 +289,12 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: patchgrid
+          POSTGRES_DB: postgres
           TZ: UTC
           PGTZ: UTC
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U postgres -d patchgrid"
+          --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -303,7 +309,10 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      DATABASE_SUPERUSER_URL: postgresql://postgres:postgres@localhost:5432/patchgrid
+      # The service container is a bare instance: the first step of `db:bootstrap`
+      # makes its admin as the superuser, the provider's part on RDS (ADR-0059).
+      DATABASE_SUPERUSER_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DATABASE_ADMIN_URL: postgresql://patchgrid_admin:admin@localhost:5432/postgres
       DATABASE_URL: postgresql://patchgrid_app:app@localhost:5432/patchgrid?schema=public
       DATABASE_MIGRATION_URL: postgresql://patchgrid_owner:owner@localhost:5432/patchgrid?schema=public
       REDIS_URL: redis://localhost:6379

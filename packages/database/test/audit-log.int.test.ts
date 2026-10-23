@@ -92,14 +92,14 @@ describe("audit-log partitions", () => {
     await expect(app.query(`CREATE TABLE "Probe_${suffix}" (id int)`)).rejects.toThrow(/permission denied/)
   })
 
-  it("the new partition carries forced RLS and exactly the template policy", async () => {
+  it("the new partition carries RLS, unforced like every table, and exactly the template policy", async () => {
     const { rows } = await owner.query<{ forced: boolean; enabled: boolean; policies: string }>(
       `SELECT c.relrowsecurity AS enabled, c.relforcerowsecurity AS forced,
               (SELECT count(*) FROM pg_policies p WHERE p.tablename = c.relname)::text AS policies
          FROM pg_class c WHERE c.relname = $1`,
       [PARTITION],
     )
-    expect(rows[0]).toEqual({ enabled: true, forced: true, policies: "1" })
+    expect(rows[0]).toEqual({ enabled: true, forced: false, policies: "1" })
   })
 
   it("a row lands in its month and is invisible to another tenant — through the parent or the partition", async () => {
@@ -145,7 +145,7 @@ describe("audit-log partitions", () => {
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = $1`,
       [EXPIRED],
     )
-    expect(rows).toEqual([{ schema: "audit_archive", forced: true, policies: "1", fks: "0" }])
+    expect(rows).toEqual([{ schema: "audit_archive", forced: false, policies: "1", fks: "0" }])
     await expect(app.query(`SELECT id FROM audit_archive."${EXPIRED}"`)).rejects.toThrow(/permission denied/)
     // Its rows went with it; the parent no longer answers for that month.
     expect(await asTenant(orgs.acme, `SELECT id FROM "AuditLog" WHERE "createdAt" < '2011-01-01'`)).toEqual([])

@@ -5,7 +5,7 @@
  *
  * Two organizations get a team with the SAME name, so a leak is visible rather
  * than plausible (TENANCY.md §10). Rows are seeded and removed through the
- * owner role, which holds BYPASSRLS.
+ * owner role, which owns the tables and so is exempt from their policies.
  */
 import { Logger } from "@nestjs/common"
 import { createPrismaClient, NoTenantContextError, type PrismaClient } from "@patchgrid/database"
