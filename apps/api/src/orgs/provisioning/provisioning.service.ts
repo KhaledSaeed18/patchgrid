@@ -17,8 +17,9 @@ import { runAsTenant } from "../../platform/run-as-tenant"
 import { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
 import { OrganizationProvisioningRepository } from "../repositories/organization-provisioning.repository"
 import { SlugRegistryRepository } from "../repositories/slug-registry.repository"
+import { STARTER_ARTICLES } from "./starter-articles"
 
-/** TENANCY.md §4. Starter knowledge-base articles join with the knowledge base. */
+/** TENANCY.md §4. */
 export const DEFAULT_TEAMS = ["IT Support", "Network", "Security"] as const
 
 /**
@@ -81,6 +82,7 @@ export class ProvisioningService {
         teams: DEFAULT_TEAMS,
         categories: DEFAULT_CATEGORIES,
         slaTargets: DEFAULT_SLA_TARGETS,
+        articles: STARTER_ARTICLES,
         now: this.clock.now(),
       }),
     )

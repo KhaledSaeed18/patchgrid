@@ -18,6 +18,8 @@ export type ProvisionInput = {
   slaTargets: Readonly<
     Record<Priority, { response: number; responseWarning: number; resolution: number; resolutionWarning: number }>
   >
+  /** Written as the owner's, under a top-level category named here or none. */
+  articles: readonly { slug: string; title: string; body: string; visibility: "PUBLISHED" | "INTERNAL"; category: string | null }[]
   now: Date
 }
 
@@ -29,8 +31,9 @@ export type ProvisionResult =
 /**
  * The provisioning transaction (TENANCY.md §4): the organization, its owner's
  * membership, the picker's projection row, the default teams, the starter
- * category tree routed to them, the eight SLA policies, and the seat counter
- * with the owner in it — or nothing.
+ * category tree routed to them, the eight SLA policies, the starter
+ * knowledge-base articles, and the counters with the owner and the articles
+ * in them — or nothing.
  *
  * Runs inside `runAsTenant(orgId)`, so the tenant-owned rows are written under
  * RLS exactly as any request would write them. Uniqueness is decided under a
@@ -82,6 +85,7 @@ export class OrganizationProvisioningRepository {
       const teamIds = new Map(
         (await tx.team.findMany({ where: { orgId: input.orgId }, select: { id: true, name: true } })).map((t) => [t.name, t.id]),
       )
+      const topLevel = new Map<string, string>()
       for (const [sortOrder, category] of input.categories.entries()) {
         const parent = await tx.category.create({
           data: {
@@ -93,6 +97,7 @@ export class OrganizationProvisioningRepository {
           },
           select: { id: true },
         })
+        topLevel.set(category.name, parent.id)
         await tx.category.createMany({
           data: category.children.map((name, i) => ({ orgId: input.orgId, name, depth: 2, parentId: parent.id, sortOrder: i })),
         })
@@ -110,8 +115,25 @@ export class OrganizationProvisioningRepository {
           })),
         ),
       })
-      // The owner is the first seat (TENANCY.md §8); the counter starts true.
-      await tx.usageCounter.create({ data: { orgId: input.orgId, period: "current", metric: "AGENT_SEATS", value: 1n } })
+      await tx.knowledgeArticle.createMany({
+        data: input.articles.map((article) => ({
+          orgId: input.orgId,
+          authorMembershipId: membership.id,
+          slug: article.slug,
+          title: article.title,
+          body: article.body,
+          visibility: article.visibility,
+          categoryId: article.category === null ? null : (topLevel.get(article.category) ?? null),
+          publishedAt: article.visibility === "PUBLISHED" ? input.now : null,
+        })),
+      })
+      // The owner is the first seat (TENANCY.md §8), and the starter articles the first articles; the counters start true.
+      await tx.usageCounter.createMany({
+        data: [
+          { orgId: input.orgId, period: "current", metric: "AGENT_SEATS", value: 1n },
+          { orgId: input.orgId, period: "current", metric: "KB_ARTICLES", value: BigInt(input.articles.length) },
+        ],
+      })
 
       return { outcome: "created", membershipId: membership.id }
     })

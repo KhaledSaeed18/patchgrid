@@ -73,6 +73,7 @@ beforeAll(async () => {
 afterAll(async () => {
   const orgIds = (await owner.organization.findMany({ where: { slug: { in: [slug, racedSlug, `former-${suffix}`] } }, select: { id: true } })).map((o) => o.id)
   await owner.sLAPolicy.deleteMany({ where: { orgId: { in: orgIds } } })
+  await owner.knowledgeArticle.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.category.deleteMany({ where: { orgId: { in: orgIds }, parentId: { not: null } } })
   await owner.category.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.team.deleteMany({ where: { orgId: { in: orgIds } } })
@@ -123,6 +124,13 @@ describe("workspace provisioning", () => {
     expect(network.defaultTeam?.name).toBe("Network")
     expect(network.children.map((c) => c.name).toSorted()).toEqual(["Other", "VPN", "Wi-Fi"])
     expect(await owner.sLAPolicy.count({ where: { orgId: org?.id ?? "" } })).toBe(8)
+    // The starter knowledge base, the owner's, counted against the plan from the start.
+    const articles = await owner.knowledgeArticle.findMany({ where: { orgId: org?.id ?? "" }, select: { slug: true, visibility: true, authorMembershipId: true, category: { select: { name: true } } } })
+    expect(articles.map((a) => a.slug).toSorted()).toEqual(["how-to-raise-a-ticket", "reporting-a-suspicious-email", "what-the-priorities-mean", "working-the-queue"])
+    expect(articles.every((a) => a.authorMembershipId === org?.memberships[0]?.id)).toBe(true)
+    expect(articles.find((a) => a.slug === "reporting-a-suspicious-email")?.category?.name).toBe("Security")
+    const kb = await owner.usageCounter.findUnique({ where: { orgId_period_metric: { orgId: org?.id ?? "", period: "current", metric: "KB_ARTICLES" } } })
+    expect(kb?.value).toBe(4n)
 
     // The session it opened works on the new tenant, as its owner.
     const access = cookies.find((c) => c.startsWith(`pg_at_${slug}=`))?.split(";")[0] ?? ""
