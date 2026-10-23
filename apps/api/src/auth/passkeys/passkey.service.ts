@@ -64,7 +64,7 @@ export class PasskeyService {
   async registrationOptions(userId: string, proof: HolderProof): Promise<PasskeyCreationCeremony> {
     const account = await this.users.findById(userId)
     if (account === null || account.anonymisedAt !== null) throw new NotAuthenticatedProblem()
-    await this.factors.proveHolder(userId, proof)
+    await this.factors.proveHolder(userId, proof, { recovery: false })
     return this.ceremonies.creationOptions(account, await this.passkeys.listForUser(userId))
   }
 
@@ -77,8 +77,9 @@ export class PasskeyService {
   async register(userId: string, request: PasskeyRegisterRequest): Promise<PasskeyRegistered> {
     const verified = await this.ceremonies.verifyRegistration(userId, request.challengeId, request.credential, request.label)
     if (verified === null) throw new ValidationProblem([{ path: "credential", message: "could not be verified", code: "invalid_passkey" }])
-    const fresh = (await this.mfa.methods(userId)).length === 0 ? newRecoveryCodes() : null
-    const hashes = fresh === null ? null : await Promise.all(fresh.map((c) => this.passwords.hash(normaliseRecoveryCode(c))))
+    // Always made: whether this is the first factor is decided under the person's lock, not here (M13 review).
+    const fresh = newRecoveryCodes()
+    const hashes = await Promise.all(fresh.map((c) => this.passwords.hash(normaliseRecoveryCode(c))))
     const added = await this.passkeys.add(userId, verified, hashes)
     if (added === null) throw new ConflictProblem("This passkey is already registered")
     const recoveryCodes = added.codesIssued ? fresh : null

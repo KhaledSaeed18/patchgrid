@@ -97,6 +97,9 @@ export class MfaRepository {
   /** Fresh recovery codes in place of whatever was left — used and unused alike. */
   async replaceRecoveryCodes(userId: string, recoveryHashes: readonly string[]): Promise<void> {
     await this.prisma.db.$transaction(async (tx) => {
+      // Under the person's lock, like every change to the factor set: never codes outliving the last factor.
+      await lockPerson(tx, userId)
+      if ((await tx.userPasskey.count({ where: { userId } })) === 0 && (await tx.userMfaFactor.count({ where: { userId, confirmedAt: { not: null } } })) === 0) return
       await tx.userMfaRecovery.deleteMany({ where: { userId } })
       await tx.userMfaRecovery.createMany({ data: recoveryHashes.map((codeHash) => ({ userId, codeHash })) })
     })

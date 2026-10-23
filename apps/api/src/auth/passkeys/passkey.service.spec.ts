@@ -26,7 +26,11 @@ function harness(options: { methods?: ("totp" | "passkey")[]; held?: PasskeyReco
   const account = options.account === undefined ? ada : options.account
   const passkeys = {
     listForUser: vi.fn(async () => held),
-    add: vi.fn(async (_u: string, _p: NewPasskey, hashes: readonly string[] | null): Promise<{ passkey: PasskeyRecord; codesIssued: boolean } | null> => ({ passkey: stored, codesIssued: hashes !== null })),
+    // As the real one decides under the person's lock: codes only with the first factor of any kind.
+    add: vi.fn(async (_u: string, _p: NewPasskey, hashes: readonly string[] | null): Promise<{ passkey: PasskeyRecord; codesIssued: boolean } | null> => ({
+      passkey: stored,
+      codesIssued: hashes !== null && (options.methods ?? []).length === 0,
+    })),
     rename: vi.fn(async (_u: string, id: string, label: string) => (held.some((p) => p.id === id) ? { ...stored, label } : null)),
     remove: vi.fn(async () => true),
   }
@@ -65,7 +69,8 @@ describe("PasskeyService.registrationOptions", () => {
     await expect(h.service.registrationOptions(ada.id, { password: "wrong" })).rejects.toBeInstanceOf(ValidationProblem)
     expect(h.ceremonies.creationOptions).not.toHaveBeenCalled()
     await h.service.registrationOptions(ada.id, { password: "correct" })
-    expect(h.factors.proveHolder).toHaveBeenLastCalledWith(ada.id, { password: "correct" })
+    // A recovery code would end the session the next request needs (M13 review).
+    expect(h.factors.proveHolder).toHaveBeenLastCalledWith(ada.id, { password: "correct" }, { recovery: false })
   })
 
   it("is refused to an erased account", async () => {
@@ -87,7 +92,7 @@ describe("PasskeyService.register", () => {
     const h = harness({ methods: ["totp"] })
     const result = await h.service.register(ada.id, register)
     expect(result.recoveryCodes).toBeNull()
-    expect(h.passkeys.add).toHaveBeenCalledWith(ada.id, verifiedKey, null)
+    expect(h.passkeys.add).toHaveBeenCalledWith(ada.id, verifiedKey, expect.any(Array))
     expect(h.notifier.tell).toHaveBeenCalledWith(ada.id, "passkey-added", 0)
   })
 
