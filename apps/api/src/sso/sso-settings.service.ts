@@ -16,7 +16,13 @@ import { RevocationEpochService } from "../auth/revocation/revocation-epoch.serv
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
-import { ConflictProblem, NotFoundProblem, ServiceUnavailableProblem, SsoMembersOutsideProblem, ValidationProblem } from "../common/problems/problem.exception"
+import {
+  ConflictProblem,
+  NotFoundProblem,
+  ServiceUnavailableProblem,
+  SsoMembersOutsideProblem,
+  ValidationProblem,
+} from "../common/problems/problem.exception"
 import { PublicUrls } from "../common/urls"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
 import { RefreshTokenRepository } from "../platform/repositories/refresh-token.repository"
@@ -74,7 +80,12 @@ export class SsoSettingsService {
       const current = await this.domains.find(orgId)
       if (current === null) throw new NotFoundProblem()
       // The same domain, still unproved and with no challenge (claimed at signup): issue the challenge it never got.
-      if (request.domain !== null && request.domain === current.domain && current.domainVerifiedAt === null && current.domainChallenge === null) {
+      if (
+        request.domain !== null &&
+        request.domain === current.domain &&
+        current.domainVerifiedAt === null &&
+        current.domainChallenge === null
+      ) {
         await this.domains.claim(orgId, request.domain, randomBytes(32).toString("base64url"))
         return
       }
@@ -111,7 +122,8 @@ export class SsoSettingsService {
       const current = await this.domains.find(orgId)
       if (current === null) throw new NotFoundProblem()
       if (request.enabled && current.domainVerifiedAt === null) throw new ConflictProblem("Prove the domain before letting its people join")
-      if (request.enabled && current.requireSso) throw new ConflictProblem("With single sign-on required, people join through the identity provider")
+      if (request.enabled && current.requireSso)
+        throw new ConflictProblem("With single sign-on required, people join through the identity provider")
       if (current.allowDomainJoin === request.enabled && current.defaultJoinRole === request.role) return
       await this.domains.setDomainJoin(orgId, request.enabled, request.role)
       await this.audit.record(orgId, [
@@ -119,7 +131,10 @@ export class SsoSettingsService {
           action: "ORG_DOMAIN_JOIN_CHANGED",
           entityType: "Organization",
           entityId: orgId,
-          diff: { enabled: { from: current.allowDomainJoin, to: request.enabled }, role: { from: current.defaultJoinRole, to: request.role } },
+          diff: {
+            enabled: { from: current.allowDomainJoin, to: request.enabled },
+            role: { from: current.defaultJoinRole, to: request.role },
+          },
         },
       ])
     })
@@ -148,7 +163,9 @@ export class SsoSettingsService {
       throw error
     }
     if (!records.includes(domainProofRecordValue(current.domainChallenge))) {
-      throw new ConflictProblem(`No TXT record at ${domainProofRecordName(current.domain)} carries this workspace's value yet; DNS can take a while`)
+      throw new ConflictProblem(
+        `No TXT record at ${domainProofRecordName(current.domain)} carries this workspace's value yet; DNS can take a while`,
+      )
     }
     const domain = current.domain
     const challenge = current.domainChallenge
@@ -184,7 +201,9 @@ export class SsoSettingsService {
     const sameClient = existing !== null && existing.issuer === request.issuer && existing.clientId === request.clientId
     const clientSecret = request.clientSecret ?? (sameClient ? this.secrets.open(existing.clientSecretSealed) : null)
     if (clientSecret === null) {
-      throw new ValidationProblem([{ path: "clientSecret", message: existing === null ? "is required" : "is required for a new issuer or client", code: "required" }])
+      throw new ValidationProblem([
+        { path: "clientSecret", message: existing === null ? "is required" : "is required for a new issuer or client", code: "required" },
+      ])
     }
     if (!request.enabled && org.requireSso) throw new ConflictProblem("Turn off the SSO requirement before disabling the connection")
 
@@ -203,7 +222,8 @@ export class SsoSettingsService {
       const { issuerChanged } = await this.connections.save(orgId, {
         issuer: request.issuer,
         clientId: request.clientId,
-        clientSecretSealed: request.clientSecret === undefined && existing !== null ? existing.clientSecretSealed : this.secrets.seal(clientSecret),
+        clientSecretSealed:
+          request.clientSecret === undefined && existing !== null ? existing.clientSecretSealed : this.secrets.seal(clientSecret),
         defaultRole: request.defaultRole,
         enabled: request.enabled,
       })
@@ -239,10 +259,14 @@ export class SsoSettingsService {
       if (org.requireSso === request.required) return org.slug
       if (request.required) {
         const connection = await this.connections.find(orgId)
-        if (org.domainVerifiedAt === null || org.domain === null) throw new ConflictProblem("Prove the workspace's domain before requiring SSO")
+        if (org.domainVerifiedAt === null || org.domain === null)
+          throw new ConflictProblem("Prove the workspace's domain before requiring SSO")
         if (connection?.enabled !== true) throw new ConflictProblem("Enable the SSO connection before requiring it")
         // Joining by domain would be a way in that is not the provider's.
-        if (org.allowDomainJoin) throw new ConflictProblem("Turn off joining by domain before requiring SSO: people at the domain join through the identity provider then")
+        if (org.allowDomainJoin)
+          throw new ConflictProblem(
+            "Turn off joining by domain before requiring SSO: people at the domain join through the identity provider then",
+          )
         // A soft block: say who would be shut out, and go ahead only when the owner confirms it.
         const outside = await this.memberships.countOffDomain(orgId, org.domain)
         if (outside > 0 && request.confirm !== true) {

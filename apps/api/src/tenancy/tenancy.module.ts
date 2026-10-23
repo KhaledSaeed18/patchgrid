@@ -37,8 +37,7 @@ import { TenantsController } from "./tenants.controller"
         generateId: true,
         // pino-http has already stamped `req.id`, so the CLS id and the log
         // lines agree. The fallback exists for a route the logger skips.
-        idGenerator: (req: IncomingMessage & { id?: unknown }) =>
-          typeof req.id === "string" && req.id !== "" ? req.id : randomUUID(),
+        idGenerator: (req: IncomingMessage & { id?: unknown }) => (typeof req.id === "string" && req.id !== "" ? req.id : randomUUID()),
       },
     }),
   ],

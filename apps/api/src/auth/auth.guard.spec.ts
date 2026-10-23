@@ -38,7 +38,15 @@ const config = {
   ACCESS_TOKEN_TTL_SECONDS: 900,
 } as AppConfig
 
-const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false, requireSso: false }
+const acme: OrganizationSummary = {
+  id: "0190b2f0-0000-7000-8000-00000000000a",
+  slug: "acme",
+  status: "ACTIVE",
+  plan: "FREE",
+  agentVisibility: "ALL_TICKETS",
+  requireMfa: false,
+  requireSso: false,
+}
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const USER = "0190b2f0-0000-7000-8000-000000000001"
 const MEM = "0190b2f0-0000-7000-8000-0000000000aa"
@@ -68,7 +76,10 @@ const memberships = { findById: vi.fn(async () => membership as MembershipRecord
 const epochs = { isRevoked: vi.fn(async (): Promise<boolean | null> => false) }
 const ADMIN = "0190b2f0-0000-7000-8000-0000000000ad"
 const platformAdmins = {
-  active: vi.fn(async (id: string) => (id === ADMIN ? { id: ADMIN, userId: USER, email: "dana@x.test", name: "Dana", grantedAt: new Date(0) } : null) as unknown),
+  active: vi.fn(
+    async (id: string) =>
+      (id === ADMIN ? { id: ADMIN, userId: USER, email: "dana@x.test", name: "Dana", grantedAt: new Date(0) } : null) as unknown,
+  ),
 }
 const SESSION = "0190b2f0-0000-7000-8000-0000000000cc"
 const liveSession = () => ({
@@ -200,7 +211,9 @@ const asAcme = async (token?: string) => ({
 
 describe("AuthGuard over HTTP", () => {
   it("turns a valid access cookie into a member actor with fresh team facts", async () => {
-    const response = await http().get("/probe").set(await asAcme())
+    const response = await http()
+      .get("/probe")
+      .set(await asAcme())
     expect(response.status).toBe(200)
     expect(response.body).toEqual({
       kind: "member",
@@ -217,15 +230,29 @@ describe("AuthGuard over HTTP", () => {
   it("refuses an unsigned cookie that resolution accepted, and an expired one", async () => {
     const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url")
     const forged = `${b64({ alg: "HS256" })}.${b64({ org: acme.id, sub: USER, mem: MEM })}.sig`
-    expect((await http().get("/probe").set(await asAcme(forged))).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asAcme(forged))
+      ).status,
+    ).toBe(401)
 
     const token = await signed()
     clock.advance(901_000)
-    expect((await http().get("/probe").set(await asAcme(token))).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asAcme(token))
+      ).status,
+    ).toBe(401)
   })
 
   it("refuses a token for another org under this cookie name", async () => {
-    const response = await http().get("/probe").set(await asAcme(await signed(globex.id)))
+    const response = await http()
+      .get("/probe")
+      .set(await asAcme(await signed(globex.id)))
     expect(response.status).toBe(403)
     expect(response.body.type).toContain("tenant-mismatch")
   })
@@ -244,17 +271,37 @@ describe("AuthGuard over HTTP", () => {
 
   it("refuses when the membership is gone, disabled, or belongs to someone else", async () => {
     memberships.findById.mockResolvedValueOnce(null)
-    expect((await http().get("/probe").set(await asAcme())).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asAcme())
+      ).status,
+    ).toBe(401)
     memberships.findById.mockResolvedValueOnce({ ...membership, status: "DISABLED" })
-    expect((await http().get("/probe").set(await asAcme())).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asAcme())
+      ).status,
+    ).toBe(401)
     memberships.findById.mockResolvedValueOnce({ ...membership, userId: "0190b2f0-0000-7000-8000-000000000002" })
-    expect((await http().get("/probe").set(await asAcme())).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asAcme())
+      ).status,
+    ).toBe(401)
   })
 
   it("requires X-Requested-With on cookie-borne mutations, even with a valid session", async () => {
     const headers = await asAcme()
     expect((await http().post("/probe").set(headers)).status).toBe(403)
-    const ok = await http().post("/probe").set({ ...headers, "X-Requested-With": "patchgrid" })
+    const ok = await http()
+      .post("/probe")
+      .set({ ...headers, "X-Requested-With": "patchgrid" })
     expect(ok.status).toBe(201)
     expect(ok.body).toEqual({ actor: MEM })
   })
@@ -286,13 +333,26 @@ describe("AuthGuard with an API token (ADR-0042)", () => {
   it("turns a verified token into its service account, inside the org its prefix names", async () => {
     const response = await http().get("/probe").set(bearer(GOOD_SECRET))
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ kind: "service", orgId: acme.id, membershipId: SERVICE, role: "AGENT", scopes: ["tickets:read"], tokenId: "tok-1" })
+    expect(response.body).toEqual({
+      kind: "service",
+      orgId: acme.id,
+      membershipId: SERVICE,
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      tokenId: "tok-1",
+    })
     expect(apiTokens.verify).toHaveBeenLastCalledWith(acme.id, TOKEN_PREFIX, GOOD_SECRET)
   })
 
   it("refuses a wrong secret and a malformed token, and never falls back to a cookie", async () => {
     const cookie = `pg_at_acme=${await signed()}`
-    expect((await http().get("/probe").set({ ...bearer("t".repeat(43)), Cookie: cookie })).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set({ ...bearer("t".repeat(43)), Cookie: cookie })
+      ).status,
+    ).toBe(401)
     expect((await http().get("/probe").set(bearer("short")).set("Cookie", cookie)).status).toBe(401)
     expect((await http().get("/probe").set(bearer(GOOD_SECRET, "nosuchprefix"))).status).toBe(401)
   })
@@ -303,24 +363,58 @@ describe("AuthGuard on platform routes (ADR-0040)", () => {
   const session = async () => (await platformTokens.session(USER, ADMIN)).token
 
   it("turns a platform session from the admin surface into a platform actor", async () => {
-    const response = await http().get("/probe/platform").set({ Origin: ADMIN_ORIGIN, Cookie: `pg_pa=${await session()}` })
+    const response = await http()
+      .get("/probe/platform")
+      .set({ Origin: ADMIN_ORIGIN, Cookie: `pg_pa=${await session()}` })
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ kind: "platform", platformAdminId: ADMIN, userId: USER })
     // A server, which sends no Origin, names the surface instead.
-    const server = await http().get("/probe/platform").set({ "X-Patchgrid-Surface": "admin", Cookie: `pg_pa=${await session()}` })
+    const server = await http()
+      .get("/probe/platform")
+      .set({ "X-Patchgrid-Surface": "admin", Cookie: `pg_pa=${await session()}` })
     expect(server.status).toBe(200)
   })
 
   it("refuses the platform session from any other surface, and a tenant's credential on a platform route", async () => {
-    expect((await http().get("/probe/platform").set({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_pa=${await session()}` })).status).toBe(403)
-    expect((await http().get("/probe/platform").set({ Origin: ADMIN_ORIGIN, Cookie: `pg_at_acme=${await signed()}` })).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe/platform")
+          .set({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_pa=${await session()}` })
+      ).status,
+    ).toBe(403)
+    expect(
+      (
+        await http()
+          .get("/probe/platform")
+          .set({ Origin: ADMIN_ORIGIN, Cookie: `pg_at_acme=${await signed()}` })
+      ).status,
+    ).toBe(401)
     // The surface header cannot override a browser's Origin.
-    expect((await http().get("/probe/platform").set({ Origin: "http://acme.lvh.me:3001", "X-Patchgrid-Surface": "admin", Cookie: `pg_pa=${await session()}` })).status).toBe(403)
+    expect(
+      (
+        await http()
+          .get("/probe/platform")
+          .set({ Origin: "http://acme.lvh.me:3001", "X-Patchgrid-Surface": "admin", Cookie: `pg_pa=${await session()}` })
+      ).status,
+    ).toBe(403)
   })
 
   it("never accepts a tenant access token as a platform session, nor the reverse", async () => {
-    expect((await http().get("/probe/platform").set({ Origin: ADMIN_ORIGIN, Cookie: `pg_pa=${await signed()}` })).status).toBe(401)
-    expect((await http().get("/probe").set({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_at_acme=${await session()}` })).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe/platform")
+          .set({ Origin: ADMIN_ORIGIN, Cookie: `pg_pa=${await signed()}` })
+      ).status,
+    ).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_at_acme=${await session()}` })
+      ).status,
+    ).toBe(401)
   })
 
   it("ends with the epoch, the hour, or the grant", async () => {
@@ -336,20 +430,36 @@ describe("AuthGuard on platform routes (ADR-0040)", () => {
 
 describe("AuthGuard with a support session (ADR-0041)", () => {
   const supportToken = (org = acme.id) =>
-    supportTokens.sign({ userId: USER, platformAdminId: ADMIN, sessionId: SESSION, orgId: org, expiresAt: Math.floor(Date.now() / 1000) + 3600 * 24 * 365 })
+    supportTokens.sign({
+      userId: USER,
+      platformAdminId: ADMIN,
+      sessionId: SESSION,
+      orgId: org,
+      expiresAt: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
+    })
   const asSupport = async (org?: string) => ({ Origin: "http://acme.lvh.me:3001", Cookie: `pg_st_acme=${await supportToken(org)}` })
 
   it("turns a live session into a read-only support actor, and tells the owners of its first read", async () => {
     supportSessions.markFirstUse.mockResolvedValueOnce(true)
-    const response = await http().get("/probe").set(await asSupport())
+    const response = await http()
+      .get("/probe")
+      .set(await asSupport())
     expect(response.status).toBe(200)
-    expect(response.body).toMatchObject({ kind: "support", sessionId: SESSION, platformAdminId: ADMIN, role: "ADMIN", membershipId: SESSION })
+    expect(response.body).toMatchObject({
+      kind: "support",
+      sessionId: SESSION,
+      platformAdminId: ADMIN,
+      role: "ADMIN",
+      membershipId: SESSION,
+    })
     expect(supportMail.tell).toHaveBeenCalledWith(acme.id, "first-use", expect.objectContaining({ id: SESSION }), expect.any(String))
   })
 
   it("refuses a write once the actor is known, so the refusal is on the record", async () => {
     readLog.watch.mockClear()
-    const write = await http().post("/probe").set({ ...(await asSupport()), "X-Requested-With": "patchgrid" })
+    const write = await http()
+      .post("/probe")
+      .set({ ...(await asSupport()), "X-Requested-With": "patchgrid" })
     expect(write.status).toBe(403)
     expect(readLog.watch).toHaveBeenCalledTimes(1)
   })
@@ -361,16 +471,52 @@ describe("AuthGuard with a support session (ADR-0041)", () => {
 
   it("refuses a session that ended, was declined, belongs to another operator or workspace, or was revoked", async () => {
     supportSessions.find.mockResolvedValueOnce({ ...liveSession(), endedAt: new Date("2026-10-05T11:30:00Z") })
-    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asSupport())
+      ).status,
+    ).toBe(401)
     supportSessions.find.mockResolvedValueOnce({ ...liveSession(), grantedAt: null, expiresAt: null, declinedAt: new Date() })
-    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asSupport())
+      ).status,
+    ).toBe(401)
     supportSessions.find.mockResolvedValueOnce({ ...liveSession(), platformAdminId: "0190b2f0-0000-7000-8000-0000000000ee" })
-    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
-    expect((await http().get("/probe").set(await asSupport(globex.id))).status).toBe(403)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asSupport())
+      ).status,
+    ).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asSupport(globex.id))
+      ).status,
+    ).toBe(403)
     epochs.isRevoked.mockResolvedValueOnce(true)
-    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asSupport())
+      ).status,
+    ).toBe(401)
     // Past its expiry before any sweep: already over.
     clock.advance(9 * 3_600_000)
-    expect((await http().get("/probe").set(await asSupport())).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/probe")
+          .set(await asSupport())
+      ).status,
+    ).toBe(401)
   })
 })

@@ -159,9 +159,15 @@ export class SsoSignInService {
       if (identity.authTime === null || identity.authTime < flow.startedAt - AUTH_TIME_SKEW_SECONDS) throw new SsoFailure("stale")
       // The browser's own person, signed in to this workspace or with Patchgrid credentials — never another's scope.
       if (current === null || (current.ssoOrgId !== null && current.ssoOrgId !== routed.org.id)) throw new SsoFailure("mismatch")
-      await this.provisioning.resolve(routed.org, routed.connection, person, { mayJoin: false, expectedUserId: current.userId, refuse: ["OWNER"] })
+      await this.provisioning.resolve(routed.org, routed.connection, person, {
+        mayJoin: false,
+        expectedUserId: current.userId,
+        refuse: ["OWNER"],
+      })
       // The proof came from the provider, so the pair is the provider's: scoped to this workspace.
-      const cookies = await this.policy(() => this.sessions.open(current.userId, routed.org.slug, client, { stepUpAt: this.clock.now(), ssoOrgId: routed.org.id }))
+      const cookies = await this.policy(() =>
+        this.sessions.open(current.userId, routed.org.slug, client, { stepUpAt: this.clock.now(), ssoOrgId: routed.org.id }),
+      )
       return { location: this.urls.workspace(routed.org.slug, flow.next ?? "/"), cookies }
     }
 
@@ -175,7 +181,8 @@ export class SsoSignInService {
     }
     const started = await this.sessions.startIdentity(account, client, routed.org.slug, routed.org.id)
     // The pair can be withheld (a suspended workspace): the picker says why.
-    const location = started.response.session === null ? this.urls.app("/workspaces") : this.urls.workspace(routed.org.slug, flow.next ?? "/")
+    const location =
+      started.response.session === null ? this.urls.app("/workspaces") : this.urls.workspace(routed.org.slug, flow.next ?? "/")
     return { location, cookies: started.cookies }
   }
 
@@ -230,7 +237,13 @@ export class SsoSignInService {
       this.logger.error({ msg: "sso client secret does not open", orgId: connection.orgId })
       throw new SsoFailure("unavailable")
     }
-    const target: OidcConnection = { id: connection.id, issuer: connection.issuer, clientId: connection.clientId, clientSecret, updatedAt: connection.updatedAt }
+    const target: OidcConnection = {
+      id: connection.id,
+      issuer: connection.issuer,
+      clientId: connection.clientId,
+      clientSecret,
+      updatedAt: connection.updatedAt,
+    }
     try {
       return await this.oidc.configuration(target)
     } catch {

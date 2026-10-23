@@ -12,16 +12,26 @@ import { StepUpService } from "./step-up.service"
 const NOW = new Date("2026-10-16T09:00:00Z")
 const nowSeconds = Math.floor(NOW.getTime() / 1000)
 const client = { userAgent: "vitest", ip: "127.0.0.1" }
-const ada: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "ada@acme.test", name: "Ada", passwordHash: "h:correct", emailVerifiedAt: new Date(0), anonymisedAt: null }
+const ada: AccountRecord = {
+  id: "0190b2f0-0000-7000-8000-000000000001",
+  email: "ada@acme.test",
+  name: "Ada",
+  passwordHash: "h:correct",
+  emailVerifiedAt: new Date(0),
+  anonymisedAt: null,
+}
 
 function harness() {
   const factors = {
     proveHolder: vi.fn(async (_u: string, proof: { password?: string }) => {
-      if (proof.password === "wrong") throw new ValidationProblem([{ path: "password", message: "does not match", code: "invalid_password" }])
+      if (proof.password === "wrong")
+        throw new ValidationProblem([{ path: "password", message: "does not match", code: "invalid_password" }])
       return "totp" as const
     }),
   }
-  const sessions = { open: vi.fn(async (_u: string, slug: string) => [{ name: `pg_at_${slug}`, value: "t", path: "/", maxAgeSeconds: 900 }]) }
+  const sessions = {
+    open: vi.fn(async (_u: string, slug: string) => [{ name: `pg_at_${slug}`, value: "t", path: "/", maxAgeSeconds: 900 }]),
+  }
   const service = new StepUpService(
     { findById: async () => ada } as unknown as UserRepository,
     factors as unknown as MemberMfaService,
@@ -31,7 +41,16 @@ function harness() {
   return { service, factors, sessions }
 }
 
-const member = (stepUpAt?: number): MemberActor => ({ kind: "member", userId: ada.id, orgId: "o-1", membershipId: "m-1", role: "OWNER", teamIds: [], leadOfTeamIds: [], ...(stepUpAt === undefined ? {} : { stepUpAt }) })
+const member = (stepUpAt?: number): MemberActor => ({
+  kind: "member",
+  userId: ada.id,
+  orgId: "o-1",
+  membershipId: "m-1",
+  role: "OWNER",
+  teamIds: [],
+  leadOfTeamIds: [],
+  ...(stepUpAt === undefined ? {} : { stepUpAt }),
+})
 
 describe("StepUpService.assert", () => {
   it("passes a member proved within the window and refuses one proved earlier, later, or never", () => {
@@ -46,7 +65,15 @@ describe("StepUpService.assert", () => {
   it("has no answer for a service account or a support session: neither can re-prove a person", () => {
     const { service } = harness()
     const token: TenantActor = { kind: "service", orgId: "o-1", membershipId: "m-svc", role: "ADMIN", scopes: [], tokenId: "t" }
-    const support: TenantActor = { kind: "support", orgId: "o-1", sessionId: "s", platformAdminId: "p", userId: "u", role: "ADMIN", membershipId: "s" }
+    const support: TenantActor = {
+      kind: "support",
+      orgId: "o-1",
+      sessionId: "s",
+      platformAdminId: "p",
+      userId: "u",
+      role: "ADMIN",
+      membershipId: "s",
+    }
     expect(() => service.assert(token)).toThrow(StepUpRequiredProblem)
     expect(() => service.assert(support)).toThrow(StepUpRequiredProblem)
   })
@@ -65,13 +92,17 @@ describe("StepUpService.prove", () => {
 
   it("sends an SSO session to its provider: the person's own factors are not the provider's to try", async () => {
     const h = harness()
-    await expect(h.service.prove({ userId: ada.id, ssoOrgId: "o-acme" }, { slug: "acme", code: "123456" }, client)).rejects.toBeInstanceOf(SsoSessionScopedProblem)
+    await expect(h.service.prove({ userId: ada.id, ssoOrgId: "o-acme" }, { slug: "acme", code: "123456" }, client)).rejects.toBeInstanceOf(
+      SsoSessionScopedProblem,
+    )
     expect(h.factors.proveHolder).not.toHaveBeenCalled()
   })
 
   it("opens nothing when the proof is refused", async () => {
     const h = harness()
-    await expect(h.service.prove({ userId: ada.id, ssoOrgId: null }, { slug: "acme", password: "wrong" }, client)).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(h.service.prove({ userId: ada.id, ssoOrgId: null }, { slug: "acme", password: "wrong" }, client)).rejects.toBeInstanceOf(
+      ValidationProblem,
+    )
     expect(h.sessions.open).not.toHaveBeenCalled()
   })
 })

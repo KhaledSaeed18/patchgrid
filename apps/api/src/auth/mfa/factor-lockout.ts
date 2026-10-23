@@ -31,7 +31,11 @@ export class FactorLockout {
   /** Counts a refused code; `true` when this one locked the factor. */
   async fail(userId: string): Promise<boolean> {
     const count = await this.guard(async () => {
-      const [[, n]] = (await this.redis.client.multi().incr(failures(userId)).expire(failures(userId), FACTOR_WINDOW_SECONDS, "NX").exec()) as [[null, number]]
+      const [[, n]] = (await this.redis.client
+        .multi()
+        .incr(failures(userId))
+        .expire(failures(userId), FACTOR_WINDOW_SECONDS, "NX")
+        .exec()) as [[null, number]]
       return n
     })
     if (count < FACTOR_FAILURES) return false

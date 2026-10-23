@@ -46,15 +46,27 @@ export class PlatformSupportService {
     const session = await runAsTenant(org.id, crossing(actor, "request support access"), async () => {
       const id = await this.prisma.transaction(async () => {
         const created = await this.sessions.request(org.id, actor.platformAdminId, reason)
-        await this.audit.record(org.id, [{ action: "SUPPORT_ACCESS_REQUESTED", entityType: "SupportSession", entityId: created, diff: { reason } }])
+        await this.audit.record(org.id, [
+          { action: "SUPPORT_ACCESS_REQUESTED", entityType: "SupportSession", entityId: created, diff: { reason } },
+        ])
         return created
       })
       const row = await this.sessions.find(org.id, id)
       if (row === null) throw new NotFoundProblem()
-      await this.mail.tell(org.id, "requested", { id, operatorName: row.platformAdmin.user.name }, `Their reason: “${reason}”. Nothing is readable until an owner grants it.`)
+      await this.mail.tell(
+        org.id,
+        "requested",
+        { id, operatorName: row.platformAdmin.user.name },
+        `Their reason: “${reason}”. Nothing is readable until an owner grants it.`,
+      )
       return toSupportSession(row, this.clock.now())
     })
-    await this.platformAudit.record({ platformAdminId: actor.platformAdminId, action: "PLATFORM_SUPPORT_REQUESTED", targetOrgId: org.id, diff: { sessionId: session.id } })
+    await this.platformAudit.record({
+      platformAdminId: actor.platformAdminId,
+      action: "PLATFORM_SUPPORT_REQUESTED",
+      targetOrgId: org.id,
+      diff: { sessionId: session.id },
+    })
     return session
   }
 
@@ -77,8 +89,19 @@ export class PlatformSupportService {
     if (row?.platformAdminId !== actor.platformAdminId) throw new NotFoundProblem()
     if (statusOf(row, now) !== "ACTIVE" || row.expiresAt === null) throw new ConflictProblem("This session is not running")
     const expiresAt = Math.min(Math.floor(row.expiresAt.getTime() / 1000), actor.sessionExpiresAt)
-    const token = await this.tokens.sign({ userId: actor.userId, platformAdminId: actor.platformAdminId, sessionId, orgId: org.id, expiresAt })
-    await this.platformAudit.record({ platformAdminId: actor.platformAdminId, action: "PLATFORM_SUPPORT_ENTERED", targetOrgId: org.id, diff: { sessionId } })
+    const token = await this.tokens.sign({
+      userId: actor.userId,
+      platformAdminId: actor.platformAdminId,
+      sessionId,
+      orgId: org.id,
+      expiresAt,
+    })
+    await this.platformAudit.record({
+      platformAdminId: actor.platformAdminId,
+      action: "PLATFORM_SUPPORT_ENTERED",
+      targetOrgId: org.id,
+      diff: { sessionId },
+    })
     return {
       slug: org.slug,
       token,

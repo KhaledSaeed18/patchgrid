@@ -28,7 +28,11 @@ export class OrganizationLifecycleRepository {
       where: { id: orgId, status: "ACTIVE" },
       data: { status: "PENDING_DELETION", deletionRequestedAt: at },
     })
-    if (count === 1) await this.prisma.db.userOrgIndex.updateMany({ where: { orgId }, data: { orgStatus: "PENDING_DELETION", orgDeletionRequestedAt: at } })
+    if (count === 1)
+      await this.prisma.db.userOrgIndex.updateMany({
+        where: { orgId },
+        data: { orgStatus: "PENDING_DELETION", orgDeletionRequestedAt: at },
+      })
     return count === 1
   }
 
@@ -38,7 +42,8 @@ export class OrganizationLifecycleRepository {
       where: { id: orgId, status: "PENDING_DELETION" },
       data: { status: "ACTIVE", deletionRequestedAt: null },
     })
-    if (count === 1) await this.prisma.db.userOrgIndex.updateMany({ where: { orgId }, data: { orgStatus: "ACTIVE", orgDeletionRequestedAt: null } })
+    if (count === 1)
+      await this.prisma.db.userOrgIndex.updateMany({ where: { orgId }, data: { orgStatus: "ACTIVE", orgDeletionRequestedAt: null } })
     return count === 1
   }
 

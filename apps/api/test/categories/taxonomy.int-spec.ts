@@ -29,7 +29,11 @@ beforeAll(async () => {
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
-  ws = await seedWorkspace(app, db, { prefix: "taxo", people: { admin: "ADMIN", agent: "AGENT", requester: "REQUESTER" }, teams: ["Repairs"] })
+  ws = await seedWorkspace(app, db, {
+    prefix: "taxo",
+    people: { admin: "ADMIN", agent: "AGENT", requester: "REQUESTER" },
+    teams: ["Repairs"],
+  })
   await db.sLAPolicy.create({
     data: {
       orgId: ws.orgId,

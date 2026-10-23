@@ -26,7 +26,12 @@ describe("MfaChallengeService", () => {
     const clock = new FixedClock(NOW)
     const challenges = new MfaChallengeService(config, clock)
     const access = new AccessTokenService(config, clock)
-    const { token } = await access.sign({ sub: USER, org: "0190b2f0-0000-7000-8000-00000000000a", mem: "0190b2f0-0000-7000-8000-00000000000b", role: "OWNER" })
+    const { token } = await access.sign({
+      sub: USER,
+      org: "0190b2f0-0000-7000-8000-00000000000a",
+      mem: "0190b2f0-0000-7000-8000-00000000000b",
+      role: "OWNER",
+    })
     expect(await challenges.verify(token)).toBeNull()
     expect(await access.verify(await challenges.issue(USER, "acme"))).toBeNull()
   })

@@ -143,11 +143,18 @@ export class PasskeyService {
   async login(request: PasskeyLoginRequest, client: ClientInfo): Promise<{ response: SignedInResponse; cookies: CookieSpec[] }> {
     const asserted = await this.ceremonies.verifyAssertion("login", request.challengeId, request.credential, null)
     const account = asserted === null ? null : await this.users.findById(asserted.userId)
-    if (account === null || account.anonymisedAt !== null || account.emailVerifiedAt === null) throw new NotAuthenticatedProblem("That passkey did not sign you in")
+    if (account === null || account.anonymisedAt !== null || account.emailVerifiedAt === null)
+      throw new NotAuthenticatedProblem("That passkey did not sign you in")
     return this.sessions.startIdentity(account, client, request.slug)
   }
 }
 
 function toWire(p: PasskeyRecord): Passkey {
-  return { id: p.id, label: p.label, createdAt: p.createdAt.toISOString(), lastUsedAt: p.lastUsedAt?.toISOString() ?? null, synced: p.backedUp }
+  return {
+    id: p.id,
+    label: p.label,
+    createdAt: p.createdAt.toISOString(),
+    lastUsedAt: p.lastUsedAt?.toISOString() ?? null,
+    synced: p.backedUp,
+  }
 }

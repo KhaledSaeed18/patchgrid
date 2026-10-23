@@ -22,25 +22,15 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
 
   constructor(private readonly redis: RedisService) {}
 
-  async increment(
-    key: string,
-    ttl: number,
-    limit: number,
-    blockDuration: number,
-    throttlerName: string,
-  ): Promise<StorageRecord> {
+  async increment(key: string, ttl: number, limit: number, blockDuration: number, throttlerName: string): Promise<StorageRecord> {
     const hits = `throttle:${throttlerName}:${key}`
     const block = `${hits}:block`
     try {
-      const result = (await this.redis.client.eval(
-        INCREMENT,
-        2,
-        hits,
-        block,
-        String(ttl),
-        String(limit),
-        String(blockDuration),
-      )) as [number, number, number]
+      const result = (await this.redis.client.eval(INCREMENT, 2, hits, block, String(ttl), String(limit), String(blockDuration))) as [
+        number,
+        number,
+        number,
+      ]
       const [totalHits, ttlMs, blockMs] = result
       return {
         totalHits,
@@ -49,9 +39,7 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
         timeToBlockExpire: Math.max(0, Math.ceil(blockMs / 1000)),
       }
     } catch (error) {
-      this.logger.warn(
-        `rate limiting unavailable, request allowed: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.logger.warn(`rate limiting unavailable, request allowed: ${error instanceof Error ? error.message : String(error)}`)
       return { totalHits: 0, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }
     }
   }

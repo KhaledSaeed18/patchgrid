@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { ActorService } from "../auth/actor"
 import { PermissionService } from "../authz/permission.service"
-import { ConflictProblem, InvalidTransitionProblem, NotFoundProblem, NotPermittedProblem, StaleWriteProblem, ValidationProblem } from "../common/problems/problem.exception"
+import {
+  ConflictProblem,
+  InvalidTransitionProblem,
+  NotFoundProblem,
+  NotPermittedProblem,
+  StaleWriteProblem,
+  ValidationProblem,
+} from "../common/problems/problem.exception"
 import type { RedisService } from "../redis/redis.service"
 import type { StreamBus } from "../notifications/live/stream-bus"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
@@ -50,7 +57,13 @@ const many = (n: number) => Array.from({ length: n }, (_, i) => ({ id: id(i + 1)
 describe("BulkTicketsService", () => {
   it("runs the single action per ticket, and reports each ticket's own answer", async () => {
     const h = harness("AGENT", (ticketId) =>
-      ticketId === id(2) ? new StaleWriteProblem() : ticketId === id(3) ? new NotFoundProblem() : ticketId === id(4) ? new InvalidTransitionProblem("CLOSED", "resolve") : null,
+      ticketId === id(2)
+        ? new StaleWriteProblem()
+        : ticketId === id(3)
+          ? new NotFoundProblem()
+          : ticketId === id(4)
+            ? new InvalidTransitionProblem("CLOSED", "resolve")
+            : null,
     )
     const result = await h.service.run({ operationId: OP, tickets: many(4), action: { kind: "transition", action: "resolve" } })
     expect(h.tickets.applyTransition).toHaveBeenCalledTimes(4)
@@ -60,7 +73,9 @@ describe("BulkTicketsService", () => {
   })
 
   it("never lets one ticket's refusal stop the others", async () => {
-    const h = harness("AGENT", (ticketId) => (ticketId === id(1) ? new NotPermittedProblem("no") : ticketId === id(2) ? new ConflictProblem("closed") : null))
+    const h = harness("AGENT", (ticketId) =>
+      ticketId === id(1) ? new NotPermittedProblem("no") : ticketId === id(2) ? new ConflictProblem("closed") : null,
+    )
     const result = await h.service.run({ operationId: OP, tickets: many(3), action: { kind: "assign", assigneeMembershipId: "m-2" } })
     expect(result.results.map((r) => r.outcome)).toEqual(["refused", "refused", "done"])
     expect(h.tickets.applyAssign).toHaveBeenLastCalledWith(id(3), { version: 1, assigneeMembershipId: "m-2" })
@@ -74,14 +89,19 @@ describe("BulkTicketsService", () => {
   })
 
   it("keeps the field's own reason when a ticket's action fails validation", async () => {
-    const h = harness("AGENT", () => new ValidationProblem([{ path: "comment", message: "A public reply is required to resolve", code: "comment_required" }]))
+    const h = harness(
+      "AGENT",
+      () => new ValidationProblem([{ path: "comment", message: "A public reply is required to resolve", code: "comment_required" }]),
+    )
     const result = await h.service.run({ operationId: OP, tickets: many(1), action: { kind: "transition", action: "resolve" } })
     expect(result.results[0]).toMatchObject({ outcome: "refused", detail: "A public reply is required to resolve" })
   })
 
   it("lets one member run one bulk action at a time, and frees the lease when it ends", async () => {
     const busy = harness("AGENT", () => null, true)
-    await expect(busy.service.run({ operationId: OP, tickets: many(1), action: { kind: "transition", action: "close" } })).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(
+      busy.service.run({ operationId: OP, tickets: many(1), action: { kind: "transition", action: "close" } }),
+    ).rejects.toBeInstanceOf(ConflictProblem)
     const h = harness("AGENT")
     await h.service.run({ operationId: OP, tickets: many(1), action: { kind: "transition", action: "close" } })
     expect(h.leases.size).toBe(0)
@@ -89,22 +109,30 @@ describe("BulkTicketsService", () => {
 
   it("checks an assignment once, before any ticket", async () => {
     const h = harness("AGENT")
-    h.tickets.checkAssignment.mockRejectedValueOnce(new ValidationProblem([{ path: "assigneeMembershipId", message: "is not an active agent", code: "x" }]))
-    await expect(h.service.run({ operationId: OP, tickets: many(3), action: { kind: "assign", assigneeMembershipId: "m-x" } })).rejects.toBeInstanceOf(ValidationProblem)
+    h.tickets.checkAssignment.mockRejectedValueOnce(
+      new ValidationProblem([{ path: "assigneeMembershipId", message: "is not an active agent", code: "x" }]),
+    )
+    await expect(
+      h.service.run({ operationId: OP, tickets: many(3), action: { kind: "assign", assigneeMembershipId: "m-x" } }),
+    ).rejects.toBeInstanceOf(ValidationProblem)
     expect(h.tickets.applyAssign).not.toHaveBeenCalled()
   })
 
   it("tells the acting member's stream every ten tickets and at the end", async () => {
     const h = harness("AGENT")
     await h.service.run({ operationId: OP, tickets: many(25), action: { kind: "transition", action: "close" } })
-    const processed = h.bus.publish.mock.calls.map((call) => (call as unknown as [string, { membershipId: string; event: { processed: number } }])[1])
+    const processed = h.bus.publish.mock.calls.map(
+      (call) => (call as unknown as [string, { membershipId: string; event: { processed: number } }])[1],
+    )
     expect(processed.map((m) => m.event.processed)).toEqual([10, 20, 25])
     expect(new Set(processed.map((m) => m.membershipId))).toEqual(new Set(["m-1"]))
   })
 
   it("is an agent's", async () => {
     const h = harness("REQUESTER")
-    await expect(h.service.run({ operationId: OP, tickets: many(1), action: { kind: "transition", action: "close" } })).rejects.toBeInstanceOf(NotPermittedProblem)
+    await expect(
+      h.service.run({ operationId: OP, tickets: many(1), action: { kind: "transition", action: "close" } }),
+    ).rejects.toBeInstanceOf(NotPermittedProblem)
     expect(h.tickets.applyTransition).not.toHaveBeenCalled()
   })
 })

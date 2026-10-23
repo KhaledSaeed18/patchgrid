@@ -42,7 +42,12 @@ export class InboundSweepService {
   async sweep(): Promise<{ failed: number; rawDeleted: number; rowsRemoved: number }> {
     const orgId = this.tenant.requireOrgId()
     const now = this.clock.now()
-    const failed = await this.inbound.failStuck(orgId, new Date(now.getTime() - CLAIM_ABANDONED_MS), new Date(now.getTime() - NEVER_CLAIMED_MS), now)
+    const failed = await this.inbound.failStuck(
+      orgId,
+      new Date(now.getTime() - CLAIM_ABANDONED_MS),
+      new Date(now.getTime() - NEVER_CLAIMED_MS),
+      now,
+    )
 
     let rawDeleted = 0
     for (let batch = 0; batch < MAX_BATCHES; batch += 1) {

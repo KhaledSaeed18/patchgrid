@@ -15,7 +15,10 @@ export class ProjectionSourceRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async people(orgId: string): Promise<ProjectionSource | null> {
-    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { slug: true, name: true, status: true, deletionRequestedAt: true } })
+    const org = await this.prisma.db.organization.findUnique({
+      where: { id: orgId },
+      select: { slug: true, name: true, status: true, deletionRequestedAt: true },
+    })
     if (org === null) return null
     const members = await this.prisma.db.membership.findMany({
       // An erased membership has no picker row to keep, ever (ADR-0044).

@@ -45,7 +45,13 @@ describe("the category tree", () => {
 describe("moving a category", () => {
   it("recomputes the depth of the whole subtree", () => {
     const plan = planMove("laptop", null, TREE)
-    expect(plan).toEqual({ ok: true, depths: new Map([["laptop", 1], ["screen", 2]]) })
+    expect(plan).toEqual({
+      ok: true,
+      depths: new Map([
+        ["laptop", 1],
+        ["screen", 2],
+      ]),
+    })
   })
 
   it("refuses a move past three levels, into itself, or under an inactive or unknown parent", () => {

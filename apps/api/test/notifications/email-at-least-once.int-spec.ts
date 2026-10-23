@@ -55,16 +55,28 @@ const drain = () => runAsTenant(ws.orgId, { actor: "test", reason: "drain notify
 
 it("rolls the inbox back with a refused email, and delivers both on the next drain", async () => {
   const as = (who: "requester" | "agent") => browser(app, ws.origin, ws.people[who].access)
-  const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Disk full", description: "x", impact: "LOW", urgency: "LOW" })
-  await as("agent").put(`/tickets/${String(created.body.id)}/assignment`, { version: created.body.version, assigneeMembershipId: ws.people.assignee.membershipId })
+  const created = await as("requester").post("/tickets", {
+    type: "INCIDENT",
+    title: "Disk full",
+    description: "x",
+    impact: "LOW",
+    urgency: "LOW",
+  })
+  await as("agent").put(`/tickets/${String(created.body.id)}/assignment`, {
+    version: created.body.version,
+    assigneeMembershipId: ws.people.assignee.membershipId,
+  })
 
   const mail = app.get(MailService)
   const queued: string[] = []
   const enqueueAll = mail.enqueueAll.bind(mail)
-  const spy = vi.spyOn(mail, "enqueueAll").mockRejectedValueOnce(new Error("redis refused")).mockImplementation(async (mails) => {
-    queued.push(...mails.map((m) => m.entityId))
-    await enqueueAll(mails)
-  })
+  const spy = vi
+    .spyOn(mail, "enqueueAll")
+    .mockRejectedValueOnce(new Error("redis refused"))
+    .mockImplementation(async (mails) => {
+      queued.push(...mails.map((m) => m.entityId))
+      await enqueueAll(mails)
+    })
 
   await expect(drain()).rejects.toBeInstanceOf(TransientFailure)
   const assignee = ws.people.assignee.membershipId

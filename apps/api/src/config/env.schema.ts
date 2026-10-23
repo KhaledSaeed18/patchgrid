@@ -17,9 +17,7 @@ export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-    LOG_LEVEL: z
-      .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
-      .default("info"),
+    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 
     /**
      * The registrable domain tenants live under — `patchgrid.xyz` in production,
@@ -114,21 +112,17 @@ export const envSchema = z
      * exactly 32 bytes, kept apart from the database, so a dump alone yields
      * no factors.
      */
-    MFA_ENCRYPTION_KEY: z
-      .string()
-      .refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
-        error: "MFA_ENCRYPTION_KEY must be base64 of exactly 32 bytes",
-      }),
+    MFA_ENCRYPTION_KEY: z.string().refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
+      error: "MFA_ENCRYPTION_KEY must be base64 of exactly 32 bytes",
+    }),
     /**
      * Seals webhook signing secrets at rest (ADR-0050). We sign with them, so
      * they cannot be hashed; base64 of exactly 32 bytes, kept apart from the
      * database like the MFA key, so a dump alone signs nothing.
      */
-    WEBHOOK_SECRETS_KEY: z
-      .string()
-      .refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
-        error: "WEBHOOK_SECRETS_KEY must be base64 of exactly 32 bytes",
-      }),
+    WEBHOOK_SECRETS_KEY: z.string().refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
+      error: "WEBHOOK_SECRETS_KEY must be base64 of exactly 32 bytes",
+    }),
     /**
      * Lets webhooks reach private and loopback addresses, over http — local
      * development only, where the receiver is on this machine. Refused in
@@ -143,11 +137,9 @@ export const envSchema = z
      * identity provider, so they cannot be hashed; base64 of exactly 32
      * bytes, kept apart from the database like the other two keys.
      */
-    SSO_SECRETS_KEY: z
-      .string()
-      .refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
-        error: "SSO_SECRETS_KEY must be base64 of exactly 32 bytes",
-      }),
+    SSO_SECRETS_KEY: z.string().refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
+      error: "SSO_SECRETS_KEY must be base64 of exactly 32 bytes",
+    }),
     /**
      * Lets an SSO issuer be a private or loopback address, over http — the
      * local Keycloak only. Refused in production (ADR-0054, SSRF).

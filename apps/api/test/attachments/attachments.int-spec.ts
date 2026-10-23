@@ -44,7 +44,13 @@ beforeAll(async () => {
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   ws = await seedWorkspace(app, db, { prefix: "files", people: { requester: "REQUESTER", agent: "AGENT" } })
-  const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Printer error", description: "x", impact: "LOW", urgency: "LOW" })
+  const created = await as("requester").post("/tickets", {
+    type: "INCIDENT",
+    title: "Printer error",
+    description: "x",
+    impact: "LOW",
+    urgency: "LOW",
+  })
   ticketId = created.body.id as string
   const note = await as("agent").post(`/tickets/${ticketId}/comments`, { body: "Driver logs attached", visibility: "INTERNAL" })
   internalNoteId = note.body.id as string
@@ -52,7 +58,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const keys = await db.attachment.findMany({ where: { orgId: ws.orgId }, select: { storageKey: true } })
-  for (const { storageKey } of keys) await app.get(StorageService).remove(storageKey).catch(() => undefined)
+  for (const { storageKey } of keys)
+    await app
+      .get(StorageService)
+      .remove(storageKey)
+      .catch(() => undefined)
   await db.attachment.deleteMany({ where: { orgId: ws.orgId } })
   await db.notification.deleteMany({ where: { orgId: ws.orgId } })
   await db.comment.deleteMany({ where: { orgId: ws.orgId } })
@@ -77,9 +87,17 @@ async function upload(who: Who, file: { name: string; type: string; bytes: Uint8
     ...(commentId === undefined ? {} : { commentId }),
   })
   expect(presigned.status, JSON.stringify(presigned.body)).toBe(201)
-  const put = await fetch(presigned.body.upload.url as string, { method: "PUT", headers: presigned.body.upload.headers as Record<string, string>, body: file.bytes })
+  const put = await fetch(presigned.body.upload.url as string, {
+    method: "PUT",
+    headers: presigned.body.upload.headers as Record<string, string>,
+    body: file.bytes,
+  })
   expect(put.status).toBe(200)
-  return { id: presigned.body.attachment.id as string, url: presigned.body.upload.url as string, completed: await as(who).post(`/attachments/${presigned.body.attachment.id as string}/complete`, {}) }
+  return {
+    id: presigned.body.attachment.id as string,
+    url: presigned.body.upload.url as string,
+    completed: await as(who).post(`/attachments/${presigned.body.attachment.id as string}/complete`, {}),
+  }
 }
 
 describe("attachments", () => {
@@ -105,7 +123,11 @@ describe("attachments", () => {
   })
 
   it("serves anything that is not a raster image as a download, never inline", async () => {
-    const { completed } = await upload("agent", { name: "notes.txt", type: "text/plain", bytes: new TextEncoder().encode("restarted the spooler\n") })
+    const { completed } = await upload("agent", {
+      name: "notes.txt",
+      type: "text/plain",
+      bytes: new TextEncoder().encode("restarted the spooler\n"),
+    })
     const link = await as("agent").get(`/attachments/${completed.body.id as string}/download`)
     expect(link.body.inline).toBe(false)
     const served = await fetch(link.body.url as string)
@@ -137,12 +159,18 @@ describe("attachments", () => {
   })
 
   it("keeps a file on an internal note from the requester, as a 404", async () => {
-    const { completed } = await upload("agent", { name: "driver.log", type: "text/plain", bytes: new TextEncoder().encode("spooler crash\n") }, internalNoteId)
+    const { completed } = await upload(
+      "agent",
+      { name: "driver.log", type: "text/plain", bytes: new TextEncoder().encode("spooler crash\n") },
+      internalNoteId,
+    )
     expect(completed.status).toBe(200)
     const theirs = await as("requester").get(`/tickets/${ticketId}/attachments`)
     expect(theirs.body.map((a: { filename: string }) => a.filename)).not.toContain("driver.log")
     expect((await as("requester").get(`/attachments/${completed.body.id as string}/download`)).status).toBe(404)
-    expect((await as("agent").get(`/tickets/${ticketId}/attachments`)).body.map((a: { filename: string }) => a.filename)).toContain("driver.log")
+    expect((await as("agent").get(`/tickets/${ticketId}/attachments`)).body.map((a: { filename: string }) => a.filename)).toContain(
+      "driver.log",
+    )
   })
 
   it("gives the quota back when a file is removed, and the sweep clears an upload never finished", async () => {
@@ -152,11 +180,18 @@ describe("attachments", () => {
     expect((await as("agent").delete(`/attachments/${notes?.id ?? ""}`)).status).toBe(204)
     expect(await storageUsed()).toBe(before - (notes?.sizeBytes ?? 0))
 
-    const abandoned = await as("requester").post("/attachments", { ticketId, filename: "never.pdf", mimeType: "application/pdf", sizeBytes: 1234 })
+    const abandoned = await as("requester").post("/attachments", {
+      ticketId,
+      filename: "never.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1234,
+    })
     expect(await storageUsed()).toBe(before - (notes?.sizeBytes ?? 0) + 1234)
     const pending = await db.attachment.findMany({ where: { orgId: ws.orgId, status: "PENDING" }, select: { sizeBytes: true } })
     clock.advance(61 * 60_000)
-    const swept = await app.get(AttachmentSweepProcessor).process({ id: "spec/sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
+    const swept = await app
+      .get(AttachmentSweepProcessor)
+      .process({ id: "spec/sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
     // This one, and the refused SVG kept above.
     expect(swept).toBe(pending.length)
     expect(swept).toBe(2)

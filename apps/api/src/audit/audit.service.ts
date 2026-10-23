@@ -7,7 +7,20 @@ import { AuditLogRepository, type AuditRow } from "./repositories/audit-log.repo
 
 export type AuditEntry = {
   action: AuditAction
-  entityType: "Membership" | "Invitation" | "Team" | "Organization" | "SLAPolicy" | "Ticket" | "Comment" | "Asset" | "KnowledgeArticle" | "SupportSession" | "ApiToken" | "WebhookEndpoint" | "EventDeadLetter"
+  entityType:
+    | "Membership"
+    | "Invitation"
+    | "Team"
+    | "Organization"
+    | "SLAPolicy"
+    | "Ticket"
+    | "Comment"
+    | "Asset"
+    | "KnowledgeArticle"
+    | "SupportSession"
+    | "ApiToken"
+    | "WebhookEndpoint"
+    | "EventDeadLetter"
   entityId: string
   /** `{ field: { from, to } }` for a change; context for an event. Never a secret. */
   diff?: Record<string, unknown>
@@ -44,7 +57,9 @@ export class AuditService {
     await this.repository.append(orgId, rows)
   }
 
-  private resolveActor(actor?: AuditActorOverride): Pick<AuditRow, "actorKind" | "actorMembershipId" | "actorPlatformAdminId" | "supportSessionId"> {
+  private resolveActor(
+    actor?: AuditActorOverride,
+  ): Pick<AuditRow, "actorKind" | "actorMembershipId" | "actorPlatformAdminId" | "supportSessionId"> {
     if (actor?.kind === "member") return { actorKind: "MEMBER", actorMembershipId: actor.membershipId }
     if (actor?.kind === "system") return { actorKind: "SYSTEM", actorMembershipId: null }
     const current = this.actors.current()
@@ -54,10 +69,16 @@ export class AuditService {
     if (current?.kind === "external") return { actorKind: "MEMBER", actorMembershipId: current.membershipId }
     // An operator reading inside a support session: named, with the session, in the tenant's own log (ADR-0041).
     if (current?.kind === "support") {
-      return { actorKind: "PLATFORM", actorMembershipId: null, actorPlatformAdminId: current.platformAdminId, supportSessionId: current.sessionId }
+      return {
+        actorKind: "PLATFORM",
+        actorMembershipId: null,
+        actorPlatformAdminId: current.platformAdminId,
+        supportSessionId: current.sessionId,
+      }
     }
     // An operator in the back-office: named in the tenant's own log, as RBAC.md §8 requires.
-    if (current?.kind === "platform") return { actorKind: "PLATFORM", actorMembershipId: null, actorPlatformAdminId: current.platformAdminId }
+    if (current?.kind === "platform")
+      return { actorKind: "PLATFORM", actorMembershipId: null, actorPlatformAdminId: current.platformAdminId }
     return { actorKind: "SYSTEM", actorMembershipId: null }
   }
 }

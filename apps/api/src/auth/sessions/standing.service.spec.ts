@@ -7,11 +7,31 @@ import type { RevocationEpochService } from "../revocation/revocation-epoch.serv
 import { StandingService } from "./standing.service"
 
 const ORG = "0190b2f0-0000-7000-8000-00000000000a"
-const actor: MemberActor = { kind: "member", userId: "u-1", orgId: ORG, membershipId: "m-1", role: "AGENT", teamIds: ["t-1"], leadOfTeamIds: [] }
+const actor: MemberActor = {
+  kind: "member",
+  userId: "u-1",
+  orgId: ORG,
+  membershipId: "m-1",
+  role: "AGENT",
+  teamIds: ["t-1"],
+  leadOfTeamIds: [],
+}
 
 function harness(revoked: boolean | null, membership: Partial<MembershipRecord> | null) {
   vi.spyOn(Logger.prototype, "log").mockImplementation(() => undefined)
-  const findById = vi.fn(async () => (membership === null ? null : ({ id: "m-1", userId: "u-1", status: "ACTIVE", role: "AGENT", teamIds: ["t-1"], leadOfTeamIds: [], ...membership } as MembershipRecord)))
+  const findById = vi.fn(async () =>
+    membership === null
+      ? null
+      : ({
+          id: "m-1",
+          userId: "u-1",
+          status: "ACTIVE",
+          role: "AGENT",
+          teamIds: ["t-1"],
+          leadOfTeamIds: [],
+          ...membership,
+        } as MembershipRecord),
+  )
   const service = new StandingService(
     { isRevoked: vi.fn(async () => revoked) } as unknown as RevocationEpochService,
     { findById } as unknown as MembershipRepository,

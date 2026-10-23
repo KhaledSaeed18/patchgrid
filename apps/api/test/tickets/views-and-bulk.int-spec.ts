@@ -26,11 +26,18 @@ let other: Workspace<"agent">
 beforeAll(async () => {
   process.env.WORKER_MODE = "api"
   owner = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(new RecordingMailProvider()).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(new RecordingMailProvider())
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
-  ws = await seedWorkspace(app, owner, { prefix: "bulk", people: { lead: "AGENT", agent: "AGENT", outsider: "AGENT", requester: "REQUESTER" }, teams: ["Network"] })
+  ws = await seedWorkspace(app, owner, {
+    prefix: "bulk",
+    people: { lead: "AGENT", agent: "AGENT", outsider: "AGENT", requester: "REQUESTER" },
+    teams: ["Network"],
+  })
   other = await seedWorkspace(app, owner, { prefix: "elsewhere", people: { agent: "AGENT" } })
   // Lead and agent are in Network; the outsider is in no team.
   await owner.teamMembership.createMany({
@@ -41,7 +48,11 @@ beforeAll(async () => {
   })
   // Team membership is read at sign-in: sign the two in again by reseeding their access.
   for (const who of ["lead", "agent"] as const) {
-    const login = await browser(app, "http://app.lvh.me:3001", "").post("/auth/login", { email: ws.people[who].email, password: "correct horse battery staple", slug: ws.slug })
+    const login = await browser(app, "http://app.lvh.me:3001", "").post("/auth/login", {
+      email: ws.people[who].email,
+      password: "correct horse battery staple",
+      slug: ws.slug,
+    })
     const cookies = ((login.headers["set-cookie"] as unknown as string[] | undefined) ?? []).map((c) => c.split(";")[0] ?? "")
     ws.people[who].access = cookies.find((c) => c.startsWith(`pg_at_${ws.slug}=`)) ?? ws.people[who].access
   }
@@ -75,7 +86,11 @@ describe("saved views", () => {
     await raise("Low one")
     const critical = await raise("Critical one", "HIGH")
 
-    const saved = await as("agent").post("/views", { name: "Critical open", query: { view: "open", priority: "CRITICAL" }, teamId: ws.teams.Network })
+    const saved = await as("agent").post("/views", {
+      name: "Critical open",
+      query: { view: "open", priority: "CRITICAL" },
+      teamId: ws.teams.Network,
+    })
     expect(saved.status).toBe(201)
     expect(saved.body).toMatchObject({ name: "Critical open", team: { name: "Network" }, removable: true })
 
@@ -108,7 +123,13 @@ describe("bulk actions", () => {
     // Someone else moved this one after the agent loaded it.
     const moved = await as("lead").put(`/tickets/${stale.id}/assignment`, { version: stale.version, teamId: ws.teams.Network })
     expect(moved.status).toBe(200)
-    const foreign = await browser(app, other.origin, other.people.agent.access).post("/tickets", { type: "INCIDENT", title: "Theirs", description: "x", impact: "LOW", urgency: "LOW" })
+    const foreign = await browser(app, other.origin, other.people.agent.access).post("/tickets", {
+      type: "INCIDENT",
+      title: "Theirs",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
 
     const stream = await openStream(app, ws.origin, ws.people.agent.access)
     const operationId = randomUUID()
@@ -127,7 +148,10 @@ describe("bulk actions", () => {
     stream.close()
 
     // Each change is the single action's: audited, versioned, assigned.
-    expect(await owner.ticket.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ assigneeMembershipId: ws.people.agent.membershipId, version: a.version + 1 })
+    expect(await owner.ticket.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({
+      assigneeMembershipId: ws.people.agent.membershipId,
+      version: a.version + 1,
+    })
     expect(await owner.auditLog.count({ where: { orgId: ws.orgId, entityId: { in: [a.id, b.id] }, action: "TICKET_ASSIGNED" } })).toBe(2)
     // The other workspace's ticket is untouched.
     expect(await owner.ticket.findUniqueOrThrow({ where: { id: foreign.body.id as string } })).toMatchObject({ assigneeMembershipId: null })
@@ -139,7 +163,11 @@ describe("bulk actions", () => {
     expect(started.status).toBe(200)
     const one = { id: raised.id, version: started.body.version as number }
     const done = await raise("Already cancelled")
-    const cancelled = await as("agent").post(`/tickets/${done.id}/transitions`, { action: "cancel", version: done.version, comment: { body: "Duplicate", visibility: "PUBLIC" } })
+    const cancelled = await as("agent").post(`/tickets/${done.id}/transitions`, {
+      action: "cancel",
+      version: done.version,
+      comment: { body: "Duplicate", visibility: "PUBLIC" },
+    })
     expect(cancelled.status).toBe(200)
     const result = await as("agent").post("/tickets/bulk", {
       operationId: randomUUID(),
@@ -157,16 +185,45 @@ describe("bulk actions", () => {
   it("leaves approving and rejecting changes to one decision at a time", async () => {
     const t = await raise("A change in disguise")
     for (const action of ["approve", "reject"]) {
-      expect((await as("agent").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t], action: { kind: "transition", action } })).status).toBe(400)
+      expect(
+        (await as("agent").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t], action: { kind: "transition", action } }))
+          .status,
+      ).toBe(400)
     }
   })
 
   it("is an agent's, and takes at most two hundred tickets, each once", async () => {
     const t = await raise("Requester's own")
-    expect((await as("requester").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t], action: { kind: "transition", action: "close" } })).status).toBe(403)
+    expect(
+      (
+        await as("requester").post("/tickets/bulk", {
+          operationId: randomUUID(),
+          tickets: [t],
+          action: { kind: "transition", action: "close" },
+        })
+      ).status,
+    ).toBe(403)
     const tooMany = Array.from({ length: 201 }, () => ({ id: randomUUID(), version: 1 }))
-    expect((await as("agent").post("/tickets/bulk", { operationId: randomUUID(), tickets: tooMany, action: { kind: "transition", action: "close" } })).status).toBe(400)
-    expect((await as("agent").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t, t], action: { kind: "transition", action: "close" } })).status).toBe(400)
-    expect((await as("agent").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t], action: { kind: "assign" } })).status).toBe(400)
+    expect(
+      (
+        await as("agent").post("/tickets/bulk", {
+          operationId: randomUUID(),
+          tickets: tooMany,
+          action: { kind: "transition", action: "close" },
+        })
+      ).status,
+    ).toBe(400)
+    expect(
+      (
+        await as("agent").post("/tickets/bulk", {
+          operationId: randomUUID(),
+          tickets: [t, t],
+          action: { kind: "transition", action: "close" },
+        })
+      ).status,
+    ).toBe(400)
+    expect((await as("agent").post("/tickets/bulk", { operationId: randomUUID(), tickets: [t], action: { kind: "assign" } })).status).toBe(
+      400,
+    )
   })
 })

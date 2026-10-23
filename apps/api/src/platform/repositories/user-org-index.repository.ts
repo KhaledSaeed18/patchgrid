@@ -86,11 +86,7 @@ export class UserOrgIndexRepository {
     })
   }
 
-  async mirror(
-    userId: string,
-    orgId: string,
-    change: { role?: Role; status?: MembershipStatus },
-  ): Promise<void> {
+  async mirror(userId: string, orgId: string, change: { role?: Role; status?: MembershipStatus }): Promise<void> {
     await this.prisma.db.userOrgIndex.updateMany({
       where: { userId, orgId },
       data: {
@@ -132,7 +128,10 @@ export class UserOrgIndexRepository {
 
   /** Rewrites drifted rows: out and back in, two statements however many there are. */
   async replaceForOrg(orgId: string, rows: readonly OrgIndexRow[]): Promise<void> {
-    await this.removeForOrg(orgId, rows.map((row) => row.userId))
+    await this.removeForOrg(
+      orgId,
+      rows.map((row) => row.userId),
+    )
     await this.createForOrg(orgId, rows)
   }
 

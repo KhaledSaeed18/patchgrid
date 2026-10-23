@@ -96,9 +96,13 @@ describe("the outbox is written with the change", () => {
     const orgId = await org()
     const other = await org()
     const outbox = app.get(Outbox)
-    await expect(runAsTenant(orgId, crossing, () => outbox.append(orgId, [{ type: "relay-spec", payload: {} }]))).rejects.toThrow(/inside the transaction/)
+    await expect(runAsTenant(orgId, crossing, () => outbox.append(orgId, [{ type: "relay-spec", payload: {} }]))).rejects.toThrow(
+      /inside the transaction/,
+    )
     await expect(
-      runAsTenant(orgId, crossing, () => app.get(PrismaService).transaction(() => outbox.append(other, [{ type: "relay-spec", payload: {} }]))),
+      runAsTenant(orgId, crossing, () =>
+        app.get(PrismaService).transaction(() => outbox.append(other, [{ type: "relay-spec", payload: {} }])),
+      ),
     ).rejects.toThrow(/inside the transaction/)
   })
 })

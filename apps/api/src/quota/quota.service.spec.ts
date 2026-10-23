@@ -33,14 +33,21 @@ function harness(plan: Plan, start: Partial<Record<string, bigint>> = {}) {
       return "applied" as const
     },
     read: async (_o: string, period: string, metric: UsageMetric) => values.get(key(period, metric)) ?? 0n,
-    list: async () => [...values].map(([k, value]) => {
-      const [metric, period] = k.split("@") as [UsageMetric, string]
-      return { metric, period, value }
-    }),
+    list: async () =>
+      [...values].map(([k, value]) => {
+        const [metric, period] = k.split("@") as [UsageMetric, string]
+        return { metric, period, value }
+      }),
   }
   const appended: { type: string; payload: Record<string, unknown> }[] = []
-  const outbox = { append: async (_o: string, events: { type: string; payload: Record<string, unknown> }[]) => void appended.push(...events) }
-  const service = new QuotaService(repo as unknown as UsageCounterRepository, outbox as unknown as Outbox, new FixedClock(new Date("2026-10-09T12:00:00Z")))
+  const outbox = {
+    append: async (_o: string, events: { type: string; payload: Record<string, unknown> }[]) => void appended.push(...events),
+  }
+  const service = new QuotaService(
+    repo as unknown as UsageCounterRepository,
+    outbox as unknown as Outbox,
+    new FixedClock(new Date("2026-10-09T12:00:00Z")),
+  )
   return { service, values, appended }
 }
 
@@ -62,7 +69,17 @@ describe("QuotaService", () => {
     expect(appended).toEqual([])
     await service.consume("o-1", "AGENT_SEATS")
     expect(appended).toEqual([
-      { type: "plan-limit-reached", payload: { kind: "plan-limit-reached", metric: "AGENT_SEATS", period: "current", plan: "FREE", limit: 3, message: "The FREE plan's agent seats are all in use" } },
+      {
+        type: "plan-limit-reached",
+        payload: {
+          kind: "plan-limit-reached",
+          metric: "AGENT_SEATS",
+          period: "current",
+          plan: "FREE",
+          limit: 3,
+          message: "The FREE plan's agent seats are all in use",
+        },
+      },
     ])
     await expect(service.consume("o-1", "AGENT_SEATS")).rejects.toBeInstanceOf(PlanLimitProblem)
     expect(appended).toHaveLength(1)
@@ -105,7 +122,12 @@ describe("QuotaService", () => {
     const usage = await harness("FREE", { "AGENT_SEATS@current": 2n }).service.usage("o-1")
     expect(usage.plan).toBe("FREE")
     expect(usage.metrics.find((m) => m.metric === "AGENT_SEATS")).toEqual({ metric: "AGENT_SEATS", period: "current", used: 2, limit: 3 })
-    expect(usage.metrics.find((m) => m.metric === "TICKETS_CREATED")).toEqual({ metric: "TICKETS_CREATED", period: "2026-10", used: 0, limit: 200 })
+    expect(usage.metrics.find((m) => m.metric === "TICKETS_CREATED")).toEqual({
+      metric: "TICKETS_CREATED",
+      period: "2026-10",
+      used: 0,
+      limit: 200,
+    })
   })
 })
 

@@ -3,7 +3,10 @@ import type { SupportSession, SupportSessionStatus } from "@patchgrid/contracts"
 import type { SupportSessionRow } from "./repositories/support-session.repository"
 
 /** A session's status is its timestamps (ADR-0041); an expiry not yet swept already counts. */
-export function statusOf(row: Pick<SupportSessionRow, "grantedAt" | "declinedAt" | "expiresAt" | "endedAt">, now: Date): SupportSessionStatus {
+export function statusOf(
+  row: Pick<SupportSessionRow, "grantedAt" | "declinedAt" | "expiresAt" | "endedAt">,
+  now: Date,
+): SupportSessionStatus {
   if (row.declinedAt !== null) return "DECLINED"
   if (row.grantedAt === null) return "REQUESTED"
   if (row.endedAt !== null || (row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime())) return "ENDED"

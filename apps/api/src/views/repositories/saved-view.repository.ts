@@ -48,7 +48,10 @@ export class SavedViewRepository {
   }
 
   /** `null` when the owner already has a view by that name. */
-  async create(orgId: string, data: { ownerMembershipId: string; teamId: string | null; name: string; query: object }): Promise<SavedViewRow | null> {
+  async create(
+    orgId: string,
+    data: { ownerMembershipId: string; teamId: string | null; name: string; query: object },
+  ): Promise<SavedViewRow | null> {
     try {
       return await this.prisma.db.savedView.create({ data: { orgId, ...data }, select: ROW })
     } catch (error) {

@@ -20,11 +20,7 @@ import { type Crossing, crossingLogger, requestContext } from "./crossing"
  * Importable only by `src/platform`, `src/auth`, `src/jobs` and
  * `src/orgs/provisioning`; the linter enforces it.
  */
-export async function runAsTenant<T>(
-  orgId: string,
-  crossing: Crossing,
-  fn: () => Promise<T>,
-): Promise<T> {
+export async function runAsTenant<T>(orgId: string, crossing: Crossing, fn: () => Promise<T>): Promise<T> {
   // A malformed id would reach `set_config` and make the policy's `::uuid`
   // cast raise on every query. Fail here, with a message that names the bug.
   const parsed = idSchema.safeParse(orgId)

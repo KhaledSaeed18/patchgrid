@@ -4,11 +4,23 @@ import { describe, expect, it } from "vitest"
 import { withoutInternalText } from "./ticket-audit.service"
 
 const entry = (diff: Record<string, unknown>): AuditEntry =>
-  ({ id: "a", action: "COMMENT_EDITED", entityType: "Ticket", entityId: "t", diff, actor: null, createdAt: "2026-10-15T12:00:00.000Z" }) as unknown as AuditEntry
+  ({
+    id: "a",
+    action: "COMMENT_EDITED",
+    entityType: "Ticket",
+    entityId: "t",
+    diff,
+    actor: null,
+    createdAt: "2026-10-15T12:00:00.000Z",
+  }) as unknown as AuditEntry
 
 describe("withoutInternalText", () => {
   it("strips an internal note's words and files, and an entry that never said it was public", () => {
-    expect(withoutInternalText(entry({ commentId: "c", previousBody: "secret", internal: true })).diff).toEqual({ commentId: "c", internal: true, redacted: true })
+    expect(withoutInternalText(entry({ commentId: "c", previousBody: "secret", internal: true })).diff).toEqual({
+      commentId: "c",
+      internal: true,
+      redacted: true,
+    })
     expect(withoutInternalText(entry({ attachmentId: "x", filename: "keys.txt" })).diff).toEqual({ attachmentId: "x", redacted: true })
   })
 

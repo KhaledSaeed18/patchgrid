@@ -62,7 +62,13 @@ export class OutboxRepository {
     })
     if (row === null) return { ...LOG_START, failingEventId: null, failures: 0, failedAt: null }
     // A cursor with a failure was last written by `recordFailure`: its `updatedAt` is when.
-    return { txn: row.cursorTxn, id: row.cursorEventId, failingEventId: row.failingEventId, failures: row.failures, failedAt: row.failures > 0 ? row.updatedAt : null }
+    return {
+      txn: row.cursorTxn,
+      id: row.cursorEventId,
+      failingEventId: row.failingEventId,
+      failures: row.failures,
+      failedAt: row.failures > 0 ? row.updatedAt : null,
+    }
   }
 
   /**
@@ -148,4 +154,3 @@ export class OutboxRepository {
     await this.advance(orgId, consumer, event)
   }
 }
-

@@ -12,9 +12,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.safeParse(source)
 
   if (!parsed.success) {
-    const problems = parsed.error.issues
-      .map((issue) => `  ${issue.path.join(".") || "(root)"}: ${issue.message}`)
-      .join("\n")
+    const problems = parsed.error.issues.map((issue) => `  ${issue.path.join(".") || "(root)"}: ${issue.message}`).join("\n")
     throw new Error(`Invalid environment configuration:\n${problems}`)
   }
 

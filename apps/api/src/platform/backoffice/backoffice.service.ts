@@ -63,7 +63,8 @@ export class BackofficeService {
     const last = page.at(-1)
     return {
       items: page.map((row) => toOrg(row, members.get(row.id) ?? 0)),
-      nextCursor: rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id }) : null,
+      nextCursor:
+        rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id }) : null,
     }
   }
 
@@ -71,7 +72,9 @@ export class BackofficeService {
     const actor = this.actors.requirePlatform()
     const row = await this.orgs.find(id)
     if (row === null) throw new NotFoundProblem()
-    const counts = await runAsTenant(row.id, crossing(actor, "back-office counts"), () => this.prisma.transaction(() => this.orgs.countsIn(row.id)))
+    const counts = await runAsTenant(row.id, crossing(actor, "back-office counts"), () =>
+      this.prisma.transaction(() => this.orgs.countsIn(row.id)),
+    )
     const members = await this.orgs.activeMembers([row.id])
     return { ...toOrg(row, members.get(row.id) ?? 0), domain: row.domain, counts }
   }
@@ -81,14 +84,23 @@ export class BackofficeService {
     const actor = this.actors.requirePlatform()
     const row = await this.orgs.find(id)
     if (row === null) throw new NotFoundProblem()
-    if (!(await this.orgs.moveStatus(id, "ACTIVE", "SUSPENDED"))) throw new ConflictProblem(`The workspace is ${row.status.toLowerCase().replace("_", " ")}, not active`)
+    if (!(await this.orgs.moveStatus(id, "ACTIVE", "SUSPENDED")))
+      throw new ConflictProblem(`The workspace is ${row.status.toLowerCase().replace("_", " ")}, not active`)
     await this.lookup.invalidate({ id: row.id, slug: row.slug })
     await runAsTenant(row.id, crossing(actor, "suspend"), async () => {
-      await this.prisma.transaction(() => this.audit.record(row.id, [{ action: "ORG_SUSPENDED", entityType: "Organization", entityId: row.id, diff: { reason } }]))
+      await this.prisma.transaction(() =>
+        this.audit.record(row.id, [{ action: "ORG_SUSPENDED", entityType: "Organization", entityId: row.id, diff: { reason } }]),
+      )
       // Every member's sessions and streams end now, not when their token next expires (TENANCY.md §6).
-      for (const membershipId of await this.prisma.transaction(() => this.orgs.membershipIdsIn(row.id))) await this.epochs.bump(membershipId)
+      for (const membershipId of await this.prisma.transaction(() => this.orgs.membershipIdsIn(row.id)))
+        await this.epochs.bump(membershipId)
     })
-    await this.platformAudit.record({ platformAdminId: actor.platformAdminId, action: "PLATFORM_ORG_SUSPENDED", targetOrgId: row.id, diff: { reason } })
+    await this.platformAudit.record({
+      platformAdminId: actor.platformAdminId,
+      action: "PLATFORM_ORG_SUSPENDED",
+      targetOrgId: row.id,
+      diff: { reason },
+    })
     return this.get(id)
   }
 
@@ -99,7 +111,9 @@ export class BackofficeService {
     if (!(await this.orgs.moveStatus(id, "SUSPENDED", "ACTIVE"))) throw new ConflictProblem("The workspace is not suspended")
     await this.lookup.invalidate({ id: row.id, slug: row.slug })
     await runAsTenant(row.id, crossing(actor, "unsuspend"), () =>
-      this.prisma.transaction(() => this.audit.record(row.id, [{ action: "ORG_UNSUSPENDED", entityType: "Organization", entityId: row.id }])),
+      this.prisma.transaction(() =>
+        this.audit.record(row.id, [{ action: "ORG_UNSUSPENDED", entityType: "Organization", entityId: row.id }]),
+      ),
     )
     await this.platformAudit.record({ platformAdminId: actor.platformAdminId, action: "PLATFORM_ORG_UNSUSPENDED", targetOrgId: row.id })
     return this.get(id)
@@ -119,15 +133,23 @@ export class BackofficeService {
       throw new ConflictProblem("This workspace's deletion window has closed")
     }
     // Its last owner may have erased their account meanwhile (ADR-0044): an ownerless workspace is not restored.
-    const owned = await runAsTenant(row.id, crossing(actor, "restore: check ownership"), () => this.prisma.transaction(() => this.orgs.hasActiveOwner(row.id)))
+    const owned = await runAsTenant(row.id, crossing(actor, "restore: check ownership"), () =>
+      this.prisma.transaction(() => this.orgs.hasActiveOwner(row.id)),
+    )
     if (!owned) throw new ConflictProblem("The workspace has no owner left to run it")
     if (!(await this.orgs.restoreDeletion(id))) throw new ConflictProblem("The workspace is not pending deletion")
     await this.lookup.invalidate({ id: row.id, slug: row.slug })
     await this.epochs.clear(orgEpochKey(row.id))
     await runAsTenant(row.id, crossing(actor, "restore"), () =>
-      this.prisma.transaction(() => this.audit.record(row.id, [{ action: "ORG_DELETION_CANCELLED", entityType: "Organization", entityId: row.id }])),
+      this.prisma.transaction(() =>
+        this.audit.record(row.id, [{ action: "ORG_DELETION_CANCELLED", entityType: "Organization", entityId: row.id }]),
+      ),
     )
-    await this.platformAudit.record({ platformAdminId: actor.platformAdminId, action: "PLATFORM_ORG_DELETION_RESTORED", targetOrgId: row.id })
+    await this.platformAudit.record({
+      platformAdminId: actor.platformAdminId,
+      action: "PLATFORM_ORG_DELETION_RESTORED",
+      targetOrgId: row.id,
+    })
     return this.get(id)
   }
 
@@ -141,9 +163,16 @@ export class BackofficeService {
       await this.lookup.invalidate({ id: row.id, slug: row.slug })
       const diff = { plan: { from: row.plan, to: plan } }
       await runAsTenant(row.id, crossing(actor, "set plan"), () =>
-        this.prisma.transaction(() => this.audit.record(row.id, [{ action: "ORG_PLAN_CHANGED", entityType: "Organization", entityId: row.id, diff }])),
+        this.prisma.transaction(() =>
+          this.audit.record(row.id, [{ action: "ORG_PLAN_CHANGED", entityType: "Organization", entityId: row.id, diff }]),
+        ),
       )
-      await this.platformAudit.record({ platformAdminId: actor.platformAdminId, action: "PLATFORM_ORG_PLAN_SET", targetOrgId: row.id, diff })
+      await this.platformAudit.record({
+        platformAdminId: actor.platformAdminId,
+        action: "PLATFORM_ORG_PLAN_SET",
+        targetOrgId: row.id,
+        diff,
+      })
     }
     return this.get(id)
   }
@@ -162,6 +191,7 @@ function toOrg(row: OrgRow, activeMembers: number): PlatformOrg {
     plan: row.plan,
     activeMembers,
     createdAt: row.createdAt.toISOString(),
-    purgeAt: row.status === "PENDING_DELETION" && row.deletionRequestedAt !== null ? purgeDateFor(row.deletionRequestedAt).toISOString() : null,
+    purgeAt:
+      row.status === "PENDING_DELETION" && row.deletionRequestedAt !== null ? purgeDateFor(row.deletionRequestedAt).toISOString() : null,
   }
 }

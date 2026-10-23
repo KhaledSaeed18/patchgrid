@@ -8,7 +8,16 @@ const PAGE = 500
 export type ExportPage = { rows: object[]; next: string | null }
 export type ExportReader = { file: string; read: (orgId: string, after: string | null) => Promise<ExportPage> }
 
-export type ExportAttachment = { id: string; ticketId: string; commentId: string | null; filename: string; mimeType: string | null; sizeBytes: number; storageKey: string; createdAt: Date }
+export type ExportAttachment = {
+  id: string
+  ticketId: string
+  commentId: string | null
+  filename: string
+  mimeType: string | null
+  sizeBytes: number
+  storageKey: string
+  createdAt: Date
+}
 
 /**
  * What an export reads (ADR-0044): every entity of one org, a page at a
@@ -32,7 +41,9 @@ export class ExportReaderRepository {
       // An erased member's address left with them (ADR-0028); the export does not bring it back.
       return rows.map(({ user, ...m }) => ({ ...m, email: m.anonymisedAt === null ? (user?.email ?? null) : null }))
     }),
-    this.byId("teams", (orgId, after) => this.prisma.db.team.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
+    this.byId("teams", (orgId, after) =>
+      this.prisma.db.team.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
     this.byKey(
       "team-memberships",
       (orgId, after) =>
@@ -46,11 +57,21 @@ export class ExportReaderRepository {
     this.byId("invitations", (orgId, after) =>
       this.prisma.db.invitation.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE, omit: { tokenHash: true } }),
     ),
-    this.byId("categories", (orgId, after) => this.prisma.db.category.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
-    this.byId("sla-policies", (orgId, after) => this.prisma.db.sLAPolicy.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
-    this.byId("tickets", (orgId, after) => this.prisma.db.ticket.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
-    this.byId("comments", (orgId, after) => this.prisma.db.comment.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
-    this.byId("ticket-links", (orgId, after) => this.prisma.db.ticketLink.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
+    this.byId("categories", (orgId, after) =>
+      this.prisma.db.category.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
+    this.byId("sla-policies", (orgId, after) =>
+      this.prisma.db.sLAPolicy.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
+    this.byId("tickets", (orgId, after) =>
+      this.prisma.db.ticket.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
+    this.byId("comments", (orgId, after) =>
+      this.prisma.db.comment.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
+    this.byId("ticket-links", (orgId, after) =>
+      this.prisma.db.ticketLink.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
     this.byKey(
       "ticket-watchers",
       (orgId, after) =>
@@ -64,17 +85,29 @@ export class ExportReaderRepository {
     this.byKey(
       "problem-details",
       (orgId, after) =>
-        this.prisma.db.problemDetails.findMany({ where: { orgId, ...(after === null ? {} : { ticketId: { gt: after } }) }, orderBy: { ticketId: "asc" }, take: PAGE }),
+        this.prisma.db.problemDetails.findMany({
+          where: { orgId, ...(after === null ? {} : { ticketId: { gt: after } }) },
+          orderBy: { ticketId: "asc" },
+          take: PAGE,
+        }),
       (r) => r.ticketId,
     ),
     this.byKey(
       "change-details",
       (orgId, after) =>
-        this.prisma.db.changeDetails.findMany({ where: { orgId, ...(after === null ? {} : { ticketId: { gt: after } }) }, orderBy: { ticketId: "asc" }, take: PAGE }),
+        this.prisma.db.changeDetails.findMany({
+          where: { orgId, ...(after === null ? {} : { ticketId: { gt: after } }) },
+          orderBy: { ticketId: "asc" },
+          take: PAGE,
+        }),
       (r) => r.ticketId,
     ),
-    this.byId("change-approvals", (orgId, after) => this.prisma.db.changeApproval.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
-    this.byId("assets", (orgId, after) => this.prisma.db.asset.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
+    this.byId("change-approvals", (orgId, after) =>
+      this.prisma.db.changeApproval.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
+    this.byId("assets", (orgId, after) =>
+      this.prisma.db.asset.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
     this.byKey(
       "ticket-assets",
       (orgId, after) =>
@@ -88,12 +121,18 @@ export class ExportReaderRepository {
     this.byId("knowledge-articles", (orgId, after) =>
       this.prisma.db.knowledgeArticle.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
     ),
-    this.byId("inbound-emails", (orgId, after) => this.prisma.db.inboundEmail.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
-    this.byId("audit-log", (orgId, after) => this.prisma.db.auditLog.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
+    this.byId("inbound-emails", (orgId, after) =>
+      this.prisma.db.inboundEmail.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
+    this.byId("audit-log", (orgId, after) =>
+      this.prisma.db.auditLog.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
     this.byId("api-tokens", (orgId, after) =>
       this.prisma.db.apiToken.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE, omit: { tokenHash: true } }),
     ),
-    this.byId("support-sessions", (orgId, after) => this.prisma.db.supportSession.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE })),
+    this.byId("support-sessions", (orgId, after) =>
+      this.prisma.db.supportSession.findMany({ where: { orgId, ...gt(after) }, orderBy: { id: "asc" }, take: PAGE }),
+    ),
   ]
 
   /** Uploaded files only — a pending upload was never part of the record. */
@@ -102,7 +141,16 @@ export class ExportReaderRepository {
       where: { orgId, status: "READY", ...gt(after) },
       orderBy: { id: "asc" },
       take: PAGE,
-      select: { id: true, ticketId: true, commentId: true, filename: true, mimeType: true, sizeBytes: true, storageKey: true, createdAt: true },
+      select: {
+        id: true,
+        ticketId: true,
+        commentId: true,
+        filename: true,
+        mimeType: true,
+        sizeBytes: true,
+        storageKey: true,
+        createdAt: true,
+      },
     })
   }
 
@@ -110,7 +158,11 @@ export class ExportReaderRepository {
     return this.byKey(file, read, (r) => r.id)
   }
 
-  private byKey<T extends object>(file: string, read: (orgId: string, after: string | null) => Promise<T[]>, keyOf: (row: T) => string): ExportReader {
+  private byKey<T extends object>(
+    file: string,
+    read: (orgId: string, after: string | null) => Promise<T[]>,
+    keyOf: (row: T) => string,
+  ): ExportReader {
     return {
       file,
       read: async (orgId, after) => {

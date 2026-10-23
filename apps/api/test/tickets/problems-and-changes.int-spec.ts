@@ -46,7 +46,9 @@ beforeAll(async () => {
     people: { requester: "REQUESTER", agent: "AGENT", lead: "AGENT", admin: "ADMIN" },
     teams: ["Network"],
   })
-  await db.teamMembership.create({ data: { orgId: ws.orgId, teamId: ws.teams.Network ?? "", membershipId: ws.people.lead.membershipId, isLead: true } })
+  await db.teamMembership.create({
+    data: { orgId: ws.orgId, teamId: ws.teams.Network ?? "", membershipId: ws.people.lead.membershipId, isLead: true },
+  })
   // The lead's token predates the team row; the auth guard reads team facts fresh on each request.
   solo = await seedWorkspace(app, db, { prefix: "solo", people: { owner: "OWNER" } })
   jobs = settler(app, [OUTBOX_DRAIN_QUEUE])
@@ -85,9 +87,16 @@ const edit = (who: Who, ticket: { id: string; version: number }, body: object) =
 describe("a problem", () => {
   it("is raised by an agent from incidents, which then read as caused by it", async () => {
     for (const title of ["VPN drops at 9", "VPN drops at 10"]) incidents.push((await raise("requester", { type: "INCIDENT", title })).id)
-    expect((await as("requester").post("/tickets", { type: "PROBLEM", title: "x", description: "x", impact: "LOW", urgency: "LOW" })).status).toBe(403)
+    expect(
+      (await as("requester").post("/tickets", { type: "PROBLEM", title: "x", description: "x", impact: "LOW", urgency: "LOW" })).status,
+    ).toBe(403)
     const created = await raise("agent", { type: "PROBLEM", title: "VPN concentrator leases", causedIncidentIds: incidents })
-    expect(created).toMatchObject({ status: "NEW", number: expect.stringMatching(/^PRB-\d{6}$/), problem: { rootCause: null, workaround: null }, change: null })
+    expect(created).toMatchObject({
+      status: "NEW",
+      number: expect.stringMatching(/^PRB-\d{6}$/),
+      problem: { rootCause: null, workaround: null },
+      change: null,
+    })
     problem = created
     const fromProblem = (await as("agent").get(`/tickets/${problem.id}/links`)).body as { kind: string }[]
     expect(fromProblem.map((l) => l.kind)).toEqual(["CAUSES", "CAUSES"])
@@ -130,7 +139,13 @@ describe("a change", () => {
     expect((await edit("agent", change, { change: { plannedStart: end, plannedEnd: start } })).status).toBe(400)
     const planned = await edit("agent", change, {
       teamId: undefined,
-      change: { plannedStart: start, plannedEnd: end, risk: "MEDIUM", implementationPlan: "Bump the setting, restart off-peak", rollbackPlan: "Revert the setting" },
+      change: {
+        plannedStart: start,
+        plannedEnd: end,
+        risk: "MEDIUM",
+        implementationPlan: "Bump the setting, restart off-peak",
+        rollbackPlan: "Revert the setting",
+      },
     })
     expect(planned.status).toBe(200)
     change = planned.body
@@ -155,7 +170,10 @@ describe("a change", () => {
 
   it("is rejected with a reason back to a draft, then resubmitted and approved by the lead", async () => {
     const rejected = await move("lead", change, "reject", { comment: { body: "Do it after the quarter close", visibility: "PUBLIC" } })
-    expect(rejected.body).toMatchObject({ status: "DRAFT", change: { approvals: [{ decision: "REJECTED", reason: "Do it after the quarter close" }] } })
+    expect(rejected.body).toMatchObject({
+      status: "DRAFT",
+      change: { approvals: [{ decision: "REJECTED", reason: "Do it after the quarter close" }] },
+    })
     change = rejected.body
     change = (await move("agent", change, "submit")).body
     const approved = await move("lead", change, "approve")
@@ -170,7 +188,12 @@ describe("a change", () => {
   it("asks before starting more than an hour early, then runs to implemented and closed", async () => {
     // Approving is not a claim on the work: only the assignee or an admin starts it.
     expect((await move("lead", change, "start", { confirm: true })).status).toBe(403)
-    change = (await as("admin").put(`/tickets/${change.id}/assignment`, { version: change.version, assigneeMembershipId: ws.people.agent.membershipId })).body
+    change = (
+      await as("admin").put(`/tickets/${change.id}/assignment`, {
+        version: change.version,
+        assigneeMembershipId: ws.people.agent.membershipId,
+      })
+    ).body
     const early = await move("agent", change, "start")
     expect(early.status).toBe(409)
     expect(early.body.type).toContain("change-window-early")
@@ -204,7 +227,9 @@ describe("links", () => {
     expect((await as("agent").post(`/tickets/${b}/links`, { kind: "DUPLICATE_OF", ticketId: a })).status).toBe(201)
     // `third` duplicates `b`, which is itself a duplicate: it lands on the survivor, `a`.
     const marked = await as("agent").post(`/tickets/${third}/links`, { kind: "DUPLICATE_OF", ticketId: b })
-    expect(marked.body).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "DUPLICATE_OF", ticket: expect.objectContaining({ id: a }) })]))
+    expect(marked.body).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "DUPLICATE_OF", ticket: expect.objectContaining({ id: a }) })]),
+    )
     const fromA = (await as("agent").get(`/tickets/${a}/links`)).body as { id: string; kind: string }[]
     const dup = fromA.find((l) => l.kind === "HAS_DUPLICATE")
     expect(dup).toBeDefined()

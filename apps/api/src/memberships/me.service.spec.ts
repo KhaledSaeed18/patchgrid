@@ -33,17 +33,41 @@ function serviceFor(actor: Actor, member: MemberRow | null = row) {
     new PermissionService(),
     { requireTenantActor: () => actor } as unknown as ActorService,
     { organization: () => tenant } as unknown as TenantContextService,
-    { stateFor: async (a: Actor) => (a.kind === "support" ? { kind: "operator", sessionId: "s-1", operatorName: "Olga", expiresAt: "2026-10-16T00:00:00.000Z" } : null) } as unknown as SupportService,
+    {
+      stateFor: async (a: Actor) =>
+        a.kind === "support" ? { kind: "operator", sessionId: "s-1", operatorName: "Olga", expiresAt: "2026-10-16T00:00:00.000Z" } : null,
+    } as unknown as SupportService,
   )
 }
 
-const agent: Actor = { kind: "member", userId: "u-1", orgId: "o-1", membershipId: "m-1", role: "AGENT", teamIds: ["t-1"], leadOfTeamIds: ["t-1"] }
+const agent: Actor = {
+  kind: "member",
+  userId: "u-1",
+  orgId: "o-1",
+  membershipId: "m-1",
+  role: "AGENT",
+  teamIds: ["t-1"],
+  leadOfTeamIds: ["t-1"],
+}
 
 describe("MeService", () => {
   it("names an operator in a support session as support, with reads only and nothing to create", async () => {
-    const support: Actor = { kind: "support", orgId: "o-1", sessionId: "s-1", platformAdminId: "pa-1", userId: "u-9", role: "ADMIN", membershipId: "s-1" }
+    const support: Actor = {
+      kind: "support",
+      orgId: "o-1",
+      sessionId: "s-1",
+      platformAdminId: "pa-1",
+      userId: "u-9",
+      role: "ADMIN",
+      membershipId: "s-1",
+    }
     const me = await serviceFor(support, null).me()
-    expect(me).toMatchObject({ user: null, membership: { role: "ADMIN", displayName: "Patchgrid support · Olga" }, creatableTypes: [], support: { kind: "operator" } })
+    expect(me).toMatchObject({
+      user: null,
+      membership: { role: "ADMIN", displayName: "Patchgrid support · Olga" },
+      creatableTypes: [],
+      support: { kind: "operator" },
+    })
     expect(me.permissions).toContain("comment:read_internal")
     expect(me.permissions.some((p) => /:(create|update|write|delete|assign)/.test(p))).toBe(false)
   })
@@ -66,7 +90,14 @@ describe("MeService", () => {
   })
 
   it("has no user for a service account, and only its scoped permissions", async () => {
-    const me = await serviceFor({ kind: "service", orgId: "o-1", membershipId: "m-1", role: "AGENT", scopes: ["tickets:read"], tokenId: "tok-1" }).me()
+    const me = await serviceFor({
+      kind: "service",
+      orgId: "o-1",
+      membershipId: "m-1",
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      tokenId: "tok-1",
+    }).me()
     expect(me.user).toBeNull()
     expect(me.permissions.toSorted()).toEqual(["attachment:download", "category:read", "ticket:read", "ticket:read_audit"])
   })

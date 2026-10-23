@@ -115,7 +115,10 @@ export class CookieService {
     }
     const gone = new Set(cookies.flatMap((cookie) => slugOf(cookie.name, ACCESS_COOKIE_PREFIX)))
     if (gone.size === 0) return
-    this.remember(response, this.recent(response).filter((slug) => !gone.has(slug)))
+    this.remember(
+      response,
+      this.recent(response).filter((slug) => !gone.has(slug)),
+    )
   }
 
   /**

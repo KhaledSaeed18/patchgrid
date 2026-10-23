@@ -49,27 +49,18 @@ describe("locateCredential — cookie", () => {
   })
 
   it("picks the cookie named by X-Patchgrid-Tenant when Origin is absent", () => {
-    const located = locateCredential(
-      { cookie: `pg_at_acme=${jwt(ORG)}`, "x-patchgrid-tenant": " Acme " },
-      policy,
-    )
+    const located = locateCredential({ cookie: `pg_at_acme=${jwt(ORG)}`, "x-patchgrid-tenant": " Acme " }, policy)
     expect(located.credential).toEqual({ kind: "cookie", slug: "acme", orgId: ORG })
     expect(located.assertion).toEqual({ origin: { kind: "absent" }, header: "acme" })
   })
 
   it("reports an unreadable claim as a cookie with no org", () => {
-    const located = locateCredential(
-      { cookie: "pg_at_acme=garbage", origin: "http://acme.lvh.me:3001" },
-      policy,
-    )
+    const located = locateCredential({ cookie: "pg_at_acme=garbage", origin: "http://acme.lvh.me:3001" }, policy)
     expect(located.credential).toEqual({ kind: "cookie", slug: "acme", orgId: null })
   })
 
   it("never falls back to another tenant's cookie", () => {
-    const located = locateCredential(
-      { cookie: `pg_at_globex=${jwt(ORG)}`, origin: "http://acme.lvh.me:3001" },
-      policy,
-    )
+    const located = locateCredential({ cookie: `pg_at_globex=${jwt(ORG)}`, origin: "http://acme.lvh.me:3001" }, policy)
     expect(located.credential).toEqual({ kind: "none" })
   })
 

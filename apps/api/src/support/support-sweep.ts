@@ -41,7 +41,9 @@ export class SupportSweepService {
     for (const session of await this.sessions.expiredRunning(orgId, now)) {
       const done = await this.prisma.transaction(async () => {
         if (!(await this.sessions.end(orgId, session.id, "EXPIRED", now))) return false
-        await this.audit.record(orgId, [{ action: "SUPPORT_ACCESS_EXPIRED", entityType: "SupportSession", entityId: session.id }], { kind: "system" })
+        await this.audit.record(orgId, [{ action: "SUPPORT_ACCESS_EXPIRED", entityType: "SupportSession", entityId: session.id }], {
+          kind: "system",
+        })
         return true
       })
       if (!done) continue

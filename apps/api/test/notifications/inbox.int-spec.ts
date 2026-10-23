@@ -62,9 +62,18 @@ async function inbox(who: "requester" | "agent" | "watcher"): Promise<Inbox> {
 
 describe("the inbox", () => {
   it("tells a member who was made to watch, and the assignee who was assigned", async () => {
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Scanner jams", description: "x", impact: "LOW", urgency: "LOW" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "Scanner jams",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
     ticketId = created.body.id as string
-    const assigned = await as("agent").put(`/tickets/${ticketId}/assignment`, { version: created.body.version, assigneeMembershipId: ws.people.watcher.membershipId })
+    const assigned = await as("agent").put(`/tickets/${ticketId}/assignment`, {
+      version: created.body.version,
+      assigneeMembershipId: ws.people.watcher.membershipId,
+    })
     expect(assigned.status).toBe(200)
     await as("agent").put(`/tickets/${ticketId}/watchers/${ws.people.agent.membershipId}`, {})
     const watcherInbox = await inbox("watcher")

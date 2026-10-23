@@ -81,13 +81,17 @@ describe("the attachments origin (ADR-0037)", () => {
   it("keeps webhooks off private networks unless told, and never in production (ADR-0050)", () => {
     expect(envSchema.parse(valid).WEBHOOK_ALLOW_PRIVATE_TARGETS).toBe(false)
     expect(envSchema.parse({ ...valid, WEBHOOK_ALLOW_PRIVATE_TARGETS: "true" }).WEBHOOK_ALLOW_PRIVATE_TARGETS).toBe(true)
-    expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "", WEBHOOK_ALLOW_PRIVATE_TARGETS: "true" })).toContain("WEBHOOK_ALLOW_PRIVATE_TARGETS")
+    expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "", WEBHOOK_ALLOW_PRIVATE_TARGETS: "true" })).toContain(
+      "WEBHOOK_ALLOW_PRIVATE_TARGETS",
+    )
     expect(issues({ WEBHOOK_SECRETS_KEY: "too-short" })).toContain("WEBHOOK_SECRETS_KEY")
   })
 
   it("keeps sso issuers off private networks unless told, and never in production (ADR-0054)", () => {
     expect(envSchema.parse(valid).SSO_ALLOW_PRIVATE_ISSUERS).toBe(false)
-    expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "", SSO_ALLOW_PRIVATE_ISSUERS: "true" })).toContain("SSO_ALLOW_PRIVATE_ISSUERS")
+    expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "", SSO_ALLOW_PRIVATE_ISSUERS: "true" })).toContain(
+      "SSO_ALLOW_PRIVATE_ISSUERS",
+    )
     expect(issues({ SSO_SECRETS_KEY: "too-short" })).toContain("SSO_SECRETS_KEY")
     expect(envSchema.parse({ ...valid, DNS_RESOLVERS: "127.0.0.1:5354, 10.0.0.2" }).DNS_RESOLVERS).toEqual(["127.0.0.1:5354", "10.0.0.2"])
   })

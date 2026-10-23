@@ -14,11 +14,17 @@ describe("links, stored once and read from both ends (DOMAIN.md §1)", () => {
     expect(canonicalLink("CAUSED_BY", inc, prb)).toEqual(canonicalLink("CAUSES", prb, inc))
     expect(canonicalLink("RESOLVED_BY", prb, chg)).toEqual(canonicalLink("RESOLVES", chg, prb))
     expect(canonicalLink("DUPLICATE_OF", inc, inc2)).toEqual(canonicalLink("HAS_DUPLICATE", inc2, inc))
-    expect(canonicalLink("CAUSED_BY", inc, prb)).toEqual({ ok: true, link: { fromTicketId: inc.id, toTicketId: prb.id, relation: "CAUSED_BY" } })
+    expect(canonicalLink("CAUSED_BY", inc, prb)).toEqual({
+      ok: true,
+      link: { fromTicketId: inc.id, toTicketId: prb.id, relation: "CAUSED_BY" },
+    })
   })
 
   it("normalises RELATES_TO lower id first, whichever end asks", () => {
-    expect(canonicalLink("RELATES_TO", inc, inc2)).toEqual({ ok: true, link: { fromTicketId: "a-incident", toTicketId: "b-incident", relation: "RELATES_TO" } })
+    expect(canonicalLink("RELATES_TO", inc, inc2)).toEqual({
+      ok: true,
+      link: { fromTicketId: "a-incident", toTicketId: "b-incident", relation: "RELATES_TO" },
+    })
     expect(canonicalLink("RELATES_TO", inc2, inc)).toEqual(canonicalLink("RELATES_TO", inc, inc2))
     expect(canonicalLink("RELATES_TO", chg, sr)).toMatchObject({ ok: true })
   })
@@ -33,7 +39,15 @@ describe("links, stored once and read from both ends (DOMAIN.md §1)", () => {
   })
 
   it("reads every kind back as it was asked, from the asking end", () => {
-    const pairs = { CAUSED_BY: [inc, prb], CAUSES: [prb, inc], RESOLVED_BY: [prb, chg], RESOLVES: [chg, prb], DUPLICATE_OF: [inc, inc2], HAS_DUPLICATE: [inc2, inc], RELATES_TO: [inc, chg] } as const
+    const pairs = {
+      CAUSED_BY: [inc, prb],
+      CAUSES: [prb, inc],
+      RESOLVED_BY: [prb, chg],
+      RESOLVES: [chg, prb],
+      DUPLICATE_OF: [inc, inc2],
+      HAS_DUPLICATE: [inc2, inc],
+      RELATES_TO: [inc, chg],
+    } as const
     for (const kind of linkKindSchema.options) {
       const [self, other] = pairs[kind]
       const made = canonicalLink(kind, self, other)

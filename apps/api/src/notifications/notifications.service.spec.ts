@@ -48,7 +48,15 @@ function harness(actor: TenantActor, rows: NotificationRow[] = []) {
   return { service, repo, prefs }
 }
 
-const member = (role: Role): TenantActor => ({ kind: "member", userId: "u-1", orgId: "o-1", membershipId: "m-1", role, teamIds: [], leadOfTeamIds: [] })
+const member = (role: Role): TenantActor => ({
+  kind: "member",
+  userId: "u-1",
+  orgId: "o-1",
+  membershipId: "m-1",
+  role,
+  teamIds: [],
+  leadOfTeamIds: [],
+})
 
 describe("NotificationsService", () => {
   it("reads the caller's own inbox by user, pages it, and counts the unread beside it", async () => {
@@ -76,7 +84,14 @@ describe("NotificationsService", () => {
   })
 
   it("gives a service account no inbox", async () => {
-    const service: TenantActor = { kind: "service", orgId: "o-1", membershipId: "m-svc", role: "AGENT", scopes: ["tickets:read"], tokenId: "t" } as unknown as TenantActor
+    const service: TenantActor = {
+      kind: "service",
+      orgId: "o-1",
+      membershipId: "m-svc",
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      tokenId: "t",
+    } as unknown as TenantActor
     await expect(harness(service).service.list({ unread: false, limit: 25 })).rejects.toBeInstanceOf(NotPermittedProblem)
   })
 

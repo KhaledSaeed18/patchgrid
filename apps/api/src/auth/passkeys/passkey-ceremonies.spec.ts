@@ -27,11 +27,14 @@ function harness(options: { redisDown?: boolean } = {}) {
   const redis = {
     client: {
       set: options.redisDown === true ? fail : async (key: string, value: string) => (kv.set(key, value), "OK"),
-      getdel: options.redisDown === true ? fail : async (key: string) => {
-        const value = kv.get(key) ?? null
-        kv.delete(key)
-        return value
-      },
+      getdel:
+        options.redisDown === true
+          ? fail
+          : async (key: string) => {
+              const value = kv.get(key) ?? null
+              kv.delete(key)
+              return value
+            },
     },
   }
   const rows: (StoredCredential & PasskeyRecord)[] = []
@@ -64,7 +67,12 @@ function harness(options: { redisDown?: boolean } = {}) {
 /** Ada registers a passkey from the account page on `app.`. */
 async function registered(h: ReturnType<typeof harness>, authenticator = new SoftAuthenticator()) {
   const ceremony = await h.ceremonies.creationOptions(ada, [])
-  const verified = await h.ceremonies.verifyRegistration(ada.id, ceremony.challengeId, authenticator.create(ceremony.options, APP), "Laptop")
+  const verified = await h.ceremonies.verifyRegistration(
+    ada.id,
+    ceremony.challengeId,
+    authenticator.create(ceremony.options, APP),
+    "Laptop",
+  )
   if (verified === null) throw new Error("registration refused")
   return { row: h.keep(ada.id, verified), authenticator }
 }
@@ -107,9 +115,18 @@ describe("registration", () => {
     expect(await h.ceremonies.verifyRegistration(ada.id, once.challengeId, credential, "x")).not.toBeNull()
     expect(await h.ceremonies.verifyRegistration(ada.id, once.challengeId, credential, "x")).toBeNull()
 
-    for (const origin of ["http://admin.lvh.me:3001", "http://www.lvh.me:3000", "http://lvh.me:3000", "http://evil.example:3001", "http://app.lvh.me:9999"]) {
+    for (const origin of [
+      "http://admin.lvh.me:3001",
+      "http://www.lvh.me:3000",
+      "http://lvh.me:3000",
+      "http://evil.example:3001",
+      "http://app.lvh.me:9999",
+    ]) {
       const ceremony = await h.ceremonies.creationOptions(ada, [])
-      expect(await h.ceremonies.verifyRegistration(ada.id, ceremony.challengeId, device.create(ceremony.options, origin), "x"), origin).toBeNull()
+      expect(
+        await h.ceremonies.verifyRegistration(ada.id, ceremony.challengeId, device.create(ceremony.options, origin), "x"),
+        origin,
+      ).toBeNull()
     }
   })
 
@@ -165,9 +182,18 @@ describe("assertion", () => {
   it("refuses the back-office, the marketing site, the apex and anything foreign, though the browser would sign there", async () => {
     const h = harness()
     const { authenticator } = await registered(h)
-    for (const origin of ["http://admin.lvh.me:3001", "http://www.lvh.me:3000", "http://lvh.me:3000", "http://acme.lvh.me.evil.example:3001", "null"]) {
+    for (const origin of [
+      "http://admin.lvh.me:3001",
+      "http://www.lvh.me:3000",
+      "http://lvh.me:3000",
+      "http://acme.lvh.me.evil.example:3001",
+      "null",
+    ]) {
       const ceremony = await h.ceremonies.requestOptions("login", null, [])
-      expect(await h.ceremonies.verifyAssertion("login", ceremony.challengeId, authenticator.get(ceremony.options, origin), null), origin).toBeNull()
+      expect(
+        await h.ceremonies.verifyAssertion("login", ceremony.challengeId, authenticator.get(ceremony.options, origin), null),
+        origin,
+      ).toBeNull()
     }
   })
 
@@ -175,7 +201,14 @@ describe("assertion", () => {
     const h = harness()
     const { authenticator } = await registered(h)
     const elsewhere = await h.ceremonies.requestOptions("login", null, [])
-    expect(await h.ceremonies.verifyAssertion("login", elsewhere.challengeId, authenticator.get(elsewhere.options, ACME, { rpId: "evil.example" }), null)).toBeNull()
+    expect(
+      await h.ceremonies.verifyAssertion(
+        "login",
+        elsewhere.challengeId,
+        authenticator.get(elsewhere.options, ACME, { rpId: "evil.example" }),
+        null,
+      ),
+    ).toBeNull()
 
     const unknown = await h.ceremonies.requestOptions("login", null, [])
     const stranger = new SoftAuthenticator()
@@ -185,7 +218,14 @@ describe("assertion", () => {
 
     const handle = await h.ceremonies.requestOptions("login", null, [])
     const answer = authenticator.get(handle.options, ACME)
-    expect(await h.ceremonies.verifyAssertion("login", handle.challengeId, { ...answer, response: { ...answer.response, userHandle: Buffer.from(bob.id.replace(/-/g, ""), "hex").toString("base64url") } }, null)).toBeNull()
+    expect(
+      await h.ceremonies.verifyAssertion(
+        "login",
+        handle.challengeId,
+        { ...answer, response: { ...answer.response, userHandle: Buffer.from(bob.id.replace(/-/g, ""), "hex").toString("base64url") } },
+        null,
+      ),
+    ).toBeNull()
   })
 
   it("refuses a counter that went backwards and tells the person; a forged one with a low counter tells no one", async () => {
@@ -196,11 +236,20 @@ describe("assertion", () => {
 
     const forged = await h.ceremonies.requestOptions("login", null, [])
     const answer = authenticator.get(forged.options, ACME, { counter: 1 })
-    expect(await h.ceremonies.verifyAssertion("login", forged.challengeId, { ...answer, response: { ...answer.response, signature: "AAAA" } }, null)).toBeNull()
+    expect(
+      await h.ceremonies.verifyAssertion(
+        "login",
+        forged.challengeId,
+        { ...answer, response: { ...answer.response, signature: "AAAA" } },
+        null,
+      ),
+    ).toBeNull()
     expect(h.notifier.tell).not.toHaveBeenCalled()
 
     const cloned = await h.ceremonies.requestOptions("login", null, [])
-    expect(await h.ceremonies.verifyAssertion("login", cloned.challengeId, authenticator.get(cloned.options, ACME, { counter: 1 }), null)).toBeNull()
+    expect(
+      await h.ceremonies.verifyAssertion("login", cloned.challengeId, authenticator.get(cloned.options, ACME, { counter: 1 }), null),
+    ).toBeNull()
     expect(h.notifier.tell).toHaveBeenCalledWith(ada.id, "passkey-cloned", 0)
   })
 
@@ -209,7 +258,9 @@ describe("assertion", () => {
     const { authenticator } = await registered(h, new SoftAuthenticator({ synced: true }))
     for (let i = 0; i < 3; i += 1) {
       const ceremony = await h.ceremonies.requestOptions("login", null, [])
-      expect(await h.ceremonies.verifyAssertion("login", ceremony.challengeId, authenticator.get(ceremony.options, ACME), null)).not.toBeNull()
+      expect(
+        await h.ceremonies.verifyAssertion("login", ceremony.challengeId, authenticator.get(ceremony.options, ACME), null),
+      ).not.toBeNull()
     }
     expect(h.notifier.tell).not.toHaveBeenCalled()
   })

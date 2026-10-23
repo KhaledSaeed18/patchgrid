@@ -15,7 +15,14 @@ import { OrgExportRepository } from "./repositories/org-export.repository"
 
 /** Workspace export (M8, ADR-0028, ADR-0044): the owner's routes and the job that builds the zip. */
 @Module({
-  imports: [AuthModule, PlatformModule, MailModule, StorageModule, MembershipRepositoryModule, BullModule.registerQueue({ name: EXPORT_QUEUE })],
+  imports: [
+    AuthModule,
+    PlatformModule,
+    MailModule,
+    StorageModule,
+    MembershipRepositoryModule,
+    BullModule.registerQueue({ name: EXPORT_QUEUE }),
+  ],
   controllers: [ExportsController],
   providers: [OrgExportRepository, ExportReaderRepository, ExportBuilder, ExportsService, ExportRunner, ExportProcessor],
   exports: [OrgExportRepository],

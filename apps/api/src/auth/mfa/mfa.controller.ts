@@ -64,7 +64,11 @@ export class MfaController {
   @Post("mfa")
   @Public()
   @HttpCode(200)
-  async completeLogin(@Body() body: MfaLoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<LoginResponse> {
+  async completeLogin(
+    @Body() body: MfaLoginDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<LoginResponse> {
     const result = await this.factors.completeLogin(readCookie(request, MFA_CHALLENGE_COOKIE), body, clientOf(request))
     this.cookies.clear(response, result.clear)
     this.cookies.set(response, result.cookies)

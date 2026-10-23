@@ -31,17 +31,29 @@ const oneYearAgo = new Date(Date.now() - YEAR_MS)
 beforeAll(async () => {
   process.env.WORKER_MODE = "api"
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(new RecordingMailProvider()).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(new RecordingMailProvider())
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   free = await seedWorkspace(app, db, { prefix: "auditfree", people: { owner: "OWNER" } })
   pro = await seedWorkspace(app, db, { prefix: "auditpro", people: { owner: "OWNER" } })
   await db.organization.update({ where: { id: pro.orgId }, data: { plan: "PRO" } })
-  for (const at of [threeYearsAgo, oneYearAgo]) await db.$executeRawUnsafe(`SELECT ensure_audit_log_partition('${at.toISOString()}'::timestamptz)`)
+  for (const at of [threeYearsAgo, oneYearAgo])
+    await db.$executeRawUnsafe(`SELECT ensure_audit_log_partition('${at.toISOString()}'::timestamptz)`)
   for (const ws of [free, pro]) {
     await db.auditLog.createMany({
-      data: [threeYearsAgo, oneYearAgo].map((createdAt) => ({ orgId: ws.orgId, action: "TEAM_UPDATED", entityType: "Team", entityId: ws.orgId, actorKind: "SYSTEM" as const, diff: {}, createdAt })),
+      data: [threeYearsAgo, oneYearAgo].map((createdAt) => ({
+        orgId: ws.orgId,
+        action: "TEAM_UPDATED",
+        entityType: "Team",
+        entityId: ws.orgId,
+        actorKind: "SYSTEM" as const,
+        diff: {},
+        createdAt,
+      })),
     })
   }
 })
@@ -57,8 +69,10 @@ afterAll(async () => {
   delete process.env.WORKER_MODE
 })
 
-const sweep = (orgId: string) => app.get(RetentionSweepProcessor).process({ id: `retention/${orgId}`, data: { orgId, tick: 1 } } as unknown as Job)
-const auditSince = (orgId: string) => db.auditLog.findMany({ where: { orgId, createdAt: { lt: new Date(Date.now() - YEAR_MS / 2) } }, select: { createdAt: true } })
+const sweep = (orgId: string) =>
+  app.get(RetentionSweepProcessor).process({ id: `retention/${orgId}`, data: { orgId, tick: 1 } } as unknown as Job)
+const auditSince = (orgId: string) =>
+  db.auditLog.findMany({ where: { orgId, createdAt: { lt: new Date(Date.now() - YEAR_MS / 2) } }, select: { createdAt: true } })
 
 it("trims a FREE workspace past two years, keeps its younger history, and touches no one else's", async () => {
   expect((await sweep(free.orgId)).audit).toBe(1)

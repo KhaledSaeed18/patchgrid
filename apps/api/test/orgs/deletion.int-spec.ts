@@ -31,7 +31,10 @@ const recorder = new RecordingMailProvider()
 
 beforeAll(async () => {
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(recorder).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(recorder)
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
@@ -56,8 +59,10 @@ const as = (who: Who) => browser(app, ws.origin, ws.people[who].access)
 const proved = async (who: Who) => browser(app, ws.origin, await stepUp(app, ws.slug, ws.people[who]))
 const picker = (who: Who) => ({
   get: () => request(app.getHttpServer()).get("/api/v1/auth/identity").set("Cookie", ws.people[who].pgId),
-  cancel: () => request(app.getHttpServer()).post(`/api/v1/orgs/${ws.orgId}/cancel-deletion`).set(HEADERS).set("Cookie", ws.people[who].pgId),
-  open: () => request(app.getHttpServer()).post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", ws.people[who].pgId).send({ slug: ws.slug }),
+  cancel: () =>
+    request(app.getHttpServer()).post(`/api/v1/orgs/${ws.orgId}/cancel-deletion`).set(HEADERS).set("Cookie", ws.people[who].pgId),
+  open: () =>
+    request(app.getHttpServer()).post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", ws.people[who].pgId).send({ slug: ws.slug }),
 })
 const mailFor = async (who: Who) => {
   await jobs.settle()
@@ -76,7 +81,9 @@ describe("asking", () => {
 
   it("puts everyone out at once — API tokens included — and the subdomain answers as if it never existed", async () => {
     // A token has no membership epoch; the workspace's own epoch is what refuses it (M9 review).
-    const minted = await (await proved("admin")).post("/org/api-tokens", { name: "Zabbix", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
+    const minted = await (
+      await proved("admin")
+    ).post("/org/api-tokens", { name: "Zabbix", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
     expect(minted.status).toBe(201)
     const bearer = { Authorization: `Bearer ${String(minted.body.secret)}` }
     expect((await request(app.getHttpServer()).get("/api/v1/tickets?view=open").set(bearer)).status).toBe(200)
@@ -124,12 +131,17 @@ describe("taking it back", () => {
     const restored = await operator.post(`/orgs/${ws.orgId}/restore`)
     expect(restored.status, JSON.stringify(restored.body)).toBe(200)
     expect(restored.body).toMatchObject({ status: "ACTIVE", purgeAt: null })
-    expect(await db.platformAuditLog.findFirst({ where: { targetOrgId: ws.orgId, action: "PLATFORM_ORG_DELETION_RESTORED" } })).not.toBeNull()
+    expect(
+      await db.platformAuditLog.findFirst({ where: { targetOrgId: ws.orgId, action: "PLATFORM_ORG_DELETION_RESTORED" } }),
+    ).not.toBeNull()
     expect((await operator.post(`/orgs/${ws.orgId}/restore`)).status).toBe(409)
   })
 
   it("is closed from the purge date on: the purge owns it then", async () => {
-    await db.organization.update({ where: { id: ws.orgId }, data: { status: "PENDING_DELETION", deletionRequestedAt: new Date(Date.now() - 30 * 86_400_000) } })
+    await db.organization.update({
+      where: { id: ws.orgId },
+      data: { status: "PENDING_DELETION", deletionRequestedAt: new Date(Date.now() - 30 * 86_400_000) },
+    })
     expect((await picker("owner").cancel()).status).toBe(409)
     expect((await operator.post(`/orgs/${ws.orgId}/restore`)).status).toBe(409)
     await db.organization.update({ where: { id: ws.orgId }, data: { status: "ACTIVE", deletionRequestedAt: null } })

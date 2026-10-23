@@ -33,7 +33,10 @@ beforeAll(async () => {
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
-  ws = await seedWorkspace(app, db, { prefix: "tokens", people: { owner: "OWNER", admin: "ADMIN", agent: "AGENT", requester: "REQUESTER" } })
+  ws = await seedWorkspace(app, db, {
+    prefix: "tokens",
+    people: { owner: "OWNER", admin: "ADMIN", agent: "AGENT", requester: "REQUESTER" },
+  })
   other = await seedWorkspace(app, db, { prefix: "tokens-other", people: { owner: "OWNER" } })
   const ticket = { type: "INCIDENT", title: "VPN drops", description: "x", impact: "LOW", urgency: "LOW" }
   ticketId = (await as("requester").post("/tickets", ticket)).body.id as string
@@ -74,13 +77,22 @@ const proved = async (who: Who) => browser(app, ws.origin, await stepUp(app, ws.
 const mint = async (body: object): Promise<Minted> => {
   const created = await (await proved("admin")).post("/org/api-tokens", body)
   expect(created.status, JSON.stringify(created.body)).toBe(201)
-  return { id: created.body.token.id as string, secret: created.body.secret as string, membershipId: created.body.token.membershipId as string }
+  return {
+    id: created.body.token.id as string,
+    secret: created.body.secret as string,
+    membershipId: created.body.token.membershipId as string,
+  }
 }
 
 describe("minting", () => {
   it("lets an admin mint a token and shows its secret exactly once — after a fresh proof", async () => {
     // A token outlives the session that made it: without a step-up it is refused before anything is written (ADR-0029).
-    const unproved = await as("admin").post("/org/api-tokens", { name: "Monitoring", role: "AGENT", scopes: ["tickets:read"], expiresInDays: 30 })
+    const unproved = await as("admin").post("/org/api-tokens", {
+      name: "Monitoring",
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      expiresInDays: 30,
+    })
     expect(unproved.status).toBe(403)
     expect(unproved.body.type).toContain("step-up-required")
     expect(await db.apiToken.count({ where: { orgId: ws.orgId } })).toBe(0)
@@ -144,13 +156,18 @@ describe("using a token", () => {
     // Nor through the ticket's audit trail, which tickets:read does reach.
     const trail = await machine(reader.secret).get(`/tickets/${ticketId}/audit`)
     expect(trail.status).toBe(200)
-    expect(trail.body).toEqual(expect.arrayContaining([expect.objectContaining({ action: "COMMENT_EDITED", diff: expect.objectContaining({ redacted: true }) })]))
+    expect(trail.body).toEqual(
+      expect.arrayContaining([expect.objectContaining({ action: "COMMENT_EDITED", diff: expect.objectContaining({ redacted: true }) })]),
+    )
     expect(JSON.stringify(trail.body)).not.toContain("between us")
     // A person who may read internal notes still sees what the note said.
     expect(JSON.stringify((await as("agent").get(`/tickets/${ticketId}/audit`)).body)).toContain("between us")
     expect((await machine(writer.secret).get("/members")).status).toBe(403)
     expect((await machine(writer.secret).get("/org/api-tokens")).status).toBe(403)
-    expect((await machine(writer.secret).post("/org/api-tokens", { name: "x", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })).status).toBe(403)
+    expect(
+      (await machine(writer.secret).post("/org/api-tokens", { name: "x", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null }))
+        .status,
+    ).toBe(403)
   })
 
   it("never becomes a watcher or an assignee: there is no one behind it to tell", async () => {

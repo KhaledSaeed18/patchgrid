@@ -13,13 +13,27 @@ export function MailLayout({ preview, footer, children }: { preview: string; foo
         <meta name="viewport" content="width=device-width" />
         <title>{preview}</title>
       </head>
-      <body style={{ margin: 0, padding: 0, backgroundColor: "#f6f4f1", fontFamily: "'Open Sans', Helvetica, Arial, sans-serif", color: "#1f1d1a" }}>
+      <body
+        style={{
+          margin: 0,
+          padding: 0,
+          backgroundColor: "#f6f4f1",
+          fontFamily: "'Open Sans', Helvetica, Arial, sans-serif",
+          color: "#1f1d1a",
+        }}
+      >
         <div style={{ display: "none", maxHeight: 0, overflow: "hidden" }}>{preview}</div>
         <table role="presentation" width="100%" cellPadding={0} cellSpacing={0} style={{ padding: "32px 16px" }}>
           <tbody>
             <tr>
               <td align="center">
-                <table role="presentation" width="100%" cellPadding={0} cellSpacing={0} style={{ maxWidth: 560, backgroundColor: "#ffffff", borderRadius: 4, border: "1px solid #e6e1da" }}>
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellPadding={0}
+                  cellSpacing={0}
+                  style={{ maxWidth: 560, backgroundColor: "#ffffff", borderRadius: 4, border: "1px solid #e6e1da" }}
+                >
                   <tbody>
                     <tr>
                       <td style={{ padding: "24px 32px 0", fontSize: 18, fontWeight: 600, color: "#e86a1a" }}>Patchgrid</td>
@@ -47,7 +61,15 @@ export function Button({ href, children }: { href: string; children: ReactNode }
     <p style={{ margin: "24px 0" }}>
       <a
         href={href}
-        style={{ display: "inline-block", padding: "12px 20px", backgroundColor: "#e86a1a", color: "#ffffff", textDecoration: "none", borderRadius: 4, fontWeight: 600 }}
+        style={{
+          display: "inline-block",
+          padding: "12px 20px",
+          backgroundColor: "#e86a1a",
+          color: "#ffffff",
+          textDecoration: "none",
+          borderRadius: 4,
+          fontWeight: 600,
+        }}
       >
         {children}
       </a>
@@ -59,7 +81,10 @@ export function Button({ href, children }: { href: string; children: ReactNode }
 export function FallbackLink({ href }: { href: string }) {
   return (
     <p style={{ fontSize: 13, color: "#7a736b", wordBreak: "break-all" }}>
-      Or paste this link into your browser: <a href={href} style={{ color: "#e86a1a" }}>{href}</a>
+      Or paste this link into your browser:{" "}
+      <a href={href} style={{ color: "#e86a1a" }}>
+        {href}
+      </a>
     </p>
   )
 }

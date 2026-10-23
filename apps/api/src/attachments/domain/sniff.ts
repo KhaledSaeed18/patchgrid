@@ -14,8 +14,7 @@ const TEXT: ReadonlySet<AttachmentMimeType> = new Set(["text/plain", "text/csv",
 /** Markup a browser would render as a document — never accepted as "text", whatever it is called. */
 const MARKUP = /^\s*<(?:!doctype|html|head|body|svg|\?xml|script|iframe|object|embed|meta|link|style)\b/i
 
-const startsWith = (bytes: Uint8Array, signature: readonly number[], at = 0) =>
-  signature.every((byte, i) => bytes[at + i] === byte)
+const startsWith = (bytes: Uint8Array, signature: readonly number[], at = 0) => signature.every((byte, i) => bytes[at + i] === byte)
 const ascii = (text: string) => [...text].map((c) => c.charCodeAt(0))
 
 /**

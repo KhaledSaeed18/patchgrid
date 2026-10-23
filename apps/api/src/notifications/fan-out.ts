@@ -125,7 +125,12 @@ export function deliveriesFor(event: NotifyEvent, circle: TicketCircle): Deliver
       const words = STATUS_WORDS[event.to]
       if (words !== undefined) {
         // The assignee is an implicit watcher (DOMAIN.md §8).
-        send([circle.requester, circle.assignee, ...circle.watchers], "STATUS_CHANGED", `${formatTicketNumber(ticket.type, ticket.number)} ${words} — ${ticket.title}`, `status:${ticket.id}`)
+        send(
+          [circle.requester, circle.assignee, ...circle.watchers],
+          "STATUS_CHANGED",
+          `${formatTicketNumber(ticket.type, ticket.number)} ${words} — ${ticket.title}`,
+          `status:${ticket.id}`,
+        )
       }
       if (event.comment !== null) comment(event.comment)
       break

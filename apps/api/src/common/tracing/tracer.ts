@@ -40,11 +40,7 @@ export class NoopTracer implements Tracer {
     return NOOP_SPAN
   }
 
-  async withSpan<T>(
-    _name: string,
-    _attributes: SpanAttributes,
-    fn: (span: Span) => Promise<T>,
-  ): Promise<T> {
+  async withSpan<T>(_name: string, _attributes: SpanAttributes, fn: (span: Span) => Promise<T>): Promise<T> {
     return fn(NOOP_SPAN)
   }
 }

@@ -20,12 +20,18 @@ export class SsoIdentityRepository {
 
   /** The subject already linked to this membership, if any: one identity per member. */
   async subjectOf(orgId: string, membershipId: string): Promise<string | null> {
-    const row = await this.prisma.db.ssoIdentity.findUnique({ where: { orgId_membershipId: { orgId, membershipId } }, select: { subject: true } })
+    const row = await this.prisma.db.ssoIdentity.findUnique({
+      where: { orgId_membershipId: { orgId, membershipId } },
+      select: { subject: true },
+    })
     return row?.subject ?? null
   }
 
   async link(orgId: string, connectionId: string, subject: string, membershipId: string, at: Date): Promise<string> {
-    const row = await this.prisma.db.ssoIdentity.create({ data: { orgId, connectionId, subject, membershipId, lastSignInAt: at }, select: { id: true } })
+    const row = await this.prisma.db.ssoIdentity.create({
+      data: { orgId, connectionId, subject, membershipId, lastSignInAt: at },
+      select: { id: true },
+    })
     return row.id
   }
 

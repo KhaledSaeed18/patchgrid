@@ -13,7 +13,14 @@ import { SsoSecrets } from "./sso-secrets"
  * this without a cycle.
  */
 @Module({
-  providers: [OrgDomainRepository, SsoConnectionRepository, SsoIdentityRepository, SsoSecrets, OidcClient, { provide: DOMAIN_RESOLVER, useClass: SystemDomainResolver }],
+  providers: [
+    OrgDomainRepository,
+    SsoConnectionRepository,
+    SsoIdentityRepository,
+    SsoSecrets,
+    OidcClient,
+    { provide: DOMAIN_RESOLVER, useClass: SystemDomainResolver },
+  ],
   exports: [OrgDomainRepository, SsoConnectionRepository, SsoIdentityRepository, SsoSecrets, OidcClient, DOMAIN_RESOLVER],
 })
 export class SsoCoreModule {}

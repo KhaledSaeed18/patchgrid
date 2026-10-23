@@ -35,14 +35,46 @@ type Options = {
 }
 
 function harness(options: Options = {}) {
-  const config = { SSO_SECRETS_KEY: KEY, ROOT_DOMAIN: "lvh.me", WEB_ORIGIN_PORTS: [3000, 3001], WEB_APP_PORT: 3001, PORT: 4000, isProduction: false, COOKIE_DOMAIN: ".lvh.me" } as AppConfig
+  const config = {
+    SSO_SECRETS_KEY: KEY,
+    ROOT_DOMAIN: "lvh.me",
+    WEB_ORIGIN_PORTS: [3000, 3001],
+    WEB_APP_PORT: 3001,
+    PORT: 4000,
+    isProduction: false,
+    COOKIE_DOMAIN: ".lvh.me",
+  } as AppConfig
   const secrets = new SsoSecrets(config)
   const org: OrgDomainRecord | null =
-    options.org === null ? null : { id: ORG_ID, slug: "acme", name: "Acme", status: "ACTIVE", domain: "acme.test", domainVerifiedAt: NOW, domainChallenge: null, requireSso: false, allowDomainJoin: false, defaultJoinRole: "REQUESTER", ...options.org }
+    options.org === null
+      ? null
+      : {
+          id: ORG_ID,
+          slug: "acme",
+          name: "Acme",
+          status: "ACTIVE",
+          domain: "acme.test",
+          domainVerifiedAt: NOW,
+          domainChallenge: null,
+          requireSso: false,
+          allowDomainJoin: false,
+          defaultJoinRole: "REQUESTER",
+          ...options.org,
+        }
   const connection: SsoConnectionRecord | null =
     options.connection === null
       ? null
-      : { id: CONN_ID, orgId: ORG_ID, issuer: "https://idp.acme.test", clientId: "patchgrid", clientSecretSealed: secrets.seal("s3cret"), defaultRole: "REQUESTER", enabled: true, updatedAt: NOW, ...options.connection }
+      : {
+          id: CONN_ID,
+          orgId: ORG_ID,
+          issuer: "https://idp.acme.test",
+          clientId: "patchgrid",
+          clientSecretSealed: secrets.seal("s3cret"),
+          defaultRole: "REQUESTER",
+          enabled: true,
+          updatedAt: NOW,
+          ...options.connection,
+        }
   const domains = {
     find: vi.fn(async () => org),
     findByVerifiedDomain: vi.fn(async (domain: string) => (org?.domain === domain && org.domainVerifiedAt !== null ? org : null)),
@@ -57,11 +89,27 @@ function harness(options: Options = {}) {
     }),
     exchange: vi.fn(async () => {
       if (options.exchange !== undefined) throw options.exchange
-      return { subject: "sub-1", email: "kim@acme.test", emailVerified: true, name: "Kim", hostedDomain: null, authTime: NOW_S, ...options.identity }
+      return {
+        subject: "sub-1",
+        email: "kim@acme.test",
+        emailVerified: true,
+        name: "Kim",
+        hostedDomain: null,
+        authTime: NOW_S,
+        ...options.identity,
+      }
     }),
   }
   const stored = new Map<string, SsoFlow>()
-  const defaultFlow: SsoFlow = { orgId: ORG_ID, connectionId: CONN_ID, codeVerifier: "v".repeat(43), nonce: "n".repeat(22), intent: "sign-in", next: "/queues", startedAt: NOW_S - 30 }
+  const defaultFlow: SsoFlow = {
+    orgId: ORG_ID,
+    connectionId: CONN_ID,
+    codeVerifier: "v".repeat(43),
+    nonce: "n".repeat(22),
+    intent: "sign-in",
+    next: "/queues",
+    startedAt: NOW_S - 30,
+  }
   if (options.flow !== null) stored.set("s", { ...defaultFlow, ...options.flow })
   const flows = {
     put: vi.fn(async (state: string, flow: SsoFlow) => void stored.set(state, flow)),
@@ -77,15 +125,27 @@ function harness(options: Options = {}) {
     resolve: vi.fn(async (_org: unknown, _conn: unknown, _person: unknown, opts?: ResolveOptions) => {
       if (opts?.expectedUserId !== undefined && opts.expectedUserId !== USER) throw new SsoFailure("mismatch")
       if (opts?.refuse?.includes(role) === true) throw new SsoFailure("owner")
-      return { account: { id: USER, email: "kim@acme.test", name: "Kim", passwordHash: null, emailVerifiedAt: NOW, anonymisedAt: null }, membershipId: "m-1", role }
+      return {
+        account: { id: USER, email: "kim@acme.test", name: "Kim", passwordHash: null, emailVerifiedAt: NOW, anonymisedAt: null },
+        membershipId: "m-1",
+        role,
+      }
     }),
   }
   const sessions = {
-    startIdentity: vi.fn(async () => ({ response: { session: { slug: "acme" } }, cookies: [{ name: "pg_id", value: "x", path: "/", maxAgeSeconds: 1 }] })),
-    identityFor: vi.fn(async (secret?: string) => (secret === undefined ? null : options.pgId === undefined ? { userId: USER, ssoOrgId: ORG_ID } : options.pgId)),
+    startIdentity: vi.fn(async () => ({
+      response: { session: { slug: "acme" } },
+      cookies: [{ name: "pg_id", value: "x", path: "/", maxAgeSeconds: 1 }],
+    })),
+    identityFor: vi.fn(async (secret?: string) =>
+      secret === undefined ? null : options.pgId === undefined ? { userId: USER, ssoOrgId: ORG_ID } : options.pgId,
+    ),
     open: vi.fn(async () => [{ name: "pg_at_acme", value: "x", path: "/", maxAgeSeconds: 1 }]),
   }
-  const lookup = { bySlug: vi.fn(async (slug: string) => (slug === "acme" && org !== null ? { id: org.id } : null)), byId: vi.fn(async () => ({ slug: "acme" })) }
+  const lookup = {
+    bySlug: vi.fn(async (slug: string) => (slug === "acme" && org !== null ? { id: org.id } : null)),
+    byId: vi.fn(async () => ({ slug: "acme" })),
+  }
   const service = new SsoSignInService(
     domains as unknown as OrgDomainRepository,
     connections as unknown as SsoConnectionRepository,
@@ -135,7 +195,13 @@ describe("SsoSignInService.start", () => {
     expect(url.searchParams.get("loginHint")).toBe("kim@acme.test")
     expect(url.searchParams.get("reauthenticate")).toBe("false")
     expect(cookies).toEqual([{ name: "pg_sso", value: state, path: "/api/v1/auth/sso", maxAgeSeconds: 600 }])
-    expect(h.stored.get(state)).toMatchObject({ orgId: ORG_ID, connectionId: CONN_ID, intent: "sign-in", next: "/queues", startedAt: NOW_S })
+    expect(h.stored.get(state)).toMatchObject({
+      orgId: ORG_ID,
+      connectionId: CONN_ID,
+      intent: "sign-in",
+      next: "/queues",
+      startedAt: NOW_S,
+    })
     // The challenge is derived from the verifier; the verifier itself never leaves the server.
     expect(location).not.toContain(h.stored.get(state)?.codeVerifier ?? "-")
   })
@@ -154,7 +220,9 @@ describe("SsoSignInService.start", () => {
   })
 
   it("refuses a workspace with nothing to route to, and sends a step-up's failure back to the workspace", async () => {
-    expect((await failure(harness({ connection: null }).service.start({ email: "kim@acme.test", intent: "sign-in" }))).code).toBe("not-configured")
+    expect((await failure(harness({ connection: null }).service.start({ email: "kim@acme.test", intent: "sign-in" }))).code).toBe(
+      "not-configured",
+    )
     const stepUp = await failure(harness({ connection: { enabled: false } }).service.start({ slug: "acme", intent: "step-up" }))
     expect(stepUp.slug).toBe("acme")
   })
@@ -174,7 +242,11 @@ describe("SsoSignInService.callback", () => {
     const result = await h.service.callback(params, callbackUrl, "s", undefined, client)
     expect(h.sessions.startIdentity).toHaveBeenCalledWith(expect.objectContaining({ id: USER }), client, "acme", ORG_ID)
     expect(result.location).toBe("http://acme.lvh.me:3001/queues")
-    expect(h.provisioning.resolve).toHaveBeenCalledWith(expect.objectContaining({ id: ORG_ID }), expect.objectContaining({ id: CONN_ID }), { subject: "sub-1", email: "kim@acme.test", name: "Kim" })
+    expect(h.provisioning.resolve).toHaveBeenCalledWith(expect.objectContaining({ id: ORG_ID }), expect.objectContaining({ id: CONN_ID }), {
+      subject: "sub-1",
+      email: "kim@acme.test",
+      name: "Kim",
+    })
   })
 
   it("keeps a Patchgrid sign-in the browser already holds for this person, adding only this workspace's pair", async () => {
@@ -200,21 +272,49 @@ describe("SsoSignInService.callback", () => {
 
   it("spends the flow even when the provider said no", async () => {
     const h = harness()
-    expect((await failure(h.service.callback({ state: "s", error: "access_denied" }, callbackUrl, "s", undefined, client))).code).toBe("denied")
+    expect((await failure(h.service.callback({ state: "s", error: "access_denied" }, callbackUrl, "s", undefined, client))).code).toBe(
+      "denied",
+    )
     expect(h.stored.size).toBe(0)
   })
 
   it("trusts an address only when verified and at the workspace's proved domain", async () => {
-    expect((await failure(harness({ identity: { emailVerified: false } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
-    expect((await failure(harness({ identity: { email: "kim@evil.test" } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
-    expect((await failure(harness({ identity: { email: null } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
+    expect(
+      (await failure(harness({ identity: { emailVerified: false } }).service.callback(params, callbackUrl, "s", undefined, client))).code,
+    ).toBe("email")
+    expect(
+      (await failure(harness({ identity: { email: "kim@evil.test" } }).service.callback(params, callbackUrl, "s", undefined, client))).code,
+    ).toBe("email")
+    expect((await failure(harness({ identity: { email: null } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe(
+      "email",
+    )
   })
 
   it("trusts Google's shared issuer only for accounts the domain's own Workspace manages", async () => {
     const google = { issuer: "https://accounts.google.com" }
-    expect((await failure(harness({ connection: google }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
-    expect((await failure(harness({ connection: google, identity: { hostedDomain: "globex.test" } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
-    const ok = await harness({ connection: google, identity: { hostedDomain: "acme.test" } }).service.callback(params, callbackUrl, "s", undefined, client)
+    expect((await failure(harness({ connection: google }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe(
+      "email",
+    )
+    expect(
+      (
+        await failure(
+          harness({ connection: google, identity: { hostedDomain: "globex.test" } }).service.callback(
+            params,
+            callbackUrl,
+            "s",
+            undefined,
+            client,
+          ),
+        )
+      ).code,
+    ).toBe("email")
+    const ok = await harness({ connection: google, identity: { hostedDomain: "acme.test" } }).service.callback(
+      params,
+      callbackUrl,
+      "s",
+      undefined,
+      client,
+    )
     expect(ok.location).toContain("acme")
   })
 
@@ -224,17 +324,43 @@ describe("SsoSignInService.callback", () => {
     expect(google.oidc.authorizationUrl).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ hostedDomain: "acme.test" }))
     const own = harness()
     await own.service.start({ email: "kim@acme.test", intent: "sign-in" })
-    expect(own.oidc.authorizationUrl).toHaveBeenCalledWith(expect.anything(), expect.not.objectContaining({ hostedDomain: expect.anything() }))
+    expect(own.oidc.authorizationUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ hostedDomain: expect.anything() }),
+    )
   })
 
   it("tells a failed check from an unreachable provider", async () => {
-    expect((await failure(harness({ exchange: new OidcRejectedError("nonce") }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("denied")
-    expect((await failure(harness({ exchange: new OidcUnavailableError("token") }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("unavailable")
+    expect(
+      (await failure(harness({ exchange: new OidcRejectedError("nonce") }).service.callback(params, callbackUrl, "s", undefined, client)))
+        .code,
+    ).toBe("denied")
+    expect(
+      (
+        await failure(
+          harness({ exchange: new OidcUnavailableError("token") }).service.callback(params, callbackUrl, "s", undefined, client),
+        )
+      ).code,
+    ).toBe("unavailable")
   })
 
   it("ends the flight when the connection was replaced or disabled meanwhile", async () => {
-    expect((await failure(harness({ connection: { id: "0190b2f0-0000-7000-8000-0000000000c2" } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("not-configured")
-    expect((await failure(harness({ connection: { enabled: false } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("not-configured")
+    expect(
+      (
+        await failure(
+          harness({ connection: { id: "0190b2f0-0000-7000-8000-0000000000c2" } }).service.callback(
+            params,
+            callbackUrl,
+            "s",
+            undefined,
+            client,
+          ),
+        )
+      ).code,
+    ).toBe("not-configured")
+    expect(
+      (await failure(harness({ connection: { enabled: false } }).service.callback(params, callbackUrl, "s", undefined, client))).code,
+    ).toBe("not-configured")
   })
 
   describe("step-up", () => {
@@ -244,7 +370,11 @@ describe("SsoSignInService.callback", () => {
       const h = harness({ flow: stepUp })
       const result = await h.service.callback(params, callbackUrl, "s", "pg-id", client)
       expect(h.sessions.open).toHaveBeenCalledWith(USER, "acme", client, { stepUpAt: NOW, ssoOrgId: ORG_ID })
-      expect(h.provisioning.resolve).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.anything(), { mayJoin: false, expectedUserId: USER, refuse: ["OWNER"] })
+      expect(h.provisioning.resolve).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.anything(), {
+        mayJoin: false,
+        expectedUserId: USER,
+        refuse: ["OWNER"],
+      })
       expect(result.location).toBe("http://acme.lvh.me:3001/queues")
     })
 
@@ -267,14 +397,21 @@ describe("SsoSignInService.callback", () => {
     })
 
     it("refuses an authentication older than the flow", async () => {
-      const stale = await failure(harness({ flow: stepUp, identity: { authTime: NOW_S - 600 } }).service.callback(params, callbackUrl, "s", "pg-id", client))
+      const stale = await failure(
+        harness({ flow: stepUp, identity: { authTime: NOW_S - 600 } }).service.callback(params, callbackUrl, "s", "pg-id", client),
+      )
       expect(stale.code).toBe("stale")
       expect(stale.slug).toBe("acme")
-      expect((await failure(harness({ flow: stepUp, identity: { authTime: null } }).service.callback(params, callbackUrl, "s", "pg-id", client))).code).toBe("stale")
+      expect(
+        (await failure(harness({ flow: stepUp, identity: { authTime: null } }).service.callback(params, callbackUrl, "s", "pg-id", client)))
+          .code,
+      ).toBe("stale")
     })
 
     it("refuses someone other than the signed-in person, no one signed in, or a session scoped elsewhere", async () => {
-      expect((await failure(harness({ flow: stepUp, pgId: null }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("mismatch")
+      expect(
+        (await failure(harness({ flow: stepUp, pgId: null }).service.callback(params, callbackUrl, "s", undefined, client))).code,
+      ).toBe("mismatch")
       const elsewhere = harness({ flow: stepUp, pgId: { userId: USER, ssoOrgId: "0190b2f0-0000-7000-8000-00000000000b" } })
       expect((await failure(elsewhere.service.callback(params, callbackUrl, "s", "pg-id", client))).code).toBe("mismatch")
       const other = harness({ flow: stepUp, pgId: { userId: "0190b2f0-0000-7000-8000-000000000009", ssoOrgId: null } })

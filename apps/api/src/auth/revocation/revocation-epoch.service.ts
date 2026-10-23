@@ -66,9 +66,7 @@ export class RevocationEpochService {
       if (epoch === null) return false
       return iat <= Number(epoch)
     } catch (error) {
-      this.logger.warn(
-        `revocation epoch unavailable: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.logger.warn(`revocation epoch unavailable: ${error instanceof Error ? error.message : String(error)}`)
       return null
     }
   }

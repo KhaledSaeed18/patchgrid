@@ -17,8 +17,7 @@ export const REQUIRED_PERMISSION = Symbol("REQUIRED_PERMISSION")
  * Every route carries this, `@Public` or `@TenantOptional` — the route-coverage
  * test fails the build otherwise (RBAC.md §13.3).
  */
-export const RequirePermission = (permission: Permission): MethodDecorator & ClassDecorator =>
-  SetMetadata(REQUIRED_PERMISSION, permission)
+export const RequirePermission = (permission: Permission): MethodDecorator & ClassDecorator => SetMetadata(REQUIRED_PERMISSION, permission)
 
 /**
  * Pipeline step 8, after the auth guard has set the actor. A route without the

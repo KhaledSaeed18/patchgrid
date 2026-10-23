@@ -6,7 +6,13 @@ import type { AuditEntry, AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import type { CategoriesService } from "../categories/categories.service"
 import { FixedClock } from "../common/clock/clock"
-import { ConflictProblem, NotFoundProblem, NotPermittedProblem, PlanLimitProblem, StaleWriteProblem } from "../common/problems/problem.exception"
+import {
+  ConflictProblem,
+  NotFoundProblem,
+  NotPermittedProblem,
+  PlanLimitProblem,
+  StaleWriteProblem,
+} from "../common/problems/problem.exception"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { QuotaService } from "../quota/quota.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
@@ -107,10 +113,18 @@ describe("who reads what", () => {
   })
 
   it("is 404 for an internal article to a requester and for another agent's draft", async () => {
-    const rows = [article({ id: "a-int", visibility: "INTERNAL", publishedAt: null }), article({ id: "a-draft", visibility: "DRAFT", publishedAt: null })]
+    const rows = [
+      article({ id: "a-int", visibility: "INTERNAL", publishedAt: null }),
+      article({ id: "a-draft", visibility: "DRAFT", publishedAt: null }),
+    ]
     await expect(harness("REQUESTER", "m-rita", rows).service.get("a-int")).rejects.toBeInstanceOf(NotFoundProblem)
     await expect(harness("AGENT", "m-tina", rows).service.get("a-draft")).rejects.toBeInstanceOf(NotFoundProblem)
-    expect((await harness("AGENT", "m-sam", rows).service.get("a-draft")).capabilities).toEqual({ canEdit: true, canPublish: true, canDraft: true, canDelete: true })
+    expect((await harness("AGENT", "m-sam", rows).service.get("a-draft")).capabilities).toEqual({
+      canEdit: true,
+      canPublish: true,
+      canDraft: true,
+      canDelete: true,
+    })
     expect((await harness("ADMIN", "m-alice", rows).service.get("a-draft")).id).toBe("a-draft")
   })
 
@@ -131,7 +145,9 @@ describe("writing", () => {
   })
 
   it("counts an article against the plan once its slug is won, and gives it back on delete", async () => {
-    await expect(harness("AGENT", "m-sam", [], { full: true }).service.create({ title: "VPN", body: "x" })).rejects.toBeInstanceOf(PlanLimitProblem)
+    await expect(harness("AGENT", "m-sam", [], { full: true }).service.create({ title: "VPN", body: "x" })).rejects.toBeInstanceOf(
+      PlanLimitProblem,
+    )
     const raced = harness("AGENT", "m-sam", [], { slugRaces: 1 })
     await raced.service.create({ title: "VPN", body: "x" })
     expect(raced.quota.consume).toHaveBeenCalledTimes(1)
@@ -141,7 +157,9 @@ describe("writing", () => {
 
   it("tries again when a concurrent create takes the slug, and gives up after a few", async () => {
     expect((await harness("AGENT", "m-sam", [], { slugRaces: 2 }).service.create({ title: "VPN", body: "x" })).slug).toBe("vpn")
-    await expect(harness("AGENT", "m-sam", [], { slugRaces: 3 }).service.create({ title: "VPN", body: "x" })).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(harness("AGENT", "m-sam", [], { slugRaces: 3 }).service.create({ title: "VPN", body: "x" })).rejects.toBeInstanceOf(
+      ConflictProblem,
+    )
   })
 
   it("edits against the version, and publishing sets and clears publishedAt", async () => {

@@ -22,10 +22,7 @@ import { PrismaService } from "../../prisma/prisma.service"
 import { QuotaService } from "../../quota/quota.service"
 import { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
-import {
-  type OrganizationSettingsRecord,
-  OrganizationSettingsRepository,
-} from "../repositories/organization-settings.repository"
+import { type OrganizationSettingsRecord, OrganizationSettingsRepository } from "../repositories/organization-settings.repository"
 import { SlugRegistryRepository } from "../repositories/slug-registry.repository"
 
 const DAY = 86_400_000
@@ -100,10 +97,7 @@ export class OrgSettingsService {
    * session under the new cookie name and clears the old pair (TENANCY.md §6);
    * everyone else re-enters through the picker.
    */
-  async changeSlug(
-    slug: string,
-    client: ClientInfo,
-  ): Promise<{ response: ChangeSlugResponse; set: CookieSpec[]; clear: CookieName[] }> {
+  async changeSlug(slug: string, client: ClientInfo): Promise<{ response: ChangeSlugResponse; set: CookieSpec[]; clear: CookieName[] }> {
     const actor = this.actors.requireMember()
     this.permissions.assert(actor, "org:change_slug")
     const orgId = this.tenant.requireOrgId()
@@ -190,9 +184,7 @@ function stripUndefined(request: UpdateOrganizationSettingsRequest) {
   return {
     ...(request.name === undefined ? {} : { name: request.name }),
     ...(request.agentVisibility === undefined ? {} : { agentVisibility: request.agentVisibility }),
-    ...(request.emailNotificationsEnabled === undefined
-      ? {}
-      : { emailNotificationsEnabled: request.emailNotificationsEnabled }),
+    ...(request.emailNotificationsEnabled === undefined ? {} : { emailNotificationsEnabled: request.emailNotificationsEnabled }),
     ...(request.requireMfa === undefined ? {} : { requireMfa: request.requireMfa }),
     ...(request.allowExternalRequesters === undefined ? {} : { allowExternalRequesters: request.allowExternalRequesters }),
   }

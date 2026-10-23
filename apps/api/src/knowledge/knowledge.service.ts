@@ -18,7 +18,13 @@ import { ActorService, type TenantActor } from "../auth/actor"
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { CategoriesService } from "../categories/categories.service"
-import { ConflictProblem, NotFoundProblem, NotPermittedProblem, StaleWriteProblem, ValidationProblem } from "../common/problems/problem.exception"
+import {
+  ConflictProblem,
+  NotFoundProblem,
+  NotPermittedProblem,
+  StaleWriteProblem,
+  ValidationProblem,
+} from "../common/problems/problem.exception"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { PrismaService } from "../prisma/prisma.service"
 import { QuotaService } from "../quota/quota.service"
@@ -79,9 +85,7 @@ export class KnowledgeService {
     return {
       items: page.map(toSummary),
       nextCursor:
-        rows.length > query.limit && last !== undefined
-          ? encodeCursor({ sortValue: last.updatedAt.toISOString(), id: last.id })
-          : null,
+        rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.updatedAt.toISOString(), id: last.id }) : null,
     }
   }
 
@@ -141,7 +145,12 @@ export class KnowledgeService {
         // After the slug is won: a lost race must not hold a unit of the plan (TENANCY.md §8).
         await this.quota.consume(orgId, "KB_ARTICLES")
         await this.audit.record(orgId, [
-          { action: "ARTICLE_CREATED", entityType: "KnowledgeArticle", entityId: created, diff: { title: request.title, slug, visibility } },
+          {
+            action: "ARTICLE_CREATED",
+            entityType: "KnowledgeArticle",
+            entityId: created,
+            diff: { title: request.title, slug, visibility },
+          },
         ])
         return created
       })
@@ -181,25 +190,29 @@ export class KnowledgeService {
       const edited = (["title", "body", "categoryId"] as const).filter((field) => field in changes)
       await this.audit.record(orgId, [
         ...(edited.length > 0
-          ? [{
-              action: "ARTICLE_UPDATED" as const,
-              entityType: "KnowledgeArticle" as const,
-              entityId: id,
-              // Which fields, and a title's words — never two copies of a body.
-              diff: {
-                fields: edited,
-                ...(changes.title === undefined ? {} : { title: { from: row.title, to: changes.title } }),
+          ? [
+              {
+                action: "ARTICLE_UPDATED" as const,
+                entityType: "KnowledgeArticle" as const,
+                entityId: id,
+                // Which fields, and a title's words — never two copies of a body.
+                diff: {
+                  fields: edited,
+                  ...(changes.title === undefined ? {} : { title: { from: row.title, to: changes.title } }),
+                },
               },
-            }]
+            ]
           : []),
         ...(changes.visibility === undefined
           ? []
-          : [{
-              action: "ARTICLE_VISIBILITY_CHANGED" as const,
-              entityType: "KnowledgeArticle" as const,
-              entityId: id,
-              diff: { from: row.visibility, to: changes.visibility },
-            }]),
+          : [
+              {
+                action: "ARTICLE_VISIBILITY_CHANGED" as const,
+                entityType: "KnowledgeArticle" as const,
+                entityId: id,
+                diff: { from: row.visibility, to: changes.visibility },
+              },
+            ]),
       ])
     })
     return this.get(id)

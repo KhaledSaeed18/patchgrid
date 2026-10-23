@@ -33,21 +33,40 @@ let formerMembershipId = ""
 
 beforeAll(async () => {
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(recorder).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(recorder)
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   ws = await seedWorkspace(app, db, { prefix: "erase", people: { owner: "OWNER", agent: "AGENT" } })
   other = await seedWorkspace(app, db, { prefix: "erase-other", people: { owner: "OWNER" } })
   jobs = settler(app, [MAIL_QUEUE])
-  ticketId = (await as("agent").post("/tickets", { type: "INCIDENT", title: "Laptop", description: "x", impact: "LOW", urgency: "LOW" })).body.id as string
+  ticketId = (await as("agent").post("/tickets", { type: "INCIDENT", title: "Laptop", description: "x", impact: "LOW", urgency: "LOW" }))
+    .body.id as string
   // The agent once belonged to the other workspace too, and was removed from it: still their name there.
   const former = await db.membership.create({
-    data: { orgId: other.orgId, userId: ws.people.agent.userId, role: "AGENT", status: "REMOVED", displayName: "agent", joinedAt: new Date() },
+    data: {
+      orgId: other.orgId,
+      userId: ws.people.agent.userId,
+      role: "AGENT",
+      status: "REMOVED",
+      displayName: "agent",
+      joinedAt: new Date(),
+    },
   })
   formerMembershipId = former.id
   await db.userOrgIndex.create({
-    data: { userId: ws.people.agent.userId, orgId: other.orgId, roleForDisplay: "AGENT", statusForDisplay: "REMOVED", orgSlug: other.slug, orgName: "Other", orgStatus: "ACTIVE" },
+    data: {
+      userId: ws.people.agent.userId,
+      orgId: other.orgId,
+      roleForDisplay: "AGENT",
+      statusForDisplay: "REMOVED",
+      orgSlug: other.slug,
+      orgName: "Other",
+      orgStatus: "ACTIVE",
+    },
   })
 })
 
@@ -106,7 +125,9 @@ describe("erasing", () => {
 
     const ticket = await as("owner").get(`/tickets/${ticketId}`)
     expect(ticket.body.requester).toEqual({ membershipId: ws.people.agent.membershipId, displayName: "Former member", external: false })
-    expect(await db.auditLog.findFirst({ where: { orgId: ws.orgId, action: "MEMBER_REMOVED", entityId: ws.people.agent.membershipId } })).toMatchObject({
+    expect(
+      await db.auditLog.findFirst({ where: { orgId: ws.orgId, action: "MEMBER_REMOVED", entityId: ws.people.agent.membershipId } }),
+    ).toMatchObject({
       actorMembershipId: ws.people.agent.membershipId,
       diff: { erased: true },
     })
@@ -117,9 +138,14 @@ describe("erasing", () => {
     expect(account.email).toBe(`deleted+${ws.people.agent.userId}@invalid`)
     expect(account).toMatchObject({ name: "", passwordHash: null })
     expect(await db.userOrgIndex.count({ where: { userId: ws.people.agent.userId } })).toBe(0)
-    const login = await request(app.getHttpServer()).post("/api/v1/auth/login").set(HEADERS).send({ email: ws.people.agent.email, password: PASSWORD })
+    const login = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .set(HEADERS)
+      .send({ email: ws.people.agent.email, password: PASSWORD })
     expect(login.status).toBe(401)
     await jobs.settle()
-    expect(recorder.sent.filter((m) => m.to === ws.people.agent.email).map((m) => m.subject)).toContain("Your Patchgrid account has been deleted")
+    expect(recorder.sent.filter((m) => m.to === ws.people.agent.email).map((m) => m.subject)).toContain(
+      "Your Patchgrid account has been deleted",
+    )
   })
 })

@@ -102,8 +102,17 @@ export class AttachmentsService {
         storageKey: storageKey(orgId, request.ticketId, request.filename),
       })
     })
-    const upload = await this.storage.presignPut(stagingKey(row.storageKey), request.mimeType, request.sizeBytes, UPLOAD_TTL_SECONDS, this.clock.now())
-    return { attachment: this.toAttachment(actor, row), upload: { method: "PUT", url: upload.url, headers: upload.headers, expiresAt: upload.expiresAt.toISOString() } }
+    const upload = await this.storage.presignPut(
+      stagingKey(row.storageKey),
+      request.mimeType,
+      request.sizeBytes,
+      UPLOAD_TTL_SECONDS,
+      this.clock.now(),
+    )
+    return {
+      attachment: this.toAttachment(actor, row),
+      upload: { method: "PUT", url: upload.url, headers: upload.headers, expiresAt: upload.expiresAt.toISOString() },
+    }
   }
 
   async complete(id: string): Promise<Attachment> {
@@ -119,7 +128,8 @@ export class AttachmentsService {
     const staged = stagingKey(row.storageKey)
     const stored = await this.storage.size(staged)
     if (stored === null) throw new ConflictProblem("Nothing has been uploaded for this file yet")
-    const sniffed = stored === row.sizeBytes ? sniff(await this.storage.readStart(staged, SNIFF_BYTES), row.declaredMimeType as AttachmentMimeType) : null
+    const sniffed =
+      stored === row.sizeBytes ? sniff(await this.storage.readStart(staged, SNIFF_BYTES), row.declaredMimeType as AttachmentMimeType) : null
     if (sniffed === null) {
       // Refused bytes go; the row and its quota stay PENDING until the sweep, when the upload URL is long dead.
       await this.removeObject(staged)
@@ -142,7 +152,12 @@ export class AttachmentsService {
         throw new NotFoundProblem()
       }
       await this.audit.record(orgId, [
-        { action: "ATTACHMENT_ADDED", entityType: "Ticket", entityId: row.ticketId, diff: { attachmentId: id, filename: row.filename, sizeBytes: row.sizeBytes, internal: row.comment?.visibility === "INTERNAL" } },
+        {
+          action: "ATTACHMENT_ADDED",
+          entityType: "Ticket",
+          entityId: row.ticketId,
+          diff: { attachmentId: id, filename: row.filename, sizeBytes: row.sizeBytes, internal: row.comment?.visibility === "INTERNAL" },
+        },
       ])
     })
     await this.pulse.changed(orgId, row.ticketId, row.comment?.visibility === "INTERNAL" ? "internal" : "ticket")
@@ -231,7 +246,11 @@ export class AttachmentsService {
     })
     const mimeType = row.mimeType ?? row.declaredMimeType
     const inline = (INLINE_RENDERABLE_MIME_TYPES as readonly string[]).includes(mimeType)
-    const url = await this.storage.presignGet(row.storageKey, { filename: row.filename, contentType: mimeType, inline }, DOWNLOAD_TTL_SECONDS)
+    const url = await this.storage.presignGet(
+      row.storageKey,
+      { filename: row.filename, contentType: mimeType, inline },
+      DOWNLOAD_TTL_SECONDS,
+    )
     return { url, inline, expiresAt: new Date(this.clock.now().getTime() + DOWNLOAD_TTL_SECONDS * 1000).toISOString() }
   }
 
@@ -248,7 +267,12 @@ export class AttachmentsService {
       if (!(await this.attachments.remove(orgId, id))) throw new NotFoundProblem()
       await this.quota.release(orgId, "STORAGE_BYTES", found.sizeBytes)
       await this.audit.record(orgId, [
-        { action: "ATTACHMENT_REMOVED", entityType: "Ticket", entityId: found.ticketId, diff: { attachmentId: id, filename: found.filename, sizeBytes: found.sizeBytes } },
+        {
+          action: "ATTACHMENT_REMOVED",
+          entityType: "Ticket",
+          entityId: found.ticketId,
+          diff: { attachmentId: id, filename: found.filename, sizeBytes: found.sizeBytes },
+        },
       ])
       return found
     })
@@ -314,6 +338,11 @@ export function stagingKey(storageKey: string): string {
 
 /** `org/<orgId>/tickets/<ticketId>/<uuid>-<name>`: the tenant first, a fresh id, a name safe as a key. */
 export function storageKey(orgId: string, ticketId: string, filename: string): string {
-  const safe = filename.normalize("NFKD").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._]+/, "").slice(-100) || "file"
+  const safe =
+    filename
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9._-]+/g, "_")
+      .replace(/^[._]+/, "")
+      .slice(-100) || "file"
   return `org/${orgId}/tickets/${ticketId}/${uuidv7()}-${safe}`
 }

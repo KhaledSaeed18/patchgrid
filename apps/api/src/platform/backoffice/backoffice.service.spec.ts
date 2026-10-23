@@ -13,7 +13,16 @@ import type { BackofficeRepository, OrgRow } from "./repositories/backoffice.rep
 
 const ORG = "0190b2f0-0000-7000-8000-00000000000a"
 const NOW = new Date("2026-10-15T12:00:00Z")
-const org: OrgRow = { id: ORG, name: "Acme", slug: "acme", status: "ACTIVE", plan: "FREE", domain: null, createdAt: new Date(0), deletionRequestedAt: null }
+const org: OrgRow = {
+  id: ORG,
+  name: "Acme",
+  slug: "acme",
+  status: "ACTIVE",
+  plan: "FREE",
+  domain: null,
+  createdAt: new Date(0),
+  deletionRequestedAt: null,
+}
 
 function harness(actor: PlatformActor | undefined, row: OrgRow | null = org, moved = true, owned = true) {
   const repo = {
@@ -60,7 +69,9 @@ describe("BackofficeService", () => {
     expect(h.repo.moveStatus).toHaveBeenCalledWith(ORG, "ACTIVE", "SUSPENDED")
     expect(h.epochs.bump.mock.calls).toEqual([["m-1"], ["m-2"]])
     expect(h.audit.record).toHaveBeenCalledWith(ORG, [expect.objectContaining({ action: "ORG_SUSPENDED", diff: { reason: "abuse" } })])
-    expect(h.platformAudit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "PLATFORM_ORG_SUSPENDED", platformAdminId: "pa-1" }))
+    expect(h.platformAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "PLATFORM_ORG_SUSPENDED", platformAdminId: "pa-1" }),
+    )
   })
 
   it("refuses to suspend what is not active, and a workspace that does not exist", async () => {
@@ -75,17 +86,25 @@ describe("BackofficeService", () => {
     expect(same.audit.record).not.toHaveBeenCalled()
     const pro = harness(operator)
     await pro.service.setPlan(ORG, "PRO")
-    expect(pro.audit.record).toHaveBeenCalledWith(ORG, [expect.objectContaining({ action: "ORG_PLAN_CHANGED", diff: { plan: { from: "FREE", to: "PRO" } } })])
+    expect(pro.audit.record).toHaveBeenCalledWith(ORG, [
+      expect.objectContaining({ action: "ORG_PLAN_CHANGED", diff: { plan: { from: "FREE", to: "PRO" } } }),
+    ])
   })
 
   it("restores a workspace pending deletion, in both logs, until its purge date and not after (ADR-0043)", async () => {
     const day = 24 * 60 * 60_000
-    const pending = (requestedDaysAgo: number): OrgRow => ({ ...org, status: "PENDING_DELETION", deletionRequestedAt: new Date(NOW.getTime() - requestedDaysAgo * day) })
+    const pending = (requestedDaysAgo: number): OrgRow => ({
+      ...org,
+      status: "PENDING_DELETION",
+      deletionRequestedAt: new Date(NOW.getTime() - requestedDaysAgo * day),
+    })
     const h = harness(operator, pending(29))
     await h.service.restore(ORG)
     expect(h.repo.restoreDeletion).toHaveBeenCalledWith(ORG)
     expect(h.audit.record).toHaveBeenCalledWith(ORG, [expect.objectContaining({ action: "ORG_DELETION_CANCELLED" })])
-    expect(h.platformAudit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "PLATFORM_ORG_DELETION_RESTORED", targetOrgId: ORG }))
+    expect(h.platformAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "PLATFORM_ORG_DELETION_RESTORED", targetOrgId: ORG }),
+    )
     const late = harness(operator, pending(30))
     await expect(late.service.restore(ORG)).rejects.toBeInstanceOf(ConflictProblem)
     expect(late.repo.restoreDeletion).not.toHaveBeenCalled()

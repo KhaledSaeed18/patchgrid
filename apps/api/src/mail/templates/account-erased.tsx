@@ -18,8 +18,8 @@ export function AccountErased(p: AccountErasedParams) {
       </p>
       <p>
         Your name and address are gone from it
-        {p.workspaceCount > 0 ? ` and from the ${String(p.workspaceCount)} workspace${p.workspaceCount === 1 ? "" : "s"} you were in` : ""}. What you wrote in
-        tickets stays with those workspaces, under &ldquo;Former member&rdquo;.
+        {p.workspaceCount > 0 ? ` and from the ${String(p.workspaceCount)} workspace${p.workspaceCount === 1 ? "" : "s"} you were in` : ""}.
+        What you wrote in tickets stays with those workspaces, under &ldquo;Former member&rdquo;.
       </p>
       <p>You can sign up again with this address at any time; it starts a new, empty account.</p>
     </MailLayout>

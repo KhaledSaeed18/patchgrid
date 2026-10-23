@@ -58,7 +58,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       connectionString: config.DATABASE_URL,
       maxConnections: config.DATABASE_POOL_MAX,
       // Pool saturation is the one gauge every tenant shares (ADR-0030).
-      onPool: (pool) => observePool(() => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: config.DATABASE_POOL_MAX })),
+      onPool: (pool) =>
+        observePool(() => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: config.DATABASE_POOL_MAX })),
     })
     // Every tenant-owned query reads the tenant from the request context at
     // the moment it is awaited, and throws if there is none. A query outside
@@ -177,9 +178,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     // (ADR-0022).
     await assertAppRoleCannotBypassRls(this.base)
 
-    this.logger.log(
-      `connected to postgres (pool max ${String(this.config.DATABASE_POOL_MAX)}, RLS enforced)`,
-    )
+    this.logger.log(`connected to postgres (pool max ${String(this.config.DATABASE_POOL_MAX)}, RLS enforced)`)
   }
 
   async onModuleDestroy(): Promise<void> {

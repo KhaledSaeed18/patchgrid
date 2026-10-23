@@ -14,7 +14,16 @@ export type SsoConnectionRecord = {
   updatedAt: Date
 }
 
-const RECORD = { id: true, orgId: true, issuer: true, clientId: true, clientSecretSealed: true, defaultRole: true, enabled: true, updatedAt: true } as const
+const RECORD = {
+  id: true,
+  orgId: true,
+  issuer: true,
+  clientId: true,
+  clientSecretSealed: true,
+  defaultRole: true,
+  enabled: true,
+  updatedAt: true,
+} as const
 
 /**
  * A workspace's one OpenID Connect connection (ADR-0054). Tenant-owned: every
@@ -52,6 +61,7 @@ export class SsoConnectionRepository {
 
 function toRecord(row: Omit<SsoConnectionRecord, "defaultRole"> & { defaultRole: string }): SsoConnectionRecord {
   // The CHECK constraint keeps it to these two; a third would be a schema bug, refused rather than widened.
-  if (row.defaultRole !== "REQUESTER" && row.defaultRole !== "AGENT") throw new Error(`SsoConnection ${row.id} has default role ${row.defaultRole}`)
+  if (row.defaultRole !== "REQUESTER" && row.defaultRole !== "AGENT")
+    throw new Error(`SsoConnection ${row.id} has default role ${row.defaultRole}`)
   return { ...row, defaultRole: row.defaultRole }
 }

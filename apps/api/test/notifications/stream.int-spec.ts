@@ -104,7 +104,10 @@ describe("the live stream", () => {
   it("delivers a notification live to its recipient alone, and replays it after Last-Event-ID", async () => {
     const [net, sec] = [await stream("net"), await stream("sec")]
     const ticket = await raise("Printer queue stuck")
-    const assigned = await as("admin").put(`/tickets/${ticket.id}/assignment`, { version: ticket.version, assigneeMembershipId: ws.people.net.membershipId })
+    const assigned = await as("admin").put(`/tickets/${ticket.id}/assignment`, {
+      version: ticket.version,
+      assigneeMembershipId: ws.people.net.membershipId,
+    })
     expect(assigned.status).toBe(200)
     const live = await net.next((f) => f.event === "notification")
     expect(live.data).toMatchObject({ type: "TICKET_ASSIGNED", ticketId: ticket.id })

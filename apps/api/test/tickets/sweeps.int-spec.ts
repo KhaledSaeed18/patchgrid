@@ -115,8 +115,12 @@ describe("the sla scan", () => {
 describe("auto-close", () => {
   it("closes a ticket resolved seven days ago, as the system, and leaves a newer one", async () => {
     at(31)
-    const older = (await as("requester").post("/tickets", { type: "INCIDENT", title: "Old", description: "x", impact: "LOW", urgency: "LOW" })).body
-    const newer = (await as("requester").post("/tickets", { type: "INCIDENT", title: "New", description: "x", impact: "LOW", urgency: "LOW" })).body
+    const older = (
+      await as("requester").post("/tickets", { type: "INCIDENT", title: "Old", description: "x", impact: "LOW", urgency: "LOW" })
+    ).body
+    const newer = (
+      await as("requester").post("/tickets", { type: "INCIDENT", title: "New", description: "x", impact: "LOW", urgency: "LOW" })
+    ).body
     const resolve = async (ticket: { id: string; version: number }) => {
       const started = await as("agent").post(`/tickets/${ticket.id}/transitions`, { action: "start", version: ticket.version })
       const resolved = await as("agent").post(`/tickets/${ticket.id}/transitions`, {

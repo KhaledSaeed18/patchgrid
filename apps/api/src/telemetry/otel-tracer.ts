@@ -45,5 +45,7 @@ function wrap(span: OtelSpan): Span {
 
 /** The seam allows `undefined` values; the SDK does not. */
 function defined(attributes: SpanAttributes): Record<string, string | number | boolean> {
-  return Object.fromEntries(Object.entries(attributes).filter((entry): entry is [string, string | number | boolean] => entry[1] !== undefined))
+  return Object.fromEntries(
+    Object.entries(attributes).filter((entry): entry is [string, string | number | boolean] => entry[1] !== undefined),
+  )
 }

@@ -20,7 +20,8 @@ const acme: OrganizationSummary = {
   status: "ACTIVE",
   plan: "PRO",
   agentVisibility: "OWN_TEAM_ONLY",
-  requireMfa: false, requireSso: false,
+  requireMfa: false,
+  requireSso: false,
 }
 const frozen: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000f", slug: "frozen", status: "SUSPENDED" }
 const ORGS = [acme, frozen]
@@ -86,19 +87,13 @@ const http = () => request(app.getHttpServer())
 
 describe("TenantResolutionGuard over HTTP", () => {
   it("writes the tenant into the context for a tenant-bound route", async () => {
-    const response = await http()
-      .get("/probe")
-      .set("Origin", "http://acme.lvh.me:3001")
-      .set("Cookie", cookieFor("acme", acme.id))
+    const response = await http().get("/probe").set("Origin", "http://acme.lvh.me:3001").set("Cookie", cookieFor("acme", acme.id))
     expect(response.status).toBe(200)
     expect(response.body).toEqual({ orgId: acme.id, slug: "acme" })
   })
 
   it("accepts the server-side assertion header in place of Origin", async () => {
-    const response = await http()
-      .get("/probe")
-      .set("X-Patchgrid-Tenant", "acme")
-      .set("Cookie", cookieFor("acme", acme.id))
+    const response = await http().get("/probe").set("X-Patchgrid-Tenant", "acme").set("Cookie", cookieFor("acme", acme.id))
     expect(response.status).toBe(200)
     expect(response.body.orgId).toBe(acme.id)
   })
@@ -118,8 +113,18 @@ describe("TenantResolutionGuard over HTTP", () => {
     ["an unknown workspace", { Origin: "http://nobody.lvh.me:3001" }, 404, "not-found"],
     ["no session on a known workspace", { Origin: "http://acme.lvh.me:3001" }, 401, "not-authenticated"],
     ["a cookie for another workspace", { Origin: "http://acme.lvh.me:3001", Cookie: cookieFor("acme", frozen.id) }, 403, "tenant-mismatch"],
-    ["a suspended workspace", { Origin: "http://frozen.lvh.me:3001", Cookie: cookieFor("frozen", frozen.id) }, 403, "organization-suspended"],
-    ["a token used on another workspace", { Origin: "http://frozen.lvh.me:3001", Authorization: "Bearer pg_acmetok_s" }, 403, "tenant-mismatch"],
+    [
+      "a suspended workspace",
+      { Origin: "http://frozen.lvh.me:3001", Cookie: cookieFor("frozen", frozen.id) },
+      403,
+      "organization-suspended",
+    ],
+    [
+      "a token used on another workspace",
+      { Origin: "http://frozen.lvh.me:3001", Authorization: "Bearer pg_acmetok_s" },
+      403,
+      "tenant-mismatch",
+    ],
     ["a foreign Origin", { Origin: "https://evil.example", Cookie: cookieFor("acme", acme.id) }, 403, "tenant-mismatch"],
     ["nothing naming a workspace", { Cookie: cookieFor("acme", acme.id) }, 403, "tenant-mismatch"],
     ["an unknown token", { Authorization: "Bearer pg_nope_s" }, 401, "not-authenticated"],

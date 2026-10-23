@@ -68,7 +68,10 @@ export class PasskeyCeremonies {
   ) {}
 
   /** A discoverable credential, user-verified, no attestation; the person's existing passkeys excluded. */
-  async creationOptions(user: { id: string; email: string; name: string }, existing: readonly PasskeyRecord[]): Promise<PasskeyCreationCeremony> {
+  async creationOptions(
+    user: { id: string; email: string; name: string },
+    existing: readonly PasskeyRecord[],
+  ): Promise<PasskeyCreationCeremony> {
     const issued = await this.challenges.issue("register", user.id)
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
@@ -92,7 +95,11 @@ export class PasskeyCeremonies {
    * no credentials and the authenticator offers whatever it holds for this
    * relying party; a proof lists the person's own.
    */
-  async requestOptions(purpose: "login" | "proof", userId: string | null, allow: readonly PasskeyRecord[]): Promise<PasskeyRequestCeremony> {
+  async requestOptions(
+    purpose: "login" | "proof",
+    userId: string | null,
+    allow: readonly PasskeyRecord[],
+  ): Promise<PasskeyRequestCeremony> {
     const issued = await this.challenges.issue(purpose, userId)
     const options = await generateAuthenticationOptions({
       rpID: this.config.ROOT_DOMAIN,
@@ -105,7 +112,12 @@ export class PasskeyCeremonies {
   }
 
   /** The new credential, verified against the challenge issued to this person; `null` for anything else. */
-  async verifyRegistration(userId: string, challengeId: string, credential: PasskeyRegistrationCredential, label: string): Promise<NewPasskey | null> {
+  async verifyRegistration(
+    userId: string,
+    challengeId: string,
+    credential: PasskeyRegistrationCredential,
+    label: string,
+  ): Promise<NewPasskey | null> {
     const spent = await this.challenges.spend(challengeId, "register")
     if (spent === null || spent.userId !== userId) return null
     const origin = this.acceptedOrigin(credential.response.clientDataJSON)
@@ -144,7 +156,12 @@ export class PasskeyCeremonies {
    *
    * `expectedUserId` is `null` only for a passwordless login.
    */
-  async verifyAssertion(purpose: "login" | "proof", challengeId: string, credential: PasskeyAssertionCredential, expectedUserId: string | null): Promise<Asserted | null> {
+  async verifyAssertion(
+    purpose: "login" | "proof",
+    challengeId: string,
+    credential: PasskeyAssertionCredential,
+    expectedUserId: string | null,
+  ): Promise<Asserted | null> {
     const spent = await this.challenges.spend(challengeId, purpose)
     if (spent === null || spent.userId !== expectedUserId) return null
     const origin = this.acceptedOrigin(credential.response.clientDataJSON)
@@ -154,7 +171,8 @@ export class PasskeyCeremonies {
     if (expectedUserId !== null && stored.userId !== expectedUserId) return null
     // A discoverable sign-in names its owner; it must be the credential's.
     const handle = credential.response.userHandle
-    if ((handle === undefined && purpose === "login") || (handle !== undefined && handle !== base64url(userHandleBytes(stored.userId)))) return null
+    if ((handle === undefined && purpose === "login") || (handle !== undefined && handle !== base64url(userHandleBytes(stored.userId))))
+      return null
 
     let verified: Awaited<ReturnType<typeof verifyAuthenticationResponse>>
     try {
@@ -181,7 +199,13 @@ export class PasskeyCeremonies {
       await this.notifier.tell(stored.userId, "passkey-cloned", 0)
       return null
     }
-    const recorded = await this.passkeys.recordUse(stored.id, stored.signCount, presented, verified.authenticationInfo.credentialBackedUp, this.clock.now())
+    const recorded = await this.passkeys.recordUse(
+      stored.id,
+      stored.signCount,
+      presented,
+      verified.authenticationInfo.credentialBackedUp,
+      this.clock.now(),
+    )
     if (!recorded) return null
     return { userId: stored.userId, passkeyId: stored.id }
   }

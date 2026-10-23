@@ -70,7 +70,11 @@ export class RefreshTokenRepository {
    * connection means. Returns whose they were, for the epoch bump.
    */
   async revokeSsoSessions(orgId: string, at: Date): Promise<string[]> {
-    const live = await this.prisma.db.refreshToken.findMany({ where: { ssoOrgId: orgId, revokedAt: null }, select: { userId: true }, distinct: ["userId"] })
+    const live = await this.prisma.db.refreshToken.findMany({
+      where: { ssoOrgId: orgId, revokedAt: null },
+      select: { userId: true },
+      distinct: ["userId"],
+    })
     await this.prisma.db.refreshToken.updateMany({ where: { ssoOrgId: orgId, revokedAt: null }, data: { revokedAt: at } })
     return live.map((row) => row.userId)
   }

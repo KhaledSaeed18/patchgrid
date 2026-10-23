@@ -32,7 +32,13 @@ const ticket = (over: Partial<FactSource> = {}): FactSource => ({
 
 describe("factOf", () => {
   it("leaves a fresh ticket's clocks running, with no durations yet", () => {
-    expect(factOf(ticket())).toMatchObject({ state: "OPEN", response: "RUNNING", resolution: "RUNNING", responseMinutes: null, resolutionMinutes: null })
+    expect(factOf(ticket())).toMatchObject({
+      state: "OPEN",
+      response: "RUNNING",
+      resolution: "RUNNING",
+      responseMinutes: null,
+      resolutionMinutes: null,
+    })
   })
 
   it("meets a clock stopped in time, and breaches one stopped late even before the scan flagged it", () => {
@@ -51,7 +57,9 @@ describe("factOf", () => {
   })
 
   it("counts a reopened ticket's resolution from its fresh start", () => {
-    const f = factOf(ticket({ respondedAt: at(5), resolutionClockStartedAt: at(1_000), resolvedAt: at(1_090), resolveBy: at(1_480), reopenCount: 1 }))
+    const f = factOf(
+      ticket({ respondedAt: at(5), resolutionClockStartedAt: at(1_000), resolvedAt: at(1_090), resolveBy: at(1_480), reopenCount: 1 }),
+    )
     expect(f).toMatchObject({ resolutionMinutes: 90, resolution: "MET", reopenCount: 1 })
   })
 

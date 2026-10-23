@@ -15,7 +15,16 @@ export type OrgRow = {
   deletionRequestedAt: Date | null
 }
 
-const ORG = { id: true, name: true, slug: true, status: true, plan: true, domain: true, createdAt: true, deletionRequestedAt: true } satisfies Prisma.OrganizationSelect
+const ORG = {
+  id: true,
+  name: true,
+  slug: true,
+  status: true,
+  plan: true,
+  domain: true,
+  createdAt: true,
+  deletionRequestedAt: true,
+} satisfies Prisma.OrganizationSelect
 
 /**
  * What the back-office reads and changes (RBAC.md §8). The organization
@@ -28,7 +37,12 @@ export class BackofficeRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Newest first, keyset on (createdAt, id). */
-  list(filter: { q?: string; status?: OrganizationStatus; after: { createdAt: Date; id: string } | null; limit: number }): Promise<OrgRow[]> {
+  list(filter: {
+    q?: string
+    status?: OrganizationStatus
+    after: { createdAt: Date; id: string } | null
+    limit: number
+  }): Promise<OrgRow[]> {
     return this.prisma.db.organization.findMany({
       where: {
         AND: [
@@ -75,7 +89,8 @@ export class BackofficeRepository {
       where: { id, status: "PENDING_DELETION" },
       data: { status: "ACTIVE", deletionRequestedAt: null },
     })
-    if (count === 1) await this.prisma.db.userOrgIndex.updateMany({ where: { orgId: id }, data: { orgStatus: "ACTIVE", orgDeletionRequestedAt: null } })
+    if (count === 1)
+      await this.prisma.db.userOrgIndex.updateMany({ where: { orgId: id }, data: { orgStatus: "ACTIVE", orgDeletionRequestedAt: null } })
     return count === 1
   }
 

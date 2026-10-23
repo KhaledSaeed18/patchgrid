@@ -69,7 +69,12 @@ export class SsoProvisioning {
     @InjectClock() private readonly clock: Clock,
   ) {}
 
-  async resolve(org: SsoOrg, connection: SsoConnectionRecord, person: SsoPerson, options: ResolveOptions = { mayJoin: true }): Promise<Resolved> {
+  async resolve(
+    org: SsoOrg,
+    connection: SsoConnectionRecord,
+    person: SsoPerson,
+    options: ResolveOptions = { mayJoin: true },
+  ): Promise<Resolved> {
     try {
       return await runAsTenant(org.id, { actor: `sso:${connection.id}`, reason: "sso sign-in" }, () =>
         this.prisma.transaction(() => this.resolveInside(org, connection, person, options)),
@@ -117,10 +122,14 @@ export class SsoProvisioning {
       // One identity per member: another subject already holds this membership.
       if ((await this.identities.subjectOf(org.id, existing.id)) !== null) throw new SsoFailure("mismatch")
       await this.identities.link(org.id, connection.id, person.subject, existing.id, now)
-      await this.audit.record(org.id, [{ action: "SSO_IDENTITY_LINKED", entityType: "Membership", entityId: existing.id, diff: { connectionId: connection.id } }], {
-        kind: "member",
-        membershipId: existing.id,
-      })
+      await this.audit.record(
+        org.id,
+        [{ action: "SSO_IDENTITY_LINKED", entityType: "Membership", entityId: existing.id, diff: { connectionId: connection.id } }],
+        {
+          kind: "member",
+          membershipId: existing.id,
+        },
+      )
       return { account, membershipId: existing.id, role: existing.role }
     }
 
@@ -147,7 +156,14 @@ export class SsoProvisioning {
     })
     await this.audit.record(
       org.id,
-      [{ action: "MEMBER_JOINED", entityType: "Membership", entityId: membershipId, diff: { via: "sso", role: connection.defaultRole, newAccount: account === null } }],
+      [
+        {
+          action: "MEMBER_JOINED",
+          entityType: "Membership",
+          entityId: membershipId,
+          diff: { via: "sso", role: connection.defaultRole, newAccount: account === null },
+        },
+      ],
       { kind: "member", membershipId },
     )
     this.logger.log({ msg: "member provisioned by sso", orgId: org.id, membershipId })

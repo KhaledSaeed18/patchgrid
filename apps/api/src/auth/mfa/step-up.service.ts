@@ -37,7 +37,11 @@ export class StepUpService {
   }
 
   /** A `pg_id` holder re-proves themselves and gets that workspace's pair back with the claim on it. */
-  async prove(identity: Pick<IdentityActor, "userId" | "ssoOrgId">, request: StepUpRequest, client: ClientInfo): Promise<{ response: StepUpResponse; cookies: CookieSpec[] }> {
+  async prove(
+    identity: Pick<IdentityActor, "userId" | "ssoOrgId">,
+    request: StepUpRequest,
+    client: ClientInfo,
+  ): Promise<{ response: StepUpResponse; cookies: CookieSpec[] }> {
     const { userId } = identity
     // An SSO session re-proves at its provider (`/auth/sso/start?intent=step-up`), never with the person's own
     // factors: a wrong code here would lock those factors for every workspace (M13 review).

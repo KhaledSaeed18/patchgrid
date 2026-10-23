@@ -25,7 +25,10 @@ export class AccountErasureRepository {
 
   /** Inside the tenant: already erased — an erasure retried after a refusal elsewhere skips it. */
   async isAnonymised(orgId: string, membershipId: string): Promise<boolean> {
-    const row = await this.prisma.db.membership.findUnique({ where: { orgId_id: { orgId, id: membershipId } }, select: { anonymisedAt: true } })
+    const row = await this.prisma.db.membership.findUnique({
+      where: { orgId_id: { orgId, id: membershipId } },
+      select: { anonymisedAt: true },
+    })
     return row?.anonymisedAt != null
   }
 

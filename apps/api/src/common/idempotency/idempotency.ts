@@ -1,11 +1,4 @@
-import {
-  type CallHandler,
-  type ExecutionContext,
-  Injectable,
-  Logger,
-  type NestInterceptor,
-  SetMetadata,
-} from "@nestjs/common"
+import { type CallHandler, type ExecutionContext, Injectable, Logger, type NestInterceptor, SetMetadata } from "@nestjs/common"
 import { Reflector } from "@nestjs/core"
 import type { Request, Response } from "express"
 import { createHash } from "node:crypto"
@@ -68,11 +61,15 @@ export class IdempotencyInterceptor implements NestInterceptor {
   private async run(context: ExecutionContext, request: Request, key: string, next: CallHandler): Promise<unknown> {
     const response = context.switchToHttp().getResponse<Response>()
     const slot = this.slotFor(request, key)
-    const bodyHash = createHash("sha256").update(JSON.stringify(request.body ?? null)).digest("hex")
+    const bodyHash = createHash("sha256")
+      .update(JSON.stringify(request.body ?? null))
+      .digest("hex")
 
     let claimed: boolean
     try {
-      claimed = (await this.redis.client.set(slot, JSON.stringify({ state: "pending", bodyHash } satisfies Stored), "EX", TTL_SECONDS, "NX")) === "OK"
+      claimed =
+        (await this.redis.client.set(slot, JSON.stringify({ state: "pending", bodyHash } satisfies Stored), "EX", TTL_SECONDS, "NX")) ===
+        "OK"
     } catch {
       this.logger.warn({ msg: "idempotency store unavailable; proceeding without", route: request.path })
       return lastValueFrom(next.handle())

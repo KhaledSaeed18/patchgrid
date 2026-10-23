@@ -25,11 +25,14 @@ export function PlatformSecurity(p: PlatformSecurityParams) {
         <strong>{HEADLINE[p.event]}.</strong>
       </p>
       {p.event === "factor-locked" ? (
-        <p>Five wrong codes were entered after your password. If that was not you, someone has your password: change it, and tell whoever runs the platform.</p>
+        <p>
+          Five wrong codes were entered after your password. If that was not you, someone has your password: change it, and tell whoever
+          runs the platform.
+        </p>
       ) : (
         <p>
-          {p.remaining} recovery code{p.remaining === 1 ? "" : "s"} left. Every other operator session you had was signed out. If this was not you, someone has
-          your password and a recovery code: change the password, and have your grant revoked.
+          {p.remaining} recovery code{p.remaining === 1 ? "" : "s"} left. Every other operator session you had was signed out. If this was
+          not you, someone has your password and a recovery code: change the password, and have your grant revoked.
         </p>
       )}
     </MailLayout>

@@ -47,13 +47,19 @@ export function AccountSecurity(p: AccountSecurityParams) {
         </p>
       )}
       {p.event === "factor-disabled" && (
-        <p>Signing in no longer asks for a code from your authenticator app. If it was your only second factor, workspaces that require one will ask you to set one up before they open.</p>
+        <p>
+          Signing in no longer asks for a code from your authenticator app. If it was your only second factor, workspaces that require one
+          will ask you to set one up before they open.
+        </p>
       )}
-      {p.event === "factor-locked" && <p>Five wrong codes were entered after your password. If that was not you, someone has your password: change it now.</p>}
+      {p.event === "factor-locked" && (
+        <p>Five wrong codes were entered after your password. If that was not you, someone has your password: change it now.</p>
+      )}
       {p.event === "recovery-code-used" && (
         <p>
-          {p.remaining} recovery code{p.remaining === 1 ? "" : "s"} left. Every other session you had was signed out. If this was not you, someone has your password and a
-          recovery code: change the password, then turn two-factor authentication off and on again to get new codes.
+          {p.remaining} recovery code{p.remaining === 1 ? "" : "s"} left. Every other session you had was signed out. If this was not you,
+          someone has your password and a recovery code: change the password, then turn two-factor authentication off and on again to get
+          new codes.
         </p>
       )}
       {p.event === "recovery-codes-regenerated" && <p>The old codes no longer work. {p.remaining} new ones were shown to you once.</p>}
@@ -66,8 +72,8 @@ export function AccountSecurity(p: AccountSecurityParams) {
       {p.event === "passkey-removed" && <p>It no longer signs you in. Your other factors are unchanged.</p>}
       {p.event === "passkey-cloned" && (
         <p>
-          A sign-in with one of your passkeys was refused because its counter went backwards, which happens when a security key has been copied. Remove that passkey from your
-          account and add it again.
+          A sign-in with one of your passkeys was refused because its counter went backwards, which happens when a security key has been
+          copied. Remove that passkey from your account and add it again.
         </p>
       )}
       <p>If this was not you, change your password straight away.</p>

@@ -97,9 +97,7 @@ describe("runAsTenant", () => {
 
   it("lets RLS refuse a write into another tenant", async () => {
     await expect(
-      runAsTenant(acme.id, crossing, () =>
-        prisma.db.team.create({ data: { orgId: globex.id, name: "Planted" } }),
-      ),
+      runAsTenant(acme.id, crossing, () => prisma.db.team.create({ data: { orgId: globex.id, name: "Planted" } })),
     ).rejects.toThrow(/row-level security/)
   })
 })

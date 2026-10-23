@@ -38,8 +38,12 @@ export class ApiTokenIndexRepository {
   }
 
   /** The reconcile's repairs. Updates are one statement each: a token drifts one revocation at a time. */
-  async writeForOrg(orgId: string, plan: { create: readonly TokenIndexRow[]; update: readonly TokenIndexRow[]; remove: readonly string[] }): Promise<void> {
-    if (plan.create.length > 0) await this.prisma.db.apiTokenIndex.createMany({ data: plan.create.map((row) => ({ orgId, ...row })), skipDuplicates: true })
+  async writeForOrg(
+    orgId: string,
+    plan: { create: readonly TokenIndexRow[]; update: readonly TokenIndexRow[]; remove: readonly string[] },
+  ): Promise<void> {
+    if (plan.create.length > 0)
+      await this.prisma.db.apiTokenIndex.createMany({ data: plan.create.map((row) => ({ orgId, ...row })), skipDuplicates: true })
     for (const row of plan.update) {
       await this.prisma.db.apiTokenIndex.updateMany({ where: { orgId, prefix: row.prefix }, data: { revokedAt: row.revokedAt } })
     }

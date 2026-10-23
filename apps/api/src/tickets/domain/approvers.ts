@@ -15,7 +15,10 @@ export type ApproverCandidate = { membershipId: string; role: Role }
  *   other admin was made the assignee, so this change cannot be decided as it
  *   stands, and submitting it is refused.
  */
-export function approvalRoute(candidates: readonly ApproverCandidate[], involved: readonly (string | null)[]): { kind: "others" } | { kind: "self"; ownerMembershipId: string } | { kind: "nobody" } {
+export function approvalRoute(
+  candidates: readonly ApproverCandidate[],
+  involved: readonly (string | null)[],
+): { kind: "others" } | { kind: "self"; ownerMembershipId: string } | { kind: "nobody" } {
   const unique = [...new Map(candidates.map((c) => [c.membershipId, c])).values()]
   if (unique.some((c) => !involved.includes(c.membershipId))) return { kind: "others" }
   const [sole, ...rest] = unique

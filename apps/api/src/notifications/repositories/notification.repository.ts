@@ -68,10 +68,7 @@ export class NotificationRepository {
         ...(filter.after === null
           ? {}
           : {
-              OR: [
-                { updatedAt: { lt: filter.after.updatedAt } },
-                { updatedAt: filter.after.updatedAt, id: { lt: filter.after.id } },
-              ],
+              OR: [{ updatedAt: { lt: filter.after.updatedAt } }, { updatedAt: filter.after.updatedAt, id: { lt: filter.after.id } }],
             }),
       },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],

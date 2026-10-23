@@ -119,7 +119,10 @@ export class AccountErasureService {
       this.prisma.transaction(() => this.erasure.tombstoneAccount(userId, tombstone, now)),
     )
     await this.mail
-      .enqueue({ kind: "account-erased", to: account.email, orgId: null, fromName: "Patchgrid", params: { workspaceCount: erased } }, userId)
+      .enqueue(
+        { kind: "account-erased", to: account.email, orgId: null, fromName: "Patchgrid", params: { workspaceCount: erased } },
+        userId,
+      )
       .catch((error: unknown) => this.logger.error({ msg: "erasure mail not queued", userId, error: String(error) }))
     return clear
   }
@@ -171,7 +174,14 @@ export class AccountErasureService {
         await this.workspaces.markRemoved(userId, orgId)
         await this.audit.record(
           orgId,
-          [{ action: "MEMBER_REMOVED", entityType: "Membership", entityId: membership.id, diff: { erased: true, ...(leftTeams.length > 0 ? { leftTeams } : {}) } }],
+          [
+            {
+              action: "MEMBER_REMOVED",
+              entityType: "Membership",
+              entityId: membership.id,
+              diff: { erased: true, ...(leftTeams.length > 0 ? { leftTeams } : {}) },
+            },
+          ],
           { kind: "member", membershipId: membership.id },
         )
         return membership.id

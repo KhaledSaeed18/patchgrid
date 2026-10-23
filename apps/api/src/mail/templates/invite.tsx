@@ -13,8 +13,7 @@ export function Invite({ orgName, inviterName, role, acceptUrl, expiresInDays }:
   return (
     <MailLayout preview={`${inviterName} invited you to ${orgName} on Patchgrid`}>
       <p>
-        <strong>{inviterName}</strong> has invited you to join <strong>{orgName}</strong> on Patchgrid as a{" "}
-        {role.toLowerCase()}.
+        <strong>{inviterName}</strong> has invited you to join <strong>{orgName}</strong> on Patchgrid as a {role.toLowerCase()}.
       </p>
       <p>This invitation is for this address only and expires in {expiresInDays} days.</p>
       <Button href={acceptUrl}>Accept the invitation</Button>

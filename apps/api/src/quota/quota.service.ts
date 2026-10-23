@@ -59,7 +59,12 @@ export class QuotaService {
     const after = await this.counters.read(orgId, period, metric)
     const line = BigInt(limitReachedAt(metric, limit))
     if (after - BigInt(amount) < line && after >= line) {
-      await this.outbox.append(orgId, [{ type: PLAN_LIMIT_REACHED, payload: { kind: PLAN_LIMIT_REACHED, metric, period, plan, limit, message: limitMessage(metric, plan) } }])
+      await this.outbox.append(orgId, [
+        {
+          type: PLAN_LIMIT_REACHED,
+          payload: { kind: PLAN_LIMIT_REACHED, metric, period, plan, limit, message: limitMessage(metric, plan) },
+        },
+      ])
     }
   }
 

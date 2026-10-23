@@ -1,6 +1,13 @@
 import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from "@nestjs/common"
 import { Throttle } from "@nestjs/throttler"
-import { IDENTITY_COOKIE, SSO_FLOW_COOKIE, SSO_FLOW_COOKIE_PATH, ssoDiscoverRequestSchema, type SsoDiscoverResponse, ssoStartQuerySchema } from "@patchgrid/contracts"
+import {
+  IDENTITY_COOKIE,
+  SSO_FLOW_COOKIE,
+  SSO_FLOW_COOKIE_PATH,
+  ssoDiscoverRequestSchema,
+  type SsoDiscoverResponse,
+  ssoStartQuerySchema,
+} from "@patchgrid/contracts"
 import type { Request, Response } from "express"
 import { createZodDto } from "nestjs-zod"
 import { z } from "zod"
@@ -58,7 +65,11 @@ export class SsoController {
     this.cookies.clear(response, [{ name: SSO_FLOW_COOKIE, path: SSO_FLOW_COOKIE_PATH }])
     await this.redirect(response, () =>
       this.sso.callback(
-        { ...(query.code === undefined ? {} : { code: query.code }), ...(query.state === undefined ? {} : { state: query.state }), ...(query.error === undefined ? {} : { error: query.error }) },
+        {
+          ...(query.code === undefined ? {} : { code: query.code }),
+          ...(query.state === undefined ? {} : { state: query.state }),
+          ...(query.error === undefined ? {} : { error: query.error }),
+        },
         callbackUrl,
         readCookie(request, SSO_FLOW_COOKIE),
         readCookie(request, IDENTITY_COOKIE),

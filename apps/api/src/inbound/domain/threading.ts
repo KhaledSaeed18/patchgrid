@@ -36,7 +36,7 @@ export function ticketReference(input: {
 /** A subject as a ticket title: no `Re:`/`Fwd:` chain, no `[INC-…]` tag, one line, at most 200 characters. */
 export function titleFromSubject(subject: string): string {
   let title = subject.replace(/[\r\n]+/g, " ")
-  for (let previous = ""; previous !== title; ) {
+  for (let previous = ""; previous !== title;) {
     previous = title
     title = title.replace(/^\s*((re|fwd?|aw|wg|sv|tr)\s*(\[\d+\])?\s*:\s*)/i, "").replace(/^\s*\[[A-Za-z]{2,4}-\d{1,9}\]\s*/, "")
   }

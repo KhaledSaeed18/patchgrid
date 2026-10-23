@@ -12,8 +12,8 @@ export function ConfirmErasure({ name, confirmUrl, expiresInMinutes }: ConfirmEr
     <MailLayout preview="Erase your Patchgrid account">
       <p>Hi {name},</p>
       <p>
-        Someone asked to erase the Patchgrid account at this address. The link below shows what erasing removes and asks you to
-        confirm. It works once and expires in {expiresInMinutes} minutes.
+        Someone asked to erase the Patchgrid account at this address. The link below shows what erasing removes and asks you to confirm. It
+        works once and expires in {expiresInMinutes} minutes.
       </p>
       <Button href={confirmUrl}>Review and erase</Button>
       <p>If you did not ask for this, ignore it: nothing happens until the link is used.</p>

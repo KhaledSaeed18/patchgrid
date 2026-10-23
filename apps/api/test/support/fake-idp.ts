@@ -69,7 +69,13 @@ export class FakeIdp {
     }
     if (get("response_type") !== "code" || get("code_challenge_method") !== "S256") throw new Error("not a PKCE code request")
     const code = randomBytes(16).toString("base64url")
-    this.grants.set(code, { person, nonce: get("nonce"), challenge: get("code_challenge"), redirectUri: get("redirect_uri"), clientId: get("client_id") })
+    this.grants.set(code, {
+      person,
+      nonce: get("nonce"),
+      challenge: get("code_challenge"),
+      redirectUri: get("redirect_uri"),
+      clientId: get("client_id"),
+    })
     const callback = new URL(get("redirect_uri"))
     callback.searchParams.set("code", code)
     callback.searchParams.set("state", get("state"))
@@ -102,9 +108,12 @@ export class FakeIdp {
   private async token(request: IncomingMessage): Promise<{ status: number; body: unknown }> {
     // RFC 6749 §2.3.1: both halves form-encoded before base64, so a `-` arrives as `%2D`.
     const [scheme, encoded] = (request.headers.authorization ?? "").split(" ")
-    const [id = "", secret = ""] = Buffer.from(encoded ?? "", "base64").toString("utf8").split(":")
+    const [id = "", secret = ""] = Buffer.from(encoded ?? "", "base64")
+      .toString("utf8")
+      .split(":")
     const decode = (part: string) => decodeURIComponent(part.replace(/\+/g, " "))
-    if (scheme !== "Basic" || decode(id) !== this.clientId || decode(secret) !== this.clientSecret) return { status: 401, body: { error: "invalid_client" } }
+    if (scheme !== "Basic" || decode(id) !== this.clientId || decode(secret) !== this.clientSecret)
+      return { status: 401, body: { error: "invalid_client" } }
     const form = new URLSearchParams(await bodyOf(request))
     const grant = this.grants.get(form.get("code") ?? "")
     this.grants.delete(form.get("code") ?? "")
@@ -112,7 +121,8 @@ export class FakeIdp {
       return { status: 400, body: { error: "invalid_grant" } }
     }
     const verifier = form.get("code_verifier") ?? ""
-    if (createHash("sha256").update(verifier).digest("base64url") !== grant.challenge) return { status: 400, body: { error: "invalid_grant", error_description: "PKCE" } }
+    if (createHash("sha256").update(verifier).digest("base64url") !== grant.challenge)
+      return { status: 400, body: { error: "invalid_grant", error_description: "PKCE" } }
     const now = Math.floor(Date.now() / 1000)
     const idToken = await new SignJWT({
       email: grant.person.email,
@@ -128,7 +138,10 @@ export class FakeIdp {
       .setIssuedAt(now)
       .setExpirationTime(now + 300)
       .sign((this.forge.rogueKey === true ? this.rogue : this.key) as SigningKey)
-    return { status: 200, body: { access_token: randomBytes(16).toString("base64url"), token_type: "Bearer", expires_in: 300, id_token: idToken } }
+    return {
+      status: 200,
+      body: { access_token: randomBytes(16).toString("base64url"), token_type: "Bearer", expires_in: 300, id_token: idToken },
+    }
   }
 }
 

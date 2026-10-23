@@ -211,9 +211,7 @@ describe("PermissionService — escalation negatives (RBAC.md §13.6)", () => {
 
   it("assert is a 403 and assertVisible a 404", () => {
     expect(() => service.assert(member("REQUESTER"), "member:invite")).toThrow(NotPermittedProblem)
-    expect(() => service.assertVisible(member("REQUESTER"), "ticket:read", { own: false })).toThrow(
-      NotFoundProblem,
-    )
+    expect(() => service.assertVisible(member("REQUESTER"), "ticket:read", { own: false })).toThrow(NotFoundProblem)
     expect(() => service.assert(admin, "member:invite")).not.toThrow()
   })
 })
@@ -223,7 +221,13 @@ describe("PermissionService — external requesters (ADR-0027 §4)", () => {
   const own = { own: true, watch: false, scope: false, ticketType: "INCIDENT" as const, ticketStatus: "NEW" as const }
 
   it("may raise, read and answer their own tickets, and attach files to them — no more", () => {
-    expect(service.permissionsFor(external).toSorted()).toEqual(["attachment:download", "attachment:upload", "comment:create_public", "ticket:create", "ticket:read"])
+    expect(service.permissionsFor(external).toSorted()).toEqual([
+      "attachment:download",
+      "attachment:upload",
+      "comment:create_public",
+      "ticket:create",
+      "ticket:read",
+    ])
     expect(service.can(external, "ticket:read", own)).toBe(true)
     expect(service.can(external, "comment:create_public", own)).toBe(true)
   })
@@ -245,16 +249,13 @@ describe("PermissionService — service accounts (RBAC.md §13.8)", () => {
     ["tickets:read", "tickets:write"],
   ]
 
-  it.each(["AGENT", "REQUESTER", "ADMIN", "OWNER"] as const)(
-    "effective permissions for a %s token are exactly role ∩ scopes",
-    (role) => {
-      for (const scopes of scopeSets) {
-        const granted = new Set<Permission>(scopes.flatMap((s) => [...SCOPE_GRANTS[s]]))
-        const expected = service.permissionsFor(member(role)).filter((p) => granted.has(p))
-        expect(service.permissionsFor(token(role, scopes))).toEqual(expected)
-      }
-    },
-  )
+  it.each(["AGENT", "REQUESTER", "ADMIN", "OWNER"] as const)("effective permissions for a %s token are exactly role ∩ scopes", (role) => {
+    for (const scopes of scopeSets) {
+      const granted = new Set<Permission>(scopes.flatMap((s) => [...SCOPE_GRANTS[s]]))
+      const expected = service.permissionsFor(member(role)).filter((p) => granted.has(p))
+      expect(service.permissionsFor(token(role, scopes))).toEqual(expected)
+    }
+  })
 
   it("never reaches a forbidden family, whatever the role and scopes", () => {
     const actor = token("OWNER", [...tokenScopeSchema.options])
@@ -269,9 +270,7 @@ describe("PermissionService — service accounts (RBAC.md §13.8)", () => {
   it("cannot read internal notes without the opt-in scope", () => {
     const actor = token("AGENT", ["tickets:read", "tickets:write"])
     expect(service.can(actor, "comment:read_internal", { scope: true })).toBe(false)
-    expect(service.can(token("AGENT", ["comments:internal"]), "comment:read_internal", { scope: true })).toBe(
-      true,
-    )
+    expect(service.can(token("AGENT", ["comments:internal"]), "comment:read_internal", { scope: true })).toBe(true)
   })
 
   it("scopes never widen a role", () => {
@@ -368,19 +367,37 @@ describe("PermissionService.capabilitiesFor (RBAC.md §7)", () => {
     expect(service.capabilitiesFor(requester, ticket({ own: true, ticketStatus: "NEW" })).editableFields).toEqual(["title", "description"])
     expect(service.capabilitiesFor(requester, ticket({ own: true, ticketStatus: "IN_PROGRESS" })).editableFields).toEqual([])
     const caps = service.capabilitiesFor(requester, ticket({ own: true, ticketStatus: "NEW" }))
-    expect(caps).toMatchObject({ canAssign: false, canCommentPublic: true, canCommentInternal: false, canReadInternal: false, canReadAudit: false })
+    expect(caps).toMatchObject({
+      canAssign: false,
+      canCommentPublic: true,
+      canCommentInternal: false,
+      canReadInternal: false,
+      canReadAudit: false,
+    })
   })
 
   it("gives a watching requester the public thread and nothing else", () => {
     const caps = service.capabilitiesFor(member("REQUESTER"), ticket({ own: false, watch: true, ticketStatus: "IN_PROGRESS" }))
-    expect(caps).toMatchObject({ editableFields: [], canCommentPublic: true, canCommentInternal: false, canWatch: true, canAddWatcher: false })
+    expect(caps).toMatchObject({
+      editableFields: [],
+      canCommentPublic: true,
+      canCommentInternal: false,
+      canWatch: true,
+      canAddWatcher: false,
+    })
   })
 
   it("gives an agent in scope the work, text only while the ticket is open", () => {
     const agent = member("AGENT")
     const open = service.capabilitiesFor(agent, ticket({ scope: true, ticketStatus: "IN_PROGRESS" }))
     expect(open.editableFields).toEqual(["title", "description", "impact", "urgency", "categoryId"])
-    expect(open).toMatchObject({ canAssign: true, canCommentInternal: true, canReadInternal: true, canAddWatcher: true, canReadAudit: true })
+    expect(open).toMatchObject({
+      canAssign: true,
+      canCommentInternal: true,
+      canReadInternal: true,
+      canAddWatcher: true,
+      canReadAudit: true,
+    })
     const closed = service.capabilitiesFor(agent, ticket({ scope: true, ticketStatus: "CLOSED" }))
     expect(closed.editableFields).toEqual(["impact", "urgency", "categoryId"])
     expect(closed.canAssign).toBe(false)

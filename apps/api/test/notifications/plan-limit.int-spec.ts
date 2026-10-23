@@ -27,7 +27,10 @@ let ws: Workspace<"owner" | "admin" | "rita" | "rosa">
 beforeAll(async () => {
   process.env.WORKER_MODE = "api"
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(new RecordingMailProvider()).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(new RecordingMailProvider())
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
@@ -46,8 +49,13 @@ afterAll(async () => {
 })
 
 const drain = () => runAsTenant(ws.orgId, { actor: "test", reason: "drain notify" }, () => app.get(EventRelay).drain(ws.orgId, "notify"))
-const promote = (who: "rita" | "rosa") => browser(app, ws.origin, ws.people.owner.access).patch(`/members/${ws.people[who].membershipId}/role`, { role: "AGENT" })
-const limitRows = () => db.notification.findMany({ where: { orgId: ws.orgId, type: "PLAN_LIMIT_REACHED" }, select: { membershipId: true, title: true, ticketId: true } })
+const promote = (who: "rita" | "rosa") =>
+  browser(app, ws.origin, ws.people.owner.access).patch(`/members/${ws.people[who].membershipId}/role`, { role: "AGENT" })
+const limitRows = () =>
+  db.notification.findMany({
+    where: { orgId: ws.orgId, type: "PLAN_LIMIT_REACHED" },
+    select: { membershipId: true, title: true, ticketId: true },
+  })
 
 it("tells each steward once when the last seat is taken, and not again for the refusal after it", async () => {
   expect((await promote("rita")).status).toBe(200)

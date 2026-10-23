@@ -1,10 +1,5 @@
 import { Injectable } from "@nestjs/common"
-import type {
-  CreateTeamRequest,
-  Team,
-  TeamDetail,
-  UpdateTeamRequest,
-} from "@patchgrid/contracts"
+import type { CreateTeamRequest, Team, TeamDetail, UpdateTeamRequest } from "@patchgrid/contracts"
 
 import { ActorService, type TenantActor } from "../auth/actor"
 import { RevocationEpochService } from "../auth/revocation/revocation-epoch.service"
@@ -56,9 +51,7 @@ export class TeamsService {
     const id = await this.prisma.transaction(async () => {
       const created = await this.teams.create(orgId, { name: request.name, description: request.description ?? null })
       if (created === "name-taken") throw new ConflictProblem("A team with that name already exists")
-      await this.audit.record(orgId, [
-        { action: "TEAM_CREATED", entityType: "Team", entityId: created, diff: { name: request.name } },
-      ])
+      await this.audit.record(orgId, [{ action: "TEAM_CREATED", entityType: "Team", entityId: created, diff: { name: request.name } }])
       return created
     })
     return this.get(id)
@@ -98,9 +91,7 @@ export class TeamsService {
       if ((await this.teams.findMembership(orgId, team.id, membershipId)) !== null) return []
 
       await this.teams.addMember(orgId, team.id, membershipId)
-      await this.audit.record(orgId, [
-        { action: "TEAM_MEMBER_ADDED", entityType: "Team", entityId: team.id, diff: { membershipId } },
-      ])
+      await this.audit.record(orgId, [{ action: "TEAM_MEMBER_ADDED", entityType: "Team", entityId: team.id, diff: { membershipId } }])
       return [membershipId]
     })
   }
@@ -115,7 +106,14 @@ export class TeamsService {
       await this.audit.record(orgId, [
         { action: "TEAM_MEMBER_REMOVED", entityType: "Team", entityId: team.id, diff: { membershipId } },
         ...(current.isLead
-          ? [{ action: "TEAM_LEAD_CHANGED" as const, entityType: "Team" as const, entityId: team.id, diff: { lead: { from: membershipId, to: null } } }]
+          ? [
+              {
+                action: "TEAM_LEAD_CHANGED" as const,
+                entityType: "Team" as const,
+                entityId: team.id,
+                diff: { lead: { from: membershipId, to: null } },
+              },
+            ]
           : []),
       ])
       return [membershipId]
@@ -154,10 +152,7 @@ export class TeamsService {
    * admin for any. Locked per team, then the change, then the epoch bumps for
    * whoever `apply` names, all in one transaction.
    */
-  private async changeMembership(
-    teamId: string,
-    apply: (orgId: string, team: TeamRecord) => Promise<string[]>,
-  ): Promise<void> {
+  private async changeMembership(teamId: string, apply: (orgId: string, team: TeamRecord) => Promise<string[]>): Promise<void> {
     const actor = this.actors.requireTenantActor()
     const orgId = this.tenant.requireOrgId()
     await this.prisma.transaction(async () => {

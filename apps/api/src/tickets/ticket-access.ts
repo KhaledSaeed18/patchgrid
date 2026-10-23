@@ -65,7 +65,11 @@ export class TicketAccess {
   async loadVisible(orgId: string, ids: readonly string[], actor: TenantActor, visibility: AgentVisibility): Promise<LoadedTicket[]> {
     if (ids.length === 0) return []
     const rows = await this.tickets.findManyById(orgId, ids)
-    const watched = await this.tickets.watchedAmong(orgId, rows.map((r) => r.id), actor.membershipId)
+    const watched = await this.tickets.watchedAmong(
+      orgId,
+      rows.map((r) => r.id),
+      actor.membershipId,
+    )
     return rows.flatMap((row) => {
       const own = row.requesterMembershipId === actor.membershipId
       const watch = !own && watched.has(row.id)

@@ -40,9 +40,19 @@ beforeAll(async () => {
   })
   // Dana also works at Globex, as an agent.
   const dana = acme.people.dana
-  await db.membership.create({ data: { orgId: globex.orgId, userId: dana.userId, role: "AGENT", displayName: "dana", joinedAt: new Date() } })
+  await db.membership.create({
+    data: { orgId: globex.orgId, userId: dana.userId, role: "AGENT", displayName: "dana", joinedAt: new Date() },
+  })
   await db.userOrgIndex.create({
-    data: { userId: dana.userId, orgId: globex.orgId, roleForDisplay: "AGENT", statusForDisplay: "ACTIVE", orgSlug: globex.slug, orgName: "Globex", orgStatus: "ACTIVE" },
+    data: {
+      userId: dana.userId,
+      orgId: globex.orgId,
+      roleForDisplay: "AGENT",
+      statusForDisplay: "ACTIVE",
+      orgSlug: globex.slug,
+      orgName: "Globex",
+      orgStatus: "ACTIVE",
+    },
   })
 })
 
@@ -78,7 +88,10 @@ describe("GET /me", () => {
     expect(identity.status).toBe(200)
     expect(identity.body.user.email).toBe(acme.people.dana.email)
     expect(identity.body.workspaces.map((w: { slug: string; role: string }) => [w.slug, w.role]).toSorted()).toEqual(
-      [[acme.slug, "ADMIN"], [globex.slug, "AGENT"]].toSorted(),
+      [
+        [acme.slug, "ADMIN"],
+        [globex.slug, "AGENT"],
+      ].toSorted(),
     )
     expect((await request(app.getHttpServer()).get("/api/v1/auth/identity")).status).toBe(401)
   })
@@ -89,16 +102,14 @@ describe("GET /me", () => {
       .set(HEADERS)
       .set("Cookie", acme.people.dana.pgId)
       .send({ slug: globex.slug })
-    const globexAccess = ((opened.headers["set-cookie"] as unknown as string[]) ?? [])
-      .map((c) => c.split(";")[0] ?? "")
-      .find((c) => c.startsWith(`pg_at_${globex.slug}=`)) ?? ""
+    const globexAccess =
+      ((opened.headers["set-cookie"] as unknown as string[]) ?? [])
+        .map((c) => c.split(";")[0] ?? "")
+        .find((c) => c.startsWith(`pg_at_${globex.slug}=`)) ?? ""
 
     // Both tabs, both cookies in the jar, each request naming its workspace by Origin.
     const jar = `${acme.people.dana.access}; ${globexAccess}`
-    const [inAcme, inGlobex] = await Promise.all([
-      browser(app, acme.origin, jar).get("/me"),
-      browser(app, globex.origin, jar).get("/me"),
-    ])
+    const [inAcme, inGlobex] = await Promise.all([browser(app, acme.origin, jar).get("/me"), browser(app, globex.origin, jar).get("/me")])
     expect(inAcme.body).toMatchObject({ org: { id: acme.orgId }, membership: { role: "ADMIN" } })
     expect(inGlobex.body).toMatchObject({ org: { id: globex.orgId }, membership: { role: "AGENT" }, teams: [] })
     expect(inGlobex.body.permissions).not.toContain("member:invite")

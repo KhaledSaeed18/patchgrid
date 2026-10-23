@@ -58,7 +58,9 @@ export class DeliverProcessor extends WorkerHost implements OnApplicationBootstr
     }
     let outcome: AttemptOutcome
     try {
-      outcome = await runJob({ orgId }, "job:webhook-deliver", "one attempt at one delivery", () => this.deliverer.attempt(orgId, deliveryId))
+      outcome = await runJob({ orgId }, "job:webhook-deliver", "one attempt at one delivery", () =>
+        this.deliverer.attempt(orgId, deliveryId),
+      )
     } finally {
       await lease.release()
     }
@@ -77,6 +79,8 @@ export class DeliverProcessor extends WorkerHost implements OnApplicationBootstr
   }
 }
 
-function spread(job: ReturnType<typeof deliveryJob>): [string, ReturnType<typeof deliveryJob>["data"], ReturnType<typeof deliveryJob>["opts"]] {
+function spread(
+  job: ReturnType<typeof deliveryJob>,
+): [string, ReturnType<typeof deliveryJob>["data"], ReturnType<typeof deliveryJob>["opts"]] {
   return [job.name, job.data, job.opts]
 }

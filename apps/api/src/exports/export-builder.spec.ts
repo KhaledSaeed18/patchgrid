@@ -9,16 +9,20 @@ import { EXPORT_PAGE, type ExportAttachment, type ExportReaderRepository } from 
 /** `count` one-byte files, and the order things happened in. */
 function harness(count: number, options: { uploadFails?: boolean } = {}) {
   const events: string[] = []
-  const files: ExportAttachment[] = Array.from({ length: count }, (_, i) => ({
-    id: `a-${String(i).padStart(5, "0")}`,
-    ticketId: "t-1",
-    commentId: null,
-    filename: `f${String(i)}.txt`,
-    mimeType: "text/plain",
-    sizeBytes: 1,
-    createdAt: new Date(0),
-    storageKey: `k-${String(i)}`,
-  }) as unknown as ExportAttachment)
+  const files: ExportAttachment[] = Array.from(
+    { length: count },
+    (_, i) =>
+      ({
+        id: `a-${String(i).padStart(5, "0")}`,
+        ticketId: "t-1",
+        commentId: null,
+        filename: `f${String(i)}.txt`,
+        mimeType: "text/plain",
+        sizeBytes: 1,
+        createdAt: new Date(0),
+        storageKey: `k-${String(i)}`,
+      }) as unknown as ExportAttachment,
+  )
   const reader = {
     readers: [],
     attachments: vi.fn(async (_o: string, after: string | null) => {
@@ -78,7 +82,12 @@ describe("ExportBuilder", () => {
   it("fails, and removes what it stored, when the upload fails — it never waits for a drain that will not come", async () => {
     const remove = vi.fn(async () => undefined)
     const reader = {
-      readers: [{ file: "tickets", read: async () => ({ rows: Array.from({ length: 50 }, (_, i) => ({ id: String(i), body: "x".repeat(2000) })), next: null }) }],
+      readers: [
+        {
+          file: "tickets",
+          read: async () => ({ rows: Array.from({ length: 50 }, (_, i) => ({ id: String(i), body: "x".repeat(2000) })), next: null }),
+        },
+      ],
       attachments: async () => [],
     } as unknown as ExportReaderRepository
     const storage = {
@@ -87,7 +96,9 @@ describe("ExportBuilder", () => {
       remove,
     } as unknown as StorageService
     const prisma = { transaction: async <T>(fn: () => Promise<T>) => fn() } as unknown as PrismaService
-    await expect(new ExportBuilder(reader, storage, prisma).build("o-1", "x-1", { name: "Acme", slug: "acme" }, new Date(0))).rejects.toThrow("part upload failed")
+    await expect(
+      new ExportBuilder(reader, storage, prisma).build("o-1", "x-1", { name: "Acme", slug: "acme" }, new Date(0)),
+    ).rejects.toThrow("part upload failed")
     expect(remove).toHaveBeenCalledWith("org/o-1/exports/x-1.zip")
   })
 

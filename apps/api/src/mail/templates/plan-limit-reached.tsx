@@ -24,8 +24,8 @@ export function PlanLimitReached(p: PlanLimitReachedParams) {
         <strong>{p.headline}.</strong>
       </p>
       <p>
-        Nothing in {p.orgName} is lost or locked; what reached the limit just cannot grow until there is room again — by freeing some, or
-        by moving the workspace to a larger plan.
+        Nothing in {p.orgName} is lost or locked; what reached the limit just cannot grow until there is room again — by freeing some, or by
+        moving the workspace to a larger plan.
       </p>
       <Button href={p.usageUrl}>See the workspace's usage</Button>
       <FallbackLink href={p.usageUrl} />

@@ -31,14 +31,21 @@ beforeAll(async () => {
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
-  ws = await seedWorkspace(app, db, { prefix: "vis", people: { agent: "AGENT", requester: "REQUESTER", admin: "ADMIN" }, teams: ["A", "B", "C"] })
+  ws = await seedWorkspace(app, db, {
+    prefix: "vis",
+    people: { agent: "AGENT", requester: "REQUESTER", admin: "ADMIN" },
+    teams: ["A", "B", "C"],
+  })
   for (const team of ["A", "B"]) {
     await db.teamMembership.create({ data: { orgId: ws.orgId, teamId: ws.teams[team] ?? "", membershipId: ws.people.agent.membershipId } })
   }
   // The agent's team facts are read per request by the auth guard; their old token is fine.
   const now = new Date()
   let number = 0
-  const make = async (key: string, over: { teamId?: string | null | undefined; assigneeMembershipId?: string | null; requesterMembershipId?: string }) => {
+  const make = async (
+    key: string,
+    over: { teamId?: string | null | undefined; assigneeMembershipId?: string | null; requesterMembershipId?: string },
+  ) => {
     number += 1
     tickets[key] = (
       await db.ticket.create({
@@ -69,7 +76,12 @@ beforeAll(async () => {
   await make("team-c-watched", { teamId: ws.teams.C })
   await make("team-c-raised", { teamId: ws.teams.C, requesterMembershipId: ws.people.agent.membershipId })
   await db.ticketWatcher.create({
-    data: { orgId: ws.orgId, ticketId: tickets["team-c-watched"] ?? "", membershipId: ws.people.agent.membershipId, addedByMembershipId: ws.people.admin.membershipId },
+    data: {
+      orgId: ws.orgId,
+      ticketId: tickets["team-c-watched"] ?? "",
+      membershipId: ws.people.agent.membershipId,
+      addedByMembershipId: ws.people.admin.membershipId,
+    },
   })
   await setVisibility("OWN_TEAM_ONLY")
 })
@@ -135,7 +147,12 @@ describe("OWN_TEAM_ONLY", () => {
     expect(stopped.body).toEqual([])
     expect((await agent.get(`/tickets/${id}`)).status).toBe(404)
     await db.ticketWatcher.create({
-      data: { orgId: ws.orgId, ticketId: id, membershipId: ws.people.agent.membershipId, addedByMembershipId: ws.people.admin.membershipId },
+      data: {
+        orgId: ws.orgId,
+        ticketId: id,
+        membershipId: ws.people.agent.membershipId,
+        addedByMembershipId: ws.people.admin.membershipId,
+      },
     })
   })
 

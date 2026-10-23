@@ -5,7 +5,9 @@ import {
   notificationEventSchema,
   ticketStatusSchema,
   ticketTypeSchema,
-  ticketUpdatedEventSchema, bulkProgressEventSchema } from "@patchgrid/contracts"
+  ticketUpdatedEventSchema,
+  bulkProgressEventSchema,
+} from "@patchgrid/contracts"
 import Redis from "ioredis"
 import { z } from "zod"
 

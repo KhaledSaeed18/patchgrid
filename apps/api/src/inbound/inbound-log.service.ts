@@ -52,7 +52,8 @@ export class InboundLogService {
     const last = page.at(-1)
     return {
       items: page.map(toInboundEmail),
-      nextCursor: rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.receivedAt.toISOString(), id: last.id }) : null,
+      nextCursor:
+        rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.receivedAt.toISOString(), id: last.id }) : null,
     }
   }
 }

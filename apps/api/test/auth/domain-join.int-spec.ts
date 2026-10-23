@@ -31,12 +31,18 @@ const people: { id: string; email: string }[] = []
 beforeAll(async () => {
   process.env.WORKER_MODE = "api"
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(new RecordingMailProvider()).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(new RecordingMailProvider())
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   ws = await seedWorkspace(app, db, { prefix: "domjoin", people: { owner: "OWNER" } })
-  await db.organization.update({ where: { id: ws.orgId }, data: { domain, domainVerifiedAt: new Date(), allowDomainJoin: true, defaultJoinRole: "REQUESTER" } })
+  await db.organization.update({
+    where: { id: ws.orgId },
+    data: { domain, domainVerifiedAt: new Date(), allowDomainJoin: true, defaultJoinRole: "REQUESTER" },
+  })
 })
 
 afterAll(async () => {
@@ -52,13 +58,16 @@ afterAll(async () => {
 /** A verified account at `at`, signed in with no workspace: its `pg_id`. */
 async function person(local: string, at: string): Promise<string> {
   const email = `${local}-${suffix}@${at}`
-  const user = await db.user.create({ data: { email, name: local, passwordHash: await app.get(PasswordService).hash(PASSWORD), emailVerifiedAt: new Date() } })
+  const user = await db.user.create({
+    data: { email, name: local, passwordHash: await app.get(PasswordService).hash(PASSWORD), emailVerifiedAt: new Date() },
+  })
   people.push({ id: user.id, email })
   const login = await request(app.getHttpServer()).post("/api/v1/auth/login").set(HEADERS).send({ email, password: PASSWORD })
   return (login.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("pg_id="))?.split(";")[0] ?? ""
 }
 const identity = (pgId: string) => request(app.getHttpServer()).get("/api/v1/auth/identity").set(HEADERS).set("Cookie", pgId)
-const join = (pgId: string, slug: string) => request(app.getHttpServer()).post("/api/v1/auth/workspaces/join").set(HEADERS).set("Cookie", pgId).send({ slug })
+const join = (pgId: string, slug: string) =>
+  request(app.getHttpServer()).post("/api/v1/auth/workspaces/join").set(HEADERS).set("Cookie", pgId).send({ slug })
 
 it("offers the workspace to an address at its proved domain, joins it as a requester, and opens it", async () => {
   const pgId = await person("ana", domain)

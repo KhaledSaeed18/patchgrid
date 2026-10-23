@@ -79,7 +79,11 @@ export class ExportsService {
       throw new ConflictProblem("This export is not ready, or has lapsed")
     }
     const filename = `${this.tenant.organization()?.slug ?? "workspace"}-export-${row.requestedAt.toISOString().slice(0, 10)}.zip`
-    const url = await this.storage.presignGet(row.storageKey, { filename, contentType: "application/zip", inline: false }, DOWNLOAD_TTL_SECONDS)
+    const url = await this.storage.presignGet(
+      row.storageKey,
+      { filename, contentType: "application/zip", inline: false },
+      DOWNLOAD_TTL_SECONDS,
+    )
     return { url, expiresAt: new Date(now.getTime() + DOWNLOAD_TTL_SECONDS * 1000).toISOString() }
   }
 

@@ -63,7 +63,13 @@ const address = (who: Who) => ws.people[who].email
 describe("notification email", () => {
   it("confirms a requester's own ticket by email, and tells nobody else by email", async () => {
     const mark = recorder.sent.length
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Monitor flickers", description: "x", impact: "LOW", urgency: "LOW" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "Monitor flickers",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
     ticket = { id: created.body.id as string, version: created.body.version as number }
     const sent = await mailSince(mark)
     expect(sent).toEqual([{ to: address("requester"), subject: expect.stringMatching(/^We've received \[INC-\d{6}\]: Monitor flickers$/) }])
@@ -74,14 +80,21 @@ describe("notification email", () => {
 
   it("emails the new assignee, and one email for a burst of replies", async () => {
     const mark = recorder.sent.length
-    const assigned = await as("teammate").put(`/tickets/${ticket.id}/assignment`, { version: ticket.version, assigneeMembershipId: ws.people.agent.membershipId })
+    const assigned = await as("teammate").put(`/tickets/${ticket.id}/assignment`, {
+      version: ticket.version,
+      assigneeMembershipId: ws.people.agent.membershipId,
+    })
     expect(assigned.status).toBe(200)
     for (const body of ["On it", "Swapping the cable", "Fixed?"]) {
       await as("agent").post(`/tickets/${ticket.id}/comments`, { body, visibility: "PUBLIC" })
     }
     const sent = await mailSince(mark)
-    expect(sent.filter((m) => m.to === address("agent"))).toEqual([{ to: address("agent"), subject: expect.stringMatching(/^Assigned to you/) }])
-    expect(sent.filter((m) => m.to === address("requester"))).toEqual([{ to: address("requester"), subject: expect.stringMatching(/^New reply on/) }])
+    expect(sent.filter((m) => m.to === address("agent"))).toEqual([
+      { to: address("agent"), subject: expect.stringMatching(/^Assigned to you/) },
+    ])
+    expect(sent.filter((m) => m.to === address("requester"))).toEqual([
+      { to: address("requester"), subject: expect.stringMatching(/^New reply on/) },
+    ])
   })
 
   it("honours a member's choice, which is theirs alone", async () => {
@@ -104,7 +117,10 @@ describe("notification email", () => {
     await app.get(OrganizationLookupService).invalidate({ id: ws.orgId, slug: ws.slug })
     const mark = recorder.sent.length
     const current = (await as("agent").get(`/tickets/${ticket.id}`)).body as { version: number }
-    await as("agent").put(`/tickets/${ticket.id}/assignment`, { version: current.version, assigneeMembershipId: ws.people.teammate.membershipId })
+    await as("agent").put(`/tickets/${ticket.id}/assignment`, {
+      version: current.version,
+      assigneeMembershipId: ws.people.teammate.membershipId,
+    })
     expect(await mailSince(mark)).toEqual([])
     expect((await as("requester").get("/notifications/preferences")).body.emailEnabledForOrg).toBe(false)
   })

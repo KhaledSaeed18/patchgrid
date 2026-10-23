@@ -123,7 +123,9 @@ describe("signing in", () => {
     await second.post("/auth/login", { email: operator.email, password: PASSWORD })
     expect((await second.post("/auth/mfa", { recoveryCode: code })).status).toBe(400)
     const audit = await db.platformAuditLog.findMany({ where: { platformAdminId: operator.adminId }, select: { action: true } })
-    expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(["PLATFORM_MFA_ENROLLED", "PLATFORM_SIGNED_IN", "PLATFORM_RECOVERY_CODE_USED"]))
+    expect(audit.map((a) => a.action)).toEqual(
+      expect.arrayContaining(["PLATFORM_MFA_ENROLLED", "PLATFORM_SIGNED_IN", "PLATFORM_RECOVERY_CODE_USED"]),
+    )
   })
 
   it("signs out everywhere, and a revoked grant ends logins", async () => {

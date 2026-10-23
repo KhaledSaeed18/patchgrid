@@ -1,11 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Res } from "@nestjs/common"
 import { Throttle } from "@nestjs/throttler"
-import {
-  type CreateOrganizationResponse,
-  createOrganizationRequestSchema,
-  idSchema,
-  type SlugAvailability,
-} from "@patchgrid/contracts"
+import { type CreateOrganizationResponse, createOrganizationRequestSchema, idSchema, type SlugAvailability } from "@patchgrid/contracts"
 import type { Request, Response } from "express"
 import { createZodDto } from "nestjs-zod"
 import { z } from "zod"

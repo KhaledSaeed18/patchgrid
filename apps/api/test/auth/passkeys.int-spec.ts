@@ -32,7 +32,10 @@ const phone = new SoftAuthenticator({ synced: true })
 
 beforeAll(async () => {
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(recorder).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(recorder)
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
@@ -71,8 +74,16 @@ async function passwordless(device: SoftAuthenticator, origin: string, slug?: st
   const options = await visitor.post("/auth/passkeys/login/options")
   expect(options.status).toBe(200)
   const credential = device.get(options.body.options, origin)
-  const signedIn = await visitor.post("/auth/passkeys/login", { challengeId: options.body.challengeId, credential, ...(slug === undefined ? {} : { slug }) })
-  return { visitor, signedIn, replay: () => jarred(origin).post("/auth/passkeys/login", { challengeId: options.body.challengeId, credential }) }
+  const signedIn = await visitor.post("/auth/passkeys/login", {
+    challengeId: options.body.challengeId,
+    credential,
+    ...(slug === undefined ? {} : { slug }),
+  })
+  return {
+    visitor,
+    signedIn,
+    replay: () => jarred(origin).post("/auth/passkeys/login", { challengeId: options.body.challengeId, credential }),
+  }
 }
 
 describe("registering", () => {
@@ -85,13 +96,23 @@ describe("registering", () => {
     expect(options.status).toBe(200)
     expect(options.body.options.rp).toEqual({ id: "lvh.me", name: "Patchgrid" })
 
-    const added = await owner.post("/auth/passkeys", { challengeId: options.body.challengeId, credential: laptop.create(options.body.options, APP_ORIGIN), label: "Laptop" })
+    const added = await owner.post("/auth/passkeys", {
+      challengeId: options.body.challengeId,
+      credential: laptop.create(options.body.options, APP_ORIGIN),
+      label: "Laptop",
+    })
     expect(added.status, JSON.stringify(added.body)).toBe(201)
     expect(added.body.recoveryCodes).toHaveLength(10)
     expect(added.body.passkey).toMatchObject({ label: "Laptop", synced: false, lastUsedAt: null })
 
     expect((await owner.get("/auth/passkeys")).body).toHaveLength(1)
-    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], password: true, recoveryCodesRemaining: 10 })
+    expect((await owner.get("/auth/mfa")).body).toEqual({
+      enrolled: false,
+      confirmedAt: null,
+      methods: ["passkey"],
+      password: true,
+      recoveryCodesRemaining: 10,
+    })
     expect((await owner.get("/auth/identity")).body.mfa).toEqual({ enrolled: true })
     expect(await subjectsTo("owner")).toContainEqual(expect.stringMatching(/A passkey was added/))
   })
@@ -100,9 +121,25 @@ describe("registering", () => {
     const owner = picker("owner")
     const options = await owner.post("/auth/passkeys/registration/options", { passkey: await proof(owner, laptop) })
     expect(options.status).toBe(200)
-    expect((await owner.post("/auth/passkeys", { challengeId: options.body.challengeId, credential: phone.create(options.body.options, ADMIN_ORIGIN), label: "Phone" })).status).toBe(400)
+    expect(
+      (
+        await owner.post("/auth/passkeys", {
+          challengeId: options.body.challengeId,
+          credential: phone.create(options.body.options, ADMIN_ORIGIN),
+          label: "Phone",
+        })
+      ).status,
+    ).toBe(400)
     // Spent by the refusal: a second answer to the same challenge is refused too.
-    expect((await owner.post("/auth/passkeys", { challengeId: options.body.challengeId, credential: phone.create(options.body.options, APP_ORIGIN), label: "Phone" })).status).toBe(400)
+    expect(
+      (
+        await owner.post("/auth/passkeys", {
+          challengeId: options.body.challengeId,
+          credential: phone.create(options.body.options, APP_ORIGIN),
+          label: "Phone",
+        })
+      ).status,
+    ).toBe(400)
   })
 
   it("takes a factor, not the password, for the second passkey — and keeps the codes the person has", async () => {
@@ -112,7 +149,11 @@ describe("registering", () => {
     expect(refused.body.errors).toContainEqual(expect.objectContaining({ code: "factor_required" }))
 
     const options = await owner.post("/auth/passkeys/registration/options", { passkey: await proof(owner, laptop) })
-    const added = await owner.post("/auth/passkeys", { challengeId: options.body.challengeId, credential: phone.create(options.body.options, APP_ORIGIN), label: "Phone" })
+    const added = await owner.post("/auth/passkeys", {
+      challengeId: options.body.challengeId,
+      credential: phone.create(options.body.options, APP_ORIGIN),
+      label: "Phone",
+    })
     expect(added.status).toBe(201)
     expect(added.body.recoveryCodes).toBeNull()
     expect(added.body.passkey.synced).toBe(true)
@@ -143,8 +184,19 @@ describe("signing in", () => {
     const unused = await jarred(APP_ORIGIN).post("/auth/passkeys/registration/options")
     expect(unused.status).toBe(401)
     const options = await jarred(APP_ORIGIN).post("/auth/passkeys/login/options")
-    stranger.create({ ...options.body.options, rp: { id: "lvh.me", name: "Patchgrid" }, user: { id: "AAAA", name: "x", displayName: "x" }, pubKeyCredParams: [{ alg: -7, type: "public-key" }] }, APP_ORIGIN)
-    const unknown = await jarred(APP_ORIGIN).post("/auth/passkeys/login", { challengeId: options.body.challengeId, credential: stranger.get(options.body.options, APP_ORIGIN) })
+    stranger.create(
+      {
+        ...options.body.options,
+        rp: { id: "lvh.me", name: "Patchgrid" },
+        user: { id: "AAAA", name: "x", displayName: "x" },
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+      },
+      APP_ORIGIN,
+    )
+    const unknown = await jarred(APP_ORIGIN).post("/auth/passkeys/login", {
+      challengeId: options.body.challengeId,
+      credential: stranger.get(options.body.options, APP_ORIGIN),
+    })
     expect(unknown.status).toBe(401)
   })
 
@@ -156,7 +208,9 @@ describe("signing in", () => {
     expect((await jarred(APP_ORIGIN).post("/auth/mfa/passkey/options")).status).toBe(401)
     const options = await visitor.post("/auth/mfa/passkey/options")
     expect(options.status).toBe(200)
-    const done = await visitor.post("/auth/mfa", { passkey: { challengeId: options.body.challengeId, credential: phone.get(options.body.options, APP_ORIGIN) } })
+    const done = await visitor.post("/auth/mfa", {
+      passkey: { challengeId: options.body.challengeId, credential: phone.get(options.body.options, APP_ORIGIN) },
+    })
     expect(done.status, JSON.stringify(done.body)).toBe(200)
     expect(done.body.session).toEqual({ slug: ws.slug })
   })
@@ -168,7 +222,12 @@ describe("step-up and policy", () => {
     expect((await owner.post("/auth/step-up", { slug: ws.slug, password: PASSWORD })).status).toBe(400)
     const proved = await owner.post("/auth/step-up", { slug: ws.slug, passkey: await proof(owner, laptop) })
     expect(proved.status, JSON.stringify(proved.body)).toBe(200)
-    const minted = await jarred(ws.origin, owner.jar).post("/org/api-tokens", { name: "Zabbix", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
+    const minted = await jarred(ws.origin, owner.jar).post("/org/api-tokens", {
+      name: "Zabbix",
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      expiresInDays: null,
+    })
     expect(minted.status, JSON.stringify(minted.body)).toBe(201)
   })
 
@@ -203,7 +262,13 @@ describe("managing", () => {
 
     // A passkey may prove its own removal; it was the last factor, so the codes go too.
     expect((await owner.post(`/auth/passkeys/${laptopKey?.id ?? ""}/remove`, { passkey: await proof(owner, laptop) })).status).toBe(204)
-    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: [], password: true, recoveryCodesRemaining: 0 })
+    expect((await owner.get("/auth/mfa")).body).toEqual({
+      enrolled: false,
+      confirmedAt: null,
+      methods: [],
+      password: true,
+      recoveryCodesRemaining: 0,
+    })
     expect(await db.userMfaRecovery.count({ where: { userId: ws.people.owner.userId } })).toBe(0)
     expect((await subjectsTo("owner")).filter((s) => /passkey was removed/.test(s))).toHaveLength(2)
     // Gone: it signs no one in.

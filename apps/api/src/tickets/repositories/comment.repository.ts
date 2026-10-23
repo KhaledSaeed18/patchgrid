@@ -52,7 +52,13 @@ export class CommentRepository {
 
   create(
     orgId: string,
-    data: { ticketId: string; authorMembershipId: string | null; authorKind: CommentAuthorKind; body: string; visibility: CommentVisibility },
+    data: {
+      ticketId: string
+      authorMembershipId: string | null
+      authorKind: CommentAuthorKind
+      body: string
+      visibility: CommentVisibility
+    },
   ): Promise<CommentRow> {
     return this.prisma.db.comment.create({ data: { orgId, ...data }, select: ROW })
   }

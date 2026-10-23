@@ -60,12 +60,20 @@ export class OrgDeletionService {
         throw new ValidationProblem([{ path: "confirmSlug", message: "does not match this workspace's address", code: "slug_mismatch" }])
       }
       if (!(await this.lifecycle.requestDeletion(orgId, now))) throw new ConflictProblem("This workspace is not active")
-      await this.audit.record(orgId, [{ action: "ORG_DELETION_REQUESTED", entityType: "Organization", entityId: orgId, diff: { purgeAt: purgeDateFor(now).toISOString() } }])
+      await this.audit.record(orgId, [
+        {
+          action: "ORG_DELETION_REQUESTED",
+          entityType: "Organization",
+          entityId: orgId,
+          diff: { purgeAt: purgeDateFor(now).toISOString() },
+        },
+      ])
       return found
     })
     await this.lookup.invalidate({ id: orgId, slug: org.slug })
     // Every member's sessions end now, the requester's included (TENANCY.md §6).
-    for (const membershipId of await this.prisma.transaction(() => this.lifecycle.membershipIds(orgId))) await this.epochs.bump(membershipId)
+    for (const membershipId of await this.prisma.transaction(() => this.lifecycle.membershipIds(orgId)))
+      await this.epochs.bump(membershipId)
     // And every API token, which has no membership epoch to bump.
     await this.epochs.bump(orgEpochKey(orgId))
     const name = (await this.memberships.findById(orgId, actor.membershipId))?.displayName ?? "An owner"
@@ -88,7 +96,8 @@ export class OrgDeletionService {
         if (membership === null || membership.role !== "OWNER" || membership.status !== "ACTIVE") throw new NotFoundProblem()
         // Only an owner learns the window has closed; anyone else got the same 404 above.
         // From the purge date on, the purge owns it; never restore a workspace it may be emptying.
-        if (this.clock.now().getTime() >= purgeDateFor(requestedAt).getTime()) throw new ConflictProblem("This workspace's deletion window has closed")
+        if (this.clock.now().getTime() >= purgeDateFor(requestedAt).getTime())
+          throw new ConflictProblem("This workspace's deletion window has closed")
         if (!(await this.lifecycle.cancelDeletion(orgId))) throw new ConflictProblem("This workspace is no longer pending deletion")
         await this.audit.record(orgId, [{ action: "ORG_DELETION_CANCELLED", entityType: "Organization", entityId: orgId }], {
           kind: "member",

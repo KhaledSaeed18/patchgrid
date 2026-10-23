@@ -45,8 +45,7 @@ export function ancestors(id: string, all: readonly TreeNode[]): TreeNode[] {
 }
 
 export type MovePlan =
-  | { ok: true; depths: Map<string, number> }
-  | { ok: false; reason: "cycle" | "too-deep" | "unknown-parent" | "inactive-parent" }
+  { ok: true; depths: Map<string, number> } | { ok: false; reason: "cycle" | "too-deep" | "unknown-parent" | "inactive-parent" }
 
 /**
  * Moving `id` under `parentId` (or to the top): refused if the parent is the

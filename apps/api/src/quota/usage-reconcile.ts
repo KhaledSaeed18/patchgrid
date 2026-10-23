@@ -95,7 +95,9 @@ export class UsageReconcileProcessor extends WorkerHost implements OnApplication
 
   async process(job: Job): Promise<number> {
     const { orgId } = readTenantSweep(job)
-    const recounts = await runJob({ orgId }, "job:usage-reconcile", "recount the plan's counters from their rows", () => this.service.reconcile())
+    const recounts = await runJob({ orgId }, "job:usage-reconcile", "recount the plan's counters from their rows", () =>
+      this.service.reconcile(),
+    )
     return recounts.filter((r) => r.counted !== r.stored).length
   }
 }

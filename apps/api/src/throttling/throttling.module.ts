@@ -26,4 +26,3 @@ export class ThrottlingStorageModule {}
   providers: [{ provide: APP_GUARD, useClass: IpThrottlerGuard }],
 })
 export class ThrottlingModule {}
-

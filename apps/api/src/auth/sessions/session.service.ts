@@ -14,10 +14,7 @@ import {
   TenantMismatchProblem,
 } from "../../common/problems/problem.exception"
 import { InjectConfig, type AppConfig } from "../../config/app-config"
-import {
-  MembershipRepository,
-  type MembershipRecord,
-} from "../../memberships/repositories/membership.repository"
+import { MembershipRepository, type MembershipRecord } from "../../memberships/repositories/membership.repository"
 import { MfaRepository } from "../../platform/repositories/mfa.repository"
 import type { OrganizationSummary } from "../../platform/repositories/organization.repository"
 import { RefreshTokenRepository } from "../../platform/repositories/refresh-token.repository"
@@ -193,7 +190,12 @@ export class SessionService {
     const workspaces = await this.workspaces.listWorkspacesForUser(account.id)
     // An SSO session learns nothing of the person beyond its workspace: not the others, not their factors (M13 review).
     if (session.ssoOrgId !== null) {
-      return { user: { id: account.id, email: account.email, name: account.name }, workspaces: workspaces.filter((w) => w.orgId === session.ssoOrgId), mfa: { enrolled: false }, sso: scope === null ? null : { slug: scope.slug } }
+      return {
+        user: { id: account.id, email: account.email, name: account.name },
+        workspaces: workspaces.filter((w) => w.orgId === session.ssoOrgId),
+        mfa: { enrolled: false },
+        sso: scope === null ? null : { slug: scope.slug },
+      }
     }
     return {
       user: { id: account.id, email: account.email, name: account.name },
@@ -320,7 +322,12 @@ export class SessionService {
     return null
   }
 
-  private async assertSessionPolicy(org: OrganizationSummary, membership: MembershipRecord, userId: string, ssoOrgId: string | null): Promise<void> {
+  private async assertSessionPolicy(
+    org: OrganizationSummary,
+    membership: MembershipRecord,
+    userId: string,
+    ssoOrgId: string | null,
+  ): Promise<void> {
     const refusal = await this.sessionRefusal(org, membership, userId, ssoOrgId)
     if (refusal !== null) throw refusal
   }
@@ -330,12 +337,7 @@ export class SessionService {
    * never the projection. `activeOnly` is relaxed only to find memberships to
    * revoke, where a disabled one still has an epoch worth bumping.
    */
-  private membershipOf(
-    org: OrganizationSummary,
-    userId: string,
-    reason: string,
-    activeOnly = true,
-  ): Promise<MembershipRecord | null> {
+  private membershipOf(org: OrganizationSummary, userId: string, reason: string, activeOnly = true): Promise<MembershipRecord | null> {
     return runAsTenant(org.id, { actor: `user:${userId}`, reason }, async () => {
       const membership = await this.memberships.findByUser(org.id, userId)
       if (membership === null || membership.kind !== "HUMAN") return null
@@ -394,8 +396,7 @@ export class SessionService {
 /** Random 256-bit secrets are hashed with SHA-256 and looked up by hash; Argon2id is for low-entropy secrets. */
 export const hash = (secret: string): string => createHash("sha256").update(secret).digest("hex")
 
-const isUsable = (account: AccountRecord): boolean =>
-  account.anonymisedAt === null && account.emailVerifiedAt !== null
+const isUsable = (account: AccountRecord): boolean => account.anonymisedAt === null && account.emailVerifiedAt !== null
 
 const isLive = (row: { revokedAt: Date | null; expiresAt: Date }, now: Date): boolean =>
   row.revokedAt === null && row.expiresAt.getTime() > now.getTime()

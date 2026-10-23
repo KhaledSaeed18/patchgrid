@@ -56,19 +56,33 @@ afterAll(async () => {
 
 it("replays a parked event once, for this workspace's admins alone", async () => {
   const as = (ws: Workspace<string>, who: string) => browser(app, ws.origin, ws.people[who]?.access ?? "")
-  const created = await as(acme, "requester").post("/tickets", { type: "INCIDENT", title: "Badge reader", description: "x", impact: "LOW", urgency: "LOW" })
-  await as(acme, "agent").put(`/tickets/${String(created.body.id)}/assignment`, { version: created.body.version, assigneeMembershipId: acme.people.admin.membershipId })
+  const created = await as(acme, "requester").post("/tickets", {
+    type: "INCIDENT",
+    title: "Badge reader",
+    description: "x",
+    impact: "LOW",
+    urgency: "LOW",
+  })
+  await as(acme, "agent").put(`/tickets/${String(created.body.id)}/assignment`, {
+    version: created.body.version,
+    assigneeMembershipId: acme.people.admin.membershipId,
+  })
   const event = await db.outboxEvent.findFirstOrThrow({ where: { orgId: acme.orgId, type: "ticket-assigned" } })
 
   // The consumer gave up on it: parked, and the cursor past it, as the relay leaves them.
-  await db.eventDeadLetter.create({ data: { orgId: acme.orgId, consumer: "notify", eventId: event.id, failures: 3, error: "gave up after repeated failures" } })
+  await db.eventDeadLetter.create({
+    data: { orgId: acme.orgId, consumer: "notify", eventId: event.id, failures: 3, error: "gave up after repeated failures" },
+  })
   await db.eventConsumer.create({ data: { orgId: acme.orgId, consumer: "notify", cursorTxn: event.txn, cursorEventId: event.id } })
-  const assigned = () => db.notification.count({ where: { orgId: acme.orgId, membershipId: acme.people.admin.membershipId, type: "TICKET_ASSIGNED" } })
+  const assigned = () =>
+    db.notification.count({ where: { orgId: acme.orgId, membershipId: acme.people.admin.membershipId, type: "TICKET_ASSIGNED" } })
   expect(await assigned()).toBe(0)
 
   const list = await as(acme, "admin").get("/org/events/dead-letters")
   expect(list.status).toBe(200)
-  expect(list.body.items).toEqual([expect.objectContaining({ consumer: "notify", eventId: event.id, eventType: "ticket-assigned", replayedAt: null })])
+  expect(list.body.items).toEqual([
+    expect.objectContaining({ consumer: "notify", eventId: event.id, eventType: "ticket-assigned", replayedAt: null }),
+  ])
   const id = String(list.body.items[0].id)
 
   expect((await as(acme, "agent").get("/org/events/dead-letters")).status).toBe(403)

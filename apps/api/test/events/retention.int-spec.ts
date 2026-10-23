@@ -55,7 +55,10 @@ const sweep = (consumers: string[]) =>
     app.get(PrismaService).transaction(() => app.get(RetentionRepository).deleteConsumedEventsBefore(orgId, window, consumers, 100)),
   )
 
-const left = async () => (await owner.outboxEvent.findMany({ where: { orgId }, orderBy: [{ txn: "asc" }, { id: "asc" }] })).map((e) => (e.payload as { n: number }).n)
+const left = async () =>
+  (await owner.outboxEvent.findMany({ where: { orgId }, orderBy: [{ txn: "asc" }, { id: "asc" }] })).map(
+    (e) => (e.payload as { n: number }).n,
+  )
 
 describe("event retention", () => {
   it("deletes only old events every consumer has read and nothing points at", async () => {
@@ -80,7 +83,10 @@ describe("event retention", () => {
     expect(await left()).toEqual([1, 3, 4, 5])
 
     // Once webhooks catches up, e3 and e4 go too; e5 is still too young.
-    await owner.eventConsumer.update({ where: { orgId_consumer: { orgId, consumer: "webhooks" } }, data: { cursorTxn: e4.txn, cursorEventId: e4.id } })
+    await owner.eventConsumer.update({
+      where: { orgId_consumer: { orgId, consumer: "webhooks" } },
+      data: { cursorTxn: e4.txn, cursorEventId: e4.id },
+    })
     expect(await sweep(["notify", "webhooks"])).toBe(2)
     expect(await left()).toEqual([1, 5])
     expect(e3.occurredAt).toEqual(old)

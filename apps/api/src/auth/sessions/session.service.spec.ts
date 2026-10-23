@@ -12,16 +12,9 @@ import {
   TenantMismatchProblem,
 } from "../../common/problems/problem.exception"
 import type { AppConfig } from "../../config/app-config"
-import type {
-  MembershipRecord,
-  MembershipRepository,
-} from "../../memberships/repositories/membership.repository"
+import type { MembershipRecord, MembershipRepository } from "../../memberships/repositories/membership.repository"
 import type { OrganizationSummary } from "../../platform/repositories/organization.repository"
-import type {
-  NewRefreshToken,
-  RefreshTokenRecord,
-  RefreshTokenRepository,
-} from "../../platform/repositories/refresh-token.repository"
+import type { NewRefreshToken, RefreshTokenRecord, RefreshTokenRepository } from "../../platform/repositories/refresh-token.repository"
 import type { UserOrgIndexRepository } from "../../platform/repositories/user-org-index.repository"
 import type { AccountRecord, UserRepository } from "../../platform/repositories/user.repository"
 import type { OrganizationLookup } from "../../tenancy/organization-lookup"
@@ -44,7 +37,15 @@ const config = {
   isProduction: false,
 } as AppConfig
 
-const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false, requireSso: false }
+const acme: OrganizationSummary = {
+  id: "0190b2f0-0000-7000-8000-00000000000a",
+  slug: "acme",
+  status: "ACTIVE",
+  plan: "FREE",
+  agentVisibility: "ALL_TICKETS",
+  requireMfa: false,
+  requireSso: false,
+}
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const frozen: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000f", slug: "frozen", status: "SUSPENDED" }
 /** Requires a second factor of every member (ADR-0045). */
@@ -53,11 +54,28 @@ const strict: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-0000
 const sso: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000d", slug: "sso", requireSso: true, requireMfa: true }
 const ORGS = [acme, globex, frozen, strict, sso]
 
-const owner: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "owner@acme.test", name: "Owner", passwordHash: "$argon2id$owner", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
-const unverified: AccountRecord = { ...owner, id: "0190b2f0-0000-7000-8000-000000000002", email: "new@acme.test", passwordHash: "$argon2id$new", emailVerifiedAt: null }
+const owner: AccountRecord = {
+  id: "0190b2f0-0000-7000-8000-000000000001",
+  email: "owner@acme.test",
+  name: "Owner",
+  passwordHash: "$argon2id$owner",
+  emailVerifiedAt: new Date("2026-01-01T00:00:00Z"),
+  anonymisedAt: null,
+}
+const unverified: AccountRecord = {
+  ...owner,
+  id: "0190b2f0-0000-7000-8000-000000000002",
+  email: "new@acme.test",
+  passwordHash: "$argon2id$new",
+  emailVerifiedAt: null,
+}
 const ACCOUNTS = [owner, unverified]
 
-const membership = (orgId: string, status: MembershipRecord["status"] = "ACTIVE", role: MembershipRecord["role"] = "OWNER"): MembershipRecord => ({
+const membership = (
+  orgId: string,
+  status: MembershipRecord["status"] = "ACTIVE",
+  role: MembershipRecord["role"] = "OWNER",
+): MembershipRecord => ({
   id: `0190b2f0-0000-7000-8000-00000000${orgId.slice(-2)}aa`,
   orgId,
   userId: owner.id,
@@ -101,17 +119,30 @@ function harness(memberships: MembershipRecord[] = [membership(acme.id)], option
       return n
     }),
     revokeWithinScope: vi.fn(async (userId: string, orgId: string, at: Date) => {
-      for (const t of tokens.values()) if (t.userId === userId && t.revokedAt === null && (t.ssoOrgId === orgId || t.orgId === orgId)) t.revokedAt = at
+      for (const t of tokens.values())
+        if (t.userId === userId && t.revokedAt === null && (t.ssoOrgId === orgId || t.orgId === orgId)) t.revokedAt = at
     }),
     revokeAllForUser: vi.fn(async (userId: string, at: Date) => {
       let n = 0
-      for (const t of tokens.values()) if (t.userId === userId && t.revokedAt === null) { t.revokedAt = at; n += 1 }
+      for (const t of tokens.values())
+        if (t.userId === userId && t.revokedAt === null) {
+          t.revokedAt = at
+          n += 1
+        }
       return n
     }),
   }
   function store(t: NewRefreshToken): RefreshTokenRecord {
     nextId += 1
-    const record: RefreshTokenRecord = { id: `tok-${nextId}`, userId: t.userId, orgId: t.orgId, expiresAt: t.expiresAt, revokedAt: null, replacedById: null, ssoOrgId: t.ssoOrgId }
+    const record: RefreshTokenRecord = {
+      id: `tok-${nextId}`,
+      userId: t.userId,
+      orgId: t.orgId,
+      expiresAt: t.expiresAt,
+      revokedAt: null,
+      replacedById: null,
+      ssoOrgId: t.ssoOrgId,
+    }
     tokens.set(t.tokenHash, record)
     return record
   }
@@ -126,10 +157,12 @@ function harness(memberships: MembershipRecord[] = [membership(acme.id)], option
     findById: vi.fn(async () => null),
   }
   const workspaces = {
-    listWorkspacesForUser: vi.fn(async () => memberships.map((m) => {
-      const org = ORGS.find((o) => o.id === m.orgId) ?? acme
-      return { orgId: org.id, slug: org.slug, name: org.slug, role: m.role, status: m.status, orgStatus: org.status }
-    })),
+    listWorkspacesForUser: vi.fn(async () =>
+      memberships.map((m) => {
+        const org = ORGS.find((o) => o.id === m.orgId) ?? acme
+        return { orgId: org.id, slug: org.slug, name: org.slug, role: m.role, status: m.status, orgStatus: org.status }
+      }),
+    ),
   }
   const lookup: OrganizationLookup = {
     byId: async (id) => ORGS.find((o) => o.id === id) ?? null,
@@ -158,7 +191,18 @@ function harness(memberships: MembershipRecord[] = [membership(acme.id)], option
     clock,
     config,
   )
-  return { service, clock, tokens, refreshTokens, passwords, epochs, users, context: new TenantContextService(cls), membershipsRepo, enrolled }
+  return {
+    service,
+    clock,
+    tokens,
+    refreshTokens,
+    passwords,
+    epochs,
+    users,
+    context: new TenantContextService(cls),
+    membershipsRepo,
+    enrolled,
+  }
 }
 
 const client = { userAgent: "vitest", ip: "127.0.0.1" }
@@ -255,10 +299,14 @@ describe("SessionService with a second factor (ADR-0045)", () => {
     expect(cookies.map((c) => c.name)).toEqual(["pg_at_strict", "pg_rt_strict"])
     // The factor goes away (turned off): the next refresh is where the policy bites, not the open session.
     enrolled.enrolled.delete(owner.id)
-    await expect(enrolled.service.refresh("strict", cookieNamed(cookies, "pg_rt_strict")?.value ?? "", client)).rejects.toThrow(MfaRequiredProblem)
+    await expect(enrolled.service.refresh("strict", cookieNamed(cookies, "pg_rt_strict")?.value ?? "", client)).rejects.toThrow(
+      MfaRequiredProblem,
+    )
     // The refresh token itself was not revoked: enrolling again makes it good.
     enrolled.enrolled.add(owner.id)
-    expect((await enrolled.service.refresh("strict", cookieNamed(cookies, "pg_rt_strict")?.value ?? "", client)).map((c) => c.name)).toEqual(["pg_at_strict", "pg_rt_strict"])
+    expect(
+      (await enrolled.service.refresh("strict", cookieNamed(cookies, "pg_rt_strict")?.value ?? "", client)).map((c) => c.name),
+    ).toEqual(["pg_at_strict", "pg_rt_strict"])
   })
 
   it("stamps a pair opened after a step-up with when it was proved, and nothing else carries the claim", async () => {
@@ -347,7 +395,12 @@ describe("SSO sessions (ADR-0054)", () => {
     const h = harness([membership(acme.id), membership(globex.id)])
     const globexPair = await h.service.open(owner.id, "globex", client)
     const { cookies } = await h.service.startIdentity(owner, client, "acme", acme.id)
-    const cleared = await h.service.logout({ slug: undefined, everywhere: true, refreshSecret: undefined, identitySecret: cookieNamed(cookies, "pg_id")?.value })
+    const cleared = await h.service.logout({
+      slug: undefined,
+      everywhere: true,
+      refreshSecret: undefined,
+      identitySecret: cookieNamed(cookies, "pg_id")?.value,
+    })
     expect(cleared.map((c) => c.name)).toEqual(["pg_at_acme", "pg_rt_acme", "pg_id"])
     expect(h.tokens.get(hash(cookieNamed(globexPair, "pg_rt_globex")?.value ?? ""))?.revokedAt).toBeNull()
     expect(h.tokens.get(hash(cookieNamed(cookies, "pg_rt_acme")?.value ?? ""))?.revokedAt).not.toBeNull()

@@ -47,7 +47,11 @@ afterAll(async () => {
 const owner = () => browser(app, ws.origin, ws.people.owner.access)
 const seats = async () =>
   Number(
-    (await db.usageCounter.findUniqueOrThrow({ where: { orgId_period_metric: { orgId: ws.orgId, period: "current", metric: "AGENT_SEATS" } } })).value,
+    (
+      await db.usageCounter.findUniqueOrThrow({
+        where: { orgId_period_metric: { orgId: ws.orgId, period: "current", metric: "AGENT_SEATS" } },
+      })
+    ).value,
   )
 
 describe("agent seats", () => {

@@ -16,7 +16,13 @@ import { InboundEmailRepository } from "./repositories/inbound-email.repository"
 
 /** Email intake (M6, ADR-0027, ADR-0039): the signed webhook, the per-tenant pipeline, and the admins' log of it. */
 @Module({
-  imports: [AuthModule, AttachmentsModule, MembershipRepositoryModule, TicketsModule, BullModule.registerQueue({ name: INBOUND_QUEUE }, { name: "inbound-sweep" })],
+  imports: [
+    AuthModule,
+    AttachmentsModule,
+    MembershipRepositoryModule,
+    TicketsModule,
+    BullModule.registerQueue({ name: INBOUND_QUEUE }, { name: "inbound-sweep" }),
+  ],
   controllers: [InboundController, InboundLogController],
   providers: [
     InboundEmailRepository,

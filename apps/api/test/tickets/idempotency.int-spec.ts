@@ -86,7 +86,9 @@ describe("Idempotency-Key", () => {
   it("replays a retried comment, and keeps one key's comments on two tickets apart", async () => {
     const [a, b] = [(await post("alice", null)).body.id as string, (await post("alice", null)).body.id as string]
     const comment = (ticketId: string, key: string) =>
-      browser(app, ws.origin, ws.people.alice.access).post(`/tickets/${ticketId}/comments`, { body: "Still jammed", visibility: "PUBLIC" }).set("Idempotency-Key", key)
+      browser(app, ws.origin, ws.people.alice.access)
+        .post(`/tickets/${ticketId}/comments`, { body: "Still jammed", visibility: "PUBLIC" })
+        .set("Idempotency-Key", key)
     const key = randomUUID()
     const first = await comment(a, key)
     const retry = await comment(a, key)

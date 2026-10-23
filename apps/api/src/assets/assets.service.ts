@@ -112,7 +112,12 @@ export class AssetsService {
       const created = await this.assets.create(orgId, fields)
       if (created === "serial-taken") throw new ConflictProblem("Another asset already has that serial number")
       await this.audit.record(orgId, [
-        { action: "ASSET_CREATED", entityType: "Asset", entityId: created, diff: { name: fields.name, type: fields.type, serialNumber: fields.serialNumber } },
+        {
+          action: "ASSET_CREATED",
+          entityType: "Asset",
+          entityId: created,
+          diff: { name: fields.name, type: fields.type, serialNumber: fields.serialNumber },
+        },
       ])
       return created
     })
@@ -132,7 +137,9 @@ export class AssetsService {
       const requested: Partial<AssetFields> = {}
       for (const [field, value] of Object.entries(request) as [keyof UpdateAssetRequest, unknown][]) {
         if (value === undefined) continue
-        Object.assign(requested, { [field]: field === "purchaseDate" || field === "warrantyExpiresAt" ? day(value as string | null) : value })
+        Object.assign(requested, {
+          [field]: field === "purchaseDate" || field === "warrantyExpiresAt" ? day(value as string | null) : value,
+        })
       }
       const changed = (Object.keys(requested) as (keyof AssetFields)[]).filter((field) => !same(before[field], requested[field]))
       if (changed.length === 0) return

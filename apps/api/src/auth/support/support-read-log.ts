@@ -65,7 +65,15 @@ export class SupportReadLog {
               action: "SUPPORT_READ",
               entityType: "SupportSession",
               entityId: actor.sessionId,
-              diff: { endpoint: `${request.method} ${route}`, status, ...(aborted ? { aborted: true } : {}), entityIds: ids.slice(0, MAX_IDS), resultCount: ids.length, filters: request.query, params: request.params },
+              diff: {
+                endpoint: `${request.method} ${route}`,
+                status,
+                ...(aborted ? { aborted: true } : {}),
+                entityIds: ids.slice(0, MAX_IDS),
+                resultCount: ids.length,
+                filters: request.query,
+                params: request.params,
+              },
               actorKind: "PLATFORM",
               actorMembershipId: null,
               actorPlatformAdminId: actor.platformAdminId,
@@ -76,7 +84,12 @@ export class SupportReadLog {
         ),
       )
     } catch (error) {
-      this.logger.error({ msg: "support read not recorded: ending the session", orgId: actor.orgId, sessionId: actor.sessionId, error: String(error) })
+      this.logger.error({
+        msg: "support read not recorded: ending the session",
+        orgId: actor.orgId,
+        sessionId: actor.sessionId,
+        error: String(error),
+      })
       await this.endForAudit(actor)
     }
   }
@@ -89,10 +102,19 @@ export class SupportReadLog {
       if (!ended) return
       await this.epochs.bump(supportEpochKey(actor.sessionId))
       await runAsTenant(actor.orgId, { actor: `support:${actor.sessionId}`, reason: "tell the owners" }, () =>
-        this.mail.tell(actor.orgId, "ended", { id: actor.sessionId, operatorName: "Patchgrid support" }, "It was ended because a read could not be recorded in your audit log."),
+        this.mail.tell(
+          actor.orgId,
+          "ended",
+          { id: actor.sessionId, operatorName: "Patchgrid support" },
+          "It was ended because a read could not be recorded in your audit log.",
+        ),
       )
     } catch (error) {
-      this.logger.error({ msg: "support session could not be ended after an audit failure", sessionId: actor.sessionId, error: String(error) })
+      this.logger.error({
+        msg: "support session could not be ended after an audit failure",
+        sessionId: actor.sessionId,
+        error: String(error),
+      })
     }
   }
 }

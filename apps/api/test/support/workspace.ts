@@ -49,7 +49,15 @@ export async function seedWorkspace<P extends string>(
       data: { orgId: org.id, userId: user.id, role, displayName: key, joinedAt: new Date() },
     })
     await db.userOrgIndex.create({
-      data: { userId: user.id, orgId: org.id, roleForDisplay: role, statusForDisplay: "ACTIVE", orgSlug: slug, orgName: org.name, orgStatus: "ACTIVE" },
+      data: {
+        userId: user.id,
+        orgId: org.id,
+        roleForDisplay: role,
+        statusForDisplay: "ACTIVE",
+        orgSlug: slug,
+        orgName: org.name,
+        orgStatus: "ACTIVE",
+      },
     })
     const login = await request(app.getHttpServer()).post("/api/v1/auth/login").set(HEADERS).send({ email, password: PASSWORD, slug })
     const cookies = ((login.headers["set-cookie"] as unknown as string[] | undefined) ?? []).map((c) => c.split(";")[0] ?? "")
@@ -105,7 +113,11 @@ export async function seedWorkspace<P extends string>(
  * stamped for the next five minutes. The four irreversible actions want it.
  */
 export async function stepUp(app: INestApplication, slug: string, person: Person): Promise<string> {
-  const proved = await request(app.getHttpServer()).post("/api/v1/auth/step-up").set(HEADERS).set("Cookie", person.pgId).send({ slug, password: PASSWORD })
+  const proved = await request(app.getHttpServer())
+    .post("/api/v1/auth/step-up")
+    .set(HEADERS)
+    .set("Cookie", person.pgId)
+    .send({ slug, password: PASSWORD })
   if (proved.status !== 200) throw new Error(`step-up failed: ${String(proved.status)} ${JSON.stringify(proved.body)}`)
   const cookies = ((proved.headers["set-cookie"] as unknown as string[] | undefined) ?? []).map((c) => c.split(";")[0] ?? "")
   return cookies.find((c) => c.startsWith(`pg_at_${slug}=`)) ?? ""
@@ -145,7 +157,9 @@ export function jarredBrowser(app: INestApplication, origin: string, jar: Map<st
   return {
     jar,
     get: async (path: string) => keep(await http().get(`/api/v1${path}`).set("Origin", origin).set("Cookie", cookie())),
-    post: async (path: string, body: object = {}) => keep(await http().post(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
-    patch: async (path: string, body: object) => keep(await http().patch(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
+    post: async (path: string, body: object = {}) =>
+      keep(await http().post(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
+    patch: async (path: string, body: object) =>
+      keep(await http().patch(`/api/v1${path}`).set(HEADERS).set("Origin", origin).set("Cookie", cookie()).send(body)),
   }
 }

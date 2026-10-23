@@ -66,7 +66,13 @@ export class SlaScanService {
               ],
               { kind: "system" },
             )
-            await this.notifier.notify(orgId, { kind: "sla", ticketId: row.id, actorMembershipId: null, clock: signal.clock, signal: signal.kind })
+            await this.notifier.notify(orgId, {
+              kind: "sla",
+              ticketId: row.id,
+              actorMembershipId: null,
+              clock: signal.clock,
+              signal: signal.kind,
+            })
             return true
           })
           if (done) {

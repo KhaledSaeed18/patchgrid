@@ -25,8 +25,8 @@ export function ApiTokenExpiring(p: ApiTokenExpiringParams) {
         <strong>{apiTokenExpiringSubject(p)}.</strong>
       </p>
       <p>
-        Whatever uses <code>pg_{p.prefix}_…</code> will be refused from then on. Create a new token and swap it in before that date; a token&apos;s
-        lifetime cannot be extended.
+        Whatever uses <code>pg_{p.prefix}_…</code> will be refused from then on. Create a new token and swap it in before that date; a
+        token&apos;s lifetime cannot be extended.
       </p>
       <Button href={p.settingsUrl}>Review API tokens</Button>
       <FallbackLink href={p.settingsUrl} />

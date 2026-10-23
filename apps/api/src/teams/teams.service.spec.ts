@@ -25,7 +25,13 @@ function harness(world: World) {
   const teams = new Map(
     world.teams.map((t) => [
       t.id,
-      { id: t.id, name: t.name, description: null as string | null, isActive: t.isActive ?? true, members: new Map((t.members ?? []).map((m) => [m, m === t.lead])) },
+      {
+        id: t.id,
+        name: t.name,
+        description: null as string | null,
+        isActive: t.isActive ?? true,
+        members: new Map((t.members ?? []).map((m) => [m, m === t.lead])),
+      },
     ]),
   )
   const audit: AuditEntry[] = []
@@ -34,7 +40,14 @@ function harness(world: World) {
     const t = teams.get(id)
     if (t === undefined) return null
     const lead = [...t.members].find(([, isLead]) => isLead)?.[0]
-    return { id: t.id, name: t.name, description: t.description, isActive: t.isActive, memberCount: t.members.size, lead: lead === undefined ? null : { membershipId: lead, displayName: lead } }
+    return {
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      isActive: t.isActive,
+      memberCount: t.members.size,
+      lead: lead === undefined ? null : { membershipId: lead, displayName: lead },
+    }
   }
   const repo = {
     findById: async (_o: string, id: string) => {
@@ -44,7 +57,13 @@ function harness(world: World) {
     findRow: async (_o: string, id: string) => row(id),
     list: async () => [...teams.keys()].map((id) => row(id)).filter((r) => r !== null),
     members: async (_o: string, id: string) =>
-      [...(teams.get(id)?.members ?? [])].map(([m, isLead]) => ({ membershipId: m, displayName: m, role: "AGENT" as Role, isLead, joinedAt: new Date(0) })),
+      [...(teams.get(id)?.members ?? [])].map(([m, isLead]) => ({
+        membershipId: m,
+        displayName: m,
+        role: "AGENT" as Role,
+        isLead,
+        joinedAt: new Date(0),
+      })),
     lock: async () => undefined,
     create: async (_o: string, data: { name: string }) => {
       if ([...teams.values()].some((t) => t.name === data.name)) return "name-taken" as const
@@ -74,7 +93,9 @@ function harness(world: World) {
   const memberships = {
     findById: async (_o: string, id: string): Promise<MembershipRecord | null> => {
       const m = world.members.find((x) => x.id === id)
-      return m === undefined ? null : {
+      return m === undefined
+        ? null
+        : {
             id: m.id,
             orgId: ORG,
             userId: m.service === true ? null : `u-${m.id}`,
@@ -135,7 +156,9 @@ describe("TeamsService — who may change a team's members", () => {
   })
 
   it("an agent who leads nothing manages nothing; an admin manages any team", async () => {
-    await expect(harness({ ...base, actor: { id: "agent", role: "AGENT" } }).service.addMember("net", "agent")).rejects.toBeInstanceOf(NotPermittedProblem)
+    await expect(harness({ ...base, actor: { id: "agent", role: "AGENT" } }).service.addMember("net", "agent")).rejects.toBeInstanceOf(
+      NotPermittedProblem,
+    )
     await expect(harness({ ...base, actor: { id: "a", role: "ADMIN" } }).service.addMember("sec", "agent")).resolves.toBeUndefined()
   })
 
@@ -168,7 +191,9 @@ describe("TeamsService — who may change a team's members", () => {
 
 describe("TeamsService.setLead", () => {
   it("is an admin's call, not a lead's", async () => {
-    await expect(harness({ ...base, actor: { id: "lead", role: "AGENT", leads: ["net"] } }).service.setLead("net", "agent")).rejects.toBeInstanceOf(NotPermittedProblem)
+    await expect(
+      harness({ ...base, actor: { id: "lead", role: "AGENT", leads: ["net"] } }).service.setLead("net", "agent"),
+    ).rejects.toBeInstanceOf(NotPermittedProblem)
   })
 
   it("moves the lead to another member, bumping both", async () => {
@@ -206,7 +231,9 @@ describe("TeamsService create and update", () => {
   it("audits only the fields that changed", async () => {
     const h = harness({ ...base, actor: { id: "a", role: "ADMIN" } })
     await h.service.update("sec", { name: "Security", isActive: false })
-    expect(h.audit).toEqual([{ action: "TEAM_UPDATED", entityType: "Team", entityId: "sec", diff: { isActive: { from: true, to: false } } }])
+    expect(h.audit).toEqual([
+      { action: "TEAM_UPDATED", entityType: "Team", entityId: "sec", diff: { isActive: { from: true, to: false } } },
+    ])
     await h.service.update("sec", { isActive: false })
     expect(h.audit).toHaveLength(1)
   })

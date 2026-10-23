@@ -15,14 +15,40 @@ vi.mock("../../platform/run-as-tenant", () => ({ runAsTenant: (_o: string, _c: u
 
 const NOW = new Date("2026-10-23T12:00:00Z")
 
-type Options = { org?: Partial<OrgDomainRecord> | null; account?: Partial<AccountRecord>; known?: string[]; member?: boolean; seatFull?: boolean }
+type Options = {
+  org?: Partial<OrgDomainRecord> | null
+  account?: Partial<AccountRecord>
+  known?: string[]
+  member?: boolean
+  seatFull?: boolean
+}
 
 function harness(options: Options = {}) {
   const org: OrgDomainRecord | null =
     options.org === null
       ? null
-      : { id: "o-1", slug: "acme", name: "Acme", status: "ACTIVE", domain: "acme.test", domainVerifiedAt: NOW, domainChallenge: null, requireSso: false, allowDomainJoin: true, defaultJoinRole: "REQUESTER", ...options.org }
-  const account = { id: "u-1", email: "kim@acme.test", name: "Kim", passwordHash: "h", emailVerifiedAt: NOW, anonymisedAt: null, ...options.account } as AccountRecord
+      : {
+          id: "o-1",
+          slug: "acme",
+          name: "Acme",
+          status: "ACTIVE",
+          domain: "acme.test",
+          domainVerifiedAt: NOW,
+          domainChallenge: null,
+          requireSso: false,
+          allowDomainJoin: true,
+          defaultJoinRole: "REQUESTER",
+          ...options.org,
+        }
+  const account = {
+    id: "u-1",
+    email: "kim@acme.test",
+    name: "Kim",
+    passwordHash: "h",
+    emailVerifiedAt: NOW,
+    anonymisedAt: null,
+    ...options.account,
+  } as AccountRecord
   const created: unknown[] = []
   const memberships = {
     lockOrganization: vi.fn(async () => undefined),
@@ -37,7 +63,10 @@ function harness(options: Options = {}) {
   const workspaces = { allOrgIdsForUser: vi.fn(async () => options.known ?? []), upsert: vi.fn(async () => undefined) }
   const audit = { record: vi.fn(async () => undefined) }
   const service = new DomainJoinService(
-    { findByVerifiedDomain: vi.fn(async (d: string) => (org?.domain === d ? org : null)), find: vi.fn(async () => org) } as unknown as OrgDomainRepository,
+    {
+      findByVerifiedDomain: vi.fn(async (d: string) => (org?.domain === d ? org : null)),
+      find: vi.fn(async () => org),
+    } as unknown as OrgDomainRepository,
     { findById: vi.fn(async () => account) } as unknown as UserRepository,
     memberships as unknown as MembershipRepository,
     workspaces as unknown as UserOrgIndexRepository,
@@ -74,7 +103,11 @@ describe("DomainJoinService (TENANCY.md §5)", () => {
     expect(h.quota.consume).toHaveBeenCalledWith("o-1", "AGENT_SEATS")
     expect(h.created).toEqual([expect.objectContaining({ userId: "u-1", role: "AGENT", invitedByMembershipId: null })])
     expect(h.workspaces.upsert).toHaveBeenCalledWith(expect.objectContaining({ orgId: "o-1", role: "AGENT", status: "ACTIVE" }))
-    expect(h.audit.record).toHaveBeenCalledWith("o-1", [expect.objectContaining({ action: "MEMBER_JOINED", diff: { via: "domain", role: "AGENT", domain: "acme.test" } })], expect.anything())
+    expect(h.audit.record).toHaveBeenCalledWith(
+      "o-1",
+      [expect.objectContaining({ action: "MEMBER_JOINED", diff: { via: "domain", role: "AGENT", domain: "acme.test" } })],
+      expect.anything(),
+    )
     // A requester holds no seat.
     const requester = harness()
     await requester.service.join(session, "acme")
@@ -89,6 +122,8 @@ describe("DomainJoinService (TENANCY.md §5)", () => {
 
   it("lets a racing second join find the first's membership, and passes a full plan's 402 through", async () => {
     await expect(harness({ member: true }).service.join(session, "acme")).rejects.toBeInstanceOf(ConflictProblem)
-    await expect(harness({ org: { defaultJoinRole: "AGENT" }, seatFull: true }).service.join(session, "acme")).rejects.toBeInstanceOf(PlanLimitProblem)
+    await expect(harness({ org: { defaultJoinRole: "AGENT" }, seatFull: true }).service.join(session, "acme")).rejects.toBeInstanceOf(
+      PlanLimitProblem,
+    )
   })
 })

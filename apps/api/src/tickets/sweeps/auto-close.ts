@@ -66,7 +66,13 @@ export class AutoCloseService {
             ],
             { kind: "system" },
           )
-          await this.notifier.notify(orgId, { kind: "status-changed", ticketId: ticket.id, actorMembershipId: null, to: "CLOSED", comment: null })
+          await this.notifier.notify(orgId, {
+            kind: "status-changed",
+            ticketId: ticket.id,
+            actorMembershipId: null,
+            to: "CLOSED",
+            comment: null,
+          })
           return true
         })
         if (done) closed += 1
@@ -93,8 +99,6 @@ export class AutoCloseProcessor extends WorkerHost implements OnApplicationBoots
 
   async process(job: Job): Promise<number> {
     const { orgId } = readTenantSweep(job)
-    return runJob({ orgId }, "job:auto-close", "close tickets resolved long enough ago", () =>
-      this.autoClose.closeExpired(),
-    )
+    return runJob({ orgId }, "job:auto-close", "close tickets resolved long enough ago", () => this.autoClose.closeExpired())
   }
 }

@@ -27,8 +27,10 @@ export class StandingService {
 
   async check(actor: MemberActor, issuedAt: number): Promise<MemberActor | null> {
     if ((await this.epochs.isRevoked(actor.membershipId, issuedAt)) === true) return null
-    const membership = await runAsTenant(actor.orgId, { actor: `member:${actor.membershipId}`, reason: "re-check a long-lived session" }, () =>
-      this.memberships.findById(actor.orgId, actor.membershipId),
+    const membership = await runAsTenant(
+      actor.orgId,
+      { actor: `member:${actor.membershipId}`, reason: "re-check a long-lived session" },
+      () => this.memberships.findById(actor.orgId, actor.membershipId),
     )
     if (membership === null || membership.status !== "ACTIVE" || membership.userId !== actor.userId) return null
     return { ...actor, role: membership.role, teamIds: membership.teamIds, leadOfTeamIds: membership.leadOfTeamIds }

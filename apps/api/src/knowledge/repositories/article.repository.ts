@@ -123,10 +123,7 @@ export class ArticleRepository {
           filter.after === null
             ? {}
             : {
-                OR: [
-                  { updatedAt: { lt: filter.after.updatedAt } },
-                  { updatedAt: filter.after.updatedAt, id: { lt: filter.after.id } },
-                ],
+                OR: [{ updatedAt: { lt: filter.after.updatedAt } }, { updatedAt: filter.after.updatedAt, id: { lt: filter.after.id } }],
               },
         ],
       },

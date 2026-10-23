@@ -45,7 +45,9 @@ beforeAll(async () => {
     people: { requester: "REQUESTER", agent: "AGENT", other: "AGENT", admin: "ADMIN" },
     teams: ["IT Support"],
   })
-  const hardware = await db.category.create({ data: { orgId: ws.orgId, name: "Hardware", depth: 1, defaultTeamId: ws.teams["IT Support"] ?? null } })
+  const hardware = await db.category.create({
+    data: { orgId: ws.orgId, name: "Hardware", depth: 1, defaultTeamId: ws.teams["IT Support"] ?? null },
+  })
   laptop = (await db.category.create({ data: { orgId: ws.orgId, name: "Laptop", depth: 2, parentId: hardware.id } })).id
   for (const ticketType of ["INCIDENT", "SERVICE_REQUEST"] as const) {
     for (const [priority, t] of Object.entries(DEFAULT_SLA_TARGETS)) {
@@ -113,14 +115,28 @@ describe("the incident lifecycle", () => {
     })
     id = created.body.id as string
     version = created.body.version as number
-    expect((await as("requester").post("/tickets", { type: "INCIDENT", title: "x", description: "y", impact: "LOW", urgency: "LOW", priority: "CRITICAL" })).status).toBe(400)
+    expect(
+      (
+        await as("requester").post("/tickets", {
+          type: "INCIDENT",
+          title: "x",
+          description: "y",
+          impact: "LOW",
+          urgency: "LOW",
+          priority: "CRITICAL",
+        })
+      ).status,
+    ).toBe(400)
   })
 
   it("lets an agent assign and start it, and replies publicly — the response", async () => {
     advance(10)
     expect((await transition("agent", "assign", { assigneeMembershipId: ws.people.agent.membershipId })).body.status).toBe("ASSIGNED")
     expect((await transition("agent", "start")).body.status).toBe("IN_PROGRESS")
-    const reply = await as("agent").post(`/tickets/${id}/comments`, { body: "Can you hold the power button for 30s?", visibility: "PUBLIC" })
+    const reply = await as("agent").post(`/tickets/${id}/comments`, {
+      body: "Can you hold the power button for 30s?",
+      visibility: "PUBLIC",
+    })
     expect(reply.status).toBe(201)
     const note = await as("agent").post(`/tickets/${id}/comments`, { body: "Probably the firmware update", visibility: "INTERNAL" })
     expect(note.status).toBe(201)
@@ -139,7 +155,9 @@ describe("the incident lifecycle", () => {
 
   it("waits with a public reason, pauses the clock, and the requester's answer resumes it", async () => {
     expect((await transition("agent", "wait")).status).toBe(400)
-    expect((await transition("agent", "wait", { comment: { body: "Need your asset tag", visibility: "PUBLIC" } })).body.status).toBe("PENDING")
+    expect((await transition("agent", "wait", { comment: { body: "Need your asset tag", visibility: "PUBLIC" } })).body.status).toBe(
+      "PENDING",
+    )
     advance(90)
     expect((await as("requester").post(`/tickets/${id}/comments`, { body: "It's AT-1234", visibility: "PUBLIC" })).status).toBe(201)
     const ticket = await as("agent").get(`/tickets/${id}`)
@@ -161,7 +179,9 @@ describe("the incident lifecycle", () => {
 
   it("resolves with a public note; the requester closes, then reopens with a fresh clock", async () => {
     advance(30)
-    expect((await transition("agent", "resolve", { comment: { body: "Re-flashed the firmware", visibility: "PUBLIC" } })).body.status).toBe("RESOLVED")
+    expect((await transition("agent", "resolve", { comment: { body: "Re-flashed the firmware", visibility: "PUBLIC" } })).body.status).toBe(
+      "RESOLVED",
+    )
     expect((await transition("requester", "close")).body.status).toBe("CLOSED")
     advance(60)
     const reopened = await transition("requester", "reopen")

@@ -37,7 +37,10 @@ const carla = `carla-${randomUUID().slice(0, 8)}@contractor.test`
 
 beforeAll(async () => {
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(recorder).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(recorder)
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.use(INBOUND_WEBHOOK_PATH, inboundBodyParser())
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
@@ -48,7 +51,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const keys = await db.inboundEmail.findMany({ where: { orgId: ws.orgId }, select: { rawStorageKey: true } })
-  for (const { rawStorageKey } of keys) await app.get(StorageService).remove(rawStorageKey).catch(() => undefined)
+  for (const { rawStorageKey } of keys)
+    await app
+      .get(StorageService)
+      .remove(rawStorageKey)
+      .catch(() => undefined)
   await db.inboundEmail.deleteMany({ where: { orgId: ws.orgId } })
   await db.notification.deleteMany({ where: { orgId: ws.orgId } })
   await db.comment.deleteMany({ where: { orgId: ws.orgId } })
@@ -103,13 +110,23 @@ it("raises a ticket for an external requester once the workspace takes outside m
   await deliver({ from: carla, subject: `Re: ${notice?.subject ?? ""}`, text: "Badge 4411.", inReplyTo: notice?.messageId ?? "" })
   expect(await latest()).toMatchObject({ outcome: "THREADED", ticketId: row.ticketId })
   const thread = await as("agent").get(`/tickets/${String(row.ticketId)}/comments`)
-  expect((thread.body as { body: string; author: { membershipId: string } | null }[]).at(-1)).toMatchObject({ body: "Badge 4411.", author: { membershipId: membership?.id } })
+  expect((thread.body as { body: string; author: { membershipId: string } | null }[]).at(-1)).toMatchObject({
+    body: "Badge 4411.",
+    author: { membershipId: membership?.id },
+  })
 })
 
 it("lists the external requester for admins, who stop their mail by pausing them", async () => {
   const membership = await external()
   const members = await as("admin").get("/members?limit=100")
-  const listed = (members.body.items as { id: string; kind: string; contact: { email: string | null } | null; capabilities: { canDisable: boolean; roles: string[] } }[]).find((m) => m.id === membership?.id)
+  const listed = (
+    members.body.items as {
+      id: string
+      kind: string
+      contact: { email: string | null } | null
+      capabilities: { canDisable: boolean; roles: string[] }
+    }[]
+  ).find((m) => m.id === membership?.id)
   expect(listed).toMatchObject({ kind: "EXTERNAL", contact: { email: carla }, capabilities: { canDisable: true, roles: [] } })
 
   expect((await as("admin").post(`/members/${String(membership?.id)}/disable`)).status).toBe(200)

@@ -99,7 +99,11 @@ export class PasskeyController {
   @Post("login")
   @Public()
   @HttpCode(200)
-  async login(@Body() body: PasskeyLoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<SignedInResponse> {
+  async login(
+    @Body() body: PasskeyLoginDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<SignedInResponse> {
     const result = await this.passkeys.login(body, clientOf(request))
     this.cookies.set(response, result.cookies)
     return result.response

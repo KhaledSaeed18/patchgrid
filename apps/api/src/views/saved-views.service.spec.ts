@@ -22,7 +22,16 @@ const row = (over: Partial<SavedViewRow> = {}): SavedViewRow => ({
   ...over,
 })
 
-function harness(options: { membershipId?: string; role?: "AGENT" | "ADMIN" | "REQUESTER"; leads?: string[]; stored?: SavedViewRow | null; owned?: number; taken?: boolean } = {}) {
+function harness(
+  options: {
+    membershipId?: string
+    role?: "AGENT" | "ADMIN" | "REQUESTER"
+    leads?: string[]
+    stored?: SavedViewRow | null
+    owned?: number
+    taken?: boolean
+  } = {},
+) {
   const actor = {
     kind: "member",
     orgId: ORG,
@@ -38,7 +47,14 @@ function harness(options: { membershipId?: string; role?: "AGENT" | "ADMIN" | "R
     lockOwner: vi.fn(async () => undefined),
     countOwned: vi.fn(async () => options.owned ?? 0),
     create: vi.fn(async (_o: string, data: { teamId: string | null; name: string; query: object }) =>
-      options.taken === true ? null : row({ name: data.name, teamId: data.teamId, team: data.teamId === null ? null : { id: data.teamId, name: "IT" }, query: data.query }),
+      options.taken === true
+        ? null
+        : row({
+            name: data.name,
+            teamId: data.teamId,
+            team: data.teamId === null ? null : { id: data.teamId, name: "IT" },
+            query: data.query,
+          }),
     ),
     remove: vi.fn(async () => true),
   }
@@ -80,7 +96,9 @@ describe("SavedViewsService", () => {
 
   it("answers 404 for a view the reader cannot see: someone else's own, or another team's", async () => {
     await expect(harness({ membershipId: "m-colleague", stored: row() }).service.remove("v-1")).rejects.toBeInstanceOf(NotFoundProblem)
-    await expect(harness({ membershipId: "m-colleague", stored: row({ teamId: OTHER_TEAM }) }).service.remove("v-1")).rejects.toBeInstanceOf(NotFoundProblem)
+    await expect(
+      harness({ membershipId: "m-colleague", stored: row({ teamId: OTHER_TEAM }) }).service.remove("v-1"),
+    ).rejects.toBeInstanceOf(NotFoundProblem)
   })
 
   it("is an agent's", async () => {

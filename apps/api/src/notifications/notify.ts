@@ -144,15 +144,17 @@ export class NotifyService {
     if (stewards === null) return null
     const rows = await this.notifications.addMany(
       orgId,
-      stewards.people.flatMap((person) => (person.userId === null ? [] : [{ ...person, userId: person.userId }])).map((person) => ({
-        userId: person.userId,
-        membershipId: person.membershipId,
-        type: "PLAN_LIMIT_REACHED" as const,
-        title: event.message,
-        body: null,
-        ticketId: null,
-        dedupeKey: `plan-limit:${event.metric}:${event.period}`,
-      })),
+      stewards.people
+        .flatMap((person) => (person.userId === null ? [] : [{ ...person, userId: person.userId }]))
+        .map((person) => ({
+          userId: person.userId,
+          membershipId: person.membershipId,
+          type: "PLAN_LIMIT_REACHED" as const,
+          title: event.message,
+          body: null,
+          ticketId: null,
+          dedupeKey: `plan-limit:${event.metric}:${event.period}`,
+        })),
       this.clock.now(),
     )
     const byMember = new Map(stewards.people.map((p) => [p.membershipId, p]))

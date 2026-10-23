@@ -38,11 +38,7 @@ describe("the org picker's projection (ADR-0022)", () => {
   })
 
   it("adds a missing row, rewrites a stale one — a removal included — and drops one for someone never there", () => {
-    const actual = [
-      row("u-owner", { orgName: "Acme (old name)" }),
-      row("u-gone", { roleForDisplay: "AGENT" }),
-      row("u-stranger"),
-    ]
+    const actual = [row("u-owner", { orgName: "Acme (old name)" }), row("u-gone", { roleForDisplay: "AGENT" }), row("u-stranger")]
     const plan = planReconcile(expectedRows(source), actual)
     expect(plan.create.map((r) => r.userId)).toEqual(["u-agent"])
     expect(plan.update).toEqual([row("u-owner"), row("u-gone", { roleForDisplay: "AGENT", statusForDisplay: "REMOVED" })])

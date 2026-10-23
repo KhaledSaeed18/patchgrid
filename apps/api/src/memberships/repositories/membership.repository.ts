@@ -146,10 +146,7 @@ export class MembershipRepository {
         ...(query.after === null
           ? {}
           : {
-              OR: [
-                { createdAt: { gt: query.after.createdAt } },
-                { createdAt: query.after.createdAt, id: { gt: query.after.id } },
-              ],
+              OR: [{ createdAt: { gt: query.after.createdAt } }, { createdAt: query.after.createdAt, id: { gt: query.after.id } }],
             }),
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],

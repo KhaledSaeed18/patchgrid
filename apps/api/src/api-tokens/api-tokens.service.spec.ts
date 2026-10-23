@@ -19,7 +19,11 @@ import type { ApiTokenRepository, ApiTokenRow } from "./repositories/api-token.r
 const ORG = "o-1"
 const NOW = new Date("2026-10-15T12:00:00Z")
 
-function harness(role: MemberActor["role"] = "ADMIN", found: Partial<ApiTokenRow> | null = {}, options: { stepUpAt?: number | undefined } = { stepUpAt: Math.floor(NOW.getTime() / 1000) }) {
+function harness(
+  role: MemberActor["role"] = "ADMIN",
+  found: Partial<ApiTokenRow> | null = {},
+  options: { stepUpAt?: number | undefined } = { stepUpAt: Math.floor(NOW.getTime() / 1000) },
+) {
   const actor: TenantActor = {
     kind: "member",
     userId: "u",

@@ -50,19 +50,31 @@ export class SupportService {
     // Letting an outsider read the workspace is a step-up action (ADR-0029).
     this.stepUp.assert(actor)
     const orgId = this.tenant.requireOrgId()
-    if (this.tenant.organization()?.status !== "ACTIVE") throw new ConflictProblem("Support access is not granted to a workspace pending deletion")
+    if (this.tenant.organization()?.status !== "ACTIVE")
+      throw new ConflictProblem("Support access is not granted to a workspace pending deletion")
     const now = this.clock.now()
     const expiresAt = new Date(now.getTime() + hours * HOUR_MS)
     const row = await this.prisma.transaction(async () => {
       const found = await this.sessions.find(orgId, id)
       if (found === null) throw new NotFoundProblem()
-      if (!(await this.sessions.grant(orgId, id, actor.membershipId, now, expiresAt))) throw new ConflictProblem("This request was already decided")
+      if (!(await this.sessions.grant(orgId, id, actor.membershipId, now, expiresAt)))
+        throw new ConflictProblem("This request was already decided")
       await this.audit.record(orgId, [
-        { action: "SUPPORT_ACCESS_GRANTED", entityType: "SupportSession", entityId: id, diff: { hours, expiresAt: expiresAt.toISOString() } },
+        {
+          action: "SUPPORT_ACCESS_GRANTED",
+          entityType: "SupportSession",
+          entityId: id,
+          diff: { hours, expiresAt: expiresAt.toISOString() },
+        },
       ])
       return found
     })
-    await this.mail.tell(orgId, "granted", { id, operatorName: row.platformAdmin.user.name }, `It is read-only and runs until ${expiresAt.toUTCString()}.`)
+    await this.mail.tell(
+      orgId,
+      "granted",
+      { id, operatorName: row.platformAdmin.user.name },
+      `It is read-only and runs until ${expiresAt.toUTCString()}.`,
+    )
     return this.one(orgId, id)
   }
 
@@ -72,7 +84,8 @@ export class SupportService {
     const orgId = this.tenant.requireOrgId()
     await this.prisma.transaction(async () => {
       if ((await this.sessions.find(orgId, id)) === null) throw new NotFoundProblem()
-      if (!(await this.sessions.decline(orgId, id, actor.membershipId, this.clock.now()))) throw new ConflictProblem("This request was already decided")
+      if (!(await this.sessions.decline(orgId, id, actor.membershipId, this.clock.now())))
+        throw new ConflictProblem("This request was already decided")
       await this.audit.record(orgId, [{ action: "SUPPORT_ACCESS_DECLINED", entityType: "SupportSession", entityId: id }])
     })
     return this.one(orgId, id)
@@ -86,7 +99,10 @@ export class SupportService {
     const row = await this.prisma.transaction(async () => {
       const found = await this.sessions.find(orgId, id)
       if (found === null) throw new NotFoundProblem()
-      if (statusOf(found, this.clock.now()) !== "ACTIVE" || !(await this.sessions.end(orgId, id, "REVOKED", this.clock.now(), actor.membershipId))) {
+      if (
+        statusOf(found, this.clock.now()) !== "ACTIVE" ||
+        !(await this.sessions.end(orgId, id, "REVOKED", this.clock.now(), actor.membershipId))
+      ) {
         throw new ConflictProblem("This session is not running")
       }
       await this.audit.record(orgId, [{ action: "SUPPORT_ACCESS_REVOKED", entityType: "SupportSession", entityId: id }])
@@ -111,7 +127,12 @@ export class SupportService {
     if (!this.permissions.can(actor, "support:read_sessions")) return null
     const running = await this.sessions.running(orgId, this.clock.now())
     if (running?.expiresAt == null) return null
-    return { kind: "watched", sessionId: running.id, operatorName: running.platformAdmin.user.name, expiresAt: running.expiresAt.toISOString() }
+    return {
+      kind: "watched",
+      sessionId: running.id,
+      operatorName: running.platformAdmin.user.name,
+      expiresAt: running.expiresAt.toISOString(),
+    }
   }
 
   private async one(orgId: string, id: string): Promise<SupportSession> {

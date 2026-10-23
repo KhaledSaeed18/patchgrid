@@ -1,12 +1,5 @@
 import { Injectable } from "@nestjs/common"
-import {
-  type AuditAction,
-  type AuditPage,
-  type AuditQuery,
-  auditActionSchema,
-  decodeCursor,
-  encodeCursor,
-} from "@patchgrid/contracts"
+import { type AuditAction, type AuditPage, type AuditQuery, auditActionSchema, decodeCursor, encodeCursor } from "@patchgrid/contracts"
 
 import { ActorService } from "../auth/actor"
 import { PermissionService } from "../authz/permission.service"
@@ -60,9 +53,7 @@ export class OrgAuditService {
     return {
       items: page.map(toEntry),
       nextCursor:
-        rows.length > query.limit && last !== undefined
-          ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id })
-          : null,
+        rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id }) : null,
     }
   }
 }

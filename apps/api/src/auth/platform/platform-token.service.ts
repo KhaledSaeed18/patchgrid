@@ -74,7 +74,12 @@ export class PlatformTokenService {
 
   private async verified(token: string, audience: string): Promise<unknown> {
     try {
-      const { payload } = await jwtVerify(token, this.key, { algorithms: ["HS256"], issuer: ISSUER, audience, currentDate: this.clock.now() })
+      const { payload } = await jwtVerify(token, this.key, {
+        algorithms: ["HS256"],
+        issuer: ISSUER,
+        audience,
+        currentDate: this.clock.now(),
+      })
       return payload
     } catch {
       return null

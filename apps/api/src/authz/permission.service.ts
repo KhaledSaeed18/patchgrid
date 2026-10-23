@@ -35,12 +35,10 @@ const CONDITIONS: Readonly<Record<PermissionCondition, (s: Subject) => boolean>>
   lead: (s) => s.lead === true,
   self: (s) => s.self === true,
   own_while_new: (s) => s.own === true && s.ticketStatus === "NEW",
-  user_facing_type: (s) =>
-    s.ticketType !== undefined && (USER_FACING_TICKET_TYPES as readonly string[]).includes(s.ticketType),
+  user_facing_type: (s) => s.ticketType !== undefined && (USER_FACING_TICKET_TYPES as readonly string[]).includes(s.ticketType),
   lead_not_own: (s) => s.lead === true && s.own === false,
   not_own: (s) => s.own === false,
-  below_admin_not_self: (s) =>
-    s.self === false && (s.targetRole === "AGENT" || s.targetRole === "REQUESTER"),
+  below_admin_not_self: (s) => s.self === false && (s.targetRole === "AGENT" || s.targetRole === "REQUESTER"),
   not_owner_not_self: (s) => s.self === false && s.targetRole !== undefined && s.targetRole !== "OWNER",
   self_within_window: (s) => s.self === true && s.withinEditWindow === true,
   own_within_window: (s) => s.own === true && s.withinEditWindow === true,

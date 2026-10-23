@@ -37,7 +37,8 @@ export class InboundEmailProcessor extends WorkerHost implements OnApplicationBo
     if (!parsed.success) throw new UnrecoverableError(`inbound job ${String(job.id)} has an unreadable payload`)
     const payload = parsed.data
     // Keys are written under the org they belong to; one that is not is a bug, not mail.
-    if (!payload.rawStorageKey.startsWith(`org/${payload.orgId}/`)) throw new UnrecoverableError(`inbound job ${String(job.id)} names another org's key`)
+    if (!payload.rawStorageKey.startsWith(`org/${payload.orgId}/`))
+      throw new UnrecoverableError(`inbound job ${String(job.id)} names another org's key`)
     // The intake settles or releases the message itself; a final attempt fails it rather than leaving it waiting.
     const last = job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
     return runJob(payload, "job:inbound-email", "process", () => this.intake.process(payload, { last }))

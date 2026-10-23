@@ -41,7 +41,12 @@ export class SavedViewsService {
       if ((await this.views.countOwned(orgId, actor.membershipId)) >= MAX_SAVED_VIEWS) {
         throw new ConflictProblem(`You can keep at most ${String(MAX_SAVED_VIEWS)} saved views`)
       }
-      const created = await this.views.create(orgId, { ownerMembershipId: actor.membershipId, teamId, name: request.name, query: request.query })
+      const created = await this.views.create(orgId, {
+        ownerMembershipId: actor.membershipId,
+        teamId,
+        name: request.name,
+        query: request.query,
+      })
       if (created === null) throw new ConflictProblem(`You already have a view named "${request.name}"`)
       return created
     })

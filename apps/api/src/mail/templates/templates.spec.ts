@@ -7,11 +7,65 @@ const base = { to: "someone@acme.test", orgId: null, fromName: "Patchgrid" }
 
 describe("mail templates", () => {
   it.each<[MailJob, string]>([
-    [{ ...base, kind: "verify-email", params: { name: "Sam", verifyUrl: "https://app.patchgrid.xyz/verify?token=abc", expiresInHours: 24 } }, "https://app.patchgrid.xyz/verify?token=abc"],
-    [{ ...base, kind: "account-exists", params: { name: "Sam", loginUrl: "https://app.patchgrid.xyz/login", resetUrl: "https://app.patchgrid.xyz/reset" } }, "https://app.patchgrid.xyz/login"],
-    [{ ...base, kind: "invite", orgId: ORG, fromName: "Acme", params: { orgName: "Acme", inviterName: "Ada", role: "AGENT", acceptUrl: "https://app.patchgrid.xyz/invite?token=abc", expiresInDays: 7 } }, "https://app.patchgrid.xyz/invite?token=abc"],
-    [{ ...base, kind: "reset-password", params: { name: "Sam", resetUrl: "https://app.patchgrid.xyz/reset?token=abc", expiresInMinutes: 30 } }, "https://app.patchgrid.xyz/reset?token=abc"],
-    [{ ...base, kind: "ticket-notification", orgId: ORG, fromName: "Acme", params: { orgName: "Acme", headline: "Assigned to you — INC-000042: Printer", reason: "this ticket is assigned to you", ticketUrl: "https://acme.patchgrid.xyz/tickets/t-1", preferencesUrl: "https://acme.patchgrid.xyz/notifications/preferences", ticketId: "01a13900-0000-7000-8000-000000000042", ticketNumber: "INC-000042", replyTo: "acme@inbound.patchgrid.xyz" } }, "https://acme.patchgrid.xyz/tickets/t-1"],
+    [
+      {
+        ...base,
+        kind: "verify-email",
+        params: { name: "Sam", verifyUrl: "https://app.patchgrid.xyz/verify?token=abc", expiresInHours: 24 },
+      },
+      "https://app.patchgrid.xyz/verify?token=abc",
+    ],
+    [
+      {
+        ...base,
+        kind: "account-exists",
+        params: { name: "Sam", loginUrl: "https://app.patchgrid.xyz/login", resetUrl: "https://app.patchgrid.xyz/reset" },
+      },
+      "https://app.patchgrid.xyz/login",
+    ],
+    [
+      {
+        ...base,
+        kind: "invite",
+        orgId: ORG,
+        fromName: "Acme",
+        params: {
+          orgName: "Acme",
+          inviterName: "Ada",
+          role: "AGENT",
+          acceptUrl: "https://app.patchgrid.xyz/invite?token=abc",
+          expiresInDays: 7,
+        },
+      },
+      "https://app.patchgrid.xyz/invite?token=abc",
+    ],
+    [
+      {
+        ...base,
+        kind: "reset-password",
+        params: { name: "Sam", resetUrl: "https://app.patchgrid.xyz/reset?token=abc", expiresInMinutes: 30 },
+      },
+      "https://app.patchgrid.xyz/reset?token=abc",
+    ],
+    [
+      {
+        ...base,
+        kind: "ticket-notification",
+        orgId: ORG,
+        fromName: "Acme",
+        params: {
+          orgName: "Acme",
+          headline: "Assigned to you — INC-000042: Printer",
+          reason: "this ticket is assigned to you",
+          ticketUrl: "https://acme.patchgrid.xyz/tickets/t-1",
+          preferencesUrl: "https://acme.patchgrid.xyz/notifications/preferences",
+          ticketId: "01a13900-0000-7000-8000-000000000042",
+          ticketNumber: "INC-000042",
+          replyTo: "acme@inbound.patchgrid.xyz",
+        },
+      },
+      "https://acme.patchgrid.xyz/tickets/t-1",
+    ],
   ])("renders %o with its link in both html and text", async (job, link) => {
     const mail = await renderMail(job)
     expect(mail.subject.length).toBeGreaterThan(10)
@@ -27,7 +81,13 @@ describe("mail templates", () => {
       kind: "invite",
       orgId: ORG,
       fromName: "Acme",
-      params: { orgName: "<script>alert(1)</script>", inviterName: "Ada & co", role: "AGENT", acceptUrl: "https://app.patchgrid.xyz/i", expiresInDays: 7 },
+      params: {
+        orgName: "<script>alert(1)</script>",
+        inviterName: "Ada & co",
+        role: "AGENT",
+        acceptUrl: "https://app.patchgrid.xyz/i",
+        expiresInDays: 7,
+      },
     })
     expect(mail.html).not.toContain("<script>")
     expect(mail.html).toContain("&lt;script&gt;")
@@ -40,7 +100,12 @@ describe("mail templates", () => {
       kind: "webhook-disabled",
       orgId: ORG,
       fromName: "Acme",
-      params: { orgName: "Acme", endpointUrl: "https://hooks.example.test/in", reason: "Failed for five days without a success", settingsUrl: "https://acme.patchgrid.xyz/settings/webhooks/w-1" },
+      params: {
+        orgName: "Acme",
+        endpointUrl: "https://hooks.example.test/in",
+        reason: "Failed for five days without a success",
+        settingsUrl: "https://acme.patchgrid.xyz/settings/webhooks/w-1",
+      },
     })
     expect(mail.subject).toBe("A webhook in Acme was turned off")
     expect(mail.html).toContain('href="https://acme.patchgrid.xyz/settings/webhooks/w-1"')
@@ -50,7 +115,13 @@ describe("mail templates", () => {
   })
 
   it("names the organization in the invitation subject", async () => {
-    const mail = await renderMail({ ...base, kind: "invite", orgId: ORG, fromName: "Acme", params: { orgName: "Acme", inviterName: "Ada", role: "AGENT", acceptUrl: "https://a.b/", expiresInDays: 7 } })
+    const mail = await renderMail({
+      ...base,
+      kind: "invite",
+      orgId: ORG,
+      fromName: "Acme",
+      params: { orgName: "Acme", inviterName: "Ada", role: "AGENT", acceptUrl: "https://a.b/", expiresInDays: 7 },
+    })
     expect(mail.subject).toBe("You're invited to Acme on Patchgrid")
   })
 })
@@ -58,12 +129,27 @@ describe("mail templates", () => {
 describe("mailJobSchema", () => {
   it("rejects an unknown kind, a bad address and a non-URL link", () => {
     expect(mailJobSchema.safeParse({ ...base, kind: "newsletter", params: {} }).success).toBe(false)
-    expect(mailJobSchema.safeParse({ ...base, to: "nope", kind: "verify-email", params: { name: "S", verifyUrl: "https://a.b/", expiresInHours: 1 } }).success).toBe(false)
-    expect(mailJobSchema.safeParse({ ...base, kind: "verify-email", params: { name: "S", verifyUrl: "javascript:alert(1)", expiresInHours: 1 } }).success).toBe(false)
+    expect(
+      mailJobSchema.safeParse({
+        ...base,
+        to: "nope",
+        kind: "verify-email",
+        params: { name: "S", verifyUrl: "https://a.b/", expiresInHours: 1 },
+      }).success,
+    ).toBe(false)
+    expect(
+      mailJobSchema.safeParse({ ...base, kind: "verify-email", params: { name: "S", verifyUrl: "javascript:alert(1)", expiresInHours: 1 } })
+        .success,
+    ).toBe(false)
   })
 
   it("normalises the address like every other email in the system", () => {
-    const parsed = mailJobSchema.parse({ ...base, to: " Someone@Acme.TEST ", kind: "reset-password", params: { name: "S", resetUrl: "https://a.b/", expiresInMinutes: 30 } })
+    const parsed = mailJobSchema.parse({
+      ...base,
+      to: " Someone@Acme.TEST ",
+      kind: "reset-password",
+      params: { name: "S", resetUrl: "https://a.b/", expiresInMinutes: 30 },
+    })
     expect(parsed.to).toBe("someone@acme.test")
   })
 

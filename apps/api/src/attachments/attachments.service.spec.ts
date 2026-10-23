@@ -38,7 +38,18 @@ const row = (over: Partial<AttachmentRow> = {}): AttachmentRow => ({
   ...over,
 })
 
-function harness(role: Role, found: AttachmentRow | null = row(), options: { stored?: number | null; bytes?: Uint8Array; status?: string; comment?: { visibility: "PUBLIC" | "INTERNAL"; deletedAt: Date | null } | null; own?: boolean; now?: Date } = {}) {
+function harness(
+  role: Role,
+  found: AttachmentRow | null = row(),
+  options: {
+    stored?: number | null
+    bytes?: Uint8Array
+    status?: string
+    comment?: { visibility: "PUBLIC" | "INTERNAL"; deletedAt: Date | null } | null
+    own?: boolean
+    now?: Date
+  } = {},
+) {
   vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined)
   const actor: MemberActor = { kind: "member", userId: "u", orgId: ORG, membershipId: "m-me", role, teamIds: [], leadOfTeamIds: [] }
   const attachments = {
@@ -49,7 +60,11 @@ function harness(role: Role, found: AttachmentRow | null = row(), options: { sto
     remove: vi.fn(async () => true),
   }
   const storage = {
-    presignPut: vi.fn(async () => ({ url: "http://localhost:9000/b/k?sig", headers: { "Content-Type": "image/png" }, expiresAt: new Date(NOW.getTime() + 300_000) })),
+    presignPut: vi.fn(async () => ({
+      url: "http://localhost:9000/b/k?sig",
+      headers: { "Content-Type": "image/png" },
+      expiresAt: new Date(NOW.getTime() + 300_000),
+    })),
     presignGet: vi.fn(async () => "http://localhost:9000/b/k?get"),
     size: vi.fn(async () => (options.stored === undefined ? PNG.length : options.stored)),
     readStart: vi.fn(async () => options.bytes ?? PNG),
@@ -61,7 +76,9 @@ function harness(role: Role, found: AttachmentRow | null = row(), options: { sto
   const own = options.own ?? role === "REQUESTER"
   const service = new AttachmentsService(
     attachments as unknown as AttachmentRepository,
-    { find: vi.fn(async () => (options.comment === undefined ? null : options.comment === null ? null : { ...options.comment, id: "c-1" })) } as unknown as CommentRepository,
+    {
+      find: vi.fn(async () => (options.comment === undefined ? null : options.comment === null ? null : { ...options.comment, id: "c-1" })),
+    } as unknown as CommentRepository,
     {
       load: vi.fn(async () => ({
         row: { id: "t-1", status: options.status ?? "IN_PROGRESS" },
@@ -89,15 +106,28 @@ describe("AttachmentsService.presign", () => {
     const h = harness("REQUESTER")
     const out = await h.service.presign(presign)
     expect(h.quota.consume).toHaveBeenCalledWith(ORG, "STORAGE_BYTES", PNG.length)
-    expect(h.storage.presignPut).toHaveBeenCalledWith(expect.stringMatching(/^staging\/org\/0190b2f0-.*\/tickets\/t-1\/.*-shot\.png$/), "image/png", PNG.length, 300, NOW)
+    expect(h.storage.presignPut).toHaveBeenCalledWith(
+      expect.stringMatching(/^staging\/org\/0190b2f0-.*\/tickets\/t-1\/.*-shot\.png$/),
+      "image/png",
+      PNG.length,
+      300,
+      NOW,
+    )
     expect(out.upload).toMatchObject({ method: "PUT", url: "http://localhost:9000/b/k?sig" })
   })
 
   it("refuses a closed ticket, a requester on someone else's, and an internal note to a requester", async () => {
     await expect(harness("AGENT", row(), { status: "CLOSED" }).service.presign(presign)).rejects.toBeInstanceOf(ConflictProblem)
     await expect(harness("REQUESTER", row(), { own: false }).service.presign(presign)).rejects.toBeInstanceOf(NotPermittedProblem)
-    await expect(harness("REQUESTER", row(), { comment: { visibility: "INTERNAL", deletedAt: null } }).service.presign({ ...presign, commentId: "c-1" })).rejects.toBeInstanceOf(NotFoundProblem)
-    await expect(harness("AGENT", row(), { comment: null }).service.presign({ ...presign, commentId: "c-missing" })).rejects.toBeInstanceOf(NotFoundProblem)
+    await expect(
+      harness("REQUESTER", row(), { comment: { visibility: "INTERNAL", deletedAt: null } }).service.presign({
+        ...presign,
+        commentId: "c-1",
+      }),
+    ).rejects.toBeInstanceOf(NotFoundProblem)
+    await expect(harness("AGENT", row(), { comment: null }).service.presign({ ...presign, commentId: "c-missing" })).rejects.toBeInstanceOf(
+      NotFoundProblem,
+    )
   })
 })
 
@@ -147,7 +177,11 @@ describe("AttachmentsService.download and remove", () => {
   it("serves a ready file as its sniffed type, inline only for a raster image", async () => {
     const pdf = harness("AGENT", ready)
     expect(await pdf.service.download("a-1")).toMatchObject({ inline: false })
-    expect(pdf.storage.presignGet).toHaveBeenCalledWith(ready.storageKey, { filename: "report.pdf", contentType: "application/pdf", inline: false }, 120)
+    expect(pdf.storage.presignGet).toHaveBeenCalledWith(
+      ready.storageKey,
+      { filename: "report.pdf", contentType: "application/pdf", inline: false },
+      120,
+    )
     const png = harness("AGENT", row({ status: "READY", mimeType: "image/png" }))
     expect(await png.service.download("a-1")).toMatchObject({ inline: true })
   })
@@ -165,7 +199,9 @@ describe("AttachmentsService.download and remove", () => {
     await requester.service.remove("a-1")
     expect(requester.quota.release).toHaveBeenCalledWith(ORG, "STORAGE_BYTES", ready.sizeBytes)
     expect(requester.storage.remove).toHaveBeenCalled()
-    await expect(harness("AGENT", row({ ...ready, uploaderMembershipId: "m-other" })).service.remove("a-1")).rejects.toBeInstanceOf(NotPermittedProblem)
+    await expect(harness("AGENT", row({ ...ready, uploaderMembershipId: "m-other" })).service.remove("a-1")).rejects.toBeInstanceOf(
+      NotPermittedProblem,
+    )
     await harness("ADMIN", row({ ...ready, uploaderMembershipId: "m-other" })).service.remove("a-1")
   })
 

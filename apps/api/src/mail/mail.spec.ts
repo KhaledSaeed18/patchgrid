@@ -72,7 +72,13 @@ describe("MailProcessor.process", () => {
       orgInContext = context.current()?.orgId
       return { providerMessageId: "m-2" }
     })
-    const verify: MailJob = { kind: "verify-email", to: "new@acme.test", orgId: null, fromName: "Patchgrid", params: { name: "Sam", verifyUrl: "https://app.lvh.me:3001/verify?token=x", expiresInHours: 24 } }
+    const verify: MailJob = {
+      kind: "verify-email",
+      to: "new@acme.test",
+      orgId: null,
+      fromName: "Patchgrid",
+      params: { name: "Sam", verifyUrl: "https://app.lvh.me:3001/verify?token=x", expiresInHours: 24 },
+    }
     await new MailProcessor(provider, config, urls).process({ id: "j2", data: verify } as Job)
     expect(orgInContext).toBeUndefined()
   })

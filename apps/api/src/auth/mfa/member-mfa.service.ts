@@ -1,8 +1,21 @@
 import { Injectable, Logger } from "@nestjs/common"
-import type { FactorAdded, HolderProof, LoginResponse, MemberFactorProof, MfaEnrolment, MfaStatus, RecoveryCodes } from "@patchgrid/contracts"
+import type {
+  FactorAdded,
+  HolderProof,
+  LoginResponse,
+  MemberFactorProof,
+  MfaEnrolment,
+  MfaStatus,
+  RecoveryCodes,
+} from "@patchgrid/contracts"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
-import { ConflictProblem, NotAuthenticatedProblem, ServiceUnavailableProblem, ValidationProblem } from "../../common/problems/problem.exception"
+import {
+  ConflictProblem,
+  NotAuthenticatedProblem,
+  ServiceUnavailableProblem,
+  ValidationProblem,
+} from "../../common/problems/problem.exception"
 import { InjectConfig, type AppConfig } from "../../config/app-config"
 import { MfaRepository } from "../../platform/repositories/mfa.repository"
 import { RedisService } from "../../redis/redis.service"
@@ -73,7 +86,8 @@ export class MemberMfaService {
     const challenge = challengeToken === undefined ? null : await this.challenges.verify(challengeToken)
     if (challenge === null) throw new NotAuthenticatedProblem("Sign in again")
     const account = await this.users.findById(challenge.userId)
-    if (account === null || account.anonymisedAt !== null || account.emailVerifiedAt === null) throw new NotAuthenticatedProblem("Sign in again")
+    if (account === null || account.anonymisedAt !== null || account.emailVerifiedAt === null)
+      throw new NotAuthenticatedProblem("Sign in again")
     await this.verify(challenge.userId, request)
     // One session per challenge: a completed challenge cookie replayed inside its five minutes earns nothing more (M9 review).
     if (!(await this.spendChallenge(challenge.jti))) throw new NotAuthenticatedProblem("Sign in again")
@@ -101,7 +115,8 @@ export class MemberMfaService {
    * passkey. Refused while one is confirmed: turn that off first.
    */
   async enrol(userId: string, proof: HolderProof): Promise<MfaEnrolment> {
-    if ((await this.mfa.confirmed(userId)) !== null) throw new ConflictProblem("An authenticator app is already set up; turn it off before setting up another")
+    if ((await this.mfa.confirmed(userId)) !== null)
+      throw new ConflictProblem("An authenticator app is already set up; turn it off before setting up another")
     const account = await this.users.findById(userId)
     if (account === null) throw new NotAuthenticatedProblem()
     await this.proveHolder(userId, proof, { recovery: false })
@@ -161,14 +176,22 @@ export class MemberMfaService {
    */
   async proveHolder(userId: string, proof: HolderProof, options: { recovery?: boolean } = {}): Promise<ProvedBy> {
     if (options.recovery === false && proof.recoveryCode !== undefined) {
-      throw new ValidationProblem([{ path: "recoveryCode", message: "signs you out everywhere; sign in with it first, then add the new factor", code: "recovery_not_here" }])
+      throw new ValidationProblem([
+        {
+          path: "recoveryCode",
+          message: "signs you out everywhere; sign in with it first, then add the new factor",
+          code: "recovery_not_here",
+        },
+      ])
     }
     const held = await this.mfa.methods(userId)
     if (held.length > 0) {
-      if (proof.password !== undefined) throw new ValidationProblem([{ path: "password", message: "a second factor is required", code: "factor_required" }])
+      if (proof.password !== undefined)
+        throw new ValidationProblem([{ path: "password", message: "a second factor is required", code: "factor_required" }])
       return this.verify(userId, proof)
     }
-    if (proof.password === undefined) throw new ValidationProblem([{ path: "password", message: "is required when no second factor is set up", code: "password_required" }])
+    if (proof.password === undefined)
+      throw new ValidationProblem([{ path: "password", message: "is required when no second factor is set up", code: "password_required" }])
     const account = await this.users.findById(userId)
     if (account === null || account.anonymisedAt !== null) throw new NotAuthenticatedProblem()
     await this.lockout.assertOpen(userId)

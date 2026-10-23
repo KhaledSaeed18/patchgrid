@@ -72,11 +72,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     if (this.config.WORKER_MODE === "api") return
     for (const sweep of SWEEP_NAMES) {
-      await this.dispatch.upsertJobScheduler(
-        sweep,
-        { every: SWEEPS[sweep].everyMs },
-        { data: { orgId: null, sweep } },
-      )
+      await this.dispatch.upsertJobScheduler(sweep, { every: SWEEPS[sweep].everyMs }, { data: { orgId: null, sweep } })
     }
   }
 

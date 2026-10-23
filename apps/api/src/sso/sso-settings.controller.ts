@@ -1,5 +1,11 @@
 import { Body, Controller, Get, HttpCode, Post, Put } from "@nestjs/common"
-import { domainJoinRequestSchema, orgDomainRequestSchema, ssoConnectionRequestSchema, ssoRequirementRequestSchema, type SsoSettings } from "@patchgrid/contracts"
+import {
+  domainJoinRequestSchema,
+  orgDomainRequestSchema,
+  ssoConnectionRequestSchema,
+  ssoRequirementRequestSchema,
+  type SsoSettings,
+} from "@patchgrid/contracts"
 import { createZodDto } from "nestjs-zod"
 
 import { RequirePermission } from "../authz/require-permission"

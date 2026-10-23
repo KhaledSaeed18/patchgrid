@@ -19,7 +19,9 @@ function keyOf(secret: string): Buffer {
 }
 
 export function sign(secret: string, id: string, timestampSeconds: number, body: string): string {
-  return `v1,${createHmac("sha256", keyOf(secret)).update(`${id}.${String(timestampSeconds)}.${body}`).digest("base64")}`
+  return `v1,${createHmac("sha256", keyOf(secret))
+    .update(`${id}.${String(timestampSeconds)}.${body}`)
+    .digest("base64")}`
 }
 
 /** The three headers of one attempt, signed with every secret still in force. */

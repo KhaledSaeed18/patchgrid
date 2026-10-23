@@ -19,10 +19,7 @@ export type ScopeBranch =
   /** `ownerMembershipId` — assets. */
   | { kind: "owner"; membershipId: string }
 
-export type ScopeFilter =
-  | { kind: "all" }
-  | { kind: "none" }
-  | { kind: "any"; branches: readonly [ScopeBranch, ...ScopeBranch[]] }
+export type ScopeFilter = { kind: "all" } | { kind: "none" } | { kind: "any"; branches: readonly [ScopeBranch, ...ScopeBranch[]] }
 
 /** The resources whose lists are scoped per actor. Everything else is all-or-nothing by permission. */
 export type ScopedResource = "ticket" | "asset"

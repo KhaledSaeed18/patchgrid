@@ -61,11 +61,17 @@ export class PasskeyRepository {
    * recovery codes the caller prepared. `null` when the credential is already
    * registered — to this person or anyone.
    */
-  async add(userId: string, passkey: NewPasskey, recoveryHashes: readonly string[] | null): Promise<{ passkey: PasskeyRecord; codesIssued: boolean } | null> {
+  async add(
+    userId: string,
+    passkey: NewPasskey,
+    recoveryHashes: readonly string[] | null,
+  ): Promise<{ passkey: PasskeyRecord; codesIssued: boolean } | null> {
     try {
       return await this.prisma.db.$transaction(async (tx) => {
         await lockPerson(tx, userId)
-        const first = (await tx.userPasskey.count({ where: { userId } })) === 0 && (await tx.userMfaFactor.count({ where: { userId, kind: "TOTP", confirmedAt: { not: null } } })) === 0
+        const first =
+          (await tx.userPasskey.count({ where: { userId } })) === 0 &&
+          (await tx.userMfaFactor.count({ where: { userId, kind: "TOTP", confirmedAt: { not: null } } })) === 0
         const created = await tx.userPasskey.create({
           data: { userId, ...passkey, credentialId: Uint8Array.from(passkey.credentialId), publicKey: Uint8Array.from(passkey.publicKey) },
           select: LISTED,
@@ -93,7 +99,9 @@ export class PasskeyRepository {
       await lockPerson(tx, userId)
       const { count } = await tx.userPasskey.deleteMany({ where: { id, userId } })
       if (count !== 1) return false
-      const left = (await tx.userPasskey.count({ where: { userId } })) + (await tx.userMfaFactor.count({ where: { userId, kind: "TOTP", confirmedAt: { not: null } } }))
+      const left =
+        (await tx.userPasskey.count({ where: { userId } })) +
+        (await tx.userMfaFactor.count({ where: { userId, kind: "TOTP", confirmedAt: { not: null } } }))
       if (left === 0) await tx.userMfaRecovery.deleteMany({ where: { userId } })
       return true
     })
@@ -105,7 +113,10 @@ export class PasskeyRepository {
    * assertions racing with one counter cannot both be recorded.
    */
   async recordUse(id: string, readCount: bigint, newCount: bigint, backedUp: boolean, now: Date): Promise<boolean> {
-    const { count } = await this.prisma.db.userPasskey.updateMany({ where: { id, signCount: readCount }, data: { signCount: newCount, backedUp, lastUsedAt: now } })
+    const { count } = await this.prisma.db.userPasskey.updateMany({
+      where: { id, signCount: readCount },
+      data: { signCount: newCount, backedUp, lastUsedAt: now },
+    })
     return count === 1
   }
 }

@@ -43,14 +43,12 @@ describe("isAllowedOrigin — production", () => {
 })
 
 describe("isAllowedOrigin — development", () => {
-  it.each([
-    "http://lvh.me:3000",
-    "http://app.lvh.me:3001",
-    "http://acme.lvh.me:3001",
-    "http://globex.lvh.me:3000",
-  ])("allows %s", (origin) => {
-    expect(isAllowedOrigin(origin, dev)).toBe(true)
-  })
+  it.each(["http://lvh.me:3000", "http://app.lvh.me:3001", "http://acme.lvh.me:3001", "http://globex.lvh.me:3000"])(
+    "allows %s",
+    (origin) => {
+      expect(isAllowedOrigin(origin, dev)).toBe(true)
+    },
+  )
 
   it.each([
     ["http://acme.lvh.me:9999", "port outside the allow-list"],

@@ -46,7 +46,12 @@ export class SupportTokenService {
 
   async verify(token: string): Promise<SupportClaims | null> {
     try {
-      const { payload } = await jwtVerify(token, this.key, { algorithms: ["HS256"], issuer: ISSUER, audience: AUDIENCE, currentDate: this.clock.now() })
+      const { payload } = await jwtVerify(token, this.key, {
+        algorithms: ["HS256"],
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        currentDate: this.clock.now(),
+      })
       const parsed = claimsSchema.safeParse(payload)
       if (!parsed.success) return null
       const { sub, adm, sid, org, iat, exp } = parsed.data

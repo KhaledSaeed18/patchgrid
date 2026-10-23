@@ -71,7 +71,9 @@ async function main(): Promise<void> {
   const request = webhookRequest(required("INBOUND_WEBHOOK_SECRET"), [to], raw)
   const response = await fetch(`${values.api}/api/v1/inbound/email`, { method: "POST", headers: request.headers, body: request.body })
   console.log(`${String(response.status)} ${await response.text()}`)
-  console.log(`sent "${values.subject}" from ${values.from} to ${to} (dmarc=${dmarc}); the job settles it in a moment — see Settings → Inbound email.`)
+  console.log(
+    `sent "${values.subject}" from ${values.from} to ${to} (dmarc=${dmarc}); the job settles it in a moment — see Settings → Inbound email.`,
+  )
 }
 
 main().catch((error: unknown) => {

@@ -128,7 +128,8 @@ describe("the SLA scan over a ticket's life", () => {
     const signals: string[] = []
     for (let m = 0; m < minutes; m += 1) {
       vi.advanceTimersByTime(MINUTE)
-      for (const flag of await h.scan.scan()) signals.push(`${String(Math.round((Date.now() - T0.getTime()) / MINUTE))}:${flag.clock}-${flag.kind}`)
+      for (const flag of await h.scan.scan())
+        signals.push(`${String(Math.round((Date.now() - T0.getTime()) / MINUTE))}:${flag.clock}-${flag.kind}`)
     }
     return signals
   }
@@ -161,14 +162,23 @@ describe("auto-close over a week", () => {
     const resolved = [{ id: "t-1", version: 3, resolvedAt: T0 }]
     const closed: string[] = []
     const tickets = {
-      findResolvedBefore: vi.fn(async (_o: string, cutoff: Date) => resolved.filter((t) => t.resolvedAt <= cutoff && !closed.includes(t.id))),
+      findResolvedBefore: vi.fn(async (_o: string, cutoff: Date) =>
+        resolved.filter((t) => t.resolvedAt <= cutoff && !closed.includes(t.id)),
+      ),
       updateVersioned: vi.fn(async (_o: string, id: string) => {
         closed.push(id)
         return true
       }),
     }
     const told = notifier()
-    const sweep = new AutoCloseService(tickets as unknown as TicketRepository, inTransaction, audit, tenant, told.service, new SystemClock())
+    const sweep = new AutoCloseService(
+      tickets as unknown as TicketRepository,
+      inTransaction,
+      audit,
+      tenant,
+      told.service,
+      new SystemClock(),
+    )
     vi.advanceTimersByTime(7 * 24 * 60 * MINUTE - MINUTE)
     expect(await sweep.closeExpired()).toBe(0)
     vi.advanceTimersByTime(MINUTE)

@@ -52,8 +52,7 @@ const as = (access: string) => ({
   get: (path: string) => http().get(`/api/v1${path}`).set("Origin", ORIGIN).set("Cookie", access),
   post: (path: string, body: object = {}) =>
     http().post(`/api/v1${path}`).set(HEADERS).set("Origin", ORIGIN).set("Cookie", access).send(body),
-  patch: (path: string, body: object) =>
-    http().patch(`/api/v1${path}`).set(HEADERS).set("Origin", ORIGIN).set("Cookie", access).send(body),
+  patch: (path: string, body: object) => http().patch(`/api/v1${path}`).set(HEADERS).set("Origin", ORIGIN).set("Cookie", access).send(body),
   delete: (path: string) => http().delete(`/api/v1${path}`).set(HEADERS).set("Origin", ORIGIN).set("Cookie", access),
 })
 
@@ -115,7 +114,10 @@ beforeAll(async () => {
   await app.listen(0)
 
   const passwordHash = await app.get(PasswordService).hash(password)
-  for (const [name, email] of [["Olivia Owner", people.owner], ["Bob", people.bob]] as const) {
+  for (const [name, email] of [
+    ["Olivia Owner", people.owner],
+    ["Bob", people.bob],
+  ] as const) {
     await db.user.create({ data: { email, name, passwordHash, emailVerifiedAt: new Date() } })
   }
   const { pgId } = await login(people.owner)
@@ -192,10 +194,7 @@ describe("membership lifecycle", () => {
     expect(JSON.stringify(wrongPerson.body)).not.toContain(people.carol)
 
     expect((await http().get(`/api/v1/invitations/preview?token=${token}`)).body.accountExists).toBe(false)
-    const created = await http()
-      .post("/api/v1/invitations/accept-new")
-      .set(HEADERS)
-      .send({ token, name: "Carol", password })
+    const created = await http().post("/api/v1/invitations/accept-new").set(HEADERS).send({ token, name: "Carol", password })
     expect(created.status).toBe(201)
     const cookies = cookiesOf(created)
     state.carol = pick(cookies, `pg_at_${slug}=`)
@@ -241,7 +240,9 @@ describe("membership lifecycle", () => {
     const opened = await http().post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", state.carolPgId).send({ slug })
     expect(opened.status).toBe(403)
     const carol = await db.user.findUniqueOrThrow({ where: { email: people.carol } })
-    expect((await db.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: carol.id, orgId } } })).statusForDisplay).toBe("DISABLED")
+    expect((await db.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: carol.id, orgId } } })).statusForDisplay).toBe(
+      "DISABLED",
+    )
 
     expect((await as(state.bob).post(`/members/${state.carolMembership}/disable`)).status).toBe(409)
     expect((await as(state.bob).post(`/members/${state.carolMembership}/enable`)).body.status).toBe("ACTIVE")
@@ -251,7 +252,9 @@ describe("membership lifecycle", () => {
     expect((await as(state.bob).delete(`/members/${state.carolMembership}`)).status).toBe(204)
     const carol = await db.user.findUniqueOrThrow({ where: { email: people.carol } })
     // Off the picker; the row stays, marked, for erasure to find (ADR-0044).
-    expect(await db.userOrgIndex.findUnique({ where: { userId_orgId: { userId: carol.id, orgId } } })).toMatchObject({ statusForDisplay: "REMOVED" })
+    expect(await db.userOrgIndex.findUnique({ where: { userId_orgId: { userId: carol.id, orgId } } })).toMatchObject({
+      statusForDisplay: "REMOVED",
+    })
     const picker = await http().get("/api/v1/auth/identity").set("Cookie", state.carolPgId)
     expect(picker.body.workspaces.map((w: { orgId: string }) => w.orgId)).not.toContain(orgId)
     expect((await as(state.bob).get("/members")).body.items.map((m: { id: string }) => m.id)).not.toContain(state.carolMembership)
@@ -273,7 +276,9 @@ describe("membership lifecycle", () => {
     const unproved = await as(state.owner).patch(`/members/${state.bobMembership}/role`, { role: "OWNER" })
     expect(unproved.status).toBe(403)
     expect(unproved.body.type).toContain("step-up-required")
-    expect((await as(await prove((await login(people.owner)).pgId)).patch(`/members/${state.bobMembership}/role`, { role: "OWNER" })).status).toBe(200)
+    expect(
+      (await as(await prove((await login(people.owner)).pgId)).patch(`/members/${state.bobMembership}/role`, { role: "OWNER" })).status,
+    ).toBe(200)
     const bobAsOwner = await reopen(state.bobPgId)
     const ownerAgain = await reopen((await login(people.owner)).pgId)
 
@@ -286,9 +291,20 @@ describe("membership lifecycle", () => {
   })
 
   it("audited every step, each attributed", async () => {
-    const actions = (await db.auditLog.findMany({ where: { orgId }, orderBy: { createdAt: "asc" }, select: { action: true, actorKind: true } }))
+    const actions = await db.auditLog.findMany({
+      where: { orgId },
+      orderBy: { createdAt: "asc" },
+      select: { action: true, actorKind: true },
+    })
     const names = actions.map((a) => a.action)
-    for (const action of ["MEMBER_INVITED", "MEMBER_JOINED", "MEMBER_ROLE_CHANGED", "MEMBER_DISABLED", "MEMBER_ENABLED", "MEMBER_REMOVED"]) {
+    for (const action of [
+      "MEMBER_INVITED",
+      "MEMBER_JOINED",
+      "MEMBER_ROLE_CHANGED",
+      "MEMBER_DISABLED",
+      "MEMBER_ENABLED",
+      "MEMBER_REMOVED",
+    ]) {
       expect(names).toContain(action)
     }
     expect(actions.every((a) => a.actorKind === "MEMBER")).toBe(true)
