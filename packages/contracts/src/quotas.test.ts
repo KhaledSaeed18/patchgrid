@@ -25,6 +25,7 @@ describe("plan limits", () => {
       STORAGE_BYTES: row("Attachment storage"),
       AUTOMATION_RULES: row("Automation rules"),
       KB_ARTICLES: row("Knowledge articles"),
+      API_TOKENS: row("API tokens"),
     }
     for (const [metric, [free = "", pro = ""]] of Object.entries(rows)) {
       expect([parse(free), parse(pro)], metric).toEqual([

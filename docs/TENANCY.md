@@ -263,6 +263,7 @@ impersonation.
 | Attachment storage | 1 GB | 25 GB |
 | Automation rules | 3 | 50 |
 | Knowledge articles | 25 | unlimited |
+| API tokens (unrevoked) | 5 | 50 |
 | LLM triage | off | on |
 
 `QuotaService` returns `402` with a Problem Details `type` the UI maps to an upgrade prompt. Three rules
