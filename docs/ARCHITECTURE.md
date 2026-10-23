@@ -10,7 +10,7 @@ Tenancy rules live in `TENANCY.md`, ITSM rules in `DOMAIN.md`, working conventio
 | Runtime / tooling | Node 24, pnpm 10, Turborepo 2 | pnpm only — never npm/yarn |
 | Frontends | Next.js 16 (App Router), React 19, Tailwind 4, shadcn/ui (base-nova, hugeicons) | `apps/www` + `apps/app`. **Next 16 differs from training data** — read `node_modules/next/dist/docs/` before writing routing/caching code (`proxy.ts` replaces `middleware.ts`) |
 | Backend | NestJS **11**, deliberately | `apps/api` — the only process that talks to the database. Nest 12 exists, but `nestjs-zod` peers `@nestjs/common ^10 \|\| ^11` and does not support it; staying on 11 is a decision, not neglect. Built with SWC, CommonJS output |
-| Database | PostgreSQL 17 + Prisma **7.10.0, pinned exactly**, **Row-Level Security** + composite tenant keys | `packages/database`. **Prisma 7 removed `url` from the datasource block**: connection strings live in `prisma.config.ts` and the client takes a `@prisma/adapter-pg` driver adapter. Two adapters = two pools = the two roles. `pgvector` from day one; UUIDv7 + `timestamptz` (ADR-0023) |
+| Database | PostgreSQL 17 + Prisma **7.10.0, pinned exactly**, **Row-Level Security** + composite tenant keys | `packages/database`. **Prisma 7 removed `url` from the datasource block**: connection strings live in `prisma.config.ts` and the client takes a `@prisma/adapter-pg` driver adapter. Two adapters = two pools = the two roles. No extensions (pgvector went with M7, ADR-0056); UUIDv7 + `timestamptz` (ADR-0023) |
 | Tenant context | `nestjs-cls` (`AsyncLocalStorage`) + a Prisma client extension | ADR-0015, ADR-0022 |
 | Queue / cache | Redis 7 + BullMQ | tenant-dispatched jobs, quota counters, tenant lookup cache, throttling |
 | Object storage | S3-compatible — MinIO locally | attachments via presigned URLs, keyed `org/<orgId>/…` (ADR-0005) |
@@ -19,8 +19,6 @@ Tenancy rules live in `TENANCY.md`, ITSM rules in `DOMAIN.md`, working conventio
 | Auth | JWT access (15 min, org-bound) + rotating refresh, **per-tenant** httpOnly cookies on `.patchgrid.xyz`; Argon2id; Redis revocation epoch | ADR-0004, ADR-0017, ADR-0024 |
 | Realtime | Server-Sent Events, Redis fan-out per org | ADR-0008, ADR-0018 |
 | Logging | `pino` via `nestjs-pino`; every line carries `reqId`, `orgId`, `membershipId` | |
-| Later: LLM | Ollama (`qwen2.5:3b`, `nomic-embed-text`) in Compose | behind `TicketClassifier` / `EmbeddingProvider` |
-| Later: phishing model | Python FastAPI `apps/phishing-svc` | behind `UrlRiskScorer` (ADR-0010) |
 | Deployment | none — local only (ADR-0047); wildcard DNS + TLS designed in `DNS.md` | images build in CI; nothing is hosted |
 
 ## Monorepo layout
@@ -30,7 +28,6 @@ apps/
   www/                  # patchgrid.xyz        — marketing, docs, blog, signup (static/ISR)
   app/                  # <slug>.patchgrid.xyz — tenant workspace (fully dynamic)
   api/                  # api.patchgrid.xyz    — NestJS: business logic, data, workers
-  phishing-svc/         # (later) Python FastAPI inference service
 packages/
   database/             # Prisma schema, migrations, RLS migrations, client extension, seed
   contracts/            # Zod schemas + inferred types for every request/response
@@ -38,7 +35,7 @@ packages/
   eslint-config/        # shared flat ESLint configs
   typescript-config/    # shared tsconfig bases
 docs/                   # documentation + decisions/
-docker-compose.yml      # postgres, redis, minio, mailpit (+ ollama later)
+docker-compose.yml      # postgres, redis, minio, mailpit (+ keycloak, coredns, observability profiles)
 .github/workflows/      # CI
 ```
 
@@ -152,8 +149,6 @@ src/
   health/       # liveness + readiness (@nestjs/terminus)
   mail/         # MailProvider + impls + BullMQ processor + templates
   jobs/         # queues, tenant dispatcher, processors
-  triage/       # (later) classifier, url scorer, embeddings, duplicates
-  automation/   # (later) rule engine
 ```
 
 ## Frontend architecture
@@ -265,7 +260,7 @@ T  Category         { id, orgId, name, parentId?, depth (1..3), defaultTeamId?,
                                   -- unique (orgId, parentId, name); partial unique
                                   --   (orgId, name) WHERE parentId IS NULL
 T  Comment          { id, orgId, ticketId, authorMembershipId?,
-                      authorKind: MEMBER|SERVICE|SYSTEM|AUTOMATION,
+                      authorKind: MEMBER|SERVICE|SYSTEM,
                       body, visibility: PUBLIC|INTERNAL,
                       editedAt?, deletedAt?, deletedByMembershipId? }
                                   -- unique (orgId, ticketId, id)  -- lets Attachment key on all three
@@ -297,15 +292,6 @@ T  Notification     { id, orgId, userId, membershipId, type, title, body?,
                                  -- address is a member of this org; unique unread dedupeKey
 T  UsageCounter     { orgId, period, metric, value, updatedAt }               -- PK (orgId, period, metric)
 
-// later milestones
-T  TicketTriage     { ticketId (PK), orgId, suggestedCategoryId?, suggestedImpact?, suggestedUrgency?,
-                      summary, model, latencyMs, status: SUGGESTED|ACCEPTED|DISMISSED,
-                      decidedByMembershipId?, decidedAt? }
-T  TicketEmbedding  { ticketId (PK), orgId, embedding vector(768), model }
-T  PhishingReport   { ticketId (PK), orgId, submittedUrl, riskScore,
-                      verdict: SAFE|SUSPICIOUS|MALICIOUS|UNKNOWN, modelVersion, analyzedAt? }
-T  AutomationRule   { id, orgId, name, trigger, conditions: Json, actions: Json,
-                      isActive, sortOrder }
 T  InboundEmail     { id, orgId, messageKey, fromAddress, senderMembershipId?,
                       authVerdict: PASS|FAIL|NONE, outcome, subject, rawStorageKey,
                       ticketId?, skippedAttachments, receivedAt, processedAt?, error? }
@@ -351,7 +337,6 @@ AuditLog(orgId, actorMembershipId, createdAt DESC)
 AuditLog(orgId, action, createdAt DESC)
 Notification(orgId, userId, readAt, createdAt DESC)
 GIN KnowledgeArticle(orgId, searchVector)
-HNSW TicketEmbedding(embedding)                 -- later
 ```
 
 `OWN_TEAM_ONLY` agent visibility is an `OR` across four different columns (my teams · no team · assigned
@@ -400,7 +385,6 @@ and owns none. "Tenant-owned" means *not on the closed platform list* in
 | `outbox-sweep` | every minute, per tenant | ask for a drain wherever a consumer is behind — the wake's safety net (ADR-0049) |
 | `webhook-deliver` | per delivery attempt, queued by the `webhooks` consumer and by retries | claim, sign, send through the SSRF guard, record the outcome and the endpoint's circuit (ADR-0050) |
 | `webhook-sweep` | every minute, per tenant | re-queue pending deliveries whose job was lost (ADR-0050) |
-| `triage`, `automation` (later) | per ticket / per event | tenant-scoped |
 
 Workers run in the same Nest process in development; `WORKER_MODE=all|api|worker` allows splitting later without code changes.
 
@@ -456,28 +440,25 @@ its cursor's transaction, with the payload fixed. Each attempt then:
 A tenant has at most 2 (Free) or 8 (Pro) attempts in flight, a Redis lease set taken by a Lua script.
 Payloads are thin (ids and states), and internal notes are never in them.
 
-## Integration boundaries (later milestones)
+## Integration boundaries
 
 ```ts
-interface TicketClassifier { classify(i: { title: string; description: string; categories: CategoryOption[] })
-  : Promise<{ categoryId?: string; impact?: Impact; urgency?: Urgency; summary: string }>; }
-interface UrlRiskScorer   { score(url: string): Promise<{ riskScore: number; verdict: PhishingVerdict; modelVersion: string }>; }
-interface EmbeddingProvider { embed(text: string): Promise<number[]>; }
 interface MailProvider    { send(m: OutboundMail): Promise<{ providerMessageId: string }>; }
 ```
 
-Each is a Nest injection token with a real implementation and a `Noop`/`Fake` one selected by env. Ticket creation never waits on or fails because of triage: commit first, enqueue after commit, write results when they arrive. Timeouts 20 s / 5 s / 5 s, then log and continue. Tenant data never leaves the deployment — a significant reason the LLM is local (ADR-0010).
+A Nest injection token with a real implementation (SMTP to Mailpit) and a fake one selected by env. There
+are no model boundaries: M7, which would have added a classifier, a URL scorer and an embedding
+provider, is dropped (ADR-0056).
 
 ## Local infrastructure (Docker Compose)
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `postgres` | `pgvector/pgvector:pg17` | 5432 | main DB + `patchgrid_test`; init script creates extensions, the migration owner (**with** `BYPASSRLS`), and `patchgrid_app` (**without**), transfers database and schema ownership to the owner role, and issues the `GRANT`s + `ALTER DEFAULT PRIVILEGES` the app depends on |
+| `postgres` | `postgres:17-bookworm` | 5432 | main DB + `patchgrid_test`; init script creates the migration owner (**with** `BYPASSRLS`), and `patchgrid_app` (**without**), transfers database and schema ownership to the owner role, and issues the `GRANT`s + `ALTER DEFAULT PRIVILEGES` the app depends on |
 | `redis` | `redis:7-alpine` | 6379 | BullMQ, throttler, tenant cache, quota counters |
 | `minio` | `quay.io/minio/minio` | 9000 / 9001 | S3 API / console. **quay.io, not Docker Hub** — `docker.io/minio/minio` is no longer publicly pullable. Bucket `patchgrid-attachments` created by an init container; **CORS is a server setting** (`MINIO_API_CORS_ALLOW_ORIGIN`), not per-bucket — `mc cors set` reports "functionality that is not implemented" |
 | `mailpit` | `axllent/mailpit` | 1025 / 8025 | SMTP sink + web inbox |
 | `keycloak` (`--profile sso`) | `quay.io/keycloak/keycloak:26.4` | 8180 | Acme's identity provider for SSO (ADR-0054): one realm imported from `docker/keycloak/acme-realm.json` |
-| `ollama` (later) | `ollama/ollama` | 11434 | triage + embeddings |
 
 Every published port is env-overridable (`POSTGRES_PORT`, `REDIS_PORT`, …) defaulting to the values
 above, because another project already owning 5432 is common and "port is already allocated" is an easy

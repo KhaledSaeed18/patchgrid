@@ -32,7 +32,6 @@ modelled anyway, so the code written now does not foreclose the fix.
 | **Malicious member**                | A real membership, usually `REQUESTER` or `AGENT`   | More than their role grants: internal notes, other teams, promotion    |
 | **Credential thief**                | A stolen cookie, leaked API token or forwarded link | To act as someone else for as long as possible                         |
 | **Forged email sender**             | A tenant's inbound address                          | Tickets or comments attributed to someone else (M6)                    |
-| **Hostile ticket text**             | Attacker-controlled title/body                      | To steer the LLM triage into acting (M7)                               |
 | **Hostile identity provider**       | A workspace's SSO connection, or its admin console  | To vouch for someone it does not own, in a workspace that is not its own (M13) |
 | **Curious or compromised operator** | A `PlatformAdmin` identity                          | Tenant content without the tenant knowing (M8)                         |
 | **Supply chain**                    | A dependency, a CI action, a DNS/ACME token         | Code execution in CI or production; control of the zone                |
@@ -46,7 +45,6 @@ modelled anyway, so the code written now does not foreclose the fix.
     │                                                                    ├──TB5──▶ Redis / BullMQ / SSE
     └────────TB6 (presigned URL)──────────▶ object storage ◀─────────────┤
                                                                          ├◀─TB7── inbound mail provider (M6)
-                                                                         ├──TB8──▶ Ollama / phishing-svc (M7)
                                                                          ├──TB11─▶ webhook receivers (M11)
  Browser ◀──── redirects ────▶ tenant identity provider ◀──TB12 (M13)─────┤
  Operator ──TB9 (admin., M8)─────────────────────────────────────────────┘
@@ -154,11 +152,10 @@ Built in M6 (ADR-0039), each step proven by `apps/api/test/inbound/inbound.int-s
 - Each sender is limited to 20 messages an hour per workspace.
 - Our own mail is marked `Auto-Submitted`, so it never comes back in as a ticket.
 
-### TB8 · Model output → agent (M7, built last)
+### TB8 · Retired
 
-Ticket text is attacker-controlled, so model output is **data an agent accepts**, never an instruction and
-never auto-applied. The model suggests impact and urgency, never priority. It runs locally, so tenant text
-never leaves the deployment. Triage is asynchronous; a timeout or failure never blocks ticket creation.
+TB8 was model output reaching an agent (M7). M7 is dropped (ADR-0056): nothing calls a model, so the
+boundary does not exist. The number is kept so TB9–TB12 keep theirs.
 
 ### TB9 · Operator → tenants (M8)
 

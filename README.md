@@ -304,8 +304,9 @@ opens that workspace and nothing else, and owners keep their own way in
 ([ADR-0054](docs/decisions/0054-per-tenant-oidc-sso.md), `docs/THREAT-MODEL.md` §10).
 `docker compose --profile sso up -d` runs the Keycloak the seed points Acme at.
 
-**Next is M14**, a production rehearsal on a laptop: HTTPS through Caddy, PgBouncer, a replica. M7 comes
-last, because it needs local models ([ADR-0048](docs/decisions/0048-roadmap-after-m10.md)).
+**Next is M14**, a production rehearsal on a laptop: HTTPS through Caddy, PgBouncer, a replica. It is
+the last planned milestone: M7, the models and the automation rule engine, is dropped
+([ADR-0056](docs/decisions/0056-m7-dropped.md)).
 `docs/HANDOFF.md` has the detail.
 
 MIT licensed — the value of this repository is that people read it.
