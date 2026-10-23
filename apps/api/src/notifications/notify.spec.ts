@@ -8,6 +8,7 @@ import type { AppConfig } from "../config/app-config"
 import type { MailService } from "../mail/mail.service"
 import type { MailJob } from "../mail/templates"
 import { EventConsumers } from "../events/consumer"
+import { isTransient, TransientFailure } from "../events/relay"
 import type { StoredEvent } from "../events/repositories/outbox.repository"
 import { TicketAudience } from "./audience"
 import type { Person, TicketCircle } from "./fan-out"
@@ -133,15 +134,17 @@ describe("NotifyConsumer", () => {
     expect(h.notifications.addMany).toHaveBeenCalledWith(ORG, [], NOW)
   })
 
-  it("queues the emails after the rows commit, from the workspace, linking to the ticket", async () => {
+  it("queues the emails before the cursor commits, from the workspace, linking to the ticket", async () => {
     const h = harness(circle())
-    const after = await h.handle({ kind: "ticket-assigned", ticketId: T1, actorMembershipId: M("m-lead"), assigneeMembershipId: M("m-agent") })
-    expect(h.order).toEqual([])
+    const event = stored({ kind: "ticket-assigned", ticketId: T1, actorMembershipId: M("m-lead"), assigneeMembershipId: M("m-agent") })
+    const after = await h.consumer.handle(ORG, [event])
+    // In the transaction, so a queue that refuses rolls the batch back instead of losing the email.
+    expect(h.order).toEqual(["mail:1"])
     await after()
     expect(h.order).toEqual(["mail:1"])
     expect(h.mail.enqueueAll).toHaveBeenCalledWith([
       {
-        entityId: "n-0",
+        entityId: `${event.id}-${M("m-agent")}`,
         job: {
           kind: "ticket-notification",
           to: `${M("m-agent")}@example.test`,
@@ -162,12 +165,13 @@ describe("NotifyConsumer", () => {
     ])
   })
 
-  it("keeps the rows when the mail queue is down: replaying the event would fold them twice", async () => {
+  it("fails the batch, as the job's trouble and not the event's, when the mail queue refuses", async () => {
     const h = harness(circle())
     h.mail.enqueueAll.mockRejectedValue(new Error("redis down"))
-    const after = await h.handle({ kind: "ticket-assigned", ticketId: T1, actorMembershipId: M("m-lead"), assigneeMembershipId: M("m-agent") })
-    await expect(after()).resolves.toBeUndefined()
-    expect(h.bus.publish).toHaveBeenCalledTimes(1)
+    const failure = await h.handle({ kind: "ticket-assigned", ticketId: T1, actorMembershipId: M("m-lead"), assigneeMembershipId: M("m-agent") }).catch((e: unknown) => e)
+    expect(failure).toBeInstanceOf(TransientFailure)
+    expect(isTransient(failure)).toBe(true)
+    expect(h.bus.publish).not.toHaveBeenCalled()
   })
 
   it("does nothing for a ticket that is gone", async () => {

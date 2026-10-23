@@ -6,6 +6,7 @@ import { type Clock, InjectClock } from "../common/clock/clock"
 import { PublicUrls } from "../common/urls"
 import { type AfterCommit, type EventConsumer, EventConsumers } from "../events/consumer"
 import { Outbox } from "../events/outbox"
+import { TransientFailure } from "../events/relay"
 import type { StoredEvent } from "../events/repositories/outbox.repository"
 import { MailService } from "../mail/mail.service"
 import { TicketAudience } from "./audience"
@@ -51,8 +52,9 @@ export class Notifier {
  * Turns one event into inbox rows and emails, inside the tenant the job
  * names: loads the ticket's people, lets `deliveriesFor` decide, keeps only
  * those who may read the ticket, writes the rows with their de-duplication,
- * then — once they have committed — queues the emails `mailingsFor` allows.
- * Returns what it delivered in-app, for the live stream.
+ * and queues the emails `mailingsFor` allows — before the cursor commits, so
+ * an email is at least once (ADR-0049 erratum, 2026-10-23). Returns what it
+ * delivered in-app, for the live stream.
  */
 @Injectable()
 export class NotifyService {
@@ -73,16 +75,27 @@ export class NotifyService {
    * where the tenant setting is applied, which RLS insists on. `null` when the
    * ticket is gone.
    */
-  async write(orgId: string, event: NotifyEvent): Promise<Written | null> {
-    return this.writeRows(orgId, event)
+  async write(orgId: string, event: NotifyEvent, eventId: string): Promise<Written | null> {
+    return this.writeRows(orgId, event, eventId)
   }
 
-  /** After the cursor committed: the emails the rows allow. */
-  async afterCommit(orgId: string, written: Written): Promise<void> {
-    await this.send(orgId, written.circle, written.mailings)
+  /**
+   * Still inside the consumer's transaction: the emails the rows allow, queued
+   * before the cursor that consumed their event commits. A refusal rolls the
+   * batch back to be retried — as the job's failure, never the event's — so
+   * nothing is lost; a commit that fails after the queue accepted can send one
+   * twice, and each job's id, the event and the person, keeps that to the
+   * moment the first is still queued.
+   */
+  async queueMail(orgId: string, written: readonly Written[]): Promise<void> {
+    try {
+      await this.mail.enqueueAll(written.flatMap(({ circle, mailings }) => this.jobsFor(orgId, circle, mailings)))
+    } catch (error) {
+      throw new TransientFailure(`notification email not queued: ${String(error)}`, { cause: error })
+    }
   }
 
-  private async writeRows(orgId: string, event: NotifyEvent): Promise<Written | null> {
+  private async writeRows(orgId: string, event: NotifyEvent, eventId: string): Promise<Written | null> {
     const circle = await this.circles.load(orgId, event.ticketId, event.actorMembershipId)
     if (circle === null) return null
     const ticket = { ...circle.ticket, watcherMembershipIds: new Set(circle.watchers.map((w) => w.membershipId)) }
@@ -111,49 +124,38 @@ export class NotifyService {
       return person === undefined ? [] : [{ person, row }]
     })
     const written = new Map(rows.map((row) => [row.membershipId, row]))
-    return { circle, delivered, mailings: mailingsFor(circle, deliveries, written) }
+    return { circle, delivered, mailings: mailingsFor(circle, deliveries, written, eventId) }
   }
 
-  /**
-   * Never throws: the rows have committed with the cursor, and a lost email
-   * must not be retried by replaying the event, which would fold every row
-   * it wrote a second time.
-   */
-  private async send(orgId: string, circle: TicketCircle, mailings: Mailing[]): Promise<void> {
+  private jobsFor(orgId: string, circle: TicketCircle, mailings: readonly Mailing[]) {
     const { org, ticket } = circle
-    try {
-      await this.mail.enqueueAll(
-        mailings.map((m) => ({
-          entityId: m.entityId,
-          job: {
-            kind: "ticket-notification",
-            to: m.person.email,
-            orgId,
-            fromName: org.name,
-            params: {
-              orgName: org.name,
-              headline: m.headline,
-              reason: m.reason,
-              ticketUrl: this.urls.workspace(org.slug, `/tickets/${ticket.id}`),
-              preferencesUrl: this.urls.workspace(org.slug, "/notifications/preferences"),
-              ticketId: ticket.id,
-              ticketNumber: formatTicketNumber(ticket.type, ticket.number),
-              replyTo: this.urls.inboundAddress(org.slug),
-            },
-          },
-        })),
-      )
-    } catch (error) {
-      this.logger.error({ msg: "notification email not queued", orgId, count: mailings.length, error: String(error) })
-    }
+    return mailings.map((m) => ({
+      entityId: m.entityId,
+      job: {
+        kind: "ticket-notification" as const,
+        to: m.person.email,
+        orgId,
+        fromName: org.name,
+        params: {
+          orgName: org.name,
+          headline: m.headline,
+          reason: m.reason,
+          ticketUrl: this.urls.workspace(org.slug, `/tickets/${ticket.id}`),
+          preferencesUrl: this.urls.workspace(org.slug, "/notifications/preferences"),
+          ticketId: ticket.id,
+          ticketNumber: formatTicketNumber(ticket.type, ticket.number),
+          replyTo: this.urls.inboundAddress(org.slug),
+        },
+      },
+    }))
   }
 }
 
 /**
  * The `notify` consumer of the tenant log (ADR-0049). Each event's inbox rows
- * are written in the transaction that moves the cursor past it, so they are
- * written exactly once; once that commits, the emails are queued and each
- * recipient's open streams hear of their rows. Events of other types are
+ * are written, and its emails queued, in the transaction that moves the cursor
+ * past it: the rows exactly once, the emails at least once. Once that commits,
+ * each recipient's open streams hear of their rows. Events of other types are
  * skipped; an event of a notify type that does not parse is a bug, and fails
  * until it is parked.
  */
@@ -176,11 +178,11 @@ export class NotifyConsumer implements EventConsumer, OnModuleInit {
     for (const stored of events) {
       if (!NOTIFY_TYPES.has(stored.type)) continue
       const event = notifyEventSchema.parse(stored.payload)
-      const outcome = await this.service.write(orgId, event)
+      const outcome = await this.service.write(orgId, event, stored.id)
       if (outcome !== null) written.push(outcome)
     }
+    await this.service.queueMail(orgId, written)
     return async () => {
-      for (const outcome of written) await this.service.afterCommit(orgId, outcome)
       await Promise.all(
         written.flatMap(({ delivered }) =>
           delivered.map(({ person, row }) =>

@@ -192,23 +192,24 @@ export type Mailing = { person: Person; type: NotificationType; headline: string
  * kill switch is off; otherwise each that travels by email and whose type the
  * member has not turned off. One with an inbox row is emailed only when that
  * row is new — a burst folded into an unread row is one email per thread,
- * not one per reply — and is idempotent on the row. An email-only delivery is
- * idempotent on the ticket and its type.
+ * not one per reply. Each is idempotent on the event and the person.
  */
 export function mailingsFor(
   circle: TicketCircle,
   deliveries: readonly Delivery[],
   written: ReadonlyMap<string, { id: string; inserted: boolean }>,
+  eventId: string,
 ): Mailing[] {
   if (!circle.org.emailEnabled) return []
   return deliveries.flatMap((d) => {
     if (!d.channels.email || !emailWanted(d.person.emailPrefs, d.type)) return []
-    let entityId = `${circle.ticket.id}-${d.type.toLowerCase()}`
     if (d.channels.inApp) {
       const row = written.get(d.person.membershipId)
       if (row === undefined || !row.inserted) return []
-      entityId = row.id
     }
+    // One message per event and person, whatever retried: the batch that queues
+    // it may roll back and run again, and its rows get new ids when it does.
+    const entityId = `${eventId}-${d.person.membershipId}`
     return [{ person: d.person, type: d.type, headline: d.title, reason: reasonFor(circle, d.person.membershipId), entityId }]
   })
 }

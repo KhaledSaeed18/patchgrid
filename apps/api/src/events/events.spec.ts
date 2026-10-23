@@ -10,7 +10,7 @@ import { EventConsumers, type EventConsumer } from "./consumer"
 import { DrainProcessor, RETRY_SOON_MS } from "./drain.processor"
 import { DrainRequests, pendingKey } from "./drain-requests"
 import { Outbox } from "./outbox"
-import { type DrainOutcome, type EventRelay, failureBackoffMs, isTransient } from "./relay"
+import { type DrainOutcome, type EventRelay, failureBackoffMs, isTransient, TransientFailure } from "./relay"
 import type { OutboxRepository } from "./repositories/outbox.repository"
 
 const ORG = "0190b2f0-0000-7000-8000-00000000000a"
@@ -166,6 +166,8 @@ describe("event failures", () => {
     expect(isTransient({ message: "wrapped", meta: { driverAdapterError: { cause: { code: "40001" } } } })).toBe(true)
     expect(isTransient({ code: "P2028" })).toBe(true)
     expect(isTransient(new Error("ticket payload does not parse"))).toBe(false)
+    // A consumer's own word for it: a dependency that refused for a moment.
+    expect(isTransient(new TransientFailure("mail queue refused"))).toBe(true)
     expect(isTransient({ code: "23505" })).toBe(false)
   })
 })
