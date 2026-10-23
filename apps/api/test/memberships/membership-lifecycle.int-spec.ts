@@ -133,6 +133,7 @@ afterAll(async () => {
     await db.auditLog.deleteMany({ where: { orgId } })
     // Filling the seats tells the owner the plan's limit was reached.
     await db.notification.deleteMany({ where: { orgId } })
+    await db.knowledgeArticle.deleteMany({ where: { orgId } })
     await db.invitation.deleteMany({ where: { orgId } })
     await db.teamMembership.deleteMany({ where: { orgId } })
     await db.membership.updateMany({ where: { orgId }, data: { invitedByMembershipId: null } })

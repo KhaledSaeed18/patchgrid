@@ -1,8 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common"
+import { randomBytes } from "node:crypto"
 
 import { AuditService } from "../../audit/audit.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import { ConflictProblem, NotAuthenticatedProblem, ValidationProblem } from "../../common/problems/problem.exception"
+import { PublicUrls } from "../../common/urls"
 import { MailService } from "../../mail/mail.service"
 import { MembershipRepository } from "../../memberships/repositories/membership.repository"
 import { OrganizationRepository } from "../../platform/repositories/organization.repository"
@@ -16,7 +18,8 @@ import { holdsSeat, QuotaService } from "../../quota/quota.service"
 import type { CookieName } from "../cookies"
 import { PasswordService } from "../passwords/password.service"
 import { RevocationEpochService } from "../revocation/revocation-epoch.service"
-import { SessionService } from "../sessions/session.service"
+import { hash, SessionService } from "../sessions/session.service"
+import { ERASURE_LINK_MINUTES, ErasureLinks } from "./erasure-links"
 import { AccountErasureRepository } from "./repositories/account-erasure.repository"
 
 /** Where a workspace still needs someone to own it before its last owner can leave. */
@@ -47,6 +50,8 @@ export class AccountErasureService {
     private readonly quota: QuotaService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly links: ErasureLinks,
+    private readonly urls: PublicUrls,
     private readonly prisma: PrismaService,
     @InjectClock() private readonly clock: Clock,
   ) {}
@@ -58,6 +63,42 @@ export class AccountErasureService {
     if (!(await this.passwords.verify(account.passwordHash, password))) {
       throw new ValidationProblem([{ path: "password", message: "is not this account's password", code: "wrong_password" }])
     }
+    return this.eraseProved(account)
+  }
+
+  /**
+   * `202` always: an erasure link, to a verified, live account's address. For
+   * whoever has no password to give — an account a workspace's identity
+   * provider made — and no weaker than the password reset the same inbox
+   * could already ask for.
+   */
+  async requestLink(email: string): Promise<void> {
+    const account = await this.users.findByEmail(email)
+    if (account === null || account.emailVerifiedAt === null || account.anonymisedAt !== null) return
+    const secret = randomBytes(32).toString("base64url")
+    await this.links.put(secret, account.id)
+    await this.mail.enqueue(
+      {
+        kind: "confirm-erasure",
+        to: account.email,
+        orgId: null,
+        fromName: "Patchgrid",
+        params: { name: account.name, confirmUrl: this.urls.app(`/erase-account?token=${secret}`), expiresInMinutes: ERASURE_LINK_MINUTES },
+      },
+      `${account.id}-erase-${hash(secret).slice(0, 16)}`,
+    )
+  }
+
+  /** The link, spent: the account it names is erased as if its password had been given. */
+  async confirmLink(secret: string): Promise<CookieName[]> {
+    const userId = await this.links.take(secret)
+    const account = userId === null ? null : await this.users.findById(userId)
+    if (account === null || account.anonymisedAt !== null) throw new NotAuthenticatedProblem("This erasure link is invalid or has expired")
+    return this.eraseProved(account)
+  }
+
+  private async eraseProved(account: { id: string; email: string }): Promise<CookieName[]> {
+    const userId = account.id
     if ((await this.platformAdmins.activeForUser(userId)) !== null) {
       throw new ConflictProblem("This account holds a platform grant; have it revoked first")
     }

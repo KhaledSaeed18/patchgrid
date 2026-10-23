@@ -104,11 +104,15 @@ Provisioning is idempotent: retrying a failed job never double-seeds.
 - **Single sign-on** (ADR-0054, M13): with a proved domain and an enabled OpenID Connect connection, a
   person whose identity provider vouches for a verified address at that domain signs in through it. A
   new person joins **just in time** at the connection's default role (`REQUESTER` or `AGENT`). An existing
-  active member is linked by address. A disabled or removed member stays out. This is the only
-  domain-based way in that is built.
-- **Verified-domain auto-join** (opt-in, off by default, **not built**): if `Organization.domain` is
+  active member is linked by address. A disabled or removed member stays out.
+- **Verified-domain auto-join** (opt-in, off by default; built 2026-10-23): if `Organization.domain` is
   proven and `allowDomainJoin` is on, a user whose email is verified at that domain may join directly
-  with `defaultJoinRole` (normally `REQUESTER`), without an identity provider.
+  with `defaultJoinRole` (`REQUESTER` or `AGENT`, by a check constraint), without an identity provider.
+  The owner turns it on (`PUT /org/domain/join`, `org:manage_domain`, a step-up action); a changed or
+  removed domain turns it off, and it is never on while SSO is required — the provider is the way in
+  then. `GET /auth/identity` names the workspace as `joinable`, and `POST /auth/workspaces/join` makes
+  the membership under the organization lock, taking a seat for an agent. Anyone ever a member there —
+  removed or disabled included — is never let back in this way, and an SSO session never joins.
   - Free and disposable mail domains are on an explicit denylist. They cannot be DNS-verified in
     practice, but the denylist documents the intent and guards against a verification bug.
   - A domain may be verified by **one** organization. First verified wins; a second org attempting the

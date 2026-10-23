@@ -42,6 +42,11 @@ export function Assignment({
   const changed =
     teamId !== (ticket.team?.id ?? "") ||
     assigneeId !== (ticket.assignee?.membershipId ?? "")
+  // Handing your own ticket on ends the implicit watch (DOMAIN.md §8); this keeps it, as an explicit one.
+  const handingOn =
+    ticket.assignee?.membershipId === membership.id &&
+    assigneeId !== membership.id
+  const [keepWatching, setKeepWatching] = useState(false)
   const save = useMutation({
     mutationFn: (next: { teamId: string; assigneeId: string }) =>
       clientApi(`/tickets/${ticket.id}/assignment`, {
@@ -50,6 +55,7 @@ export function Assignment({
           version: ticket.version,
           teamId: next.teamId === "" ? null : next.teamId,
           assigneeMembershipId: next.assigneeId === "" ? null : next.assigneeId,
+          ...(handingOn && keepWatching ? { keepWatching: true } : {}),
         },
         schema: ticketSchema,
       }),
@@ -112,6 +118,17 @@ export function Assignment({
           ))}
         </NativeSelect>
       </div>
+      {handingOn && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={keepWatching}
+            onChange={(e) => setKeepWatching(e.target.checked)}
+          />
+          Keep watching this ticket
+        </label>
+      )}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={!changed || save.isPending}>
           {save.isPending && <Spinner />}

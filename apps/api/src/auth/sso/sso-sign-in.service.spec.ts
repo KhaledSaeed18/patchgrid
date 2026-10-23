@@ -38,7 +38,7 @@ function harness(options: Options = {}) {
   const config = { SSO_SECRETS_KEY: KEY, ROOT_DOMAIN: "lvh.me", WEB_ORIGIN_PORTS: [3000, 3001], WEB_APP_PORT: 3001, PORT: 4000, isProduction: false, COOKIE_DOMAIN: ".lvh.me" } as AppConfig
   const secrets = new SsoSecrets(config)
   const org: OrgDomainRecord | null =
-    options.org === null ? null : { id: ORG_ID, slug: "acme", name: "Acme", status: "ACTIVE", domain: "acme.test", domainVerifiedAt: NOW, domainChallenge: null, requireSso: false, ...options.org }
+    options.org === null ? null : { id: ORG_ID, slug: "acme", name: "Acme", status: "ACTIVE", domain: "acme.test", domainVerifiedAt: NOW, domainChallenge: null, requireSso: false, allowDomainJoin: false, defaultJoinRole: "REQUESTER", ...options.org }
   const connection: SsoConnectionRecord | null =
     options.connection === null
       ? null

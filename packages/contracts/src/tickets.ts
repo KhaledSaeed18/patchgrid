@@ -186,6 +186,11 @@ export const assignTicketRequestSchema = z
     version: z.int().positive(),
     assigneeMembershipId: idSchema.nullable().optional(),
     teamId: idSchema.nullable().optional(),
+    /**
+     * The outgoing assignee, handing the ticket on, keeps hearing of it as an
+     * explicit watcher (DOMAIN.md §8). Only theirs to ask for.
+     */
+    keepWatching: z.boolean().optional(),
   })
   .refine((v) => v.assigneeMembershipId !== undefined || v.teamId !== undefined, {
     error: "must set an assignee, a team, or both",

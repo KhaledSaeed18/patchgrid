@@ -7,6 +7,8 @@ import { MailModule } from "../mail/mail.module"
 import { QuotaModule } from "../quota/quota.module"
 import { AccountController } from "./account/account.controller"
 import { AccountErasureService } from "./account/account-erasure.service"
+import { ErasureLinks } from "./account/erasure-links"
+import { DomainJoinService } from "./domain-join/domain-join.service"
 import { AccountErasureRepository } from "./account/repositories/account-erasure.repository"
 import { CREDENTIAL_RETENTION_QUEUE, CredentialRetentionProcessor, CredentialRetentionService } from "./credential-retention"
 import { MembershipRepositoryModule } from "../memberships/membership-repository.module"
@@ -90,6 +92,8 @@ import { OrgThrottlerGuard } from "../throttling/throttler.guards"
     SsoSignInService,
     AccountErasureRepository,
     AccountErasureService,
+    ErasureLinks,
+    DomainJoinService,
     CredentialRetentionService,
     CredentialRetentionProcessor,
     { provide: APP_GUARD, useClass: RequestedWithGuard },

@@ -198,7 +198,7 @@ tenant policy, listed exhaustively in `TENANCY.md` §7).
 ```
 P  Organization      { id, name, slug (unique), status: ACTIVE|SUSPENDED|PENDING_DELETION,
                        plan: FREE|PRO, domain?, domainVerifiedAt?, allowDomainJoin,
-                       defaultJoinRole?, agentVisibility: ALL_TICKETS|OWN_TEAM_ONLY,
+                       defaultJoinRole: REQUESTER|AGENT, agentVisibility: ALL_TICKETS|OWN_TEAM_ONLY,
                        emailNotificationsEnabled, deletionRequestedAt? }
 P  OrganizationSlugHistory { id, orgId, slug (unique), releasedAt, redirectUntil }
 P  User              { id, email (unique), passwordHash, name, avatarUrl?,

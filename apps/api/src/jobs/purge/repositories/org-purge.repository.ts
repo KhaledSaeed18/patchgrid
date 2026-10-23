@@ -94,7 +94,7 @@ export class OrgPurgeRepository {
         domainVerifiedAt: null,
         domainChallenge: null,
         allowDomainJoin: false,
-        defaultJoinRole: null,
+        defaultJoinRole: "REQUESTER",
         requireSso: false,
       },
     })

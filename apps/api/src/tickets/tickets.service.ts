@@ -71,6 +71,7 @@ import {
   type TicketRow,
   type TicketSummaryRow,
 } from "./repositories/ticket.repository"
+import { WatcherRepository } from "./repositories/watcher.repository"
 import { type Acting, type LoadedTicket, TicketAccess } from "./ticket-access"
 import { toSummary, toTicket } from "./ticket-view"
 
@@ -105,6 +106,7 @@ export class TicketsService {
     private readonly notifier: Notifier,
     private readonly outbox: Outbox,
     private readonly pulse: TicketPulse,
+    private readonly watchers: WatcherRepository,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -326,8 +328,17 @@ export class TicketsService {
       const changes = await this.assignment(orgId, request.assigneeMembershipId, request.teamId)
       const touched = changes.assigneeMembershipId ?? changes.teamId ?? null
       if (loaded.row.status === "NEW" && touched !== null) changes.status = "ASSIGNED"
+      const handingOn = changes.assigneeMembershipId !== undefined && changes.assigneeMembershipId !== loaded.row.assigneeMembershipId
+      if (request.keepWatching === true && !(actor.kind === "member" && handingOn && loaded.row.assigneeMembershipId === actor.membershipId)) {
+        throw fieldError("keepWatching", "is for the assignee handing their own ticket on")
+      }
       if (!(await this.tickets.updateVersioned(orgId, id, request.version, changes))) throw new StaleWriteProblem()
-      await this.audit.record(orgId, [{ action: "TICKET_ASSIGNED", entityType: "Ticket", entityId: id, diff: diffOf(loaded.row, changes) }])
+      const entries: AuditEntry[] = [{ action: "TICKET_ASSIGNED", entityType: "Ticket", entityId: id, diff: diffOf(loaded.row, changes) }]
+      // DOMAIN.md §8: the implicit watch ends with the assignment; an explicit one, asked for, takes over.
+      if (request.keepWatching === true && (await this.watchers.add(orgId, id, actor.membershipId, actor.membershipId))) {
+        entries.push({ action: "WATCHER_ADDED", entityType: "Ticket", entityId: id, diff: { membershipId: actor.membershipId } })
+      }
+      await this.audit.record(orgId, entries)
       const assignee = changes.assigneeMembershipId
       if (assignee !== undefined && assignee !== null && assignee !== loaded.row.assigneeMembershipId) {
         await this.notifier.notify(orgId, { kind: "ticket-assigned", ticketId: id, actorMembershipId: actor.membershipId, assigneeMembershipId: assignee })

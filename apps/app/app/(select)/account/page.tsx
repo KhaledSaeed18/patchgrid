@@ -6,6 +6,8 @@ import { AuthShell } from "@/components/auth-shell"
 import { SsoSessionNotice } from "@/components/sso-session-notice"
 import { serverIdentity } from "@/lib/api/server"
 
+import { ErasureLink } from "@/components/erasure-link"
+
 import { EraseAccount } from "./erase-account"
 import { SecuritySummary } from "./security/security-summary"
 
@@ -36,10 +38,19 @@ export default async function AccountPage() {
       {identity.sso === null ? (
         <>
           <SecuritySummary enrolled={identity.mfa.enrolled} />
-          <EraseAccount />
+          <EraseAccount email={identity.user.email} />
         </>
       ) : (
-        <SsoSessionNotice slug={identity.sso.slug} />
+        <>
+          <SsoSessionNotice slug={identity.sso.slug} />
+          <div className="grid gap-2 text-sm">
+            <p className="font-medium">Delete your account</p>
+            <p className="text-muted-foreground">
+              An account your workspace&apos;s single sign-on made has no password; a link to your address proves it is you.
+            </p>
+            <ErasureLink email={identity.user.email} />
+          </div>
+        </>
       )}
     </AuthShell>
   )

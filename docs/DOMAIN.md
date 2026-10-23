@@ -398,8 +398,10 @@ ticket id — for a ticket they may not read.
 
 **The requester and the current assignee are implicit watchers** and cannot be removed. They are not
 `TicketWatcher` rows, so every fan-out is a union of the implicit pair and the explicit rows, and the
-watcher panel renders both. When the assignee changes, the previous assignee stops receiving updates;
-the UI offers them "keep watching", which adds an explicit row.
+watcher panel renders both. When the assignee changes, the previous assignee stops receiving updates.
+An assignee handing their own ticket on is offered "keep watching" in the assignment form, which sends
+`keepWatching: true` and adds them as an explicit watcher in the same transaction; reassigned by someone
+else, they can watch it by hand.
 
 ## 9. Search, knowledge base and CMDB
 

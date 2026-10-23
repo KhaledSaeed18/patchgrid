@@ -103,8 +103,17 @@ export const identityResponseSchema = z.object({
    * opens that workspace and no other.
    */
   sso: z.object({ slug: slugSchema }).nullable(),
+  /**
+   * A workspace this person may join on their own (TENANCY.md §5): the one
+   * that proved their address's domain and lets its people in. `null` when
+   * there is none, when they were ever a member of it, or for an SSO session.
+   */
+  joinable: z.object({ slug: slugSchema, name: z.string(), role: roleSchema }).nullable(),
 })
 export type IdentityResponse = z.infer<typeof identityResponseSchema>
+
+/** `POST /auth/workspaces/join`: join the workspace `joinable` names. */
+export const joinWorkspaceRequestSchema = z.strictObject({ slug: slugSchema })
 
 /** The org switcher: mint a pair for one workspace the `pg_id` holder belongs to. */
 export const openSessionRequestSchema = z.object({ slug: slugSchema })
@@ -133,7 +142,7 @@ export const signupRequestSchema = z.object({
 export type SignupRequest = z.infer<typeof signupRequestSchema>
 
 /** Random 256-bit secrets, base64url: 43 characters, never anything else. */
-const secretTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, { error: "is not a valid token" })
+export const secretTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, { error: "is not a valid token" })
 
 /** The emailed link completes signup and starts the session (TENANCY.md §4). */
 export const verifyEmailRequestSchema = z.object({ token: secretTokenSchema })

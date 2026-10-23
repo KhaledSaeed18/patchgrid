@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common"
+import type { Role } from "@patchgrid/contracts"
 
 import { PrismaService } from "../../prisma/prisma.service"
 
@@ -11,9 +12,22 @@ export type OrgDomainRecord = {
   domainVerifiedAt: Date | null
   domainChallenge: string | null
   requireSso: boolean
+  allowDomainJoin: boolean
+  defaultJoinRole: Role
 }
 
-const RECORD = { id: true, slug: true, name: true, status: true, domain: true, domainVerifiedAt: true, domainChallenge: true, requireSso: true } as const
+const RECORD = {
+  id: true,
+  slug: true,
+  name: true,
+  status: true,
+  domain: true,
+  domainVerifiedAt: true,
+  domainChallenge: true,
+  requireSso: true,
+  allowDomainJoin: true,
+  defaultJoinRole: true,
+} as const
 
 /**
  * A workspace's email domain, its proof and "SSO required" (ADR-0054).
@@ -38,9 +52,14 @@ export class OrgDomainRepository {
     await this.prisma.tx.$executeRaw`SELECT 1 FROM "Organization" WHERE id = ${orgId}::uuid FOR UPDATE`
   }
 
-  /** A new claim, unproved; `null` removes the domain. Either way the old proof is gone. */
+  /** A new claim, unproved; `null` removes the domain. Either way the old proof is gone, and joining by it with the proof. */
   async claim(orgId: string, domain: string | null, challenge: string | null): Promise<void> {
-    await this.prisma.db.organization.update({ where: { id: orgId }, data: { domain, domainChallenge: challenge, domainVerifiedAt: null } })
+    await this.prisma.db.organization.update({ where: { id: orgId }, data: { domain, domainChallenge: challenge, domainVerifiedAt: null, allowDomainJoin: false } })
+  }
+
+  /** Joining by the proved domain on or off, and its role (TENANCY.md §5). A check constraint holds it to a proved domain. */
+  async setDomainJoin(orgId: string, enabled: boolean, role: Role): Promise<void> {
+    await this.prisma.db.organization.update({ where: { id: orgId }, data: { allowDomainJoin: enabled, defaultJoinRole: role } })
   }
 
   /**

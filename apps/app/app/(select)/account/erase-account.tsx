@@ -9,12 +9,13 @@ import { FormAlert } from "@/components/form-alert"
 import { FormField } from "@/components/form-field"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
+import { ErasureLink } from "@/components/erasure-link"
 
 /**
  * Deleting one's own account (ADR-0028, ADR-0044): the password again, and a
  * plain statement of what goes and what stays before anything happens.
  */
-export function EraseAccount() {
+export function EraseAccount({ email }: { email: string }) {
   const [password, setPassword] = useState("")
   const erase = useMutation({
     mutationFn: () =>
@@ -73,6 +74,10 @@ export function EraseAccount() {
         {erase.isPending && <Spinner />}
         Delete my account
       </Button>
+      <p className="text-sm text-muted-foreground">
+        No password — your account came from a workspace&apos;s single sign-on?
+      </p>
+      <ErasureLink email={email} />
     </form>
   )
 }

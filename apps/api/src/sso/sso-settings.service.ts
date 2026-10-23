@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common"
 import {
   domainProofRecordName,
   domainProofRecordValue,
+  type DomainJoinRequest,
   type OrgDomainRequest,
   type SsoConnectionRequest,
   type SsoRequirementRequest,
@@ -88,6 +89,37 @@ export class SsoSettingsService {
           entityType: "Organization",
           entityId: orgId,
           diff: { domain: { from: current.domain, to: request.domain } },
+        },
+      ])
+    })
+    return this.read(orgId)
+  }
+
+  /**
+   * Lets a verified address at the proved domain join on its own (TENANCY.md
+   * §5), or stops it. A step-up action: it opens the workspace to a domain.
+   * Only a proved domain can let anyone in; "SSO required" sends them
+   * through the identity provider instead, so the two are not combined.
+   */
+  async setDomainJoin(request: DomainJoinRequest): Promise<SsoSettings> {
+    const actor = this.actors.requireTenantActor()
+    this.permissions.assert(actor, "org:manage_domain")
+    this.stepUp.assert(actor)
+    const orgId = this.tenant.requireOrgId()
+    await this.prisma.transaction(async () => {
+      await this.domains.lock(orgId)
+      const current = await this.domains.find(orgId)
+      if (current === null) throw new NotFoundProblem()
+      if (request.enabled && current.domainVerifiedAt === null) throw new ConflictProblem("Prove the domain before letting its people join")
+      if (request.enabled && current.requireSso) throw new ConflictProblem("With single sign-on required, people join through the identity provider")
+      if (current.allowDomainJoin === request.enabled && current.defaultJoinRole === request.role) return
+      await this.domains.setDomainJoin(orgId, request.enabled, request.role)
+      await this.audit.record(orgId, [
+        {
+          action: "ORG_DOMAIN_JOIN_CHANGED",
+          entityType: "Organization",
+          entityId: orgId,
+          diff: { enabled: { from: current.allowDomainJoin, to: request.enabled }, role: { from: current.defaultJoinRole, to: request.role } },
         },
       ])
     })
@@ -209,6 +241,8 @@ export class SsoSettingsService {
         const connection = await this.connections.find(orgId)
         if (org.domainVerifiedAt === null || org.domain === null) throw new ConflictProblem("Prove the workspace's domain before requiring SSO")
         if (connection?.enabled !== true) throw new ConflictProblem("Enable the SSO connection before requiring it")
+        // Joining by domain would be a way in that is not the provider's.
+        if (org.allowDomainJoin) throw new ConflictProblem("Turn off joining by domain before requiring SSO: people at the domain join through the identity provider then")
         // A soft block: say who would be shut out, and go ahead only when the owner confirms it.
         const outside = await this.memberships.countOffDomain(orgId, org.domain)
         if (outside > 0 && request.confirm !== true) {
@@ -249,6 +283,7 @@ export class SsoSettingsService {
                 org.domainVerifiedAt === null && org.domainChallenge !== null
                   ? { name: domainProofRecordName(org.domain), value: domainProofRecordValue(org.domainChallenge) }
                   : null,
+              join: { enabled: org.allowDomainJoin, role: org.defaultJoinRole === "AGENT" ? "AGENT" : "REQUESTER" },
             },
       connection:
         connection === null
