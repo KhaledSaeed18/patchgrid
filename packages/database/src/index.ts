@@ -1,7 +1,7 @@
-import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 
 import { PrismaClient } from "../generated/client/client.ts"
+import { SerialPrismaPg } from "./serial-adapter.ts"
 
 export { PrismaClient }
 export type { Prisma } from "../generated/client/client.ts"
@@ -55,7 +55,7 @@ export function createPrismaClient({
     ...(maxConnections === undefined ? {} : { max: maxConnections }),
   })
   onPool?.(pool)
-  return new PrismaClient({ adapter: new PrismaPg(pool) })
+  return new PrismaClient({ adapter: new SerialPrismaPg(pool) })
 }
 
 /**
