@@ -28,6 +28,7 @@ import type { CommentRepository } from "./repositories/comment.repository"
 import type { AssetsService } from "../assets/assets.service"
 import type { AssetRepository } from "../assets/repositories/asset.repository"
 import type { LinkRepository } from "./repositories/link.repository"
+import type { WatcherRepository } from "./repositories/watcher.repository"
 import type { TicketRepository, TicketRow, TicketSummaryRow } from "./repositories/ticket.repository"
 import type { LoadedTicket, TicketAccess } from "./ticket-access"
 import { TicketsService } from "./tickets.service"
@@ -160,6 +161,7 @@ function harness(
   const links = { createMany: vi.fn(async () => undefined) }
   const assetLinks = { linkMany: vi.fn(async () => undefined), lockMany: vi.fn(async () => undefined) }
   const audit = { record: vi.fn(async () => undefined) }
+  const watchers = { add: vi.fn(async () => true) }
   const service = new TicketsService(
     tickets as unknown as TicketRepository,
     { create: vi.fn(async () => ({ id: "c-1", visibility: "PUBLIC" })) } as unknown as CommentRepository,
@@ -211,11 +213,12 @@ function harness(
     notifier as unknown as Notifier,
     outbox as unknown as Outbox,
     pulse as unknown as TicketPulse,
+    watchers as unknown as WatcherRepository,
     new FixedClock(NOW),
   )
   // `get` re-reads through the access layer; the spec only cares that it is reached.
   vi.spyOn(service, "get").mockResolvedValue({} as never)
-  return { service, tickets, calls, notifier, written, pulse, links, assetLinks, audit }
+  return { service, tickets, calls, notifier, written, pulse, links, assetLinks, audit, watchers }
 }
 
 const create = { type: "INCIDENT" as const, title: "Laptop", description: "Broken", impact: "MEDIUM" as const, urgency: "HIGH" as const }
@@ -289,6 +292,21 @@ describe("TicketsService.assign", () => {
     expect(h.tickets.updateVersioned).toHaveBeenCalledWith(ORG, "t-1", 3, expect.objectContaining({ status: "ASSIGNED" }))
     await expect(harness("AGENT").service.assign("t-1", { version: 3, assigneeMembershipId: "m-req" })).rejects.toBeInstanceOf(ValidationProblem)
     await expect(harness("AGENT", row({ status: "CLOSED" })).service.assign("t-1", { version: 3, teamId: "team-a" })).rejects.toBeInstanceOf(ConflictProblem)
+  })
+
+  it("lets the outgoing assignee keep watching what they hand on, as an explicit watcher, audited", async () => {
+    const h = harness("AGENT", row({ status: "IN_PROGRESS", assigneeMembershipId: "m-me" }), { membershipId: "m-me" })
+    await h.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent", keepWatching: true })
+    expect(h.watchers.add).toHaveBeenCalledWith(ORG, "t-1", "m-me", "m-me")
+    expect(h.audit.record).toHaveBeenCalledWith(ORG, [expect.objectContaining({ action: "TICKET_ASSIGNED" }), { action: "WATCHER_ADDED", entityType: "Ticket", entityId: "t-1", diff: { membershipId: "m-me" } }])
+  })
+
+  it("refuses keepWatching from anyone but the assignee handing the ticket on", async () => {
+    const notMine = harness("AGENT", row({ status: "IN_PROGRESS", assigneeMembershipId: "m-other" }), { membershipId: "m-me" })
+    await expect(notMine.service.assign("t-1", { version: 3, assigneeMembershipId: "m-agent", keepWatching: true })).rejects.toBeInstanceOf(ValidationProblem)
+    const stillMine = harness("AGENT", row({ status: "IN_PROGRESS", assigneeMembershipId: "m-me" }), { membershipId: "m-me" })
+    await expect(stillMine.service.assign("t-1", { version: 3, teamId: "team-a", keepWatching: true })).rejects.toBeInstanceOf(ValidationProblem)
+    expect(stillMine.tickets.updateVersioned).not.toHaveBeenCalled()
   })
 })
 
