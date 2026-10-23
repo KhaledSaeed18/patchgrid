@@ -4,12 +4,9 @@ import { RESERVED_SLUGS } from "./reserved-slugs.ts"
 import { checkSlugFormat, slugSchema, suggestSlug } from "./slug.ts"
 
 describe("slugSchema", () => {
-  it.each(["acme", "acme-corp", "a1b", "globex-industries-ltd", "x0-9y"])(
-    "accepts %s",
-    (value) => {
-      expect(slugSchema.safeParse(value).success).toBe(true)
-    },
-  )
+  it.each(["acme", "acme-corp", "a1b", "globex-industries-ltd", "x0-9y"])("accepts %s", (value) => {
+    expect(slugSchema.safeParse(value).success).toBe(true)
+  })
 
   it.each([
     ["ab", "too short"],
@@ -53,10 +50,7 @@ describe("RESERVED_SLUGS", () => {
   it("only contains entries that would otherwise be legal slugs", () => {
     // A reserved entry that could never be typed is dead weight and hides a typo.
     for (const reserved of RESERVED_SLUGS) {
-      expect(
-        checkSlugFormat(reserved),
-        `${reserved} is not a well-formed slug, so reserving it does nothing`,
-      ).toBe("reserved")
+      expect(checkSlugFormat(reserved), `${reserved} is not a well-formed slug, so reserving it does nothing`).toBe("reserved")
     }
   })
 })

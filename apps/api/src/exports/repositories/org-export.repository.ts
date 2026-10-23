@@ -46,7 +46,12 @@ export class OrgExportRepository {
   }
 
   list(orgId: string, limit = 20): Promise<OrgExportRow[]> {
-    return this.prisma.db.orgExport.findMany({ where: { orgId }, orderBy: [{ requestedAt: "desc" }, { id: "desc" }], take: limit, select: ROW })
+    return this.prisma.db.orgExport.findMany({
+      where: { orgId },
+      orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+      take: limit,
+      select: ROW,
+    })
   }
 
   /** The newest export that counts against the daily allowance — a failed one does not. */
@@ -60,25 +65,44 @@ export class OrgExportRepository {
   }
 
   async start(orgId: string, id: string): Promise<boolean> {
-    const { count } = await this.prisma.db.orgExport.updateMany({ where: { orgId, id, status: { in: ["QUEUED", "RUNNING"] } }, data: { status: "RUNNING" } })
+    const { count } = await this.prisma.db.orgExport.updateMany({
+      where: { orgId, id, status: { in: ["QUEUED", "RUNNING"] } },
+      data: { status: "RUNNING" },
+    })
     return count === 1
   }
 
-  async ready(orgId: string, id: string, done: { storageKey: string; sizeBytes: number; readyAt: Date; expiresAt: Date }): Promise<boolean> {
+  async ready(
+    orgId: string,
+    id: string,
+    done: { storageKey: string; sizeBytes: number; readyAt: Date; expiresAt: Date },
+  ): Promise<boolean> {
     const { count } = await this.prisma.db.orgExport.updateMany({
       where: { orgId, id, status: "RUNNING" },
-      data: { status: "READY", storageKey: done.storageKey, sizeBytes: BigInt(done.sizeBytes), readyAt: done.readyAt, expiresAt: done.expiresAt },
+      data: {
+        status: "READY",
+        storageKey: done.storageKey,
+        sizeBytes: BigInt(done.sizeBytes),
+        readyAt: done.readyAt,
+        expiresAt: done.expiresAt,
+      },
     })
     return count === 1
   }
 
   async fail(orgId: string, id: string, failure: string): Promise<void> {
-    await this.prisma.db.orgExport.updateMany({ where: { orgId, id, status: { in: ["QUEUED", "RUNNING"] } }, data: { status: "FAILED", failure: failure.slice(0, 500) } })
+    await this.prisma.db.orgExport.updateMany({
+      where: { orgId, id, status: { in: ["QUEUED", "RUNNING"] } },
+      data: { status: "FAILED", failure: failure.slice(0, 500) },
+    })
   }
 
   /** Ready exports whose link has lapsed — the retention sweep's work. */
   lapsed(orgId: string, now: Date): Promise<{ id: string; storageKey: string | null }[]> {
-    return this.prisma.db.orgExport.findMany({ where: { orgId, status: "READY", expiresAt: { lte: now } }, select: { id: true, storageKey: true } })
+    return this.prisma.db.orgExport.findMany({
+      where: { orgId, status: "READY", expiresAt: { lte: now } },
+      select: { id: true, storageKey: true },
+    })
   }
 
   async expire(orgId: string, id: string): Promise<void> {

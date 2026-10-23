@@ -67,9 +67,7 @@ const REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/
           level: config.LOG_LEVEL,
           // Pretty locally, JSON everywhere else — a log you cannot read during
           // development is a log nobody looks at.
-          ...(config.isProduction
-            ? {}
-            : { transport: { target: "pino-pretty", options: { singleLine: true } } }),
+          ...(config.isProduction ? {} : { transport: { target: "pino-pretty", options: { singleLine: true } } }),
 
           /**
            * One id per request, threaded through every log line and returned as
@@ -99,12 +97,7 @@ const REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/
 
           // No PII, ever. Never emails, ticket bodies or credentials.
           redact: {
-            paths: [
-              "req.headers.authorization",
-              "req.headers.cookie",
-              "req.headers['x-patchgrid-tenant']",
-              "res.headers['set-cookie']",
-            ],
+            paths: ["req.headers.authorization", "req.headers.cookie", "req.headers['x-patchgrid-tenant']", "res.headers['set-cookie']"],
             remove: true,
           },
 

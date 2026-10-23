@@ -71,11 +71,7 @@ export class InvitationAcceptanceService {
   }
 
   /** A signed-in holder (`pg_id`) joins as themselves. */
-  async accept(
-    userId: string,
-    token: string,
-    client: ClientInfo,
-  ): Promise<{ response: AcceptInvitationResponse; cookies: CookieSpec[] }> {
+  async accept(userId: string, token: string, client: ClientInfo): Promise<{ response: AcceptInvitationResponse; cookies: CookieSpec[] }> {
     const resolved = await this.resolve(token)
     const account = await this.users.findById(userId)
     if (account === null || account.anonymisedAt !== null) throw new NotFoundProblem(INVALID)
@@ -151,10 +147,7 @@ export class InvitationAcceptanceService {
    * two acceptances of one token cannot both win), create or reactivate the
    * membership, seed its team, mirror the picker row, audit the join.
    */
-  private join(
-    resolved: Resolved,
-    accountFor: () => Promise<AccountRecord>,
-  ): Promise<{ membershipId: string; account: AccountRecord }> {
+  private join(resolved: Resolved, accountFor: () => Promise<AccountRecord>): Promise<{ membershipId: string; account: AccountRecord }> {
     const { org, invitation } = resolved
     return runAsTenant(org.id, { actor: "invitation", reason: "accept invitation" }, () =>
       this.prisma.transaction(async () => {

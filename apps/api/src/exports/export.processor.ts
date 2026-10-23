@@ -63,7 +63,13 @@ export class ExportRunner {
   }
 
   /** After the row says ready: the link is the archive, valid as long as it is. */
-  private async tell(orgId: string, exportId: string, orgName: string, built: { storageKey: string; sizeBytes: number }, expiresAt: Date): Promise<void> {
+  private async tell(
+    orgId: string,
+    exportId: string,
+    orgName: string,
+    built: { storageKey: string; sizeBytes: number },
+    expiresAt: Date,
+  ): Promise<void> {
     try {
       const row = await this.prisma.transaction(() => this.exports.find(orgId, exportId))
       // Whoever asked may have lost the right to the whole workspace while it was made: Settings still has it for owners.

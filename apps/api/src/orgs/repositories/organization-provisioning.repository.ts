@@ -15,9 +15,7 @@ export type ProvisionInput = {
   /** Top-level categories, their children, and the team each routes to by default. */
   categories: readonly { name: string; team: string | null; children: readonly string[] }[]
   /** Per priority, applied to Incidents and Service Requests alike (DOMAIN.md §4.1). */
-  slaTargets: Readonly<
-    Record<Priority, { response: number; responseWarning: number; resolution: number; resolutionWarning: number }>
-  >
+  slaTargets: Readonly<Record<Priority, { response: number; responseWarning: number; resolution: number; resolutionWarning: number }>>
   /** Written as the owner's, under a top-level category named here or none. */
   articles: readonly { slug: string; title: string; body: string; visibility: "PUBLISHED" | "INTERNAL"; category: string | null }[]
   now: Date

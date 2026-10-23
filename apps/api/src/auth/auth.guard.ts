@@ -89,7 +89,9 @@ export class AuthGuard implements CanActivate {
       if (identity === null) throw new NotAuthenticatedProblem("A session is required")
       // An identity provider vouched for one workspace, not for the account (ADR-0054): deny by default.
       if (identity.ssoOrgId !== null && this.reflector.getAllAndOverride<boolean>(ALLOWS_SSO_SESSION, targets) !== true) {
-        throw new SsoSessionScopedProblem("This session came from a workspace's single sign-on; sign in with your Patchgrid credentials for account changes")
+        throw new SsoSessionScopedProblem(
+          "This session came from a workspace's single sign-on; sign in with your Patchgrid credentials for account changes",
+        )
       }
       this.setActor({ kind: "identity", userId: identity.userId, ssoOrgId: identity.ssoOrgId })
       return true
@@ -154,7 +156,8 @@ export class AuthGuard implements CanActivate {
   private async bearer(request: Request, orgId: string): Promise<boolean> {
     const [, token] = request.headers.authorization?.trim().split(/\s+/) ?? []
     const match = token === undefined ? null : API_TOKEN_PATTERN.exec(token)
-    if (match?.[1] === undefined || match[2] === undefined) throw new NotAuthenticatedProblem("The bearer token is not a Patchgrid API token")
+    if (match?.[1] === undefined || match[2] === undefined)
+      throw new NotAuthenticatedProblem("The bearer token is not a Patchgrid API token")
     const actor = await this.apiTokens.verify(orgId, match[1], match[2])
     if (actor === null) throw new NotAuthenticatedProblem("The API token is not valid")
     // Deletion requested: every token is out at once, whatever the cached summary still says (THREAT-MODEL §7).
@@ -209,7 +212,12 @@ export class AuthGuard implements CanActivate {
     if (!SAFE_METHODS.has(request.method)) throw new NotPermittedProblem("A support session is read-only")
     // The owners hear about the first read as it happens (ADR-0020).
     if (await this.supportSessions.markFirstUse(orgId, claims.sessionId, now)) {
-      await this.supportMail.tell(orgId, "first-use", { id: claims.sessionId, operatorName: admin.name }, `It runs until ${session.expiresAt?.toUTCString() ?? "it is ended"}.`)
+      await this.supportMail.tell(
+        orgId,
+        "first-use",
+        { id: claims.sessionId, operatorName: admin.name },
+        `It runs until ${session.expiresAt?.toUTCString() ?? "it is ended"}.`,
+      )
     }
     return true
   }

@@ -1,6 +1,10 @@
 "use client"
 
-import { type SavedView, type SavedViewQuery, savedViewSchema } from "@patchgrid/contracts"
+import {
+  type SavedView,
+  type SavedViewQuery,
+  savedViewSchema,
+} from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import {
   Dialog,
@@ -42,7 +46,10 @@ export function viewHref(query: SavedViewQuery): string {
 export function SavedViews({ current }: { current: SavedViewQuery }) {
   const { teams } = useTenant()
   const queries = useQueryClient()
-  const views = useQuery({ queryKey: ["views"], queryFn: () => clientApi("/views", { schema: z.array(savedViewSchema) }) })
+  const views = useQuery({
+    queryKey: ["views"],
+    queryFn: () => clientApi("/views", { schema: z.array(savedViewSchema) }),
+  })
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState("")
   const [teamId, setTeamId] = useState("")
@@ -51,34 +58,60 @@ export function SavedViews({ current }: { current: SavedViewQuery }) {
     mutationFn: () =>
       clientApi("/views", {
         method: "POST",
-        body: { name: name.trim(), query: current, ...(teamId === "" ? {} : { teamId }) },
+        body: {
+          name: name.trim(),
+          query: current,
+          ...(teamId === "" ? {} : { teamId }),
+        },
         schema: savedViewSchema,
       }),
     onSuccess: (view) => {
       setSaving(false)
       setName("")
       setTeamId("")
-      toast.success(view.team === null ? `Saved "${view.name}".` : `Saved "${view.name}" for ${view.team.name}.`)
+      toast.success(
+        view.team === null
+          ? `Saved "${view.name}".`
+          : `Saved "${view.name}" for ${view.team.name}.`
+      )
       void queries.invalidateQueries({ queryKey: ["views"] })
     },
-    onError: (error) => toast.error(failureMessage(error, "The view wasn't saved.")),
+    onError: (error) =>
+      toast.error(failureMessage(error, "The view wasn't saved.")),
   })
   const remove = useMutation({
-    mutationFn: (view: SavedView) => clientApi(`/views/${view.id}`, { method: "DELETE", schema: null }),
+    mutationFn: (view: SavedView) =>
+      clientApi(`/views/${view.id}`, { method: "DELETE", schema: null }),
     onSuccess: () => void queries.invalidateQueries({ queryKey: ["views"] }),
-    onError: (error) => toast.error(failureMessage(error, "The view wasn't removed.")),
+    onError: (error) =>
+      toast.error(failureMessage(error, "The view wasn't removed.")),
   })
 
   const list = views.data ?? []
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <span className="text-xs text-muted-foreground">Saved views</span>
-      {list.length === 0 && <span className="text-xs text-muted-foreground">— none yet</span>}
+      {list.length === 0 && (
+        <span className="text-xs text-muted-foreground">— none yet</span>
+      )}
       {list.map((view) => (
-        <span key={view.id} className="inline-flex items-center rounded-full border border-border text-xs">
-          <Link href={viewHref(view.query)} className="px-3 py-1 hover:underline" title={view.team === null ? "Yours" : `Shared with ${view.team.name} by ${view.owner.displayName}`}>
+        <span
+          key={view.id}
+          className="inline-flex items-center rounded-full border border-border text-xs"
+        >
+          <Link
+            href={viewHref(view.query)}
+            className="px-3 py-1 hover:underline"
+            title={
+              view.team === null
+                ? "Yours"
+                : `Shared with ${view.team.name} by ${view.owner.displayName}`
+            }
+          >
             {view.name}
-            {view.team !== null && <span className="text-muted-foreground"> · {view.team.name}</span>}
+            {view.team !== null && (
+              <span className="text-muted-foreground"> · {view.team.name}</span>
+            )}
           </Link>
           {view.removable && (
             <button
@@ -101,19 +134,29 @@ export function SavedViews({ current }: { current: SavedViewQuery }) {
           <DialogHeader>
             <DialogTitle>Save this view</DialogTitle>
             <DialogDescription>
-              It keeps the queue and its filters, not the tickets: shared with a team, each colleague sees the tickets
-              they themselves can see.
+              It keeps the queue and its filters, not the tickets: shared with a
+              team, each colleague sees the tickets they themselves can see.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
             <Field>
               <FieldLabel htmlFor="view-name">Name</FieldLabel>
-              <Input id="view-name" value={name} maxLength={60} placeholder="Critical, unassigned" onChange={(e) => setName(e.target.value)} />
+              <Input
+                id="view-name"
+                value={name}
+                maxLength={60}
+                placeholder="Critical, unassigned"
+                onChange={(e) => setName(e.target.value)}
+              />
             </Field>
             {teams.length > 0 && (
               <Field>
                 <FieldLabel htmlFor="view-team">Who sees it</FieldLabel>
-                <NativeSelect id="view-team" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                <NativeSelect
+                  id="view-team"
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                >
                   <option value="">Only me</option>
                   {teams.map((team) => (
                     <option key={team.id} value={team.id}>
@@ -128,7 +171,10 @@ export function SavedViews({ current }: { current: SavedViewQuery }) {
             <Button variant="outline" onClick={() => setSaving(false)}>
               Cancel
             </Button>
-            <Button disabled={name.trim() === "" || save.isPending} onClick={() => save.mutate()}>
+            <Button
+              disabled={name.trim() === "" || save.isPending}
+              onClick={() => save.mutate()}
+            >
               {save.isPending && <Spinner />}
               Save view
             </Button>

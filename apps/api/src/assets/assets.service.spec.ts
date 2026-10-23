@@ -46,7 +46,8 @@ function harness(role: Role, membershipId: string, rows: AssetRow[] = [asset()],
     lock: vi.fn(async () => undefined),
     ticketCount: async (_o: string, id: string) => tickets[id] ?? 0,
     create: async (_o: string, fields: AssetFields) => {
-      if ([...store.values()].some((r) => fields.serialNumber !== null && r.serialNumber === fields.serialNumber)) return "serial-taken" as const
+      if ([...store.values()].some((r) => fields.serialNumber !== null && r.serialNumber === fields.serialNumber))
+        return "serial-taken" as const
       store.set("a-new", asset({ ...fields, id: "a-new", owner: null }))
       return "a-new"
     },
@@ -60,7 +61,10 @@ function harness(role: Role, membershipId: string, rows: AssetRow[] = [asset()],
   const actor: MemberActor = { kind: "member", userId: "u", orgId: ORG, membershipId, role, teamIds: [], leadOfTeamIds: [] }
   const service = new AssetsService(
     repo as unknown as AssetRepository,
-    { findById: async (_o: string, id: string) => (id === "m-gone" ? { id, status: "REMOVED" } : id === "m-ghost" ? null : { id, status: "ACTIVE" }) } as unknown as MembershipRepository,
+    {
+      findById: async (_o: string, id: string) =>
+        id === "m-gone" ? { id, status: "REMOVED" } : id === "m-ghost" ? null : { id, status: "ACTIVE" },
+    } as unknown as MembershipRepository,
     new PermissionService(),
     { requireTenantActor: () => actor } as unknown as ActorService,
     { requireOrgId: () => ORG, organization: () => ({ agentVisibility: "OWN_TEAM_ONLY" }) } as unknown as TenantContextService,

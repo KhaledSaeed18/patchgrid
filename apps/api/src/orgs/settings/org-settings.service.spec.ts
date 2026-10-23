@@ -13,10 +13,7 @@ import type { AppConfig } from "../../config/app-config"
 import type { QuotaService } from "../../quota/quota.service"
 import type { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
 import type { TenantContextService } from "../../tenancy/tenant-context.service"
-import type {
-  OrganizationSettingsRecord,
-  OrganizationSettingsRepository,
-} from "../repositories/organization-settings.repository"
+import type { OrganizationSettingsRecord, OrganizationSettingsRepository } from "../repositories/organization-settings.repository"
 import type { SlugRegistryRepository } from "../repositories/slug-registry.repository"
 import { OrgSettingsService } from "./org-settings.service"
 
@@ -61,7 +58,12 @@ function harness(role: Role, options: { lastRelease?: Date; taken?: string[] } =
     { record: async (_o: string, e: AuditEntry[]) => void audit.push(...e) } as unknown as AuditService,
     lookup as unknown as OrganizationLookupService,
     sessions as unknown as SessionService,
-    { pairOf: (slug: string) => [{ name: `pg_at_${slug}`, path: "/" }, { name: `pg_rt_${slug}`, path: "/api/v1/auth" }] } as unknown as CookieService,
+    {
+      pairOf: (slug: string) => [
+        { name: `pg_at_${slug}`, path: "/" },
+        { name: `pg_rt_${slug}`, path: "/api/v1/auth" },
+      ],
+    } as unknown as CookieService,
     { usage: async () => ({ plan: "FREE", metrics: [] }) } as unknown as QuotaService,
     { ROOT_DOMAIN: "lvh.me" } as unknown as AppConfig,
     new FixedClock(NOW),
@@ -87,7 +89,9 @@ describe("OrgSettingsService.update", () => {
     const h = harness("ADMIN")
     expect((await h.service.update({ name: "Acme Corp" })).name).toBe("Acme Corp")
     expect(h.repo.mirrorToPicker).toHaveBeenCalledWith("o-1", { orgName: "Acme Corp" })
-    expect(h.audit).toEqual([{ action: "ORG_SETTINGS_UPDATED", entityType: "Organization", entityId: "o-1", diff: { name: { from: "Acme", to: "Acme Corp" } } }])
+    expect(h.audit).toEqual([
+      { action: "ORG_SETTINGS_UPDATED", entityType: "Organization", entityId: "o-1", diff: { name: { from: "Acme", to: "Acme Corp" } } },
+    ])
     expect(h.lookup.invalidate).not.toHaveBeenCalled()
   })
 
@@ -105,7 +109,12 @@ describe("OrgSettingsService.update", () => {
     const settings = await h.service.update({ requireMfa: true })
     expect(settings.requireMfa).toBe(true)
     expect(h.audit).toEqual([
-      { action: "ORG_MFA_REQUIREMENT_CHANGED", entityType: "Organization", entityId: "o-1", diff: { requireMfa: { from: false, to: true } } },
+      {
+        action: "ORG_MFA_REQUIREMENT_CHANGED",
+        entityType: "Organization",
+        entityId: "o-1",
+        diff: { requireMfa: { from: false, to: true } },
+      },
     ])
     expect(h.lookup.invalidate).toHaveBeenCalledWith({ id: "o-1", slug: "acme" })
     // Already on: nothing to record, nothing to invalidate.
@@ -134,9 +143,16 @@ describe("OrgSettingsService.changeSlug", () => {
     expect(h.slugs.lock).toHaveBeenCalledWith("acme", "acme-corp")
     expect(h.repo.retireSlug).toHaveBeenCalledWith("o-1", "acme", NOW, new Date(NOW.getTime() + 30 * DAY))
     expect(h.repo.mirrorToPicker).toHaveBeenCalledWith("o-1", { orgSlug: "acme-corp" })
-    expect(h.audit).toEqual([{ action: "ORG_SLUG_CHANGED", entityType: "Organization", entityId: "o-1", diff: { slug: { from: "acme", to: "acme-corp" } } }])
+    expect(h.audit).toEqual([
+      { action: "ORG_SLUG_CHANGED", entityType: "Organization", entityId: "o-1", diff: { slug: { from: "acme", to: "acme-corp" } } },
+    ])
     expect(h.lookup.invalidate).toHaveBeenCalledWith({ id: "o-1", slug: "acme-corp", previousSlug: "acme" })
-    expect(result.response).toEqual({ slug: "acme-corp", previousSlug: "acme", redirectUntil: "2026-11-08T12:00:00.000Z", session: { slug: "acme-corp" } })
+    expect(result.response).toEqual({
+      slug: "acme-corp",
+      previousSlug: "acme",
+      redirectUntil: "2026-11-08T12:00:00.000Z",
+      session: { slug: "acme-corp" },
+    })
     expect(result.set.map((c) => c.name)).toEqual(["pg_at_acme-corp"])
     expect(result.clear.map((c) => c.name)).toEqual(["pg_at_acme", "pg_rt_acme"])
   })

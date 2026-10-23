@@ -63,7 +63,10 @@ export class InboundReceiver {
     }
 
     // A provider retry carries the same webhook id: the same key and job id, so it lands once.
-    const delivery = createHash("sha256").update(headers.id ?? "").digest("hex").slice(0, 32)
+    const delivery = createHash("sha256")
+      .update(headers.id ?? "")
+      .digest("hex")
+      .slice(0, 32)
     const receivedAt = this.clock.now().toISOString()
     for (const orgId of await this.tenantsFor(parsed.data.data.recipients)) {
       if (!(await this.withinWorkspaceLimit(orgId))) {

@@ -1,12 +1,7 @@
 /** The line our ticket mail puts above its own text, so a reply can be cut from what it quotes. */
 export const REPLY_ABOVE_LINE = "— Reply above this line to add to the ticket —"
 
-const QUOTE_HEADERS = [
-  /^on .{1,300}wrote:\s*$/i,
-  /^-{2,}\s*original message\s*-{2,}\s*$/i,
-  /^_{10,}\s*$/,
-  /^from:\s.+$/i,
-]
+const QUOTE_HEADERS = [/^on .{1,300}wrote:\s*$/i, /^-{2,}\s*original message\s*-{2,}\s*$/i, /^_{10,}\s*$/, /^from:\s.+$/i]
 
 /**
  * What a person wrote in a reply, without what they quoted (DOMAIN.md §7):

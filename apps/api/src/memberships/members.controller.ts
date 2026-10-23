@@ -1,11 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common"
-import {
-  changeRoleRequestSchema,
-  idSchema,
-  type Member,
-  memberListQuerySchema,
-  type MemberPage,
-} from "@patchgrid/contracts"
+import { changeRoleRequestSchema, idSchema, type Member, memberListQuerySchema, type MemberPage } from "@patchgrid/contracts"
 import { createZodDto } from "nestjs-zod"
 import { z } from "zod"
 

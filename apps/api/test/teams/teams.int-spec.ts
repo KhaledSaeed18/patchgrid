@@ -54,7 +54,9 @@ const as = (who: "admin" | "lead" | "agent" | "requester") => browser(app, ws.or
 async function relogin(who: "lead" | "agent"): Promise<void> {
   clock.advance(1_000)
   const response = await browser(app, ws.origin, ws.people[who].pgId).post("/auth/sessions", { slug: ws.slug })
-  const access = ((response.headers["set-cookie"] as unknown as string[]) ?? []).map((c) => c.split(";")[0] ?? "").find((c) => c.startsWith(`pg_at_${ws.slug}=`))
+  const access = ((response.headers["set-cookie"] as unknown as string[]) ?? [])
+    .map((c) => c.split(";")[0] ?? "")
+    .find((c) => c.startsWith(`pg_at_${ws.slug}=`))
   ws.people[who].access = access ?? ""
 }
 
@@ -101,7 +103,9 @@ describe("teams", () => {
   it("moving the lead leaves exactly one lead in the database", async () => {
     expect((await as("admin").put(`/teams/${network}/lead`, { membershipId: ws.people.agent.membershipId })).status).toBe(200)
     expect(await db.teamMembership.count({ where: { orgId: ws.orgId, teamId: network, isLead: true } })).toBe(1)
-    expect((await db.teamMembership.findFirstOrThrow({ where: { orgId: ws.orgId, teamId: network, isLead: true } })).membershipId).toBe(ws.people.agent.membershipId)
+    expect((await db.teamMembership.findFirstOrThrow({ where: { orgId: ws.orgId, teamId: network, isLead: true } })).membershipId).toBe(
+      ws.people.agent.membershipId,
+    )
   })
 
   it("a deactivated team keeps its members but takes no changes", async () => {

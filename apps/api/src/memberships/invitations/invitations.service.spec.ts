@@ -63,7 +63,17 @@ function harness(options: Options = {}) {
     findByEmail: vi.fn(async (): Promise<MembershipRecord | null> =>
       options.existing === undefined
         ? null
-        : { id: "m-x", orgId: ORG, userId: "u-x", role: "AGENT", status: options.existing, kind: "HUMAN", displayName: "X", teamIds: [], leadOfTeamIds: [] },
+        : {
+            id: "m-x",
+            orgId: ORG,
+            userId: "u-x",
+            role: "AGENT",
+            status: options.existing,
+            kind: "HUMAN",
+            displayName: "X",
+            teamIds: [],
+            leadOfTeamIds: [],
+          },
     ),
     findById: vi.fn(async () => ({ displayName: "Ada Admin" })),
   }
@@ -145,10 +155,14 @@ describe("InvitationsService.create", () => {
   })
 
   it("treats inviting an owner as the transfer of ownership: a fresh proof, whichever door (ADR-0029)", async () => {
-    await expect(harness({ role: "OWNER", proved: false }).service.create(request({ role: "OWNER" }))).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    await expect(harness({ role: "OWNER", proved: false }).service.create(request({ role: "OWNER" }))).rejects.toBeInstanceOf(
+      StepUpRequiredProblem,
+    )
     await expect(harness({ role: "OWNER" }).service.create(request({ role: "OWNER" }))).resolves.toMatchObject({ role: "OWNER" })
     // Below owner, no proof is asked for.
-    await expect(harness({ role: "OWNER", proved: false }).service.create(request({ role: "ADMIN" }))).resolves.toMatchObject({ role: "ADMIN" })
+    await expect(harness({ role: "OWNER", proved: false }).service.create(request({ role: "ADMIN" }))).resolves.toMatchObject({
+      role: "ADMIN",
+    })
   })
 
   it("is not an agent's to do", async () => {

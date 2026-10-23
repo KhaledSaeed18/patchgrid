@@ -37,19 +37,10 @@ export const SUPPORT_READ_PERMISSIONS = [
   "org:read_audit",
 ] as const satisfies readonly Permission[]
 
-export const supportSessionStatusSchema = z.enum([
-  "REQUESTED",
-  "DECLINED",
-  "ACTIVE",
-  "ENDED",
-])
+export const supportSessionStatusSchema = z.enum(["REQUESTED", "DECLINED", "ACTIVE", "ENDED"])
 export type SupportSessionStatus = z.infer<typeof supportSessionStatusSchema>
 
-export const supportEndReasonSchema = z.enum([
-  "EXPIRED",
-  "REVOKED",
-  "AUDIT_FAILED",
-])
+export const supportEndReasonSchema = z.enum(["EXPIRED", "REVOKED", "AUDIT_FAILED"])
 export type SupportEndReason = z.infer<typeof supportEndReasonSchema>
 
 export const supportSessionSchema = z.object({

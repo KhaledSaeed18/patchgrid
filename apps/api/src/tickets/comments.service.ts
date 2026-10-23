@@ -69,11 +69,7 @@ export class CommentsService {
     const orgId = this.tenant.requireOrgId()
     const row = await this.prisma.transaction(async () => {
       const loaded = await this.access.load(orgId, ticketId, actor, acting.visibility)
-      this.permissions.assert(
-        actor,
-        input.visibility === "PUBLIC" ? "comment:create_public" : "comment:create_internal",
-        loaded.subject,
-      )
+      this.permissions.assert(actor, input.visibility === "PUBLIC" ? "comment:create_public" : "comment:create_internal", loaded.subject)
       if (loaded.row.status === "CANCELLED") throw new ConflictProblem("A cancelled ticket takes no more comments")
       const now = this.clock.now()
       const created = await this.comments.create(orgId, {
@@ -84,7 +80,12 @@ export class CommentsService {
         visibility: input.visibility,
       })
       const entries: AuditEntry[] = [
-        { action: "COMMENT_ADDED", entityType: "Ticket", entityId: ticketId, diff: { commentId: created.id, visibility: input.visibility } },
+        {
+          action: "COMMENT_ADDED",
+          entityType: "Ticket",
+          entityId: ticketId,
+          diff: { commentId: created.id, visibility: input.visibility },
+        },
       ]
       const changes: TicketChanges = {}
       if (input.visibility === "PUBLIC" && actor.role !== "REQUESTER") Object.assign(changes, onResponded(loaded.row, now))
@@ -103,7 +104,12 @@ export class CommentsService {
       await this.audit.record(orgId, entries)
       // The caller's own record of the reply, committed with it or not at all (ADR-0039).
       if (options.within !== undefined) await options.within(created.id)
-      await this.notifier.notify(orgId, { kind: "comment-added", ticketId, actorMembershipId: actor.membershipId, visibility: input.visibility })
+      await this.notifier.notify(orgId, {
+        kind: "comment-added",
+        ticketId,
+        actorMembershipId: actor.membershipId,
+        visibility: input.visibility,
+      })
       return { created, loaded }
     })
     await this.pulse.changed(orgId, ticketId, contentOf(input.visibility))
@@ -122,7 +128,12 @@ export class CommentsService {
       })
       await this.comments.edit(orgId, commentId, body, now)
       await this.audit.record(orgId, [
-        { action: "COMMENT_EDITED", entityType: "Ticket", entityId: ticketId, diff: { commentId, previousBody: comment.body, internal: comment.visibility === "INTERNAL" } },
+        {
+          action: "COMMENT_EDITED",
+          entityType: "Ticket",
+          entityId: ticketId,
+          diff: { commentId, previousBody: comment.body, internal: comment.visibility === "INTERNAL" },
+        },
       ])
       return { loaded, comment: { ...comment, body, editedAt: now } }
     })
@@ -138,7 +149,12 @@ export class CommentsService {
       this.permissions.assert(actor, "comment:delete")
       await this.comments.softDelete(orgId, commentId, actor.membershipId, this.clock.now())
       await this.audit.record(orgId, [
-        { action: "COMMENT_DELETED", entityType: "Ticket", entityId: ticketId, diff: { commentId, previousBody: comment.body, internal: comment.visibility === "INTERNAL" } },
+        {
+          action: "COMMENT_DELETED",
+          entityType: "Ticket",
+          entityId: ticketId,
+          diff: { commentId, previousBody: comment.body, internal: comment.visibility === "INTERNAL" },
+        },
       ])
       return comment.visibility
     })

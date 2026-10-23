@@ -49,7 +49,9 @@ export class WebhooksConsumer implements EventConsumer, OnModuleInit {
     })
     if (wanted.length === 0) return async () => undefined
 
-    const tickets = new Map((await this.webhooks.ticketFacts(orgId, [...new Set(wanted.map((w) => w.event.ticketId))])).map((t) => [t.id, t]))
+    const tickets = new Map(
+      (await this.webhooks.ticketFacts(orgId, [...new Set(wanted.map((w) => w.event.ticketId))])).map((t) => [t.id, t]),
+    )
     const now = this.clock.now()
     const rows: NewDelivery[] = wanted.flatMap(({ stored, event, listeners }) => {
       const ticket = tickets.get(event.ticketId)

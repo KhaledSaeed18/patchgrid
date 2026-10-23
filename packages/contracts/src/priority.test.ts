@@ -5,7 +5,11 @@ import { describe, expect, it } from "vitest"
 import { computePriority, DEFAULT_SLA_TARGETS, impactSchema, PRIORITY_MATRIX, urgencySchema } from "./priority.ts"
 
 const DOMAIN = readFileSync(new URL("../../../docs/DOMAIN.md", import.meta.url), "utf8")
-const cells = (line: string) => line.split("|").slice(1, -1).map((c) => c.trim().replaceAll("*", ""))
+const cells = (line: string) =>
+  line
+    .split("|")
+    .slice(1, -1)
+    .map((c) => c.trim().replaceAll("*", ""))
 const upper = (s: string) => s.toUpperCase()
 
 /** "15 min" → 15, "4 h" → 240. */

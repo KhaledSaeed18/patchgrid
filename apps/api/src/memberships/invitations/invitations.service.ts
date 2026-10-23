@@ -1,10 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common"
-import {
-  type CreateInvitationRequest,
-  INVITATION_TTL_DAYS,
-  type Invitation,
-  type Role,
-} from "@patchgrid/contracts"
+import { type CreateInvitationRequest, INVITATION_TTL_DAYS, type Invitation, type Role } from "@patchgrid/contracts"
 
 import { StepUpService } from "../../auth/mfa/step-up.service"
 import { ActorService } from "../../auth/actor"
@@ -13,12 +8,7 @@ import { AuditService } from "../../audit/audit.service"
 import { PermissionService } from "../../authz/permission.service"
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import { emailHash8 } from "../../common/privacy"
-import {
-  ConflictProblem,
-  NotFoundProblem,
-  PlanLimitProblem,
-  ValidationProblem,
-} from "../../common/problems/problem.exception"
+import { ConflictProblem, NotFoundProblem, PlanLimitProblem, ValidationProblem } from "../../common/problems/problem.exception"
 import { PublicUrls } from "../../common/urls"
 import { MailService } from "../../mail/mail.service"
 import { OrganizationRepository } from "../../platform/repositories/organization.repository"
@@ -149,10 +139,7 @@ export class InvitationsService {
    */
   private async sendInvite(orgId: string, invitation: InvitationRecord, token: string, inviterId: string) {
     try {
-      const [org, inviter] = await Promise.all([
-        this.organizations.findProfileById(orgId),
-        this.memberships.findById(orgId, inviterId),
-      ])
+      const [org, inviter] = await Promise.all([this.organizations.findProfileById(orgId), this.memberships.findById(orgId, inviterId)])
       if (org === null) throw new Error(`organization ${orgId} vanished`)
       await this.mail.enqueue(
         {

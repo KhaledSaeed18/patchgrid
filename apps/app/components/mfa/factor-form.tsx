@@ -1,6 +1,10 @@
 "use client"
 
-import type { FactorMethod, MfaEnrolment, PasskeyProof } from "@patchgrid/contracts"
+import type {
+  FactorMethod,
+  MfaEnrolment,
+  PasskeyProof,
+} from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import { FieldGroup } from "@patchgrid/ui/components/field"
 import { Spinner } from "@patchgrid/ui/components/spinner"
@@ -19,9 +23,7 @@ import { QrCode } from "./qr-code"
 
 /** A code from the authenticator, a passkey, or — when offered — one recovery code. */
 export type FactorProof =
-  | { code: string }
-  | { recoveryCode: string }
-  | { passkey: PasskeyProof }
+  { code: string } | { recoveryCode: string } | { passkey: PasskeyProof }
 
 /**
  * The one form every second-factor step shares (ADR-0045, ADR-0053): a
@@ -73,7 +75,9 @@ export function FactorForm({
       onSubmit({ passkey: await assertWithPasskey(passkeyOptions, anonymous) })
     } catch (failure) {
       if (!(failure instanceof PasskeyCancelled))
-        setPasskeyError(failure instanceof Error ? failure : new Error("failed"))
+        setPasskeyError(
+          failure instanceof Error ? failure : new Error("failed")
+        )
     } finally {
       setPrompting(false)
     }
@@ -108,8 +112,8 @@ export function FactorForm({
         )}
         {!offerPasskey && !hasTotp && !useRecovery && (
           <p className="text-sm text-pretty text-muted-foreground">
-            Your second factor is a passkey, and this browser can&apos;t use
-            one here. Use a recovery code, or try from a browser on a secure
+            Your second factor is a passkey, and this browser can&apos;t use one
+            here. Use a recovery code, or try from a browser on a secure
             connection.
           </p>
         )}

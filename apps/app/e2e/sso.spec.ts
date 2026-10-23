@@ -21,7 +21,8 @@ test.describe.configure({ mode: "serial" })
 
 async function atKeycloak(page: Page, email: string): Promise<void> {
   await page.waitForURL(KEYCLOAK)
-  if (await page.locator("#username").isVisible()) await page.fill("#username", email)
+  if (await page.locator("#username").isVisible())
+    await page.fill("#username", email)
   await page.fill("#password", "patchgrid-demo")
   await page.click("#kc-login")
 }
@@ -34,7 +35,9 @@ async function ssoFromLogin(page: Page, email: string): Promise<void> {
   await atKeycloak(page, email)
 }
 
-test("a person the provider vouches for joins Acme on first sign-in, and the session is Acme's alone", async ({ page }) => {
+test("a person the provider vouches for joins Acme on first sign-in, and the session is Acme's alone", async ({
+  page,
+}) => {
   await ssoFromLogin(page, "kim@acme.test")
   await page.waitForURL(new RegExp(`^${escapeRegExp(ACME)}/`))
 
@@ -43,18 +46,28 @@ test("a person the provider vouches for joins Acme on first sign-in, and the ses
   await expect(page.locator("li", { hasText: "Acme" })).toBeVisible()
   // Account changes are not the provider's to make.
   await page.goto(`${appOrigin}/account`)
-  await expect(page.getByText("It vouches for that workspace only")).toBeVisible()
+  await expect(
+    page.getByText("It vouches for that workspace only")
+  ).toBeVisible()
 })
 
-test("an address the provider has not verified is turned away with the reason", async ({ page }) => {
+test("an address the provider has not verified is turned away with the reason", async ({
+  page,
+}) => {
   await ssoFromLogin(page, "nora@acme.test")
   await page.waitForURL(`${appOrigin}/login?sso=email`)
-  await expect(page.getByText("didn't vouch for an address at the workspace's domain")).toBeVisible()
+  await expect(
+    page.getByText("didn't vouch for an address at the workspace's domain")
+  ).toBeVisible()
 })
 
-test("an owner requires SSO; an agent with a password is sent to the provider, the owner is not", async ({ browser }) => {
+test("an owner requires SSO; an agent with a password is sent to the provider, the owner is not", async ({
+  browser,
+}) => {
   const owner = await (await browser.newContext()).newPage()
-  await owner.goto(`${appOrigin}/login?next=${encodeURIComponent(`${ACME}/settings/sso`)}`)
+  await owner.goto(
+    `${appOrigin}/login?next=${encodeURIComponent(`${ACME}/settings/sso`)}`
+  )
   await owner.fill("#email", "alice@patchgrid.test")
   await owner.fill("#password", "patchgrid-demo")
   await owner.click("button[type=submit]")
@@ -67,8 +80,13 @@ test("an owner requires SSO; an agent with a password is sent to the provider, t
     await confirm.locator("input[type=password]").fill("patchgrid-demo")
     await confirm.getByRole("button", { name: "Confirm" }).click()
     // Acme's seeded people are at patchgrid.test: the provider can never vouch for them, so it asks first.
-    await owner.getByRole("alertdialog").getByRole("button", { name: "Require it anyway" }).click()
-    await expect(owner.getByText("Single sign-on is now required")).toBeVisible()
+    await owner
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Require it anyway" })
+      .click()
+    await expect(
+      owner.getByText("Single sign-on is now required")
+    ).toBeVisible()
 
     const agent = await (await browser.newContext()).newPage()
     await signIn(agent, "sam@patchgrid.test", "patchgrid-demo")

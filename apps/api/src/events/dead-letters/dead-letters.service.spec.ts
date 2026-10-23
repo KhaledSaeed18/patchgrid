@@ -53,7 +53,15 @@ function harness(options: Options = {}) {
   })
   consumers.register({ name: "notify", handle })
   const audit: AuditEntry[] = []
-  const actor: MemberActor = { kind: "member", userId: "u-1", orgId: "o-1", membershipId: "m-1", role: options.role ?? "ADMIN", teamIds: [], leadOfTeamIds: [] }
+  const actor: MemberActor = {
+    kind: "member",
+    userId: "u-1",
+    orgId: "o-1",
+    membershipId: "m-1",
+    role: options.role ?? "ADMIN",
+    teamIds: [],
+    leadOfTeamIds: [],
+  }
   const service = new DeadLettersService(
     letters as unknown as DeadLetterRepository,
     outbox as unknown as OutboxRepository,
@@ -74,7 +82,11 @@ function harness(options: Options = {}) {
   return { service, letters, outbox, handle, audit, order }
 }
 
-const problem = (promise: Promise<unknown>) => promise.then(() => null, (e: unknown) => e)
+const problem = (promise: Promise<unknown>) =>
+  promise.then(
+    () => null,
+    (e: unknown) => e,
+  )
 
 describe("DeadLettersService", () => {
   it("is for admins and owners", async () => {
@@ -107,7 +119,14 @@ describe("DeadLettersService", () => {
     const replayed = await h.service.replay(ID)
     expect(replayed.replayedAt).toBe(NOW.toISOString())
     expect(h.order).toEqual(["lock:notify", "handled", "marked", "commit", "after commit"])
-    expect(h.audit).toEqual([{ action: "EVENT_REPLAYED", entityType: "EventDeadLetter", entityId: ID, diff: { consumer: "notify", eventId: EVENT, eventType: "ticket-assigned" } }])
+    expect(h.audit).toEqual([
+      {
+        action: "EVENT_REPLAYED",
+        entityType: "EventDeadLetter",
+        entityId: ID,
+        diff: { consumer: "notify", eventId: EVENT, eventType: "ticket-assigned" },
+      },
+    ])
   })
 
   it("is 404 for a dead letter that is not this workspace's, and 409 once replayed", async () => {

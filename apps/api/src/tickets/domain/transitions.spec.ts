@@ -49,7 +49,6 @@ describe("the incident transition table", () => {
     expect(findRow("INCIDENT", "CLOSED", "cancel")).toBeUndefined()
     for (const action of ticketActionSchema.options) expect(findRow("INCIDENT", "CANCELLED", action)).toBeUndefined()
   })
-
 })
 
 describe("who may perform a transition", () => {
@@ -81,14 +80,30 @@ describe("who may perform a transition", () => {
 })
 
 describe("checkTransition", () => {
-  const check = (status: TicketStatus, action: TicketAction, who: ActorRelation, comment: "PUBLIC" | "INTERNAL" | null = null, closedAt: Date | null = null) =>
-    checkTransition({ type: "INCIDENT", ticket: ticket(status, closedAt), action, actor: who, comment: comment === null ? null : { visibility: comment }, now: NOW })
+  const check = (
+    status: TicketStatus,
+    action: TicketAction,
+    who: ActorRelation,
+    comment: "PUBLIC" | "INTERNAL" | null = null,
+    closedAt: Date | null = null,
+  ) =>
+    checkTransition({
+      type: "INCIDENT",
+      ticket: ticket(status, closedAt),
+      action,
+      actor: who,
+      comment: comment === null ? null : { visibility: comment },
+      now: NOW,
+    })
 
   it("orders its refusals: not in the table, then not yours, then a guard, then the comment", () => {
     expect(check("CANCELLED", "reopen", actor("OWNER"))).toEqual({ ok: false, problem: "invalid-transition" })
     expect(check("IN_PROGRESS", "resolve", actor("AGENT"))).toEqual({ ok: false, problem: "not-permitted" })
     expect(check("IN_PROGRESS", "resolve", actor("AGENT", { isAssignee: true }))).toMatchObject({ ok: false, problem: "comment-required" })
-    expect(check("IN_PROGRESS", "resolve", actor("AGENT", { isAssignee: true }), "PUBLIC")).toMatchObject({ ok: true, row: { to: "RESOLVED" } })
+    expect(check("IN_PROGRESS", "resolve", actor("AGENT", { isAssignee: true }), "PUBLIC")).toMatchObject({
+      ok: true,
+      row: { to: "RESOLVED" },
+    })
   })
 
   it("wants the resolution note and the waiting reason in public, where the requester reads them", () => {
@@ -98,14 +113,20 @@ describe("checkTransition", () => {
 
   it("cancels a new ticket without a reason, a worked one only with one", () => {
     expect(check("NEW", "cancel", actor("REQUESTER", { isRequester: true }))).toMatchObject({ ok: true })
-    expect(check("IN_PROGRESS", "cancel", actor("REQUESTER", { isRequester: true }), "PUBLIC")).toEqual({ ok: false, problem: "not-permitted" })
+    expect(check("IN_PROGRESS", "cancel", actor("REQUESTER", { isRequester: true }), "PUBLIC")).toEqual({
+      ok: false,
+      problem: "not-permitted",
+    })
     expect(check("IN_PROGRESS", "cancel", actor("AGENT"))).toMatchObject({ problem: "comment-required" })
   })
 
   it("reopens a closed ticket within 30 days and not a minute after", () => {
     const requester = actor("REQUESTER", { isRequester: true })
     expect(check("CLOSED", "reopen", requester, null, new Date(NOW.getTime() - 30 * DAY))).toMatchObject({ ok: true })
-    expect(check("CLOSED", "reopen", requester, null, new Date(NOW.getTime() - 30 * DAY - 60_000))).toMatchObject({ ok: false, problem: "guard" })
+    expect(check("CLOSED", "reopen", requester, null, new Date(NOW.getTime() - 30 * DAY - 60_000))).toMatchObject({
+      ok: false,
+      problem: "guard",
+    })
   })
 })
 
@@ -160,8 +181,19 @@ const CHANGE_LEGAL: Record<string, TicketStatus> = {
   "APPROVED:cancel": "CANCELLED",
 }
 const ALL_STATUSES: TicketStatus[] = [
-  "NEW", "ASSIGNED", "IN_PROGRESS", "PENDING", "RESOLVED", "CLOSED", "CANCELLED",
-  "KNOWN_ERROR", "DRAFT", "AWAITING_APPROVAL", "APPROVED", "IMPLEMENTED", "ROLLED_BACK",
+  "NEW",
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "PENDING",
+  "RESOLVED",
+  "CLOSED",
+  "CANCELLED",
+  "KNOWN_ERROR",
+  "DRAFT",
+  "AWAITING_APPROVAL",
+  "APPROVED",
+  "IMPLEMENTED",
+  "ROLLED_BACK",
 ]
 
 const plan: ChangeFacts = {
@@ -206,25 +238,52 @@ describe("problem guards", () => {
   it("wants a workaround for a known error and a root cause to resolve", () => {
     expect(check(problem("IN_PROGRESS"), "workaround")).toMatchObject({ ok: false, problem: "guard" })
     expect(check(problem("IN_PROGRESS", { workaround: "Restart it" }), "workaround")).toMatchObject({ ok: true })
-    expect(check(problem("KNOWN_ERROR", { workaround: "Restart it", rootCause: "  " }), "resolve")).toMatchObject({ ok: false, problem: "guard" })
+    expect(check(problem("KNOWN_ERROR", { workaround: "Restart it", rootCause: "  " }), "resolve")).toMatchObject({
+      ok: false,
+      problem: "guard",
+    })
     expect(check(problem("KNOWN_ERROR", { rootCause: "Leaky lease table" }), "resolve")).toMatchObject({ ok: true })
   })
 
   it("wants a reason to cancel, and offers resolve only once the root cause is written", () => {
     expect(check(problem("IN_PROGRESS"), "cancel")).toMatchObject({ ok: false, problem: "comment-required" })
     expect(availableActions({ type: "PROBLEM", ticket: problem("IN_PROGRESS"), actor: assignee, now: NOW })).not.toContain("resolve")
-    expect(availableActions({ type: "PROBLEM", ticket: problem("IN_PROGRESS", { rootCause: "x" }), actor: assignee, now: NOW })).toContain("resolve")
+    expect(availableActions({ type: "PROBLEM", ticket: problem("IN_PROGRESS", { rootCause: "x" }), actor: assignee, now: NOW })).toContain(
+      "resolve",
+    )
   })
 
   it("never lets a requester move one", () => {
-    expect(checkTransition({ type: "PROBLEM", ticket: problem("NEW"), action: "cancel", actor: actor("REQUESTER", { isRequester: true }), comment: { visibility: "PUBLIC" }, now: NOW })).toMatchObject({ ok: false, problem: "not-permitted" })
+    expect(
+      checkTransition({
+        type: "PROBLEM",
+        ticket: problem("NEW"),
+        action: "cancel",
+        actor: actor("REQUESTER", { isRequester: true }),
+        comment: { visibility: "PUBLIC" },
+        now: NOW,
+      }),
+    ).toMatchObject({ ok: false, problem: "not-permitted" })
   })
 })
 
 describe("change rules", () => {
   const owner = actor("AGENT", { isRequester: true })
-  const run = (t: ReturnType<typeof change>, action: TicketAction, who: ActorRelation, extra: { comment?: { visibility: "PUBLIC" }; confirm?: boolean } = {}) =>
-    checkTransition({ type: "CHANGE", ticket: t, action, actor: who, comment: extra.comment ?? null, now: NOW, ...(extra.confirm === undefined ? {} : { confirm: extra.confirm }) })
+  const run = (
+    t: ReturnType<typeof change>,
+    action: TicketAction,
+    who: ActorRelation,
+    extra: { comment?: { visibility: "PUBLIC" }; confirm?: boolean } = {},
+  ) =>
+    checkTransition({
+      type: "CHANGE",
+      ticket: t,
+      action,
+      actor: who,
+      comment: extra.comment ?? null,
+      now: NOW,
+      ...(extra.confirm === undefined ? {} : { confirm: extra.confirm }),
+    })
 
   it("submits only with the whole plan, naming what is missing", () => {
     expect(run(change("DRAFT"), "submit", owner)).toMatchObject({ ok: true })
@@ -247,7 +306,10 @@ describe("change rules", () => {
     expect(run(change("AWAITING_APPROVAL"), "reject", eligible, { comment: { visibility: "PUBLIC" } })).toMatchObject({ ok: true })
     expect(run(change("AWAITING_APPROVAL"), "reject", eligible)).toMatchObject({ ok: false, problem: "comment-required" })
     expect(run(change("AWAITING_APPROVAL"), "approve", self)).toMatchObject({ ok: true })
-    expect(run(change("AWAITING_APPROVAL"), "reject", self, { comment: { visibility: "PUBLIC" } })).toMatchObject({ ok: false, problem: "not-permitted" })
+    expect(run(change("AWAITING_APPROVAL"), "reject", self, { comment: { visibility: "PUBLIC" } })).toMatchObject({
+      ok: false,
+      problem: "not-permitted",
+    })
     expect(run(change("AWAITING_APPROVAL"), "approve", nobody)).toMatchObject({ ok: false, problem: "not-permitted" })
     // The self-approving owner is also the change's requester, so may withdraw it too.
     expect(availableActions({ type: "CHANGE", ticket: change("AWAITING_APPROVAL"), actor: self, now: NOW })).toEqual(["approve", "cancel"])

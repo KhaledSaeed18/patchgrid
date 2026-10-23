@@ -16,21 +16,14 @@ export type TenantScoped = { orgId: string | null }
  * jobs tree allowed to run with no tenant at all (ADR-0022), so the wrapper
  * that decides between the two lives here.
  */
-export async function runJob<T>(
-  payload: TenantScoped,
-  actor: string,
-  reason: string,
-  fn: () => Promise<T>,
-): Promise<T> {
+export async function runJob<T>(payload: TenantScoped, actor: string, reason: string, fn: () => Promise<T>): Promise<T> {
   // Duration and outcome per queue and tenant (ADR-0030): whether one tenant is starving the others.
   const started = process.hrtime.bigint()
   const elapsed = () => Number(process.hrtime.bigint() - started) / 1_000_000
   tagActiveSpanWithTenant({ orgId: payload.orgId ?? undefined, actorKind: "job" })
   try {
     const result =
-      payload.orgId === null
-        ? await runAsPlatform({ actor, reason }, fn)
-        : await runAsTenant(payload.orgId, { actor, reason }, fn)
+      payload.orgId === null ? await runAsPlatform({ actor, reason }, fn) : await runAsTenant(payload.orgId, { actor, reason }, fn)
     recordJob({ queue: actor, orgId: payload.orgId, outcome: "completed", durationMs: elapsed() })
     return result
   } catch (error) {

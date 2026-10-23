@@ -69,7 +69,10 @@ export default async function QueuesPage({
   const parsedStatus = ticketStatusSchema.safeParse(one("status"))
   const status = parsedStatus.success ? parsedStatus.data : undefined
   const parsedPriority = prioritySchema.safeParse(one("priority"))
-  const priority = parsedPriority.success && view !== "approvals" ? parsedPriority.data : undefined
+  const priority =
+    parsedPriority.success && view !== "approvals"
+      ? parsedPriority.data
+      : undefined
   const parsedSort = ticketSortSchema.safeParse(one("sort"))
   const sort = parsedSort.success ? parsedSort.data : "newest"
   const q = one("q")?.trim() ?? ""
@@ -127,17 +130,21 @@ export default async function QueuesPage({
           sort={sort}
           q={q}
         />
-        {!operator && me.permissions.includes("view:manage") && view !== "approvals" && view !== "mine" && view !== "all" && (
-          <SavedViews
-            current={{
-              view,
-              sort,
-              ...(type === undefined ? {} : { type }),
-              ...(status === undefined ? {} : { status }),
-              ...(priority === undefined ? {} : { priority }),
-            }}
-          />
-        )}
+        {!operator &&
+          me.permissions.includes("view:manage") &&
+          view !== "approvals" &&
+          view !== "mine" &&
+          view !== "all" && (
+            <SavedViews
+              current={{
+                view,
+                sort,
+                ...(type === undefined ? {} : { type }),
+                ...(status === undefined ? {} : { status }),
+                ...(priority === undefined ? {} : { priority }),
+              }}
+            />
+          )}
         <div className="mt-4">
           {q === "" ? (
             <TicketFeed

@@ -109,7 +109,10 @@ export class EventRelay {
 
   async drain(orgId: string, name: ConsumerName, batch = DRAIN_BATCH): Promise<DrainOutcome> {
     const outcome = await this.drainSteps(orgId, name, batch)
-    recordOutboxDrain(name, outcome.kind === "idle" ? (outcome.heldBack ? "held-back" : "idle") : outcome.kind === "backoff" ? "busy" : outcome.kind)
+    recordOutboxDrain(
+      name,
+      outcome.kind === "idle" ? (outcome.heldBack ? "held-back" : "idle") : outcome.kind === "backoff" ? "busy" : outcome.kind,
+    )
     return outcome
   }
 
@@ -185,7 +188,14 @@ export class EventRelay {
         const after = await consumer.handle(orgId, events)
         const last = events.at(-1) ?? head
         await this.outbox.advance(orgId, name, last)
-        return { kind: "handled", count: events.length, full: events.length === take, heldBack, after, occurredAt: events.map((e) => e.occurredAt) }
+        return {
+          kind: "handled",
+          count: events.length,
+          full: events.length === take,
+          heldBack,
+          after,
+          occurredAt: events.map((e) => e.occurredAt),
+        }
       })
     } catch (error) {
       const only = read.length === 1 ? (read[0] ?? null) : null

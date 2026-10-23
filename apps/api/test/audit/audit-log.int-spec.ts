@@ -65,7 +65,9 @@ describe("the audit log", () => {
     const prisma = app.get(PrismaService)
     await runAsTenant(orgId, { actor: "test", reason: "audit spec" }, () =>
       prisma.transaction(() =>
-        audit.record(orgId, [{ action: "ORG_SETTINGS_UPDATED", entityType: "Organization", entityId: orgId, diff: { name: { from: "A", to: "B" } } }]),
+        audit.record(orgId, [
+          { action: "ORG_SETTINGS_UPDATED", entityType: "Organization", entityId: orgId, diff: { name: { from: "A", to: "B" } } },
+        ]),
       ),
     )
     const rows = await owner.auditLog.findMany({ where: { orgId } })

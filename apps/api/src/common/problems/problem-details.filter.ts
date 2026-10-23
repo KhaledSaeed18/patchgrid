@@ -1,10 +1,4 @@
-import {
-  type ArgumentsHost,
-  Catch,
-  type ExceptionFilter,
-  HttpException,
-  HttpStatus,
-} from "@nestjs/common"
+import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpStatus } from "@nestjs/common"
 import {
   PROBLEM_CONTENT_TYPE,
   type ProblemDetails,
@@ -60,10 +54,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       // Log the real thing, once, with the id the client is about to be shown.
-      request.log?.error(
-        { err: exception, correlationId },
-        "unhandled exception rendered as 500",
-      )
+      request.log?.error({ err: exception, correlationId }, "unhandled exception rendered as 500")
     }
 
     const body: ProblemDetails = {
@@ -75,9 +66,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       ...(resolved.errors === undefined ? {} : { errors: [...resolved.errors] }),
       // Only on 5xx: on a 4xx the client already knows what it did wrong, and a
       // correlation id would invite support requests for its own mistakes.
-      ...(status >= HttpStatus.INTERNAL_SERVER_ERROR && correlationId !== undefined
-        ? { correlationId }
-        : {}),
+      ...(status >= HttpStatus.INTERNAL_SERVER_ERROR && correlationId !== undefined ? { correlationId } : {}),
     }
 
     // The header clients honour, for every rate limit — the throttler's sets it first, the rest here.
@@ -129,8 +118,7 @@ function resolve(exception: unknown): Resolved {
     const status = exception.getStatus()
     const type = problemTypeForStatus(status)
     // Nest's own messages are safe to surface for 4xx; 5xx text may not be.
-    const detail =
-      status < HttpStatus.INTERNAL_SERVER_ERROR ? messageOf(exception) : undefined
+    const detail = status < HttpStatus.INTERNAL_SERVER_ERROR ? messageOf(exception) : undefined
     return { type, ...(detail === undefined ? {} : { detail }) }
   }
 
@@ -144,10 +132,7 @@ function asZodError(exception: unknown): ZodError | null {
   if (exception instanceof Error && exception.cause instanceof ZodError) {
     return exception.cause
   }
-  if (
-    exception instanceof HttpException &&
-    typeof exception.getResponse() === "object"
-  ) {
+  if (exception instanceof HttpException && typeof exception.getResponse() === "object") {
     const body = exception.getResponse() as { errors?: unknown }
     if (body.errors instanceof ZodError) return body.errors
   }

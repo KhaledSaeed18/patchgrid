@@ -57,7 +57,8 @@ export class LinksService {
       const made = canonicalLink(request.kind, { id: ticketId, type: self.row.type }, { id: requested.row.id, type: requested.row.type })
       if (!made.ok) throw new ValidationProblem([{ path: "kind", message: made.reason, code: "invalid_link" }])
       const link = made.link.relation === "DUPLICATE_OF" ? await this.toSurvivor(orgId, actor, made.link) : made.link
-      if (!(await this.links.create(orgId, link, actor.membershipId))) throw new ConflictProblem("These tickets are already linked that way")
+      if (!(await this.links.create(orgId, link, actor.membershipId)))
+        throw new ConflictProblem("These tickets are already linked that way")
       await this.audit.record(orgId, [{ action: "TICKET_LINKED", entityType: "Ticket", entityId: ticketId, diff: { ...link } }])
       return link.fromTicketId === ticketId ? link.toTicketId : link.fromTicketId
     })
@@ -81,7 +82,9 @@ export class LinksService {
       this.permissions.assert(actor, "ticket:link", other.subject)
       if (!(await this.links.remove(orgId, linkId))) throw new NotFoundProblem()
       const { fromTicketId, toTicketId, relation } = link
-      await this.audit.record(orgId, [{ action: "TICKET_UNLINKED", entityType: "Ticket", entityId: ticketId, diff: { fromTicketId, toTicketId, relation } }])
+      await this.audit.record(orgId, [
+        { action: "TICKET_UNLINKED", entityType: "Ticket", entityId: ticketId, diff: { fromTicketId, toTicketId, relation } },
+      ])
       return otherId
     })
     await this.pulse.changed(orgId, ticketId)
@@ -100,7 +103,8 @@ export class LinksService {
     await this.tickets.lock(orgId, [link.fromTicketId, link.toTicketId])
     const duplicate = await this.links.duplicateFacts(orgId, link.fromTicketId)
     if (duplicate.isDuplicate) throw new ConflictProblem("That ticket is already marked as a duplicate")
-    if (duplicate.hasDuplicates) throw new ConflictProblem("That ticket has duplicates of its own; mark them as duplicates of the survivor first")
+    if (duplicate.hasDuplicates)
+      throw new ConflictProblem("That ticket has duplicates of its own; mark them as duplicates of the survivor first")
     const survivor = await this.links.survivorOf(orgId, link.toTicketId)
     if (survivor === link.fromTicketId) throw new ConflictProblem("That would make the two tickets duplicates of each other")
     if (survivor === link.toTicketId) return link
@@ -121,7 +125,13 @@ export class LinksService {
         {
           id: row.id,
           kind: readFrom(row, ticketId),
-          ticket: { id: other.id, number: formatTicketNumber(other.type, other.number), type: other.type, title: other.title, status: other.status },
+          ticket: {
+            id: other.id,
+            number: formatTicketNumber(other.type, other.number),
+            type: other.type,
+            title: other.title,
+            status: other.status,
+          },
           createdAt: row.createdAt.toISOString(),
         },
       ]

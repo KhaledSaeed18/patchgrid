@@ -129,12 +129,18 @@ function DomainSection({ settings, onSaved }: SectionProps) {
           )}
           {verify.error !== null && (
             <FormAlert>
-              {failureMessage(verify.error, "DNS couldn't be checked just now.")}
+              {failureMessage(
+                verify.error,
+                "DNS couldn't be checked just now."
+              )}
             </FormAlert>
           )}
           <div className="flex flex-wrap gap-3">
             {domain.verifiedAt === null && (
-              <Button onClick={() => verify.mutate()} disabled={verify.isPending}>
+              <Button
+                onClick={() => verify.mutate()}
+                disabled={verify.isPending}
+              >
                 {verify.isPending && <Spinner />}
                 Check DNS
               </Button>
@@ -156,7 +162,8 @@ function DomainSection({ settings, onSaved }: SectionProps) {
           </div>
           {settings.required && (
             <p className="text-xs text-muted-foreground">
-              Turn off &ldquo;Require single sign-on&rdquo; to change the domain.
+              Turn off &ldquo;Require single sign-on&rdquo; to change the
+              domain.
             </p>
           )}
         </div>
@@ -166,7 +173,9 @@ function DomainSection({ settings, onSaved }: SectionProps) {
           onSubmit={(event) => {
             event.preventDefault()
             claim.mutate(
-              String(new FormData(event.currentTarget).get("domain") ?? "").trim()
+              String(
+                new FormData(event.currentTarget).get("domain") ?? ""
+              ).trim()
             )
           }}
         >
@@ -185,12 +194,20 @@ function DomainSection({ settings, onSaved }: SectionProps) {
               }
             />
             <div className="flex gap-3">
-              <Button type="submit" className="w-fit" disabled={claim.isPending}>
+              <Button
+                type="submit"
+                className="w-fit"
+                disabled={claim.isPending}
+              >
                 {claim.isPending && <Spinner />}
                 Claim domain
               </Button>
               {domain !== null && (
-                <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setEditing(false)}
+                >
                   Cancel
                 </Button>
               )}
@@ -318,10 +335,9 @@ function ConnectionSection({ settings, onSaved }: SectionProps) {
                   Let people sign in with this provider
                 </FieldLabel>
               </Field>
-              {save.error instanceof ApiError &&
-                save.error.status === 409 && (
-                  <FormAlert>{failureMessage(save.error, "")}</FormAlert>
-                )}
+              {save.error instanceof ApiError && save.error.status === 409 && (
+                <FormAlert>{failureMessage(save.error, "")}</FormAlert>
+              )}
               <Button type="submit" className="w-fit">
                 {save.isPending && <Spinner />}
                 Save connection
@@ -343,7 +359,10 @@ function ConnectionSection({ settings, onSaved }: SectionProps) {
  */
 function DomainJoinSection({ settings, onSaved }: SectionProps) {
   const stepUp = useStepUp()
-  const join = settings.domain?.join ?? { enabled: false, role: "REQUESTER" as const }
+  const join = settings.domain?.join ?? {
+    enabled: false,
+    role: "REQUESTER" as const,
+  }
   const proved = settings.domain !== null && settings.domain.verifiedAt !== null
   const save = useMutation({
     mutationFn: (next: { enabled: boolean; role: SsoDefaultRole }) =>
@@ -379,12 +398,17 @@ function DomainJoinSection({ settings, onSaved }: SectionProps) {
             id="domainJoin"
             type="checkbox"
             checked={join.enabled}
-            disabled={(blocked && !join.enabled) || save.isPending || stepUp.waiting}
-            onChange={(e) => save.mutate({ enabled: e.target.checked, role: join.role })}
+            disabled={
+              (blocked && !join.enabled) || save.isPending || stepUp.waiting
+            }
+            onChange={(e) =>
+              save.mutate({ enabled: e.target.checked, role: join.role })
+            }
             className="size-4 accent-primary"
           />
           <FieldLabel htmlFor="domainJoin" className="font-normal">
-            Let people at {settings.domain?.name ?? "the domain"} join on their own
+            Let people at {settings.domain?.name ?? "the domain"} join on their
+            own
           </FieldLabel>
         </Field>
         <Field>
@@ -395,14 +419,19 @@ function DomainJoinSection({ settings, onSaved }: SectionProps) {
             className="w-fit"
             disabled={save.isPending || stepUp.waiting}
             onChange={(e) =>
-              save.mutate({ enabled: join.enabled, role: e.target.value === "AGENT" ? "AGENT" : "REQUESTER" })
+              save.mutate({
+                enabled: join.enabled,
+                role: e.target.value === "AGENT" ? "AGENT" : "REQUESTER",
+              })
             }
           >
-            {(Object.entries(ROLE_LABEL) as [SsoDefaultRole, string][]).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
+            {(Object.entries(ROLE_LABEL) as [SsoDefaultRole, string][]).map(
+              ([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              )
+            )}
           </NativeSelect>
         </Field>
         {blocked && !join.enabled && (
@@ -463,7 +492,9 @@ function RequirementSection({ settings, onSaved }: SectionProps) {
           id="requireSso"
           type="checkbox"
           checked={settings.required}
-          disabled={(!ready && !settings.required) || save.isPending || stepUp.waiting}
+          disabled={
+            (!ready && !settings.required) || save.isPending || stepUp.waiting
+          }
           onChange={(e) => save.mutate({ required: e.target.checked })}
           className="size-4 accent-primary"
         />
@@ -477,7 +508,10 @@ function RequirementSection({ settings, onSaved }: SectionProps) {
         </p>
       )}
       {stepUp.dialog}
-      <AlertDialog open={outside !== null} onOpenChange={(open) => !open && setOutside(null)}>
+      <AlertDialog
+        open={outside !== null}
+        onOpenChange={(open) => !open && setOutside(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Shut some members out?</AlertDialogTitle>

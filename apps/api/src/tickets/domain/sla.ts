@@ -49,10 +49,10 @@ export function deadlines(
 }
 
 /** Ticket created: both origins are its creation. */
-export function onCreate(now: Date, policy: SlaPolicyTargets | null): Pick<
-  SlaState,
-  "responseClockStartedAt" | "resolutionClockStartedAt" | "respondBy" | "resolveBy" | "pausedMinutes"
-> {
+export function onCreate(
+  now: Date,
+  policy: SlaPolicyTargets | null,
+): Pick<SlaState, "responseClockStartedAt" | "resolutionClockStartedAt" | "respondBy" | "resolveBy" | "pausedMinutes"> {
   const origins = { responseClockStartedAt: now, resolutionClockStartedAt: now, pausedMinutes: 0 }
   return { ...origins, ...deadlines(origins, policy) }
 }
@@ -142,8 +142,7 @@ export function clockView(state: SlaState, now: Date): { response: ClockView; re
       due: state.resolveBy,
       stoppedAt: state.resolvedAt,
       // While paused, the deadline keeps moving out; it cannot be passed.
-      breached:
-        state.resolutionBreached || (state.pausedAt === null && late(state.resolveBy, state.resolvedAt ?? now)),
+      breached: state.resolutionBreached || (state.pausedAt === null && late(state.resolveBy, state.resolvedAt ?? now)),
       paused: state.pausedAt !== null,
     },
   }

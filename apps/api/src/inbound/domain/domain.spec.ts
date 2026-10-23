@@ -54,7 +54,9 @@ describe("automatic mail", () => {
     expect(automaticReason(headers({ "auto-submitted": "auto-replied" }), "rita@x.test")).toMatch(/Auto-Submitted/)
     expect(automaticReason(headers({ precedence: "bulk" }), "rita@x.test")).toMatch(/Precedence/)
     expect(automaticReason(headers({ "list-id": "<it.x.test>" }), "rita@x.test")).toBe("mailing list")
-    expect(automaticReason(headers({ "content-type": "multipart/report; report-type=delivery-status" }), "x@x.test")).toBe("delivery report")
+    expect(automaticReason(headers({ "content-type": "multipart/report; report-type=delivery-status" }), "x@x.test")).toBe(
+      "delivery report",
+    )
     expect(automaticReason(headers({}), "MAILER-DAEMON@x.test")).toBe("bounce")
     expect(automaticReason(headers({ "auto-submitted": "no" }), "rita@x.test")).toBeNull()
   })
@@ -66,14 +68,25 @@ describe("threading", () => {
 
   it("finds our id among several in In-Reply-To", () => {
     const ours = ticketMessageId(id, "x1", domain)
-    expect(ticketReference({ inReplyTo: `<other@mail.test> ${ours}`, references: [], subject: "", inboundDomain: domain })).toEqual({ kind: "id", ticketId: id })
+    expect(ticketReference({ inReplyTo: `<other@mail.test> ${ours}`, references: [], subject: "", inboundDomain: domain })).toEqual({
+      kind: "id",
+      ticketId: id,
+    })
   })
 
   it("finds our own Message-ID before a subject tag, and only at our domain", () => {
     const ours = ticketMessageId(id, "x1", domain)
-    expect(ticketReference({ inReplyTo: ours, references: [], subject: "Re: [INC-000007] hi", inboundDomain: domain })).toEqual({ kind: "id", ticketId: id })
-    expect(ticketReference({ inReplyTo: undefined, references: ["<a@b>", ours], subject: "", inboundDomain: domain })).toEqual({ kind: "id", ticketId: id })
-    expect(ticketReference({ inReplyTo: `<t.${id}.x1@attacker.test>`, references: [], subject: "Re: [INC-000007] hi", inboundDomain: domain })).toEqual({
+    expect(ticketReference({ inReplyTo: ours, references: [], subject: "Re: [INC-000007] hi", inboundDomain: domain })).toEqual({
+      kind: "id",
+      ticketId: id,
+    })
+    expect(ticketReference({ inReplyTo: undefined, references: ["<a@b>", ours], subject: "", inboundDomain: domain })).toEqual({
+      kind: "id",
+      ticketId: id,
+    })
+    expect(
+      ticketReference({ inReplyTo: `<t.${id}.x1@attacker.test>`, references: [], subject: "Re: [INC-000007] hi", inboundDomain: domain }),
+    ).toEqual({
       kind: "number",
       type: "INCIDENT",
       number: 7,

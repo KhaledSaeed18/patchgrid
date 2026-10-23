@@ -50,10 +50,7 @@ export class IpThrottlerGuard extends ThrottlerGuard {
     return !this.config.THROTTLE_ENABLED
   }
 
-  protected override async throwThrottlingException(
-    context: ExecutionContext,
-    detail: ThrottlerLimitDetail,
-  ): Promise<void> {
+  protected override async throwThrottlingException(context: ExecutionContext, detail: ThrottlerLimitDetail): Promise<void> {
     refuse(context, detail)
   }
 }
@@ -84,10 +81,7 @@ export class OrgThrottlerGuard extends ThrottlerGuard {
     return this.tenantContext.organization()?.id ?? "none"
   }
 
-  protected override async throwThrottlingException(
-    context: ExecutionContext,
-    detail: ThrottlerLimitDetail,
-  ): Promise<void> {
+  protected override async throwThrottlingException(context: ExecutionContext, detail: ThrottlerLimitDetail): Promise<void> {
     refuse(context, detail)
   }
 }

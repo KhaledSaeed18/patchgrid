@@ -49,9 +49,7 @@ describe("PrismaService.db", () => {
   })
 
   it("never hands a tenant transaction to platform-scope code, or vice versa", () => {
-    cls.runWith({ prismaTransaction: { orgId: ACME, client: acmeTx } }, () =>
-      expect(service.db).not.toBe(acmeTx),
-    )
+    cls.runWith({ prismaTransaction: { orgId: ACME, client: acmeTx } }, () => expect(service.db).not.toBe(acmeTx))
     cls.runWith(
       {
         tenant: { orgId: ACME, inTransaction: false },

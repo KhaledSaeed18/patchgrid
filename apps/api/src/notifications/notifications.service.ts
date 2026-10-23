@@ -47,15 +47,17 @@ export class NotificationsService {
       }
       after = { updatedAt, id: parts.id }
     }
-    const { rows, unreadCount } = await this.notifications.page(orgId, actor.userId, { unread: query.unread, after, limit: query.limit + 1 })
+    const { rows, unreadCount } = await this.notifications.page(orgId, actor.userId, {
+      unread: query.unread,
+      after,
+      limit: query.limit + 1,
+    })
     const page = rows.slice(0, query.limit)
     const last = page.at(-1)
     return {
       items: page.map(toNotification),
       nextCursor:
-        rows.length > query.limit && last !== undefined
-          ? encodeCursor({ sortValue: last.updatedAt.toISOString(), id: last.id })
-          : null,
+        rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.updatedAt.toISOString(), id: last.id }) : null,
       unreadCount,
     }
   }
@@ -111,5 +113,7 @@ export function toNotification(row: NotificationRow): Notification {
 }
 
 function spelledOut(prefs: Parameters<typeof emailWanted>[0]): NotificationPreferences["email"] {
-  return Object.fromEntries(notificationTypeSchema.options.map((type) => [type, emailWanted(prefs, type)])) as NotificationPreferences["email"]
+  return Object.fromEntries(
+    notificationTypeSchema.options.map((type) => [type, emailWanted(prefs, type)]),
+  ) as NotificationPreferences["email"]
 }

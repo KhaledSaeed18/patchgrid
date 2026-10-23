@@ -3,10 +3,7 @@ import { organizationStatusSchema, planSchema, agentVisibilitySchema, idSchema, 
 import { z } from "zod"
 
 import { ApiTokenIndexRepository } from "../platform/repositories/api-token-index.repository"
-import {
-  OrganizationRepository,
-  type OrganizationSummary,
-} from "../platform/repositories/organization.repository"
+import { OrganizationRepository, type OrganizationSummary } from "../platform/repositories/organization.repository"
 import { RedisService } from "../redis/redis.service"
 import type { OrganizationLookup } from "./organization-lookup"
 
@@ -92,11 +89,7 @@ export class OrganizationLookupService implements OrganizationLookup {
     await this.redisOrNothing(() => this.redis.client.del(keys.token(prefix)))
   }
 
-  private async cached<T>(
-    key: string,
-    schema: z.ZodType<T>,
-    load: () => Promise<T | null>,
-  ): Promise<T | null> {
+  private async cached<T>(key: string, schema: z.ZodType<T>, load: () => Promise<T | null>): Promise<T | null> {
     const hit = await this.redisOrNothing(() => this.redis.client.get(key))
     if (hit === OrganizationLookupService.MISSING) return null
     if (hit !== null && hit !== undefined) {
@@ -109,12 +102,7 @@ export class OrganizationLookupService implements OrganizationLookup {
     const value = await load()
     if (value === null) {
       await this.redisOrNothing(() =>
-        this.redis.client.set(
-          key,
-          OrganizationLookupService.MISSING,
-          "EX",
-          OrganizationLookupService.NEGATIVE_TTL_SECONDS,
-        ),
+        this.redis.client.set(key, OrganizationLookupService.MISSING, "EX", OrganizationLookupService.NEGATIVE_TTL_SECONDS),
       )
       return null
     }
@@ -135,9 +123,7 @@ export class OrganizationLookupService implements OrganizationLookup {
     try {
       return await operation()
     } catch (error) {
-      this.logger.warn(
-        `tenant cache unavailable, reading through: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.logger.warn(`tenant cache unavailable, reading through: ${error instanceof Error ? error.message : String(error)}`)
       return undefined
     }
   }

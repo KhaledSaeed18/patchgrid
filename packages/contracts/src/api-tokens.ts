@@ -14,9 +14,7 @@ export const API_TOKEN_PATTERN = /^pg_([a-z0-9]{12})_([A-Za-z0-9_-]{43})$/
 export const API_TOKEN_EXPIRY_DAYS = [30, 90, 365] as const
 
 /** The scopes a token can be given. `webhooks:write` is reserved and grants nothing yet. */
-export const offeredTokenScopeSchema = tokenScopeSchema.exclude([
-  "webhooks:write",
-])
+export const offeredTokenScopeSchema = tokenScopeSchema.exclude(["webhooks:write"])
 export type OfferedTokenScope = z.infer<typeof offeredTokenScopeSchema>
 
 /** A token acts as a service account with one of these roles, fixed at creation. */
@@ -29,13 +27,8 @@ export const createApiTokenRequestSchema = z.strictObject({
   scopes: z
     .array(offeredTokenScopeSchema)
     .min(1)
-    .refine(
-      (scopes) => new Set(scopes).size === scopes.length,
-      "lists a scope twice"
-    ),
-  expiresInDays: z
-    .union(API_TOKEN_EXPIRY_DAYS.map((days) => z.literal(days)))
-    .nullable(),
+    .refine((scopes) => new Set(scopes).size === scopes.length, "lists a scope twice"),
+  expiresInDays: z.union(API_TOKEN_EXPIRY_DAYS.map((days) => z.literal(days))).nullable(),
 })
 export type CreateApiTokenRequest = z.infer<typeof createApiTokenRequestSchema>
 

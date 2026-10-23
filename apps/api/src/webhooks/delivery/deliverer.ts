@@ -55,7 +55,12 @@ export class WebhookDeliverer {
   async attempt(orgId: string, deliveryId: string): Promise<AttemptOutcome> {
     const now = this.clock.now()
     const claimed = await this.prisma.transaction(async () => {
-      const delivery = await this.webhooks.claim(orgId, deliveryId, new Date(now.getTime() + CLOCK_TOLERANCE_MS), new Date(now.getTime() + CLAIM_LEASE_MS))
+      const delivery = await this.webhooks.claim(
+        orgId,
+        deliveryId,
+        new Date(now.getTime() + CLOCK_TOLERANCE_MS),
+        new Date(now.getTime() + CLAIM_LEASE_MS),
+      )
       if (delivery === null) return null
       return { delivery, endpoint: await this.webhooks.findEndpoint(orgId, delivery.endpointId) }
     })
@@ -138,7 +143,8 @@ export class WebhookDeliverer {
       const circuit = await this.webhooks.lockCircuit(orgId, endpointId)
       if (circuit === null || circuit.status !== "ACTIVE") return
       if (error === null) {
-        if (circuit.consecutiveFailures > 0 || circuit.circuitOpenUntil !== null) await this.webhooks.updateEndpoint(orgId, endpointId, afterSuccess())
+        if (circuit.consecutiveFailures > 0 || circuit.circuitOpenUntil !== null)
+          await this.webhooks.updateEndpoint(orgId, endpointId, afterSuccess())
         return
       }
       const verdict = afterFailure(circuit, recordedAt)
@@ -148,7 +154,18 @@ export class WebhookDeliverer {
         return
       }
       await this.webhooks.updateEndpoint(orgId, endpointId, { ...state, status: "DISABLED", disabledReason: DISABLED_REASON })
-      await this.audit.record(orgId, [{ action: "WEBHOOK_DISABLED", entityType: "WebhookEndpoint", entityId: endpointId, diff: { consecutiveFailures: verdict.consecutiveFailures } }], { kind: "system" })
+      await this.audit.record(
+        orgId,
+        [
+          {
+            action: "WEBHOOK_DISABLED",
+            entityType: "WebhookEndpoint",
+            entityId: endpointId,
+            diff: { consecutiveFailures: verdict.consecutiveFailures },
+          },
+        ],
+        { kind: "system" },
+      )
       await this.tellManagers(orgId, endpointId, recordedAt)
       this.logger.warn({ msg: "webhook endpoint disabled after days of failure", orgId, endpointId })
     })

@@ -35,14 +35,14 @@ Seven days before a token expires, whoever created it gets an email. If they are
 
 A token can do what **both** its role and its scopes allow. Scopes only ever narrow the role. They never widen it.
 
-| Scope | Allows |
-| --- | --- |
-| `tickets:read` | Read tickets, their audit trails, attachments and categories |
-| `tickets:write` | Create, edit, assign, transition, link and watch tickets; post public comments; upload attachments |
-| `comments:internal` | Read and write internal notes. Never implied by any other scope |
-| `assets:read` | Read the asset register |
-| `assets:write` | Create and edit assets |
-| `kb:read` | Read published articles, and internal ones on an Agent-role token |
+| Scope               | Allows                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| `tickets:read`      | Read tickets, their audit trails, attachments and categories                                       |
+| `tickets:write`     | Create, edit, assign, transition, link and watch tickets; post public comments; upload attachments |
+| `comments:internal` | Read and write internal notes. Never implied by any other scope                                    |
+| `assets:read`       | Read the asset register                                                                            |
+| `assets:write`      | Create and edit assets                                                                             |
+| `kb:read`           | Read published articles, and internal ones on an Agent-role token                                  |
 
 Whatever its scopes, no token can manage members, workspace settings, other tokens or support access. A token without `comments:internal` cannot read internal notes, so a leaked monitoring token cannot read them, invite anyone or create more tokens.
 
@@ -123,15 +123,15 @@ Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details, s
 
 Each `type` is a page that explains it; the full list is at [/problems](/problems). Validation failures add an `errors` array of `{ path, message, code }`. Every `5xx` carries a `correlationId` to quote when reporting it.
 
-| Status | Means |
-| --- | --- |
-| `400` | The request did not match its schema |
-| `401` | No valid credential, or it has been revoked |
-| `402` | A plan limit was reached, and nothing else. See [pricing](/pricing) |
-| `403` | Not permitted, the wrong workspace, a suspended workspace, or an action that needs a fresh identity check |
-| `404` | Not found, including anything this caller is not allowed to see |
-| `409` | An invalid transition, a conflict, or a stale `version` |
-| `429` | Rate limited. Wait for the time in `Retry-After` |
+| Status | Means                                                                                                     |
+| ------ | --------------------------------------------------------------------------------------------------------- |
+| `400`  | The request did not match its schema                                                                      |
+| `401`  | No valid credential, or it has been revoked                                                               |
+| `402`  | A plan limit was reached, and nothing else. See [pricing](/pricing)                                       |
+| `403`  | Not permitted, the wrong workspace, a suspended workspace, or an action that needs a fresh identity check |
+| `404`  | Not found, including anything this caller is not allowed to see                                           |
+| `409`  | An invalid transition, a conflict, or a stale `version`                                                   |
+| `429`  | Rate limited. Wait for the time in `Retry-After`                                                          |
 
 A `404` for something that exists is deliberate. A caller who may not see a record cannot learn whether it exists. A `403` means the caller can see the record but may not take that action.
 

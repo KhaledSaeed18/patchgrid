@@ -39,17 +39,14 @@ describe("runAsTenant", () => {
 
   it("hides the caller's open transaction and the inTransaction flag", async () => {
     const acmeTx = { orgId: ACME, client: {} as never }
-    await cls.runWith(
-      { tenant: { orgId: ACME, inTransaction: true }, prismaTransaction: acmeTx },
-      async () => {
-        await runAsTenant(GLOBEX, crossing, async () => {
-          expect(cls.get("prismaTransaction")).toBeUndefined()
-          expect(context.current()).toEqual({ orgId: GLOBEX, inTransaction: false })
-        })
-        expect(cls.get("prismaTransaction")).toBe(acmeTx)
-        expect(context.current()?.inTransaction).toBe(true)
-      },
-    )
+    await cls.runWith({ tenant: { orgId: ACME, inTransaction: true }, prismaTransaction: acmeTx }, async () => {
+      await runAsTenant(GLOBEX, crossing, async () => {
+        expect(cls.get("prismaTransaction")).toBeUndefined()
+        expect(context.current()).toEqual({ orgId: GLOBEX, inTransaction: false })
+      })
+      expect(cls.get("prismaTransaction")).toBe(acmeTx)
+      expect(context.current()?.inTransaction).toBe(true)
+    })
   })
 
   it("refuses an orgId that is not a UUID before touching anything", async () => {
@@ -93,15 +90,12 @@ describe("runAsPlatform", () => {
 
   it("hides the caller's open transaction", async () => {
     const acmeTx = { orgId: ACME, client: {} as never }
-    await cls.runWith(
-      { tenant: { orgId: ACME, inTransaction: true }, prismaTransaction: acmeTx },
-      async () => {
-        await runAsPlatform(crossing, async () => {
-          expect(cls.get("prismaTransaction")).toBeUndefined()
-        })
-        expect(cls.get("prismaTransaction")).toBe(acmeTx)
-      },
-    )
+    await cls.runWith({ tenant: { orgId: ACME, inTransaction: true }, prismaTransaction: acmeTx }, async () => {
+      await runAsPlatform(crossing, async () => {
+        expect(cls.get("prismaTransaction")).toBeUndefined()
+      })
+      expect(cls.get("prismaTransaction")).toBe(acmeTx)
+    })
   })
 
   it("logs the crossing", async () => {

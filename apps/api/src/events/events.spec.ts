@@ -110,7 +110,9 @@ describe("DrainProcessor", () => {
   it("refuses a job that names no tenant or no known consumer", async () => {
     const h = processor({ kind: "idle", heldBack: false })
     await expect(h.p.process({ id: "j", data: { consumer: "notify" } } as unknown as Job)).rejects.toBeInstanceOf(UnrecoverableError)
-    await expect(h.p.process({ id: "j", data: { orgId: ORG, consumer: "nobody" } } as unknown as Job)).rejects.toBeInstanceOf(UnrecoverableError)
+    await expect(h.p.process({ id: "j", data: { orgId: ORG, consumer: "nobody" } } as unknown as Job)).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    )
     expect(h.order).toEqual([])
   })
 })

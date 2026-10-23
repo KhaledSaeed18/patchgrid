@@ -20,7 +20,10 @@ export class WebhookSecrets {
   }
 
   /** Every secret that still signs: the current one, and a rotated-out one until it lapses. */
-  inForce(endpoint: { secretSealed: string; previousSecretSealed: string | null; previousSecretExpiresAt: Date | null }, now: Date): string[] {
+  inForce(
+    endpoint: { secretSealed: string; previousSecretSealed: string | null; previousSecretExpiresAt: Date | null },
+    now: Date,
+  ): string[] {
     const current = this.box.open(endpoint.secretSealed)
     if (current === null) throw new Error("a webhook secret does not open under WEBHOOK_SECRETS_KEY")
     const previous =

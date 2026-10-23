@@ -31,7 +31,10 @@ let ws: Workspace<"owner" | "agent" | "requester">
 beforeAll(async () => {
   process.env.WORKER_MODE = "api"
   owner = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(new RecordingMailProvider()).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(new RecordingMailProvider())
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
@@ -65,7 +68,13 @@ const fact = (ticketId: string) => owner.ticketFact.findUnique({ where: { orgId_
 
 describe("facts follow their tickets through the log", () => {
   it("a new ticket has a fact once the log is read, and an edit that tells nobody still refreshes it", async () => {
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "VPN down", description: "x", impact: "LOW", urgency: "LOW" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "VPN down",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
     expect(created.status).toBe(201)
     const id = created.body.id as string
     await drainReporting()
@@ -83,7 +92,13 @@ describe("facts follow their tickets through the log", () => {
 describe("writes that tell nobody", () => {
   it("a team-only reassignment and an unassignment still refresh the fact (M12 review)", async () => {
     const team = await owner.team.create({ data: { orgId: ws.orgId, name: `Desk ${String(Date.now())}` } })
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Moved by team", description: "x", impact: "LOW", urgency: "LOW" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "Moved by team",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
     const id = created.body.id as string
     const moved = await as("agent").put(`/tickets/${id}/assignment`, { version: created.body.version, teamId: team.id })
     expect(moved.status).toBe(200)
@@ -100,7 +115,13 @@ describe("writes that tell nobody", () => {
 
 describe("the reconcile", () => {
   it("builds a fact the log never saw, counts it as drift, and finds nothing the second time", async () => {
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Seeded before the log", description: "x", impact: "MEDIUM", urgency: "MEDIUM" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "Seeded before the log",
+      description: "x",
+      impact: "MEDIUM",
+      urgency: "MEDIUM",
+    })
     const id = created.body.id as string
     await drainReporting()
     await owner.ticketFact.delete({ where: { orgId_ticketId: { orgId: ws.orgId, ticketId: id } } })
@@ -114,7 +135,13 @@ describe("the reconcile", () => {
   })
 
   it("rebuilds a fact for a ticket written moments ago without calling it drift", async () => {
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Just now", description: "x", impact: "LOW", urgency: "LOW" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "Just now",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
     const id = created.body.id as string
     const before = await inTenant(() => app.get(ReportingReconcileService).reconcile())
     expect(await fact(id)).not.toBeNull()
@@ -122,7 +149,13 @@ describe("the reconcile", () => {
   })
 
   it("never lets an older refresh overwrite a newer fact", async () => {
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Raced", description: "x", impact: "LOW", urgency: "LOW" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "Raced",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
     const id = created.body.id as string
     await drainReporting()
     const row = await owner.ticket.findUniqueOrThrow({ where: { id } })
@@ -149,7 +182,13 @@ describe("the reports", () => {
     const plus = (minutes: number) => new Date(base.getTime() + minutes * 60_000)
     const ids: string[] = []
     for (const [i, minutes] of [60, 120, 180, 600].entries()) {
-      const created = await as("requester").post("/tickets", { type: "INCIDENT", title: `Old ${String(i)}`, description: "x", impact: "MEDIUM", urgency: "MEDIUM" })
+      const created = await as("requester").post("/tickets", {
+        type: "INCIDENT",
+        title: `Old ${String(i)}`,
+        description: "x",
+        impact: "MEDIUM",
+        urgency: "MEDIUM",
+      })
       const id = created.body.id as string
       ids.push(id)
       await owner.ticket.update({

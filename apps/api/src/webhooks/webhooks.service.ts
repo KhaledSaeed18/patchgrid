@@ -83,7 +83,12 @@ export class WebhooksService {
         createdByMembershipId: actor.membershipId,
       })
       await this.audit.record(orgId, [
-        { action: "WEBHOOK_CREATED", entityType: "WebhookEndpoint", entityId: created.id, diff: { url: auditUrl(url), eventTypes: request.eventTypes } },
+        {
+          action: "WEBHOOK_CREATED",
+          entityType: "WebhookEndpoint",
+          entityId: created.id,
+          diff: { url: auditUrl(url), eventTypes: request.eventTypes },
+        },
       ])
       return created
     })
@@ -100,12 +105,18 @@ export class WebhooksService {
         ...(url === undefined ? {} : { url }),
         ...(request.description === undefined ? {} : { description: request.description }),
         ...(request.eventTypes === undefined ? {} : { eventTypes: [...request.eventTypes] }),
-        ...(request.enabled === false && before.status === "ACTIVE" ? { status: "DISABLED" as const, disabledReason: "Turned off by an admin" } : {}),
+        ...(request.enabled === false && before.status === "ACTIVE"
+          ? { status: "DISABLED" as const, disabledReason: "Turned off by an admin" }
+          : {}),
         // Back on: a closed circuit and a clean slate, or the first failure would reopen it at once.
-        ...(reopened ? { status: "ACTIVE" as const, disabledReason: null, consecutiveFailures: 0, circuitOpenUntil: null, failingSince: null } : {}),
+        ...(reopened
+          ? { status: "ACTIVE" as const, disabledReason: null, consecutiveFailures: 0, circuitOpenUntil: null, failingSince: null }
+          : {}),
       })
       if (updated === null) throw new NotFoundProblem()
-      await this.audit.record(orgId, [{ action: "WEBHOOK_UPDATED", entityType: "WebhookEndpoint", entityId: id, diff: changed(before, updated) }])
+      await this.audit.record(orgId, [
+        { action: "WEBHOOK_UPDATED", entityType: "WebhookEndpoint", entityId: id, diff: changed(before, updated) },
+      ])
       return toEndpoint(updated)
     })
   }
@@ -115,7 +126,9 @@ export class WebhooksService {
     await this.prisma.transaction(async () => {
       const before = await this.found(orgId, id)
       await this.webhooks.deleteEndpoint(orgId, id)
-      await this.audit.record(orgId, [{ action: "WEBHOOK_DELETED", entityType: "WebhookEndpoint", entityId: id, diff: { url: auditUrl(before.url) } }])
+      await this.audit.record(orgId, [
+        { action: "WEBHOOK_DELETED", entityType: "WebhookEndpoint", entityId: id, diff: { url: auditUrl(before.url) } },
+      ])
     })
   }
 
@@ -128,7 +141,9 @@ export class WebhooksService {
       const before = await this.found(orgId, id)
       // A second rotation inside the overlap would end the first secret at once, and receivers still on it with it.
       if (before.previousSecretExpiresAt !== null && before.previousSecretExpiresAt > now) {
-        throw new ConflictProblem(`The last rotation's previous secret still signs until ${before.previousSecretExpiresAt.toISOString()}; rotate again after that`)
+        throw new ConflictProblem(
+          `The last rotation's previous secret still signs until ${before.previousSecretExpiresAt.toISOString()}; rotate again after that`,
+        )
       }
       await this.webhooks.updateEndpoint(orgId, id, {
         secretSealed: this.secrets.seal(secret),
@@ -157,7 +172,8 @@ export class WebhooksService {
     const last = page.at(-1)
     return {
       items: page.map(toDelivery),
-      nextCursor: rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id }) : null,
+      nextCursor:
+        rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id }) : null,
     }
   }
 
@@ -177,7 +193,9 @@ export class WebhooksService {
         throw new ConflictProblem("Only a delivery that has given up can be replayed")
       }
       if (ids.length > 0) {
-        await this.audit.record(orgId, [{ action: "WEBHOOK_DELIVERIES_REPLAYED", entityType: "WebhookEndpoint", entityId: id, diff: { count: ids.length } }])
+        await this.audit.record(orgId, [
+          { action: "WEBHOOK_DELIVERIES_REPLAYED", entityType: "WebhookEndpoint", entityId: id, diff: { count: ids.length } },
+        ])
       }
       return ids
     })

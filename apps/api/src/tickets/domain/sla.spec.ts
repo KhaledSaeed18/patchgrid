@@ -17,8 +17,18 @@ import {
 
 const T0 = new Date("2026-10-09T08:00:00Z")
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000)
-const HIGH: SlaPolicyTargets = { responseTargetMinutes: 30, resolutionTargetMinutes: 480, responseWarningMinutes: 10, resolutionWarningMinutes: 60 }
-const CRITICAL: SlaPolicyTargets = { responseTargetMinutes: 15, resolutionTargetMinutes: 240, responseWarningMinutes: 5, resolutionWarningMinutes: 45 }
+const HIGH: SlaPolicyTargets = {
+  responseTargetMinutes: 30,
+  resolutionTargetMinutes: 480,
+  responseWarningMinutes: 10,
+  resolutionWarningMinutes: 60,
+}
+const CRITICAL: SlaPolicyTargets = {
+  responseTargetMinutes: 15,
+  resolutionTargetMinutes: 240,
+  responseWarningMinutes: 5,
+  resolutionWarningMinutes: 45,
+}
 
 function created(policy: SlaPolicyTargets | null = HIGH): SlaState {
   return {

@@ -14,7 +14,9 @@ export function generateStaticParams() {
   return POSTS.map(({ slug }) => ({ slug }))
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
   const post = findPost((await params).slug)
   if (!post) return {}
   return pageMetadata({
@@ -32,7 +34,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  */
 export default function PostPage({ params }: PageProps) {
   return (
-    <Suspense fallback={<main className="mx-auto min-h-svh max-w-3xl px-6 pt-8 pb-24" />}>
+    <Suspense
+      fallback={
+        <main className="mx-auto min-h-svh max-w-3xl px-6 pt-8 pb-24" />
+      }
+    >
       <Post params={params} />
     </Suspense>
   )
@@ -48,7 +54,10 @@ async function Post({ params }: PageProps) {
   return (
     <main className="mx-auto max-w-3xl px-6 pt-8 pb-24">
       <JsonLd data={blogPosting(post)} />
-      <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        href="/blog"
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
         ← Blog
       </Link>
       <article className="mt-6">

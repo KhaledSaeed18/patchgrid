@@ -44,7 +44,10 @@ export class StorageService {
   /** One upload of exactly this type and length (ADR-0005 erratum: exact, not a range). */
   async presignPut(key: string, contentType: string, contentLength: number, ttlSeconds: number, now: Date): Promise<PresignedPut> {
     const command = new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType, ContentLength: contentLength })
-    const url = await getSignedUrl(this.signer, command, { expiresIn: ttlSeconds, signableHeaders: new Set(["content-type", "content-length"]) })
+    const url = await getSignedUrl(this.signer, command, {
+      expiresIn: ttlSeconds,
+      signableHeaders: new Set(["content-type", "content-length"]),
+    })
     return {
       url,
       headers: { "Content-Type": contentType },
@@ -53,11 +56,7 @@ export class StorageService {
   }
 
   /** A short-lived download, served as the sniffed type with the disposition chosen by the caller. */
-  async presignGet(
-    key: string,
-    serve: { filename: string; contentType: string; inline: boolean },
-    ttlSeconds: number,
-  ): Promise<string> {
+  async presignGet(key: string, serve: { filename: string; contentType: string; inline: boolean }, ttlSeconds: number): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -87,7 +86,9 @@ export class StorageService {
 
   /** Bytes the API itself received — an emailed file (ADR-0027 §7), a stored message. */
   async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
-    await this.internal.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: bytes, ContentType: contentType, ContentLength: bytes.length }))
+    await this.internal.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: bytes, ContentType: contentType, ContentLength: bytes.length }),
+    )
   }
 
   /** A whole object — a stored inbound message, never a user's download. `null` when it is not there. */
@@ -104,7 +105,11 @@ export class StorageService {
   /** A server-side copy: the bytes never pass through the API. */
   async copy(from: string, to: string): Promise<void> {
     await this.internal.send(
-      new CopyObjectCommand({ Bucket: this.bucket, Key: to, CopySource: `${this.bucket}/${from.split("/").map(encodeURIComponent).join("/")}` }),
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        Key: to,
+        CopySource: `${this.bucket}/${from.split("/").map(encodeURIComponent).join("/")}`,
+      }),
     )
   }
 
@@ -162,6 +167,6 @@ export function contentDisposition(kind: "inline" | "attachment", filename: stri
 
 function isNotFound(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false
-  const meta = (error as { $metadata?: { httpStatusCode?: number }; name?: string })
+  const meta = error as { $metadata?: { httpStatusCode?: number }; name?: string }
   return meta.$metadata?.httpStatusCode === 404 || meta.name === "NotFound" || meta.name === "NoSuchKey"
 }

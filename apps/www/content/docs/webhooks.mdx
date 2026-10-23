@@ -24,7 +24,11 @@ Every request is a small JSON body. It carries identifiers and states, **never t
   "orgId": "01a146c9-07a8-74db-acb8-befb71917ea2",
   "data": {
     "type": "ticket.status_changed",
-    "ticket": { "id": "01a149d8-3e45-726f-8839-25913b6a61f2", "number": "INC-000031", "type": "INCIDENT" },
+    "ticket": {
+      "id": "01a149d8-3e45-726f-8839-25913b6a61f2",
+      "number": "INC-000031",
+      "type": "INCIDENT"
+    },
     "actorMembershipId": "01a146c9-0832-7ee0-a2a4-15d0d8ea6d3b",
     "status": "RESOLVED"
   }
@@ -37,10 +41,10 @@ If your receiver needs more, it calls the [API](/docs/api) with a token. What it
 
 Requests follow the [Standard Webhooks](https://www.standardwebhooks.com) specification, so its libraries verify them in every common language. Each request has three headers:
 
-| Header | Value |
-| --- | --- |
-| `webhook-id` | The delivery's id: the same on every retry and replay |
-| `webhook-timestamp` | When this attempt was signed, in seconds |
+| Header              | Value                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `webhook-id`        | The delivery's id: the same on every retry and replay                                   |
+| `webhook-timestamp` | When this attempt was signed, in seconds                                                |
 | `webhook-signature` | `v1,` and the base64 HMAC-SHA256 of `id.timestamp.body`, keyed with your secret's bytes |
 
 Without a library, in Node:
@@ -53,11 +57,17 @@ function verify(secret: string, headers: Headers, body: string): boolean {
   const timestamp = headers.get("webhook-timestamp") ?? ""
   if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false
   const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64")
-  const expected = Buffer.from(`v1,${createHmac("sha256", key).update(`${id}.${timestamp}.${body}`).digest("base64")}`)
-  return (headers.get("webhook-signature") ?? "").split(" ").some((candidate) => {
-    const given = Buffer.from(candidate)
-    return given.length === expected.length && timingSafeEqual(given, expected)
-  })
+  const expected = Buffer.from(
+    `v1,${createHmac("sha256", key).update(`${id}.${timestamp}.${body}`).digest("base64")}`
+  )
+  return (headers.get("webhook-signature") ?? "")
+    .split(" ")
+    .some((candidate) => {
+      const given = Buffer.from(candidate)
+      return (
+        given.length === expected.length && timingSafeEqual(given, expected)
+      )
+    })
 }
 ```
 

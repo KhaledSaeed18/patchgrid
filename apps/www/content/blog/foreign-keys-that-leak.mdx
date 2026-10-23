@@ -23,7 +23,7 @@ On paper that covers both reads and writes. While tracing how a comment gets att
 
 ## Where the hole is
 
-PostgreSQL runs referential-integrity checks with the privileges of the referenced table's owner and with row security *disabled*. This is documented and deliberate: a policy should not be able to quietly break a constraint. But in a shared-schema design it has a nasty side effect. Take a connection as the application role, scoped to org B:
+PostgreSQL runs referential-integrity checks with the privileges of the referenced table's owner and with row security _disabled_. This is documented and deliberate: a policy should not be able to quietly break a constraint. But in a shared-schema design it has a nasty side effect. Take a connection as the application role, scoped to org B:
 
 ```sql
 -- connected as patchgrid_app, with app.current_org_id = <org B>
@@ -35,7 +35,7 @@ With a single-column foreign key on `ticketId`, the check on `ticketId → Ticke
 
 You end up with a comment in one tenant attached to another tenant's ticket. In the UI it is an orphan. Any join written in raw SQL can leak through it. It is also an existence oracle: whether the foreign key succeeds or fails tells the caller which ticket ids exist in other tenants.
 
-We didn't want to rely on reasoning alone, so a throwaway spike against PostgreSQL 17 and Prisma 7.10.0 reproduced it. With a single-column foreign key, the insert above *succeeded*: a row carrying org B's `orgId` was written pointing at org A's ticket, past `WITH CHECK` and past RLS.
+We didn't want to rely on reasoning alone, so a throwaway spike against PostgreSQL 17 and Prisma 7.10.0 reproduced it. With a single-column foreign key, the insert above _succeeded_: a row carrying org B's `orgId` was written pointing at org A's ticket, past `WITH CHECK` and past RLS.
 
 The same review turned up a related hole in how rows refer to people. Assignees, requesters and authors were referenced by `User.id`. `User` is a platform-class table with no `orgId` and no policy, so nothing stopped `Ticket.assigneeId` from naming an employee of a different company. "The assignee is a member of this org" was something the application hoped was true. Nothing enforced it.
 
@@ -79,7 +79,7 @@ ALTER TABLE "Comment" ADD CONSTRAINT "Comment_orgId_ticketId_fkey"
   ON DELETE RESTRICT ON UPDATE CASCADE;
 ```
 
-Each check now covers part of the job. `WITH CHECK` fixes the comment's `orgId` to the current tenant. The composite foreign key then requires a ticket with that *same* `orgId` and the given id. The integrity check still runs without row security, but it no longer needs it, because the tenant is part of the key it is checking. In the spike, the insert that succeeded before was now rejected with `P2003` on `Comment_orgId_ticketId_fkey`, while a same-tenant insert still went through.
+Each check now covers part of the job. `WITH CHECK` fixes the comment's `orgId` to the current tenant. The composite foreign key then requires a ticket with that _same_ `orgId` and the given id. The integrity check still runs without row security, but it no longer needs it, because the tenant is part of the key it is checking. In the spike, the insert that succeeded before was now rejected with `P2003` on `Comment_orgId_ticketId_fkey`, while a same-tenant insert still went through.
 
 The rule covers every relationship where both ends are tenant-owned. ADR-0023 lists them: comments, attachments, both ends of a ticket link, watchers, problem and change details, approvals, a category's parent and default team, a ticket's category, team and SLA policy, team memberships, API tokens, and every later table keyed by `ticketId`.
 

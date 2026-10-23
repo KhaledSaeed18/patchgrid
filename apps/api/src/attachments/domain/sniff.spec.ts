@@ -36,7 +36,13 @@ describe("byte sniffing (ADR-0005)", () => {
     expect(sniff(bytes("name,email\nada,ada@x\n"), "text/csv")).toBe("text/csv")
     expect(sniff(bytes('{"ok":true}'), "application/json")).toBe("application/json")
     expect(sniff(bytes("Ünïcode ✓"), "text/plain")).toBe("text/plain")
-    for (const page of ["<!DOCTYPE html><p>hi", "  <svg onload=alert(1)>", "﻿<html>", "<?xml version='1.0'?><svg/>", "<script>x</script>"]) {
+    for (const page of [
+      "<!DOCTYPE html><p>hi",
+      "  <svg onload=alert(1)>",
+      "﻿<html>",
+      "<?xml version='1.0'?><svg/>",
+      "<script>x</script>",
+    ]) {
       expect(sniff(bytes(page), "text/plain"), page).toBeNull()
     }
     expect(sniff(bytes("abc", [0], "def"), "text/plain")).toBeNull()

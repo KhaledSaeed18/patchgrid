@@ -103,7 +103,8 @@ export class InboundIntakeService {
     const fromAddress = truncate(storableText(sender ?? mail?.from?.text ?? ""), 320)
     const subject = truncate(storableText((mail?.subject ?? "").replace(/[\r\n]+/g, " ")), 998)
     // One From, one mailbox — or nobody: DMARC judged one address, and the intake must act as that one.
-    const verdict = mail === null || sender === null ? "NONE" : verdictFrom(authenticationResults(mail), this.config.INBOUND_AUTHSERV_ID, sender)
+    const verdict =
+      mail === null || sender === null ? "NONE" : verdictFrom(authenticationResults(mail), this.config.INBOUND_AUTHSERV_ID, sender)
     const row = await this.inbound.receive(orgId, {
       id: uuidv7(),
       messageKey: truncate(storableText(mail?.messageId ?? `<sha256.${digest}@patchgrid.invalid>`), 998),
@@ -246,7 +247,12 @@ export class InboundIntakeService {
    * reply on it. `null` when they may not, or it takes no more replies: the
    * message then opens a ticket of its own.
    */
-  private async reply(acting: Acting, ticketId: string, body: string, within: (commentId: string) => Promise<void>): Promise<string | null> {
+  private async reply(
+    acting: Acting,
+    ticketId: string,
+    body: string,
+    within: (commentId: string) => Promise<void>,
+  ): Promise<string | null> {
     try {
       const { created } = await this.comments.addAs(
         acting,
@@ -271,16 +277,17 @@ export class InboundIntakeService {
     const visible = await this.access.loadVisible(orgId, [referenced], acting.actor, acting.visibility)
     const target = visible[0]
     if (target === undefined || !this.permissions.can(acting.actor, "ticket:link", target.subject)) return
-    const [created, other] = await this.tickets.findManyById(orgId, [ticketId, referenced]).then((rows) => [
-      rows.find((r) => r.id === ticketId),
-      rows.find((r) => r.id === referenced),
-    ])
+    const [created, other] = await this.tickets
+      .findManyById(orgId, [ticketId, referenced])
+      .then((rows) => [rows.find((r) => r.id === ticketId), rows.find((r) => r.id === referenced)])
     if (created === undefined || other === undefined) return
     const made = canonicalLink("RELATES_TO", { id: created.id, type: created.type }, { id: other.id, type: other.type })
     if (!made.ok) return
     await this.prisma.transaction(async () => {
       await this.links.createMany(orgId, [made.link], membershipId)
-      await this.audit.record(orgId, [{ action: "TICKET_LINKED", entityType: "Ticket", entityId: ticketId, diff: { ...made.link, via: "email" } }])
+      await this.audit.record(orgId, [
+        { action: "TICKET_LINKED", entityType: "Ticket", entityId: ticketId, diff: { ...made.link, via: "email" } },
+      ])
     })
   }
 
@@ -296,7 +303,13 @@ export class InboundIntakeService {
         continue
       }
       try {
-        const result = await this.attachments.ingest(acting, { ticketId, commentId, filename, contentType: file.contentType, bytes: file.content })
+        const result = await this.attachments.ingest(acting, {
+          ticketId,
+          commentId,
+          filename,
+          contentType: file.contentType,
+          bytes: file.content,
+        })
         if (!result.ok) skipped.push({ filename, reason: result.reason })
       } catch (error) {
         // The ticket is made; a file that could not be stored is listed, not retried into a second ticket.
@@ -317,7 +330,8 @@ function singleSender(mail: ParsedMail): string | null {
   if (mail.headerLines.filter((line) => line.key === "from").length !== 1) return null
   const mailboxes = mail.from?.value ?? []
   const only = mailboxes[0]
-  if (mailboxes.length !== 1 || only === undefined || only.group !== undefined || only.address === undefined || only.address === "") return null
+  if (mailboxes.length !== 1 || only === undefined || only.group !== undefined || only.address === undefined || only.address === "")
+    return null
   return only.address.trim().toLowerCase()
 }
 

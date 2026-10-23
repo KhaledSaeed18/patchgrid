@@ -111,7 +111,15 @@ describe("NotifyConsumer", () => {
     const after = await h.handle({ kind: "comment-added", ticketId: T1, actorMembershipId: M("m-agent"), visibility: "PUBLIC" })
     expect(h.notifications.addMany).toHaveBeenCalledTimes(1)
     expect(h.written).toEqual([
-      { userId: `u-${M("m-req")}`, membershipId: M("m-req"), type: "COMMENT_PUBLIC", title: "New reply on INC-000007: VPN", body: null, ticketId: T1, dedupeKey: `comment:${T1}` },
+      {
+        userId: `u-${M("m-req")}`,
+        membershipId: M("m-req"),
+        type: "COMMENT_PUBLIC",
+        title: "New reply on INC-000007: VPN",
+        body: null,
+        ticketId: T1,
+        dedupeKey: `comment:${T1}`,
+      },
     ])
     // The stream hears of the row only once the cursor that wrote it has committed.
     expect(h.bus.publish).not.toHaveBeenCalled()
@@ -170,7 +178,9 @@ describe("NotifyConsumer", () => {
   it("fails the batch, as the job's trouble and not the event's, when the mail queue refuses", async () => {
     const h = harness(circle())
     h.mail.enqueueAll.mockRejectedValue(new Error("redis down"))
-    const failure = await h.handle({ kind: "ticket-assigned", ticketId: T1, actorMembershipId: M("m-lead"), assigneeMembershipId: M("m-agent") }).catch((e: unknown) => e)
+    const failure = await h
+      .handle({ kind: "ticket-assigned", ticketId: T1, actorMembershipId: M("m-lead"), assigneeMembershipId: M("m-agent") })
+      .catch((e: unknown) => e)
     expect(failure).toBeInstanceOf(TransientFailure)
     expect(isTransient(failure)).toBe(true)
     expect(h.bus.publish).not.toHaveBeenCalled()
@@ -178,7 +188,9 @@ describe("NotifyConsumer", () => {
 
   it("does nothing for a ticket that is gone", async () => {
     const h = harness(null)
-    await (await h.handle({ kind: "ticket-reopened", ticketId: T1, actorMembershipId: null, comment: null }))()
+    await (
+      await h.handle({ kind: "ticket-reopened", ticketId: T1, actorMembershipId: null, comment: null })
+    )()
     expect(h.notifications.addMany).not.toHaveBeenCalled()
     expect(h.bus.publish).not.toHaveBeenCalled()
   })
@@ -187,7 +199,9 @@ describe("NotifyConsumer", () => {
     const h = harness(circle())
     await h.consumer.handle(ORG, [{ id: "e-x", txn: 1n, type: "webhook-only", payload: {}, occurredAt: NOW }])
     expect(h.notifications.addMany).not.toHaveBeenCalled()
-    await expect(h.consumer.handle(ORG, [{ id: "e-y", txn: 2n, type: "ticket-created", payload: { ticketId: 7 }, occurredAt: NOW }])).rejects.toThrow()
+    await expect(
+      h.consumer.handle(ORG, [{ id: "e-y", txn: 2n, type: "ticket-created", payload: { ticketId: 7 }, occurredAt: NOW }]),
+    ).rejects.toThrow()
   })
 
   it("tells the workspace's admins and owners a plan limit was reached, folded per metric and period", async () => {
@@ -198,17 +212,47 @@ describe("NotifyConsumer", () => {
       id: "e-limit",
       txn: 9n,
       type: "plan-limit-reached",
-      payload: { kind: "plan-limit-reached", metric: "AGENT_SEATS", period: "current", plan: "FREE", limit: 3, message: "The FREE plan's agent seats are all in use" },
+      payload: {
+        kind: "plan-limit-reached",
+        metric: "AGENT_SEATS",
+        period: "current",
+        plan: "FREE",
+        limit: 3,
+        message: "The FREE plan's agent seats are all in use",
+      },
       occurredAt: NOW,
     }
     const after = await h.consumer.handle(ORG, [event])
     expect(h.written).toEqual([
-      { userId: `u-${M("m-admin")}`, membershipId: M("m-admin"), type: "PLAN_LIMIT_REACHED", title: "The FREE plan's agent seats are all in use", body: null, ticketId: null, dedupeKey: "plan-limit:AGENT_SEATS:current" },
-      { userId: `u-${M("m-owner")}`, membershipId: M("m-owner"), type: "PLAN_LIMIT_REACHED", title: "The FREE plan's agent seats are all in use", body: null, ticketId: null, dedupeKey: "plan-limit:AGENT_SEATS:current" },
+      {
+        userId: `u-${M("m-admin")}`,
+        membershipId: M("m-admin"),
+        type: "PLAN_LIMIT_REACHED",
+        title: "The FREE plan's agent seats are all in use",
+        body: null,
+        ticketId: null,
+        dedupeKey: "plan-limit:AGENT_SEATS:current",
+      },
+      {
+        userId: `u-${M("m-owner")}`,
+        membershipId: M("m-owner"),
+        type: "PLAN_LIMIT_REACHED",
+        title: "The FREE plan's agent seats are all in use",
+        body: null,
+        ticketId: null,
+        dedupeKey: "plan-limit:AGENT_SEATS:current",
+      },
     ])
     // The owner turned this email off; the admin did not.
     expect(h.mail.enqueueAll).toHaveBeenCalledWith([
-      expect.objectContaining({ entityId: `e-limit-${M("m-admin")}`, job: expect.objectContaining({ kind: "plan-limit-reached", to: `${M("m-admin")}@example.test`, params: expect.objectContaining({ usageUrl: "http://acme.lvh.me:3001/settings" }) }) }),
+      expect.objectContaining({
+        entityId: `e-limit-${M("m-admin")}`,
+        job: expect.objectContaining({
+          kind: "plan-limit-reached",
+          to: `${M("m-admin")}@example.test`,
+          params: expect.objectContaining({ usageUrl: "http://acme.lvh.me:3001/settings" }),
+        }),
+      }),
     ])
     await after()
     expect(h.bus.publish).toHaveBeenCalledTimes(2)

@@ -4,12 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import { z } from "zod"
 
 import { ProblemDetailsFilter } from "./problem-details.filter"
-import {
-  InvalidTransitionProblem,
-  NotFoundProblem,
-  PlanLimitProblem,
-  StaleWriteProblem,
-} from "./problem.exception"
+import { InvalidTransitionProblem, NotFoundProblem, PlanLimitProblem, StaleWriteProblem } from "./problem.exception"
 
 function render(exception: unknown, url = "/api/v1/tickets/x") {
   const json = vi.fn()
@@ -66,9 +61,7 @@ describe("ProblemDetailsFilter", () => {
     const error = z.object({ slug: z.string().min(3) }).safeParse({ slug: "a" }).error
     const result = render(error)
     expect(result.status).toBe(400)
-    expect(result.body.errors).toEqual([
-      expect.objectContaining({ path: "slug", code: "too_small" }),
-    ])
+    expect(result.body.errors).toEqual([expect.objectContaining({ path: "slug", code: "too_small" })])
   })
 
   it("maps a framework HttpException by status", () => {
@@ -96,19 +89,14 @@ describe("ProblemDetailsFilter", () => {
     // Terminus signals a failed readiness check with a 503 whose body names the
     // indicator that is down. Rewriting that as Problem Details would discard
     // the detail an orchestrator needs and relabel 503 as 500.
-    const terminus = new HttpException(
-      { status: "error", details: { redis: { status: "down" } } },
-      HttpStatus.SERVICE_UNAVAILABLE,
-    )
+    const terminus = new HttpException({ status: "error", details: { redis: { status: "down" } } }, HttpStatus.SERVICE_UNAVAILABLE)
     const result = render(terminus, "/health/ready")
     expect(result.status).toBe(503)
     expect(result.body).toMatchObject({ status: "error" })
   })
 
   it("does not surface 5xx text from a framework exception", () => {
-    const result = render(
-      new HttpException("internal detail leaked here", HttpStatus.INTERNAL_SERVER_ERROR),
-    )
+    const result = render(new HttpException("internal detail leaked here", HttpStatus.INTERNAL_SERVER_ERROR))
     expect(result.status).toBe(500)
     expect(result.body.detail).toBeUndefined()
   })

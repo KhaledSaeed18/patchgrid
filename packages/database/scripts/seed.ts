@@ -63,19 +63,59 @@ async function main(): Promise<void> {
     const seeded = await seedLookalikes(db, { slugs: SLUGS, emailSuffix: "", passwordHash, slaTargets: DEFAULT_SLA_TARGETS })
     const pick = (members: Record<string, string>, keys: string[]) => keys.flatMap((k) => members[k] ?? [])
     const queues = [
-      await seedDemoTickets(db, seeded.acme, { requesters: pick(seeded.acme.members, ["rita"]), agents: pick(seeded.acme.members, ["sam", "dana", "alice"]) }, 1),
-      await seedDemoTickets(db, seeded.globex, { requesters: pick(seeded.globex.members, ["rosa"]), agents: pick(seeded.globex.members, ["tina", "dana", "gus"]) }, 2),
+      await seedDemoTickets(
+        db,
+        seeded.acme,
+        { requesters: pick(seeded.acme.members, ["rita"]), agents: pick(seeded.acme.members, ["sam", "dana", "alice"]) },
+        1,
+      ),
+      await seedDemoTickets(
+        db,
+        seeded.globex,
+        { requesters: pick(seeded.globex.members, ["rosa"]), agents: pick(seeded.globex.members, ["tina", "dana", "gus"]) },
+        2,
+      ),
     ]
     const incidents = queues.reduce((n, q) => n + q.incidents, 0)
     const requests = queues.reduce((n, q) => n + q.requests, 0)
 
     const records = [
-      await seedDemoProblemsAndChanges(db, seeded.acme, { lead: seeded.acme.members.sam ?? "", agents: pick(seeded.acme.members, ["sam", "dana"]), admin: seeded.acme.members.alice ?? "", watchers: pick(seeded.acme.members, ["dana", "rita"]) }, 1),
-      await seedDemoProblemsAndChanges(db, seeded.globex, { lead: seeded.globex.members.tina ?? "", agents: pick(seeded.globex.members, ["tina", "dana"]), admin: seeded.globex.members.gus ?? "", watchers: pick(seeded.globex.members, ["dana", "rosa"]) }, 2),
+      await seedDemoProblemsAndChanges(
+        db,
+        seeded.acme,
+        {
+          lead: seeded.acme.members.sam ?? "",
+          agents: pick(seeded.acme.members, ["sam", "dana"]),
+          admin: seeded.acme.members.alice ?? "",
+          watchers: pick(seeded.acme.members, ["dana", "rita"]),
+        },
+        1,
+      ),
+      await seedDemoProblemsAndChanges(
+        db,
+        seeded.globex,
+        {
+          lead: seeded.globex.members.tina ?? "",
+          agents: pick(seeded.globex.members, ["tina", "dana"]),
+          admin: seeded.globex.members.gus ?? "",
+          watchers: pick(seeded.globex.members, ["dana", "rosa"]),
+        },
+        2,
+      ),
     ]
     const assets =
-      (await seedDemoAssets(db, seeded.acme, { requester: seeded.acme.members.rita ?? "", agent: seeded.acme.members.sam ?? "", admin: seeded.acme.members.alice ?? "" }, "ACME")) +
-      (await seedDemoAssets(db, seeded.globex, { requester: seeded.globex.members.rosa ?? "", agent: seeded.globex.members.tina ?? "", admin: seeded.globex.members.gus ?? "" }, "GLBX"))
+      (await seedDemoAssets(
+        db,
+        seeded.acme,
+        { requester: seeded.acme.members.rita ?? "", agent: seeded.acme.members.sam ?? "", admin: seeded.acme.members.alice ?? "" },
+        "ACME",
+      )) +
+      (await seedDemoAssets(
+        db,
+        seeded.globex,
+        { requester: seeded.globex.members.rosa ?? "", agent: seeded.globex.members.tina ?? "", admin: seeded.globex.members.gus ?? "" },
+        "GLBX",
+      ))
     const articles =
       (await seedDemoArticles(db, seeded.acme, { agent: seeded.acme.members.sam ?? "", admin: seeded.acme.members.alice ?? "" })) +
       (await seedDemoArticles(db, seeded.globex, { agent: seeded.globex.members.tina ?? "", admin: seeded.globex.members.gus ?? "" }))
@@ -95,7 +135,9 @@ async function main(): Promise<void> {
     console.log("  dana is also an operator at http://admin.lvh.me:3001 — the first sign-in enrols an authenticator")
     console.log("  sam leads Network at Acme: changes awaiting approval are in his queues")
     if (sso) {
-      console.log(`  acme signs in through Keycloak (${DEMO_SSO.issuer}): docker compose --profile sso up -d, then "Sign in with SSO" as kim@${DEMO_SSO.domain}`)
+      console.log(
+        `  acme signs in through Keycloak (${DEMO_SSO.issuer}): docker compose --profile sso up -d, then "Sign in with SSO" as kim@${DEMO_SSO.domain}`,
+      )
     } else {
       console.log("  set SSO_SECRETS_KEY to seed Acme's SSO connection")
     }

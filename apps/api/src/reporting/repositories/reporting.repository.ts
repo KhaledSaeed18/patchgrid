@@ -225,7 +225,10 @@ export class ReportingRepository {
   }
 
   /** Open tickets by priority and age bucket (days, at `now`), and by type. */
-  async backlog(orgId: string, now: Date): Promise<{ byPriority: { priority: Priority; bucket: number; open: number }[]; byType: { type: TicketType; open: number }[] }> {
+  async backlog(
+    orgId: string,
+    now: Date,
+  ): Promise<{ byPriority: { priority: Priority; bucket: number; open: number }[]; byType: { type: TicketType; open: number }[] }> {
     const byPriority = await this.prisma.tx.$queryRaw<{ priority: Priority; bucket: number; open: number }[]>`
       SELECT "priority"::text AS priority,
         CASE WHEN age < interval '1 day' THEN 0 WHEN age < interval '3 days' THEN 1 WHEN age < interval '7 days' THEN 2
@@ -241,7 +244,11 @@ export class ReportingRepository {
   }
 
   /** Who holds the open work, how much of it has breached, and who resolved what in the range. */
-  workload(orgId: string, from: Date, to: Date): Promise<{ membershipId: string | null; label: string; open: number; resolvedInRange: number; breachedOpen: number }[]> {
+  workload(
+    orgId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ membershipId: string | null; label: string; open: number; resolvedInRange: number; breachedOpen: number }[]> {
     return this.prisma.tx.$queryRaw`
       SELECT f."assigneeMembershipId"::text AS "membershipId", COALESCE(m."displayName", 'Unassigned') AS label,
         count(*) FILTER (WHERE f."state" = 'OPEN')::int AS open,

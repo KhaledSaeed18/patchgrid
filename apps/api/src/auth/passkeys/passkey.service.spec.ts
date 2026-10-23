@@ -15,11 +15,44 @@ import type { PasskeyCeremonies } from "./passkey-ceremonies"
 import { PasskeyService } from "./passkey.service"
 
 const client = { userAgent: "vitest", ip: "127.0.0.1" }
-const ada: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "ada@acme.test", name: "Ada", passwordHash: "h:correct", emailVerifiedAt: new Date(0), anonymisedAt: null }
-const verifiedKey: NewPasskey = { credentialId: new Uint8Array([1]), publicKey: new Uint8Array([2]), signCount: 0n, transports: [], aaguid: "00000000-0000-0000-0000-000000000000", backedUp: true, label: "Laptop" }
-const stored: PasskeyRecord = { id: "pk-1", label: "Laptop", credentialId: new Uint8Array([1]), transports: [], backedUp: true, createdAt: new Date("2026-10-22T09:00:00Z"), lastUsedAt: null }
-const credential = { id: "x", rawId: "x", type: "public-key" as const, clientExtensionResults: {}, response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" } }
-const register: PasskeyRegisterRequest = { challengeId: "01939f4e-6d4e-7c1a-9a0e-3c1e4b6f8a21", credential: { ...credential, response: { clientDataJSON: "e30", attestationObject: "AA" } }, label: "Laptop" }
+const ada: AccountRecord = {
+  id: "0190b2f0-0000-7000-8000-000000000001",
+  email: "ada@acme.test",
+  name: "Ada",
+  passwordHash: "h:correct",
+  emailVerifiedAt: new Date(0),
+  anonymisedAt: null,
+}
+const verifiedKey: NewPasskey = {
+  credentialId: new Uint8Array([1]),
+  publicKey: new Uint8Array([2]),
+  signCount: 0n,
+  transports: [],
+  aaguid: "00000000-0000-0000-0000-000000000000",
+  backedUp: true,
+  label: "Laptop",
+}
+const stored: PasskeyRecord = {
+  id: "pk-1",
+  label: "Laptop",
+  credentialId: new Uint8Array([1]),
+  transports: [],
+  backedUp: true,
+  createdAt: new Date("2026-10-22T09:00:00Z"),
+  lastUsedAt: null,
+}
+const credential = {
+  id: "x",
+  rawId: "x",
+  type: "public-key" as const,
+  clientExtensionResults: {},
+  response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+}
+const register: PasskeyRegisterRequest = {
+  challengeId: "01939f4e-6d4e-7c1a-9a0e-3c1e4b6f8a21",
+  credential: { ...credential, response: { clientDataJSON: "e30", attestationObject: "AA" } },
+  label: "Laptop",
+}
 
 function harness(options: { methods?: ("totp" | "passkey")[]; held?: PasskeyRecord[]; account?: AccountRecord | null } = {}) {
   const held = [...(options.held ?? [])]
@@ -27,10 +60,16 @@ function harness(options: { methods?: ("totp" | "passkey")[]; held?: PasskeyReco
   const passkeys = {
     listForUser: vi.fn(async () => held),
     // As the real one decides under the person's lock: codes only with the first factor of any kind.
-    add: vi.fn(async (_u: string, _p: NewPasskey, hashes: readonly string[] | null): Promise<{ passkey: PasskeyRecord; codesIssued: boolean } | null> => ({
-      passkey: stored,
-      codesIssued: hashes !== null && (options.methods ?? []).length === 0,
-    })),
+    add: vi.fn(
+      async (
+        _u: string,
+        _p: NewPasskey,
+        hashes: readonly string[] | null,
+      ): Promise<{ passkey: PasskeyRecord; codesIssued: boolean } | null> => ({
+        passkey: stored,
+        codesIssued: hashes !== null && (options.methods ?? []).length === 0,
+      }),
+    ),
     rename: vi.fn(async (_u: string, id: string, label: string) => (held.some((p) => p.id === id) ? { ...stored, label } : null)),
     remove: vi.fn(async () => true),
   }
@@ -38,11 +77,26 @@ function harness(options: { methods?: ("totp" | "passkey")[]; held?: PasskeyReco
     creationOptions: vi.fn(async () => ({ challengeId: "c", options: {} })),
     requestOptions: vi.fn(async () => ({ challengeId: "c", options: {} })),
     verifyRegistration: vi.fn<() => Promise<NewPasskey | null>>(async () => verifiedKey),
-    verifyAssertion: vi.fn<() => Promise<{ userId: string; passkeyId: string } | null>>(async () => ({ userId: ada.id, passkeyId: "pk-1" })),
+    verifyAssertion: vi.fn<() => Promise<{ userId: string; passkeyId: string } | null>>(async () => ({
+      userId: ada.id,
+      passkeyId: "pk-1",
+    })),
   }
   const factors = { proveHolder: vi.fn(async () => "password" as const), verify: vi.fn(async () => "passkey" as const) }
-  const mfaChallenges = { verify: vi.fn(async (token: string) => (token === "good" ? { userId: ada.id, slug: undefined, jti: "j" } : null)) }
-  const sessions = { startIdentity: vi.fn(async (_a: AccountRecord, _c: unknown, slug?: string) => ({ response: { status: "signed-in" as const, user: { id: ada.id, email: ada.email, name: ada.name }, workspaces: [], session: slug === undefined ? null : { slug } }, cookies: [] })) }
+  const mfaChallenges = {
+    verify: vi.fn(async (token: string) => (token === "good" ? { userId: ada.id, slug: undefined, jti: "j" } : null)),
+  }
+  const sessions = {
+    startIdentity: vi.fn(async (_a: AccountRecord, _c: unknown, slug?: string) => ({
+      response: {
+        status: "signed-in" as const,
+        user: { id: ada.id, email: ada.email, name: ada.name },
+        workspaces: [],
+        session: slug === undefined ? null : { slug },
+      },
+      cookies: [],
+    })),
+  }
   const notifier = { tell: vi.fn(async () => undefined) }
   const service = new PasskeyService(
     { findById: async () => account } as unknown as UserRepository,
@@ -152,10 +206,14 @@ describe("PasskeyService proofs and sign-in", () => {
   it("answers one 401 for a refused assertion, an unverified account and an erased one", async () => {
     const refused = harness()
     refused.ceremonies.verifyAssertion.mockResolvedValueOnce(null)
-    await expect(refused.service.login({ challengeId: register.challengeId, credential }, client)).rejects.toBeInstanceOf(NotAuthenticatedProblem)
+    await expect(refused.service.login({ challengeId: register.challengeId, credential }, client)).rejects.toBeInstanceOf(
+      NotAuthenticatedProblem,
+    )
     for (const account of [{ ...ada, emailVerifiedAt: null }, { ...ada, anonymisedAt: new Date() }, null]) {
       const h = harness({ account })
-      await expect(h.service.login({ challengeId: register.challengeId, credential }, client)).rejects.toBeInstanceOf(NotAuthenticatedProblem)
+      await expect(h.service.login({ challengeId: register.challengeId, credential }, client)).rejects.toBeInstanceOf(
+        NotAuthenticatedProblem,
+      )
       expect(h.sessions.startIdentity).not.toHaveBeenCalled()
     }
   })

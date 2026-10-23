@@ -17,7 +17,10 @@ function databaseUrl(): string {
     // CI and other runners pass the environment directly.
   }
   const url = process.env.DATABASE_MIGRATION_URL
-  if (url === undefined || url === "") throw new Error("DATABASE_MIGRATION_URL is required to move a ticket's clock")
+  if (url === undefined || url === "")
+    throw new Error(
+      "DATABASE_MIGRATION_URL is required to move a ticket's clock"
+    )
   return url
 }
 
@@ -30,9 +33,12 @@ export async function responseDeadlinePassed(ticketId: string): Promise<void> {
       `UPDATE "Ticket"
           SET "responseClockStartedAt" = now() - interval '2 hours', "respondBy" = now() - interval '1 minute'
         WHERE id = $1 AND "respondedAt" IS NULL`,
-      [ticketId],
+      [ticketId]
     )
-    if (moved.rowCount !== 1) throw new Error(`ticket ${ticketId} has no running response clock to move`)
+    if (moved.rowCount !== 1)
+      throw new Error(
+        `ticket ${ticketId} has no running response clock to move`
+      )
   } finally {
     await client.end()
   }

@@ -17,7 +17,9 @@ export class SecretBox {
     const iv = randomBytes(12)
     const cipher = createCipheriv("aes-256-gcm", this.key, iv)
     const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()])
-    return ["v1", iv, cipher.getAuthTag(), ciphertext].map((part) => (typeof part === "string" ? part : part.toString("base64url"))).join(".")
+    return ["v1", iv, cipher.getAuthTag(), ciphertext]
+      .map((part) => (typeof part === "string" ? part : part.toString("base64url")))
+      .join(".")
   }
 
   /** `null` for anything tampered with, truncated, or sealed under another key. */

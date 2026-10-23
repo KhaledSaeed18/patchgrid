@@ -36,7 +36,9 @@ export class PasskeyChallengeStore {
   async issue(purpose: CeremonyPurpose, userId: string | null): Promise<IssuedChallenge> {
     const id = randomUUID()
     const challenge = randomBytes(32).toString("base64url")
-    await this.guard(() => this.redis.client.set(key(id), JSON.stringify({ purpose, userId, challenge }), "EX", PASSKEY_CHALLENGE_TTL_SECONDS))
+    await this.guard(() =>
+      this.redis.client.set(key(id), JSON.stringify({ purpose, userId, challenge }), "EX", PASSKEY_CHALLENGE_TTL_SECONDS),
+    )
     return { id, challenge }
   }
 

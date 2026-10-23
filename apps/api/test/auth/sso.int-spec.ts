@@ -85,7 +85,9 @@ async function signIn(start: string, person: IdpPerson, extra: { pgId?: string; 
   expect(started.status).toBe(302)
   const state = cookiesOf(started).get("pg_sso") ?? ""
   const callback = idp.authorize(started.headers.location as string, person)
-  const cookie = [extra.dropState === true ? "" : `pg_sso=${state}`, extra.pgId === undefined ? "" : `pg_id=${extra.pgId}`].filter((c) => c !== "").join("; ")
+  const cookie = [extra.dropState === true ? "" : `pg_sso=${state}`, extra.pgId === undefined ? "" : `pg_id=${extra.pgId}`]
+    .filter((c) => c !== "")
+    .join("; ")
   const finished = await http().get(`${callback.pathname}${callback.search}`).set("Cookie", cookie)
   expect(finished.status).toBe(302)
   return { started, finished, callback, location: finished.headers.location as string, cookies: cookiesOf(finished) }
@@ -115,13 +117,39 @@ describe("settings", () => {
 
     // Without a fresh proof the connection is refused, like minting a token.
     const plain = browser(app, ws.origin, ws.people.owner.access)
-    expect((await plain.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, clientSecret: idp.clientSecret, defaultRole: "REQUESTER", enabled: true })).body.type).toMatch(/step-up-required$/)
+    expect(
+      (
+        await plain.put("/org/sso/connection", {
+          issuer: idp.issuer,
+          clientId: idp.clientId,
+          clientSecret: idp.clientSecret,
+          defaultRole: "REQUESTER",
+          enabled: true,
+        })
+      ).body.type,
+    ).toMatch(/step-up-required$/)
 
     idp.claimedIssuer = "http://127.0.0.1:1/realms/impostor"
-    expect((await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, clientSecret: idp.clientSecret, defaultRole: "REQUESTER", enabled: true })).status).toBe(400)
+    expect(
+      (
+        await owner.put("/org/sso/connection", {
+          issuer: idp.issuer,
+          clientId: idp.clientId,
+          clientSecret: idp.clientSecret,
+          defaultRole: "REQUESTER",
+          enabled: true,
+        })
+      ).status,
+    ).toBe(400)
     idp.claimedIssuer = null
 
-    const saved = await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, clientSecret: idp.clientSecret, defaultRole: "REQUESTER", enabled: true })
+    const saved = await owner.put("/org/sso/connection", {
+      issuer: idp.issuer,
+      clientId: idp.clientId,
+      clientSecret: idp.clientSecret,
+      defaultRole: "REQUESTER",
+      enabled: true,
+    })
     expect(saved.status).toBe(200)
     expect(saved.body.connection).toMatchObject({ issuer: idp.issuer, clientSecretSet: true, enabled: true })
     expect(JSON.stringify(saved.body)).not.toContain(idp.clientSecret)
@@ -133,13 +161,20 @@ describe("settings", () => {
 
 describe("signing in", () => {
   it("discovers the workspace by the address's domain, and nothing for another", async () => {
-    const found = await http().post("/api/v1/auth/sso/discover").set(HEADERS).send({ email: `kim@${DOMAIN}` })
+    const found = await http()
+      .post("/api/v1/auth/sso/discover")
+      .set(HEADERS)
+      .send({ email: `kim@${DOMAIN}` })
     expect(found.body).toEqual({ sso: { slug: ws.slug, name: expect.any(String) } })
     expect((await http().post("/api/v1/auth/sso/discover").set(HEADERS).send({ email: "kim@elsewhere.test" })).body).toEqual({ sso: null })
   })
 
   it("provisions a new person on first sign-in: verified, no password, a requester, scoped to this workspace", async () => {
-    const { started, location, cookies } = await signIn(`email=kim@${DOMAIN}&next=/queues`, { sub: "kim-sub", email: `kim@${DOMAIN}`, name: "Kim Lee" })
+    const { started, location, cookies } = await signIn(`email=kim@${DOMAIN}&next=/queues`, {
+      sub: "kim-sub",
+      email: `kim@${DOMAIN}`,
+      name: "Kim Lee",
+    })
     const authorize = new URL(started.headers.location as string)
     expect(authorize.searchParams.get("login_hint")).toBe(`kim@${DOMAIN}`)
     expect(authorize.searchParams.get("scope")).toBe("openid email profile")
@@ -157,7 +192,9 @@ describe("signing in", () => {
 
     const access = cookies.get(`pg_at_${ws.slug}`) ?? ""
     expect(decodeJwt(access).sso).toBe(true)
-    expect((await db.refreshToken.findMany({ where: { userId: user.id, revokedAt: null } })).every((t) => t.ssoOrgId === ws.orgId)).toBe(true)
+    expect((await db.refreshToken.findMany({ where: { userId: user.id, revokedAt: null } })).every((t) => t.ssoOrgId === ws.orgId)).toBe(
+      true,
+    )
     const me = await browser(app, ws.origin, `pg_at_${ws.slug}=${access}`).get("/me")
     expect(me.status).toBe(200)
 
@@ -167,11 +204,26 @@ describe("signing in", () => {
   })
 
   it("links an existing member by address, and the session it starts opens that workspace and no other", async () => {
-    const lee = await db.user.create({ data: { email: `lee@${DOMAIN}`, name: "Lee", passwordHash: "$argon2id$not-a-real-hash", emailVerifiedAt: new Date() } })
+    const lee = await db.user.create({
+      data: { email: `lee@${DOMAIN}`, name: "Lee", passwordHash: "$argon2id$not-a-real-hash", emailVerifiedAt: new Date() },
+    })
     createdUsers.push(lee.id)
-    for (const [orgId, slug] of [[ws.orgId, ws.slug], [other.orgId, other.slug]] as const) {
+    for (const [orgId, slug] of [
+      [ws.orgId, ws.slug],
+      [other.orgId, other.slug],
+    ] as const) {
       await db.membership.create({ data: { orgId, userId: lee.id, role: "AGENT", displayName: "Lee", joinedAt: new Date() } })
-      await db.userOrgIndex.create({ data: { userId: lee.id, orgId, roleForDisplay: "AGENT", statusForDisplay: "ACTIVE", orgSlug: slug, orgName: slug, orgStatus: "ACTIVE" } })
+      await db.userOrgIndex.create({
+        data: {
+          userId: lee.id,
+          orgId,
+          roleForDisplay: "AGENT",
+          statusForDisplay: "ACTIVE",
+          orgSlug: slug,
+          orgName: slug,
+          orgStatus: "ACTIVE",
+        },
+      })
     }
     const { cookies } = await signIn(`email=lee@${DOMAIN}`, { sub: "lee-sub", email: `lee@${DOMAIN}` })
     const linked = await db.auditLog.findFirst({ where: { orgId: ws.orgId, action: "SSO_IDENTITY_LINKED" } })
@@ -204,14 +256,18 @@ describe("signing in", () => {
   })
 
   it("refuses an unverified address, one at another domain, and a callback from another browser or twice", async () => {
-    expect((await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}`, emailVerified: false })).location).toMatch(/\/login\?sso=email$/)
+    expect((await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}`, emailVerified: false })).location).toMatch(
+      /\/login\?sso=email$/,
+    )
     expect((await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: "kim@elsewhere.test" })).location).toMatch(/\/login\?sso=email$/)
     const stolen = await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}` }, { dropState: true })
     expect(stolen.location).toMatch(/\/login\?sso=expired$/)
     expect(stolen.cookies.has("pg_id")).toBe(false)
 
     const once = await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}` })
-    const replay = await http().get(`${once.callback.pathname}${once.callback.search}`).set("Cookie", `pg_sso=${new URL(once.started.headers.location as string).searchParams.get("state") ?? ""}`)
+    const replay = await http()
+      .get(`${once.callback.pathname}${once.callback.search}`)
+      .set("Cookie", `pg_sso=${new URL(once.started.headers.location as string).searchParams.get("state") ?? ""}`)
     expect(replay.headers.location).toMatch(/\/login\?sso=expired$/)
   })
 
@@ -245,7 +301,9 @@ describe("signing in", () => {
   })
 
   it("takes an unverified account's password before the provider's person gets it", async () => {
-    const squatter = await db.user.create({ data: { email: `max@${DOMAIN}`, name: "Max", passwordHash: "$argon2id$squatter", emailVerifiedAt: null } })
+    const squatter = await db.user.create({
+      data: { email: `max@${DOMAIN}`, name: "Max", passwordHash: "$argon2id$squatter", emailVerifiedAt: null },
+    })
     createdUsers.push(squatter.id)
     await signIn(`email=max@${DOMAIN}`, { sub: "max-sub", email: `max@${DOMAIN}` })
     const claimed = await db.user.findUniqueOrThrow({ where: { id: squatter.id } })
@@ -268,14 +326,19 @@ describe("SSO required", () => {
     expect((await owner.put("/org/domain", { domain: "moved.test" })).status).toBe(409)
 
     // The agent's password still signs them in, but opens nothing here.
-    const login = await http().post("/api/v1/auth/login").set(HEADERS).send({ email: ws.people.agent.email, password: PASSWORD, slug: ws.slug })
+    const login = await http()
+      .post("/api/v1/auth/login")
+      .set(HEADERS)
+      .send({ email: ws.people.agent.email, password: PASSWORD, slug: ws.slug })
     expect(login.body.session).toBeNull()
     const opened = await http().post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", ws.people.agent.pgId).send({ slug: ws.slug })
     expect(opened.status).toBe(403)
     expect(opened.body.type).toMatch(/sso-required$/)
 
     // The owner keeps their own credentials: the way back in when the provider is down.
-    expect((await http().post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", ws.people.owner.pgId).send({ slug: ws.slug })).status).toBe(200)
+    expect(
+      (await http().post("/api/v1/auth/sessions").set(HEADERS).set("Cookie", ws.people.owner.pgId).send({ slug: ws.slug })).status,
+    ).toBe(200)
 
     // Through the provider, the requester opens it.
     const { location } = await signIn(`slug=${ws.slug}`, { sub: "kim-sub", email: `kim@${DOMAIN}` })
@@ -300,7 +363,11 @@ describe("step-up at the provider", () => {
     expect(access.sso).toBe(true)
 
     // An old authentication at the provider is no proof.
-    const stale = await signIn(`slug=${ws.slug}&intent=step-up`, { sub: "kim-sub", email: `kim@${DOMAIN}`, authTime: Math.floor(Date.now() / 1000) - 3600 }, { pgId })
+    const stale = await signIn(
+      `slug=${ws.slug}&intent=step-up`,
+      { sub: "kim-sub", email: `kim@${DOMAIN}`, authTime: Math.floor(Date.now() / 1000) - 3600 },
+      { pgId },
+    )
     expect(stale.location).toBe(`http://${ws.slug}.lvh.me:3001/?sso=stale`)
 
     // Someone else at the provider cannot step up Kim's session.
@@ -315,16 +382,27 @@ describe("withdrawing the provider", () => {
     const { cookies } = await signIn(`email=kim@${DOMAIN}`, { sub: "kim-sub", email: `kim@${DOMAIN}` })
     const refresh = `pg_rt_${ws.slug}=${cookies.get(`pg_rt_${ws.slug}`) ?? ""}`
     const owner = await ownerBrowser()
-    expect((await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, defaultRole: "REQUESTER", enabled: false })).status).toBe(200)
+    expect(
+      (await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, defaultRole: "REQUESTER", enabled: false }))
+        .status,
+    ).toBe(200)
     const renewed = await http().post("/api/v1/auth/refresh").set(HEADERS).set("Cookie", refresh).send({ slug: ws.slug })
     expect(renewed.status).toBe(401)
     // The old secret stands for the same issuer and client.
-    expect((await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, defaultRole: "REQUESTER", enabled: true })).status).toBe(200)
+    expect(
+      (await owner.put("/org/sso/connection", { issuer: idp.issuer, clientId: idp.clientId, defaultRole: "REQUESTER", enabled: true }))
+        .status,
+    ).toBe(200)
   })
 
   it("will not send the stored secret to a new issuer", async () => {
     const owner = await ownerBrowser()
-    const refused = await owner.put("/org/sso/connection", { issuer: "http://127.0.0.1:1/realms/elsewhere", clientId: idp.clientId, defaultRole: "REQUESTER", enabled: true })
+    const refused = await owner.put("/org/sso/connection", {
+      issuer: "http://127.0.0.1:1/realms/elsewhere",
+      clientId: idp.clientId,
+      defaultRole: "REQUESTER",
+      enabled: true,
+    })
     expect(refused.status).toBe(400)
     expect(refused.body.errors[0].path).toBe("clientSecret")
   })
@@ -337,10 +415,19 @@ describe("a new issuer", () => {
     try {
       const owner = await ownerBrowser()
       expect(await db.ssoIdentity.count({ where: { orgId: ws.orgId } })).toBeGreaterThan(0)
-      const saved = await owner.put("/org/sso/connection", { issuer: replacement.issuer, clientId: replacement.clientId, clientSecret: replacement.clientSecret, defaultRole: "REQUESTER", enabled: true })
+      const saved = await owner.put("/org/sso/connection", {
+        issuer: replacement.issuer,
+        clientId: replacement.clientId,
+        clientSecret: replacement.clientSecret,
+        defaultRole: "REQUESTER",
+        enabled: true,
+      })
       expect(saved.status).toBe(200)
       expect(await db.ssoIdentity.count({ where: { orgId: ws.orgId } })).toBe(0)
-      const audit = await db.auditLog.findFirstOrThrow({ where: { orgId: ws.orgId, action: "SSO_CONNECTION_SAVED" }, orderBy: { createdAt: "desc" } })
+      const audit = await db.auditLog.findFirstOrThrow({
+        where: { orgId: ws.orgId, action: "SSO_CONNECTION_SAVED" },
+        orderBy: { createdAt: "desc" },
+      })
       expect(audit.diff).toMatchObject({ identitiesUnlinked: true })
     } finally {
       await replacement.stop()

@@ -45,7 +45,12 @@ describe("RetentionSweepService", () => {
     expect(retention.deleteNotificationsBefore).toHaveBeenCalledWith("o-1", new Date("2026-07-17T12:00:00Z"))
     // Deliveries before events: an event a delivery points at is never deleted.
     expect(steps).toEqual(["remove", "expire", "deliveries", "events"])
-    expect(retention.deleteConsumedEventsBefore).toHaveBeenCalledWith("o-1", new Date("2026-09-15T12:00:00Z"), ["notify", "webhooks"], 5_000)
+    expect(retention.deleteConsumedEventsBefore).toHaveBeenCalledWith(
+      "o-1",
+      new Date("2026-09-15T12:00:00Z"),
+      ["notify", "webhooks"],
+      5_000,
+    )
   })
 
   it("leaves a PRO workspace's audit log to the partition archival's seven years", async () => {

@@ -12,10 +12,7 @@ describe("an API token request", () => {
 
   it("takes a name, a role, offered scopes and an offered expiry", () => {
     expect(createApiTokenRequestSchema.safeParse(valid).success).toBe(true)
-    expect(
-      createApiTokenRequestSchema.safeParse({ ...valid, expiresInDays: null })
-        .success
-    ).toBe(true)
+    expect(createApiTokenRequestSchema.safeParse({ ...valid, expiresInDays: null }).success).toBe(true)
   })
 
   it("refuses an admin role, a reserved or repeated scope, no scope, and an odd expiry", () => {
@@ -32,11 +29,7 @@ describe("an API token request", () => {
   })
 
   it("matches the shape a minted token has", () => {
-    expect(API_TOKEN_PATTERN.test(`pg_abc123def456_${"A".repeat(43)}`)).toBe(
-      true
-    )
-    expect(API_TOKEN_PATTERN.test(`pg_ABC123DEF456_${"A".repeat(43)}`)).toBe(
-      false
-    )
+    expect(API_TOKEN_PATTERN.test(`pg_abc123def456_${"A".repeat(43)}`)).toBe(true)
+    expect(API_TOKEN_PATTERN.test(`pg_ABC123DEF456_${"A".repeat(43)}`)).toBe(false)
   })
 })

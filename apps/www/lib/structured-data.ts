@@ -79,4 +79,5 @@ function breadcrumbs(trail: [name: string, path: string][]): Thing {
  * JSON for inside a `<script>`. `JSON.stringify` leaves `<` alone, so a title
  * holding `</script>` would end the element early; escaped, it cannot.
  */
-export const serialise = (data: Thing | Thing[]): string => JSON.stringify(data).replace(/</g, "\\u003c")
+export const serialise = (data: Thing | Thing[]): string =>
+  JSON.stringify(data).replace(/</g, "\\u003c")

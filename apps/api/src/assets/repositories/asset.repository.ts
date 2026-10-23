@@ -105,10 +105,7 @@ export class AssetRepository {
     if (filter.ownerMembershipId !== undefined) and.push({ ownerMembershipId: filter.ownerMembershipId })
     if (filter.q !== undefined) {
       and.push({
-        OR: [
-          { name: { contains: filter.q, mode: "insensitive" } },
-          { serialNumber: { contains: filter.q, mode: "insensitive" } },
-        ],
+        OR: [{ name: { contains: filter.q, mode: "insensitive" } }, { serialNumber: { contains: filter.q, mode: "insensitive" } }],
       })
     }
     if (filter.after !== null) {

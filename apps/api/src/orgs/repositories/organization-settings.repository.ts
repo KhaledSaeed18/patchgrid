@@ -46,7 +46,13 @@ export class OrganizationSettingsRepository {
 
   async update(
     orgId: string,
-    data: { name?: string; agentVisibility?: AgentVisibility; emailNotificationsEnabled?: boolean; requireMfa?: boolean; allowExternalRequesters?: boolean },
+    data: {
+      name?: string
+      agentVisibility?: AgentVisibility
+      emailNotificationsEnabled?: boolean
+      requireMfa?: boolean
+      allowExternalRequesters?: boolean
+    },
   ): Promise<void> {
     await this.prisma.db.organization.update({ where: { id: orgId }, data })
   }

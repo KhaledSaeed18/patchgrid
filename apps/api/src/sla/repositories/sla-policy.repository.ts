@@ -47,11 +47,7 @@ export class SlaPolicyRepository {
     })
   }
 
-  async update(
-    orgId: string,
-    id: string,
-    targets: Omit<SlaPolicyRecord, "id" | "ticketType" | "priority">,
-  ): Promise<void> {
+  async update(orgId: string, id: string, targets: Omit<SlaPolicyRecord, "id" | "ticketType" | "priority">): Promise<void> {
     await this.prisma.db.sLAPolicy.update({ where: { orgId_id: { orgId, id } }, data: targets })
   }
 }

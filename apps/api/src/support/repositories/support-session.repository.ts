@@ -52,7 +52,12 @@ export class SupportSessionRepository {
 
   /** Newest first; a workspace has few. */
   list(orgId: string, limit = 50): Promise<SupportSessionRow[]> {
-    return this.prisma.db.supportSession.findMany({ where: { orgId }, orderBy: [{ requestedAt: "desc" }, { id: "desc" }], take: limit, select: ROW })
+    return this.prisma.db.supportSession.findMany({
+      where: { orgId },
+      orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+      take: limit,
+      select: ROW,
+    })
   }
 
   /** The session running now, if any — the banner's answer. */

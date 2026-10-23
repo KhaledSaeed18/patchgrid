@@ -82,7 +82,10 @@ export function LoginForm({
   // Nothing typed: the passkey is both factors (ADR-0053).
   const passkey = useMutation({
     mutationFn: async () => {
-      const proof = await assertWithPasskey("/auth/passkeys/login/options", true)
+      const proof = await assertWithPasskey(
+        "/auth/passkeys/login/options",
+        true
+      )
       return clientApi("/auth/passkeys/login", {
         method: "POST",
         anonymous: true,
@@ -129,8 +132,13 @@ export function LoginForm({
   if (stage.kind === "sso") {
     return (
       <div className="grid gap-4">
-        {ssoError !== null && <FormAlert>{SSO_ERROR_MESSAGE[ssoError]}</FormAlert>}
-        <SsoForm target={target} onBack={() => setStage({ kind: "password" })} />
+        {ssoError !== null && (
+          <FormAlert>{SSO_ERROR_MESSAGE[ssoError]}</FormAlert>
+        )}
+        <SsoForm
+          target={target}
+          onBack={() => setStage({ kind: "password" })}
+        />
       </div>
     )
   }
@@ -225,14 +233,22 @@ export function LoginForm({
  */
 async function openOrExplain(slug: string, url: string): Promise<void> {
   try {
-    await clientApi("/auth/sessions", { method: "POST", body: { slug }, schema: null })
+    await clientApi("/auth/sessions", {
+      method: "POST",
+      body: { slug },
+      schema: null,
+    })
     window.location.assign(url)
   } catch (error) {
     if (error instanceof ApiError && error.type === "sso-required") {
       const wanted = new URL(url)
-      window.location.assign(ssoStartUrl({ slug }, { next: wanted.pathname + wanted.search }))
+      window.location.assign(
+        ssoStartUrl({ slug }, { next: wanted.pathname + wanted.search })
+      )
     } else if (error instanceof ApiError && error.type === "mfa-required") {
-      window.location.assign(`/account/security?required=${encodeURIComponent(slug)}`)
+      window.location.assign(
+        `/account/security?required=${encodeURIComponent(slug)}`
+      )
     } else {
       window.location.assign("/workspaces")
     }

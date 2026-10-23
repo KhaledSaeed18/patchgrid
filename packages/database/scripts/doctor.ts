@@ -49,18 +49,14 @@ const checks: Check[] = [
     name: "app role cannot bypass RLS",
     run: async () => {
       await assertAppRoleCannotBypassRls(app)
-      const [role] = await app.$queryRawUnsafe<{ current_user: string }[]>(
-        "SELECT current_user",
-      )
+      const [role] = await app.$queryRawUnsafe<{ current_user: string }[]>("SELECT current_user")
       return `connected as ${role?.current_user ?? "?"}, no superuser, no BYPASSRLS`
     },
   },
   {
     name: "app role cannot create tables",
     run: async () => {
-      const [row] = await app.$queryRawUnsafe<{ has: boolean }[]>(
-        "SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS has",
-      )
+      const [row] = await app.$queryRawUnsafe<{ has: boolean }[]>("SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS has")
       if (row?.has !== false) throw new Error("app role holds CREATE on schema public")
       return "no CREATE on schema public — migrations are the owner's job alone"
     },
@@ -87,9 +83,7 @@ const checks: Check[] = [
   {
     name: "pgvector is installed",
     run: async () => {
-      const [row] = await app.$queryRawUnsafe<{ extversion: string }[]>(
-        "SELECT extversion FROM pg_extension WHERE extname = 'vector'",
-      )
+      const [row] = await app.$queryRawUnsafe<{ extversion: string }[]>("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
       if (row === undefined) throw new Error("pgvector is not installed. Run: pnpm db:bootstrap")
       return `vector ${row.extversion}`
     },
@@ -99,9 +93,7 @@ const checks: Check[] = [
     run: async () => {
       // `SHOW TimeZone` returns a column literally named "TimeZone"; aliasing it
       // is the difference between asserting and printing a question mark.
-      const [row] = await app.$queryRawUnsafe<{ tz: string }[]>(
-        "SELECT current_setting('TimeZone') AS tz",
-      )
+      const [row] = await app.$queryRawUnsafe<{ tz: string }[]>("SELECT current_setting('TimeZone') AS tz")
       const tz = row?.tz
       if (tz !== "UTC") {
         throw new Error(

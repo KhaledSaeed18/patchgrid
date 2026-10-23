@@ -71,7 +71,13 @@ const assignedTo = (membershipId: string) => owner.notification.count({ where: {
 describe("a change committed while no worker runs", () => {
   it("is delivered when a worker starts, exactly once, without waiting for the sweep's tick", async () => {
     const as = (who: "requester" | "agent") => browser(api, ws.origin, ws.people[who].access)
-    const created = await as("requester").post("/tickets", { type: "INCIDENT", title: "Printer on fire", description: "x", impact: "LOW", urgency: "LOW" })
+    const created = await as("requester").post("/tickets", {
+      type: "INCIDENT",
+      title: "Printer on fire",
+      description: "x",
+      impact: "LOW",
+      urgency: "LOW",
+    })
     expect(created.status).toBe(201)
     const assigned = await as("agent").put(`/tickets/${String(created.body.id)}/assignment`, {
       version: created.body.version,
@@ -134,7 +140,9 @@ describe("with a worker running", () => {
     const flood = await org()
     const quiet = await org()
     const batches = 5
-    await owner.outboxEvent.createMany({ data: Array.from({ length: batches * DRAIN_BATCH }, (_, n) => ({ orgId: flood, type: "relay-spec", payload: { n } })) })
+    await owner.outboxEvent.createMany({
+      data: Array.from({ length: batches * DRAIN_BATCH }, (_, n) => ({ orgId: flood, type: "relay-spec", payload: { n } })),
+    })
     await owner.outboxEvent.create({ data: { orgId: quiet, type: "relay-spec", payload: { n: 0 } } })
     await untilConsumed(flood)
     await untilConsumed(quiet)

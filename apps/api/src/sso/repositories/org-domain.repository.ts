@@ -54,7 +54,10 @@ export class OrgDomainRepository {
 
   /** A new claim, unproved; `null` removes the domain. Either way the old proof is gone, and joining by it with the proof. */
   async claim(orgId: string, domain: string | null, challenge: string | null): Promise<void> {
-    await this.prisma.db.organization.update({ where: { id: orgId }, data: { domain, domainChallenge: challenge, domainVerifiedAt: null, allowDomainJoin: false } })
+    await this.prisma.db.organization.update({
+      where: { id: orgId },
+      data: { domain, domainChallenge: challenge, domainVerifiedAt: null, allowDomainJoin: false },
+    })
   }
 
   /** Joining by the proved domain on or off, and its role (TENANCY.md §5). A check constraint holds it to a proved domain. */

@@ -146,7 +146,9 @@ export class OidcClient {
     try {
       issuer = checkTarget(connection.issuer, this.allowPrivate)
     } catch (error) {
-      throw new OidcRejectedError(error instanceof BlockedTargetError ? error.message.replace("webhook target refused", "issuer refused") : "not a URL")
+      throw new OidcRejectedError(
+        error instanceof BlockedTargetError ? error.message.replace("webhook target refused", "issuer refused") : "not a URL",
+      )
     }
     try {
       return await oidc.discovery(issuer, connection.clientId, undefined, oidc.ClientSecretBasic(connection.clientSecret), {
@@ -198,7 +200,8 @@ export class OidcClient {
     if (error instanceof BlockedTargetError) return new OidcRejectedError("issuer refused")
     const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code: unknown }).code) : ""
     // `openid-client` names its own validation failures; anything else is the wire.
-    if (code.startsWith("OAUTH_") && !["OAUTH_RESPONSE_IS_NOT_JSON", "OAUTH_RESPONSE_IS_NOT_CONFORM"].includes(code)) return new OidcRejectedError(code)
+    if (code.startsWith("OAUTH_") && !["OAUTH_RESPONSE_IS_NOT_JSON", "OAUTH_RESPONSE_IS_NOT_CONFORM"].includes(code))
+      return new OidcRejectedError(code)
     return new OidcUnavailableError(step)
   }
 }

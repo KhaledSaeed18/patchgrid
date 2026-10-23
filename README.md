@@ -53,10 +53,10 @@ The application connects as `patchgrid_app`, a role with no `BYPASSRLS`, and set
 transaction-local `set_config` before every query. Jobs carry their `orgId` and run inside that tenant.
 Images and the production topology: [`ARCHITECTURE.md`](docs/ARCHITECTURE.md#production-images-and-the-deployment-shape).
 
-| | |
-| --- | --- |
-| ![The marketing site](docs/images/www.png) | ![An agent's queue, with deadlines counting down and the overdue ones marked](docs/images/queue.png) |
-| ![A change awaiting the team lead's approval, with its plan and rollback](docs/images/change.png) | ![The knowledge base: published answers, internal runbooks and drafts](docs/images/knowledge.png) |
+|                                                                                                   |                                                                                                      |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| ![The marketing site](docs/images/www.png)                                                        | ![An agent's queue, with deadlines counting down and the overdue ones marked](docs/images/queue.png) |
+| ![A change awaiting the team lead's approval, with its plan and rollback](docs/images/change.png) | ![The knowledge base: published answers, internal runbooks and drafts](docs/images/knowledge.png)    |
 
 ## Isolation, in five layers
 
@@ -98,8 +98,10 @@ members who could open that ticket — a CI test holds that decision equal to th
   their own and name them when they raise a ticket.
 - **Email intake** — mail to `<slug>@inbound.<domain>` becomes a ticket, and a reply to a
   ticket email lands on its ticket. That only happens when the sender passes DMARC and is a
-  member. Everything else is recorded in an admin's inbound log and left at that: forged
-  senders, strangers, autoresponders and floods.
+  member — or, when a workspace opts in, someone outside it, who becomes an external requester:
+  a membership with no account, badged as such, who hears back by email. Everything else is
+  recorded in an admin's inbound log and left at that: forged senders, strangers,
+  autoresponders and floods.
 - **Knowledge base** — markdown articles that are drafts, internal runbooks or
   published to the workspace. Full-text search; versioned edits; suggestions under
   a new ticket's title while a requester types.
@@ -115,13 +117,15 @@ members who could open that ticket — a CI test holds that decision equal to th
   prove its email domain by DNS and connect its own OpenID Connect provider (PKCE, the token's
   signature checked, every request to the provider SSRF-guarded): people at the domain sign in through
   it and are added on first sign-in at a default role. That session opens that workspace and no other,
-  and "SSO required" always leaves the owners their own way in.
+  and "SSO required" always leaves the owners their own way in. Without a provider, an owner can let
+  anyone with a verified address at the proved domain join on their own.
 - **Notifications** —
   - a bell and inbox, with a burst on one ticket folded into one row;
   - live updates over Server-Sent Events, including an "assigned to you" toast and
     queues and ticket pages that refresh themselves;
-  - email for assignments, replies, status changes and SLA events, with
-    preferences per membership and a workspace-wide off switch.
+  - email for assignments, replies, status changes, SLA events and plan limits reached, with
+    preferences per membership and a workspace-wide off switch — queued with the event it
+    reports, so at least once.
 - **Reports** — SLA compliance by priority, type, team, category or assignee, time to resolve
   (median and p90), the open backlog by age, and who holds the work, with a CSV download.
 - **Saved views and bulk actions** — a queue's filters saved for oneself or a team, and up to two
@@ -129,10 +133,12 @@ members who could open that ticket — a CI test holds that decision equal to th
 - **Webhooks** — an admin subscribes an https endpoint to ticket events. Requests are signed
   (Standard Webhooks), carry ids and states but never a ticket's words, are retried with growing
   waits, pause a failing endpoint behind a circuit breaker, and can be replayed from a delivery log.
-  An address that resolves anywhere private is refused at the moment of connecting.
+  An address that resolves anywhere private is refused at the moment of connecting. An event any
+  consumer gave up on can be replayed by an admin.
 - **Housekeeping jobs** — audit-log partitions kept a month ahead and archived past
-  seven years, a nightly repair of the org picker's projection, and a sweep that
-  clears uploads nobody finished and gives their quota back.
+  seven years (two on the free plan), a nightly repair of the org picker's projection, a
+  nightly recount of every plan counter from its rows, and a sweep that clears uploads
+  nobody finished and gives their quota back.
 - **The platform layer** —
   - an operator back-office at `admin.<domain>`, behind its own login and a TOTP second
     factor, that sees workspace metadata and never their content;
@@ -225,11 +231,11 @@ tenant, and a 5xx's `correlationId` is the trace id.
 
 Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
 
-| Account | Who they are |
-| --- | --- |
+| Account               | Who they are                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dana@patchgrid.test` | Admin at Acme and agent at Globex — sees the workspace picker; also the platform operator at `admin.lvh.me:3001`, who enrols a TOTP factor on first sign-in |
-| `sam@patchgrid.test` | Agent at Acme |
-| `rita@patchgrid.test` | Requester at Acme |
+| `sam@patchgrid.test`  | Agent at Acme                                                                                                                                               |
+| `rita@patchgrid.test` | Requester at Acme                                                                                                                                           |
 
 ### Tests
 
@@ -261,6 +267,7 @@ The docs are the specification, not a description written afterwards.
 ## Status
 
 **M0 (foundation) through M6, and M8 to M11, are complete:**
+
 - tenancy and identity;
 - the incident lifecycle;
 - SLA sweeps and notifications;

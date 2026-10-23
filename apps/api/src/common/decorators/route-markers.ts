@@ -28,8 +28,7 @@ export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUB
  * These may not touch tenant-owned repositories except through `runAsTenant` /
  * `runAsPlatform` (ADR-0022).
  */
-export const TenantOptional = (): MethodDecorator & ClassDecorator =>
-  SetMetadata(IS_TENANT_OPTIONAL, true)
+export const TenantOptional = (): MethodDecorator & ClassDecorator => SetMetadata(IS_TENANT_OPTIONAL, true)
 
 export const ALLOWS_SSO_SESSION = Symbol("ALLOWS_SSO_SESSION")
 

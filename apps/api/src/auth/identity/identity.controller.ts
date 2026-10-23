@@ -86,10 +86,7 @@ export class IdentityController {
   @Post("password")
   @TenantOptional()
   @HttpCode(204)
-  async changePassword(
-    @Body() body: ChangePasswordDto,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<void> {
+  async changePassword(@Body() body: ChangePasswordDto, @Res({ passthrough: true }) response: Response): Promise<void> {
     const identity = this.actors.requireIdentity()
     const clear = await this.identity.changePassword(identity.userId, body.currentPassword, body.newPassword)
     this.cookies.clear(response, clear)

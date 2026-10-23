@@ -1,10 +1,4 @@
-import {
-  REOPEN_WINDOW_DAYS,
-  type Role,
-  type TicketAction,
-  type TicketStatus,
-  type TicketType,
-} from "@patchgrid/contracts"
+import { REOPEN_WINDOW_DAYS, type Role, type TicketAction, type TicketStatus, type TicketType } from "@patchgrid/contracts"
 
 /**
  * The per-type transition table (DOMAIN.md §2, ADR-0002, ADR-0006) — as data,
@@ -152,7 +146,14 @@ const PROBLEM_TABLE: readonly TransitionRow[] = [
   { from: ["NEW"], action: "assign", to: "ASSIGNED", who: "agent", comment: "none" },
   { from: ["NEW", "ASSIGNED"], action: "start", to: "IN_PROGRESS", who: "worker", comment: "none" },
   { from: ["IN_PROGRESS"], action: "workaround", to: "KNOWN_ERROR", who: "assignee_or_admin", comment: "none", guard: hasWorkaround },
-  { from: ["IN_PROGRESS", "KNOWN_ERROR"], action: "resolve", to: "RESOLVED", who: "assignee_or_admin", comment: "none", guard: hasRootCause },
+  {
+    from: ["IN_PROGRESS", "KNOWN_ERROR"],
+    action: "resolve",
+    to: "RESOLVED",
+    who: "assignee_or_admin",
+    comment: "none",
+    guard: hasRootCause,
+  },
   { from: ["RESOLVED"], action: "close", to: "CLOSED", who: "agent", comment: "none" },
   {
     from: ["NEW", "ASSIGNED", "IN_PROGRESS", "KNOWN_ERROR"],
@@ -222,10 +223,7 @@ export function mayPerform(who: Who, actor: ActorRelation): boolean {
     case "assignee_or_admin":
       return ADMIN_ROLES.has(actor.role) || (AGENT_ROLES.has(actor.role) && actor.isAssignee)
     case "worker":
-      return (
-        ADMIN_ROLES.has(actor.role) ||
-        (AGENT_ROLES.has(actor.role) && (actor.isAssignee || !actor.ticketHasAssignee))
-      )
+      return ADMIN_ROLES.has(actor.role) || (AGENT_ROLES.has(actor.role) && (actor.isAssignee || !actor.ticketHasAssignee))
     case "requester_or_agent":
       return AGENT_ROLES.has(actor.role) || actor.isRequester
     case "change_owner":
@@ -292,12 +290,7 @@ function permitted(row: TransitionRow, actor: ActorRelation): boolean {
  * or for the confirmation. A guard that fails does hide it — `submit` without
  * a plan is not on offer until the plan is written.
  */
-export function availableActions(input: {
-  type: TicketType
-  ticket: TransitionTicket
-  actor: ActorRelation
-  now: Date
-}): TicketAction[] {
+export function availableActions(input: { type: TicketType; ticket: TransitionTicket; actor: ActorRelation; now: Date }): TicketAction[] {
   const actions = TRANSITION_TABLES[input.type]
     .filter((row) => row.from.includes(input.ticket.status))
     .filter((row) => permitted(row, input.actor))

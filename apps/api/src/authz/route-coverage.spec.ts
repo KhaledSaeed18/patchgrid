@@ -20,9 +20,7 @@ function modulesFrom(root: Type): Set<Type> {
   const seen = new Set<Type>()
   const visit = (entry: unknown): void => {
     // A dynamic module is `{ module, imports?, controllers? }`; a static one is the class.
-    const moduleClass = (typeof entry === "function" ? entry : (entry as { module?: Type } | null)?.module) as
-      | Type
-      | undefined
+    const moduleClass = (typeof entry === "function" ? entry : (entry as { module?: Type } | null)?.module) as Type | undefined
     if (moduleClass === undefined || seen.has(moduleClass)) return
     seen.add(moduleClass)
     const imports = [
@@ -52,9 +50,7 @@ function routesOf(controller: Type): Route[] {
         [IS_PLATFORM, "platform"],
         [REQUIRED_PERMISSION, "permission"],
       ].flatMap(([key, label]) =>
-        Reflect.getMetadata(key, handler) !== undefined || Reflect.getMetadata(key, controller) !== undefined
-          ? [label as string]
-          : [],
+        Reflect.getMetadata(key, handler) !== undefined || Reflect.getMetadata(key, controller) !== undefined ? [label as string] : [],
       )
       return [{ route: `${method} /${base}/${path}`.replace(/\/+/g, "/").replace(/\/$/, ""), markers }]
     })

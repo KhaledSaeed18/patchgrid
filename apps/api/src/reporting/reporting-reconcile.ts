@@ -49,7 +49,14 @@ export class ReportingReconcileService {
       const batch = await this.prisma.transaction(async () => {
         await this.reporting.lockFacts(orgId)
         const tickets = await this.reporting.page(orgId, cursor, BATCH)
-        const stored = new Map((await this.reporting.facts(orgId, tickets.map((t) => t.id))).map((f) => [f.ticketId, f]))
+        const stored = new Map(
+          (
+            await this.reporting.facts(
+              orgId,
+              tickets.map((t) => t.id),
+            )
+          ).map((f) => [f.ticketId, f]),
+        )
         const changed: Fact[] = []
         let missed = 0
         for (const ticket of tickets) {

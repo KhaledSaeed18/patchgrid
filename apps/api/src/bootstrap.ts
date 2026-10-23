@@ -76,7 +76,6 @@ export async function bootstrap(): Promise<void> {
 
   const logger = app.get(Logger)
   logger.log(
-    `api listening on http://api.${config.ROOT_DOMAIN}:${String(config.PORT)} ` +
-      `(${config.NODE_ENV}, root domain ${config.ROOT_DOMAIN})`,
+    `api listening on http://api.${config.ROOT_DOMAIN}:${String(config.PORT)} ` + `(${config.NODE_ENV}, root domain ${config.ROOT_DOMAIN})`,
   )
 }

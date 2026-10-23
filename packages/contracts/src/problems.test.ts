@@ -43,9 +43,7 @@ describe("problem types", () => {
   })
 
   it("builds type URIs on the real domain", () => {
-    expect(problemTypeUrl("invalid-transition")).toBe(
-      "https://patchgrid.xyz/problems/invalid-transition",
-    )
+    expect(problemTypeUrl("invalid-transition")).toBe("https://patchgrid.xyz/problems/invalid-transition")
   })
 })
 
@@ -70,9 +68,6 @@ describe("problemDetailsSchema", () => {
   })
 
   it("rejects a status outside the HTTP range", () => {
-    expect(
-      problemDetailsSchema.safeParse({ type: problemTypeUrl("conflict"), title: "x", status: 99 })
-        .success,
-    ).toBe(false)
+    expect(problemDetailsSchema.safeParse({ type: problemTypeUrl("conflict"), title: "x", status: 99 }).success).toBe(false)
   })
 })

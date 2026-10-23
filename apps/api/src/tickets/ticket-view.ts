@@ -1,17 +1,10 @@
-import {
-  formatTicketNumber,
-  type Ticket,
-  type TicketAction,
-  type TicketCapabilities,
-  type TicketSummary,
-} from "@patchgrid/contracts"
+import { formatTicketNumber, type Ticket, type TicketAction, type TicketCapabilities, type TicketSummary } from "@patchgrid/contracts"
 
 import { clockView } from "./domain/sla"
 import type { TicketRow, TicketSummaryRow } from "./repositories/ticket.repository"
 
 const iso = (d: Date | null) => d?.toISOString() ?? null
-const person = (p: { id: string; displayName: string } | null) =>
-  p === null ? null : { membershipId: p.id, displayName: p.displayName }
+const person = (p: { id: string; displayName: string } | null) => (p === null ? null : { membershipId: p.id, displayName: p.displayName })
 
 /** The deadline that matters now: response until answered, then resolution; none once resolved or cancelled. */
 function due(row: Pick<TicketSummaryRow, "status" | "respondBy" | "resolveBy" | "respondedAt" | "resolvedAt">): Date | null {
@@ -35,20 +28,13 @@ export function toSummary(row: TicketSummaryRow, now: Date): TicketSummary {
     team: row.team,
     dueAt: iso(dueAt),
     breached:
-      row.responseBreached ||
-      row.resolutionBreached ||
-      (dueAt !== null && row.pausedAt === null && dueAt.getTime() < now.getTime()),
+      row.responseBreached || row.resolutionBreached || (dueAt !== null && row.pausedAt === null && dueAt.getTime() < now.getTime()),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
 }
 
-export function toTicket(
-  row: TicketRow,
-  now: Date,
-  availableActions: TicketAction[],
-  capabilities: TicketCapabilities,
-): Ticket {
+export function toTicket(row: TicketRow, now: Date, availableActions: TicketAction[], capabilities: TicketCapabilities): Ticket {
   const clocks = clockView(row, now)
   const clock = (c: typeof clocks.response) => ({
     due: iso(c.due),

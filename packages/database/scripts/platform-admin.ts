@@ -45,7 +45,9 @@ async function main(): Promise<void> {
         update: { revokedAt: null, grantedAt: new Date() },
         select: { id: true },
       })
-      await db.platformAuditLog.create({ data: { action: "PLATFORM_ADMIN_GRANTED", targetUserId: user.id, diff: { platformAdminId: admin.id } } })
+      await db.platformAuditLog.create({
+        data: { action: "PLATFORM_ADMIN_GRANTED", targetUserId: user.id, diff: { platformAdminId: admin.id } },
+      })
       const factor = await db.userMfaFactor.findFirst({ where: { userId: user.id, confirmedAt: { not: null } }, select: { id: true } })
       console.log(`platform: ${email} is an operator.`)
       if (factor === null) {

@@ -183,10 +183,24 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     })
     await db.ticketCounter.create({ data: { orgId: org.id, type: "INCIDENT", nextValue: 2 } })
     const reply = await db.comment.create({
-      data: { orgId: org.id, ticketId: ticket.id, authorMembershipId: members[agentKey] ?? null, authorKind: "MEMBER", body: "Looking into it.", visibility: "PUBLIC" },
+      data: {
+        orgId: org.id,
+        ticketId: ticket.id,
+        authorMembershipId: members[agentKey] ?? null,
+        authorKind: "MEMBER",
+        body: "Looking into it.",
+        visibility: "PUBLIC",
+      },
     })
     const note = await db.comment.create({
-      data: { orgId: org.id, ticketId: ticket.id, authorMembershipId: members[agentKey] ?? null, authorKind: "MEMBER", body: "Looks like the concentrator's lease.", visibility: "INTERNAL" },
+      data: {
+        orgId: org.id,
+        ticketId: ticket.id,
+        authorMembershipId: members[agentKey] ?? null,
+        authorKind: "MEMBER",
+        body: "Looks like the concentrator's lease.",
+        visibility: "INTERNAL",
+      },
     })
     await db.ticketWatcher.create({
       data: { orgId: org.id, ticketId: ticket.id, membershipId: members.dana ?? "", addedByMembershipId: members[agentKey] ?? "" },
@@ -258,7 +272,14 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     })
     const approver = which === "acme" ? "alice" : "gus"
     await db.changeApproval.create({
-      data: { orgId: org.id, ticketId: change.id, approverMembershipId: members[approver] ?? "", decision: "REJECTED", reason: "Needs a rollback plan.", decidedAt: now },
+      data: {
+        orgId: org.id,
+        ticketId: change.id,
+        approverMembershipId: members[approver] ?? "",
+        decision: "REJECTED",
+        reason: "Needs a rollback plan.",
+        decidedAt: now,
+      },
     })
     // A file on the incident's public reply — a row only; the isolation suite never fetches bytes.
     await db.attachment.create({
@@ -278,8 +299,20 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     })
     await db.ticketLink.createMany({
       data: [
-        { orgId: org.id, fromTicketId: ticket.id, toTicketId: problem.id, relation: "CAUSED_BY", createdByMembershipId: members[agentKey] ?? "" },
-        { orgId: org.id, fromTicketId: problem.id, toTicketId: change.id, relation: "RESOLVED_BY", createdByMembershipId: members[agentKey] ?? "" },
+        {
+          orgId: org.id,
+          fromTicketId: ticket.id,
+          toTicketId: problem.id,
+          relation: "CAUSED_BY",
+          createdByMembershipId: members[agentKey] ?? "",
+        },
+        {
+          orgId: org.id,
+          fromTicketId: problem.id,
+          toTicketId: change.id,
+          relation: "RESOLVED_BY",
+          createdByMembershipId: members[agentKey] ?? "",
+        },
       ],
     })
 
@@ -349,13 +382,29 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     // A support session requested and declined, so isolation has a row on each side (ADR-0041).
     const operator = await db.user.upsert({
       where: { email: `lookalike-operator${options.emailSuffix}@patchgrid.test` },
-      create: { email: `lookalike-operator${options.emailSuffix}@patchgrid.test`, name: "Lookalike Operator", passwordHash: options.passwordHash, emailVerifiedAt: now },
+      create: {
+        email: `lookalike-operator${options.emailSuffix}@patchgrid.test`,
+        name: "Lookalike Operator",
+        passwordHash: options.passwordHash,
+        emailVerifiedAt: now,
+      },
       update: {},
       select: { id: true },
     })
-    const operatorAdmin = await db.platformAdmin.upsert({ where: { userId: operator.id }, create: { userId: operator.id }, update: {}, select: { id: true } })
+    const operatorAdmin = await db.platformAdmin.upsert({
+      where: { userId: operator.id },
+      create: { userId: operator.id },
+      update: {},
+      select: { id: true },
+    })
     await db.supportSession.create({
-      data: { orgId: org.id, platformAdminId: operatorAdmin.id, reason: "Diagnose a VPN ticket", decidedByMembershipId: owner, declinedAt: now },
+      data: {
+        orgId: org.id,
+        platformAdminId: operatorAdmin.id,
+        reason: "Diagnose a VPN ticket",
+        decidedByMembershipId: owner,
+        declinedAt: now,
+      },
     })
 
     // A revoked API token and its service account, so isolation has a row on each side (ADR-0042).
@@ -389,10 +438,14 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       select: { id: true },
     })
     await db.eventConsumer.create({ data: { orgId: org.id, consumer: "lookalike" } })
-    await db.eventDeadLetter.create({ data: { orgId: org.id, consumer: "lookalike", eventId: event.id, failures: 3, error: "Lookalike failure" } })
+    await db.eventDeadLetter.create({
+      data: { orgId: org.id, consumer: "lookalike", eventId: event.id, failures: 3, error: "Lookalike failure" },
+    })
 
     // A saved view, so isolation has a row on each side (ADR-0052).
-    await db.savedView.create({ data: { orgId: org.id, ownerMembershipId: owner, name: "Lookalike view", query: { view: "open", sort: "newest" } } })
+    await db.savedView.create({
+      data: { orgId: org.id, ownerMembershipId: owner, name: "Lookalike view", query: { view: "open", sort: "newest" } },
+    })
 
     // A reporting fact for the ticket, so isolation has a row on each side (ADR-0051). An upsert: a
     // running app's reporting consumer may already have written this ticket's fact from the log.
@@ -424,7 +477,16 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       select: { id: true },
     })
     await db.webhookDelivery.create({
-      data: { orgId: org.id, endpointId: endpoint.id, eventId: event.id, eventType: "ticket.created", payload: {}, status: "DEAD", attempts: 7, lastError: "Lookalike failure" },
+      data: {
+        orgId: org.id,
+        endpointId: endpoint.id,
+        eventId: event.id,
+        eventType: "ticket.created",
+        payload: {},
+        status: "DEAD",
+        attempts: 7,
+        lastError: "Lookalike failure",
+      },
     })
 
     // A disabled SSO connection and one linked identity, so isolation has a row on each side (ADR-0054).

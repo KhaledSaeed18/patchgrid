@@ -65,12 +65,30 @@ export class DomainJoinService {
         if ((await this.memberships.findByUser(org.id, account.id)) !== null) throw new ConflictProblem("You are already in this workspace")
         if (role !== "REQUESTER") await this.quota.consume(org.id, "AGENT_SEATS")
         const now = this.clock.now()
-        const id = await this.memberships.create(org.id, { userId: account.id, role, displayName: account.name, invitedByMembershipId: null, joinedAt: now })
-        await this.workspaces.upsert({ userId: account.id, orgId: org.id, role, status: "ACTIVE", orgSlug: org.slug, orgName: org.name, orgStatus: "ACTIVE" })
-        await this.audit.record(org.id, [{ action: "MEMBER_JOINED", entityType: "Membership", entityId: id, diff: { via: "domain", role, domain: current.domain } }], {
-          kind: "member",
-          membershipId: id,
+        const id = await this.memberships.create(org.id, {
+          userId: account.id,
+          role,
+          displayName: account.name,
+          invitedByMembershipId: null,
+          joinedAt: now,
         })
+        await this.workspaces.upsert({
+          userId: account.id,
+          orgId: org.id,
+          role,
+          status: "ACTIVE",
+          orgSlug: org.slug,
+          orgName: org.name,
+          orgStatus: "ACTIVE",
+        })
+        await this.audit.record(
+          org.id,
+          [{ action: "MEMBER_JOINED", entityType: "Membership", entityId: id, diff: { via: "domain", role, domain: current.domain } }],
+          {
+            kind: "member",
+            membershipId: id,
+          },
+        )
         return id
       }),
     )

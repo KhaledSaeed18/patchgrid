@@ -67,14 +67,13 @@ export class AuditLogRepository {
         ...(query.action === undefined ? {} : { action: query.action }),
         ...(query.from === undefined && query.to === undefined
           ? {}
-          : { createdAt: { ...(query.from === undefined ? {} : { gte: query.from }), ...(query.to === undefined ? {} : { lt: query.to }) } }),
+          : {
+              createdAt: { ...(query.from === undefined ? {} : { gte: query.from }), ...(query.to === undefined ? {} : { lt: query.to }) },
+            }),
         ...(query.before === null
           ? {}
           : {
-              OR: [
-                { createdAt: { lt: query.before.createdAt } },
-                { createdAt: query.before.createdAt, id: { lt: query.before.id } },
-              ],
+              OR: [{ createdAt: { lt: query.before.createdAt } }, { createdAt: query.before.createdAt, id: { lt: query.before.id } }],
             }),
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],

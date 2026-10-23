@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  createTicketRequestSchema,
-  ticketSearchQuerySchema,
-  transitionRequestSchema,
-  updateTicketRequestSchema,
-} from "./tickets.ts"
+import { createTicketRequestSchema, ticketSearchQuerySchema, transitionRequestSchema, updateTicketRequestSchema } from "./tickets.ts"
 
 const base = { type: "INCIDENT", title: "VPN drops", description: "Every hour", impact: "MEDIUM", urgency: "HIGH" }
 
@@ -22,7 +17,10 @@ describe("ticket requests", () => {
   })
 
   it("carry a Change's plan as optional fields, and refuse a link list that is empty or too long", () => {
-    expect(createTicketRequestSchema.safeParse({ ...base, type: "CHANGE", change: { risk: "HIGH", plannedStart: "2026-10-20T08:00:00.000Z" } }).success).toBe(true)
+    expect(
+      createTicketRequestSchema.safeParse({ ...base, type: "CHANGE", change: { risk: "HIGH", plannedStart: "2026-10-20T08:00:00.000Z" } })
+        .success,
+    ).toBe(true)
     expect(createTicketRequestSchema.safeParse({ ...base, type: "PROBLEM", causedIncidentIds: [] }).success).toBe(false)
     expect(createTicketRequestSchema.safeParse({ ...base, type: "CHANGE", change: { risk: "EXTREME" } }).success).toBe(false)
   })

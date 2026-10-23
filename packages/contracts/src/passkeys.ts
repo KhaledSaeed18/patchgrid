@@ -147,7 +147,9 @@ export const holderProofSchema = z
     passkey: passkeyProofSchema.optional(),
     password: z.string().min(1).max(200).optional(),
   })
-  .refine((v) => exactlyOne([v.code, v.recoveryCode, v.passkey, v.password]), { error: "send a code, a recovery code, a passkey or the password" })
+  .refine((v) => exactlyOne([v.code, v.recoveryCode, v.passkey, v.password]), {
+    error: "send a code, a recovery code, a passkey or the password",
+  })
 export type HolderProof = z.infer<typeof holderProofSchema>
 
 export const passkeyRegistrationOptionsRequestSchema = holderProofSchema

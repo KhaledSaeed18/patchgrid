@@ -37,10 +37,7 @@ const INFRASTRUCTURE_LABELS: ReadonlySet<string> = new Set(["www", "app", "admin
  * - `foreign`: not ours, or not an origin at all. CORS refuses it credentials;
  *   resolution refuses it a tenant.
  */
-export type OriginClass =
-  | { kind: "tenant"; slug: string }
-  | { kind: "infrastructure"; label: string }
-  | { kind: "foreign" }
+export type OriginClass = { kind: "tenant"; slug: string } | { kind: "infrastructure"; label: string } | { kind: "foreign" }
 
 export function classifyOrigin(origin: string, policy: OriginPolicy): OriginClass {
   let url: URL
@@ -85,8 +82,7 @@ export function classifyOrigin(origin: string, policy: OriginPolicy): OriginClas
 
   if (INFRASTRUCTURE_LABELS.has(label)) return { kind: "infrastructure", label }
 
-  const isSlug =
-    label.length >= SLUG_MIN_LENGTH && label.length <= SLUG_MAX_LENGTH && SLUG_PATTERN.test(label)
+  const isSlug = label.length >= SLUG_MIN_LENGTH && label.length <= SLUG_MAX_LENGTH && SLUG_PATTERN.test(label)
   return isSlug ? { kind: "tenant", slug: label } : { kind: "foreign" }
 }
 
@@ -109,10 +105,7 @@ export function originPolicyFrom(config: {
 
 /** The callback shape Nest's CORS options expect. */
 export function corsOriginCallback(policy: OriginPolicy) {
-  return (
-    origin: string | undefined,
-    callback: (error: Error | null, allow?: boolean) => void,
-  ): void => {
+  return (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void): void => {
     // Same-origin and server-to-server requests send no Origin. They are not
     // subject to CORS at all; the tenant binding still comes from the credential
     // (ADR-0024), so allowing them here grants nothing.

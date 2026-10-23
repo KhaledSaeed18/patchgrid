@@ -79,8 +79,13 @@ describe("registration", () => {
 describe("the assertion", () => {
   it("is base64url throughout, and bounded", () => {
     expect(passkeyAssertionCredentialSchema.safeParse(assertion).success).toBe(true)
-    expect(passkeyAssertionCredentialSchema.safeParse({ ...assertion, response: { ...assertion.response, signature: "c2ln==" } }).success).toBe(false)
-    expect(passkeyAssertionCredentialSchema.safeParse({ ...assertion, response: { ...assertion.response, signature: "a".repeat(1025) } }).success).toBe(false)
+    expect(
+      passkeyAssertionCredentialSchema.safeParse({ ...assertion, response: { ...assertion.response, signature: "c2ln==" } }).success,
+    ).toBe(false)
+    expect(
+      passkeyAssertionCredentialSchema.safeParse({ ...assertion, response: { ...assertion.response, signature: "a".repeat(1025) } })
+        .success,
+    ).toBe(false)
     expect(passkeyAssertionCredentialSchema.safeParse({ ...assertion, type: "password" }).success).toBe(false)
   })
 

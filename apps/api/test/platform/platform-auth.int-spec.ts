@@ -71,6 +71,7 @@ function admin(jar: Map<string, string> = new Map()) {
 }
 
 let secret = ""
+let confirmedCode = ""
 let recovery: string[] = []
 
 describe("signing in", () => {
@@ -97,7 +98,8 @@ describe("signing in", () => {
     expect(enrol.body.otpauthUri).toMatch(/^otpauth:\/\/totp\//)
     secret = enrol.body.secret as string
     expect((await browser.post("/auth/mfa/confirm", { code: "000000" })).status).toBe(400)
-    const confirm = await browser.post("/auth/mfa/confirm", { code: codeAt(secret, new Date()) })
+    confirmedCode = codeAt(secret, new Date())
+    const confirm = await browser.post("/auth/mfa/confirm", { code: confirmedCode })
     expect(confirm.status).toBe(200)
     recovery = confirm.body.recoveryCodes as string[]
     expect(recovery).toHaveLength(10)
@@ -112,8 +114,9 @@ describe("signing in", () => {
   it("verifies with a code once, and with a recovery code once", async () => {
     const first = admin()
     expect((await first.post("/auth/login", { email: operator.email, password: PASSWORD })).body).toEqual({ next: "verify" })
-    // The code that confirmed enrolment is spent: the same step never works twice.
-    const replay = await first.post("/auth/mfa", { code: codeAt(secret, new Date()) })
+    // The code that confirmed enrolment is spent: the same step never works twice. The very code, not
+    // one made now — across a 30-second boundary that would be the next step's, and rightly accepted.
+    const replay = await first.post("/auth/mfa", { code: confirmedCode })
     expect(replay.status).toBe(400)
     const code = recovery[0] ?? ""
     expect((await first.post("/auth/mfa", { recoveryCode: code.toUpperCase() })).status).toBe(204)
@@ -123,7 +126,9 @@ describe("signing in", () => {
     await second.post("/auth/login", { email: operator.email, password: PASSWORD })
     expect((await second.post("/auth/mfa", { recoveryCode: code })).status).toBe(400)
     const audit = await db.platformAuditLog.findMany({ where: { platformAdminId: operator.adminId }, select: { action: true } })
-    expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(["PLATFORM_MFA_ENROLLED", "PLATFORM_SIGNED_IN", "PLATFORM_RECOVERY_CODE_USED"]))
+    expect(audit.map((a) => a.action)).toEqual(
+      expect.arrayContaining(["PLATFORM_MFA_ENROLLED", "PLATFORM_SIGNED_IN", "PLATFORM_RECOVERY_CODE_USED"]),
+    )
   })
 
   it("signs out everywhere, and a revoked grant ends logins", async () => {

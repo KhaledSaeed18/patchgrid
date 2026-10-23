@@ -18,7 +18,8 @@ const acme: OrganizationSummary = {
   status: "ACTIVE",
   plan: "FREE",
   agentVisibility: "ALL_TICKETS",
-  requireMfa: false, requireSso: false,
+  requireMfa: false,
+  requireSso: false,
 }
 const lookup: OrganizationLookup = {
   byId: async (id) => (id === acme.id ? acme : null),
@@ -59,12 +60,9 @@ describe("GET /tenants/:slug", () => {
     expect(moved.body).toEqual({ status: "moved", slug: "acme", currentSlug: "acme-corp" })
   })
 
-  it.each(["nobody", "api", "Not%20A%20Slug", "a".repeat(40)])(
-    "is a 404 problem, never a 400, for %s",
-    async (slug) => {
-      const response = await request(app.getHttpServer()).get(`/tenants/${slug}`)
-      expect(response.status).toBe(404)
-      expect(response.body.type).toBe("https://patchgrid.xyz/problems/not-found")
-    },
-  )
+  it.each(["nobody", "api", "Not%20A%20Slug", "a".repeat(40)])("is a 404 problem, never a 400, for %s", async (slug) => {
+    const response = await request(app.getHttpServer()).get(`/tenants/${slug}`)
+    expect(response.status).toBe(404)
+    expect(response.body.type).toBe("https://patchgrid.xyz/problems/not-found")
+  })
 })

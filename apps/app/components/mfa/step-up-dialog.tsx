@@ -1,6 +1,10 @@
 "use client"
 
-import { identityResponseSchema, mfaStatusSchema, stepUpResponseSchema } from "@patchgrid/contracts"
+import {
+  identityResponseSchema,
+  mfaStatusSchema,
+  stepUpResponseSchema,
+} from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import {
   Dialog,
@@ -47,7 +51,8 @@ export function StepUpDialog({
   const slug = open ? currentSlug() : null
   const identity = useQuery({
     queryKey: ["identity"],
-    queryFn: () => clientApi("/auth/identity", { schema: identityResponseSchema }),
+    queryFn: () =>
+      clientApi("/auth/identity", { schema: identityResponseSchema }),
     enabled: open,
   })
   // An identity that cannot be read is treated as an ordinary one: the factor form, never a spinner forever.

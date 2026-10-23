@@ -63,7 +63,12 @@ beforeAll(async () => {
   const former = await owner.organization.create({ data: { name: "Former", slug: `former-${suffix}` } })
   retiredOwnerId = former.id
   await owner.organizationSlugHistory.create({
-    data: { orgId: former.id, slug: retiredSlug, releasedAt: new Date(Date.now() - 86_400_000 * 40), redirectUntil: new Date(Date.now() - 86_400_000 * 10) },
+    data: {
+      orgId: former.id,
+      slug: retiredSlug,
+      releasedAt: new Date(Date.now() - 86_400_000 * 40),
+      redirectUntil: new Date(Date.now() - 86_400_000 * 10),
+    },
   })
 
   const login = await request(app.getHttpServer()).post("/api/v1/auth/login").set(HEADERS).send({ email, password })
@@ -71,7 +76,9 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  const orgIds = (await owner.organization.findMany({ where: { slug: { in: [slug, racedSlug, `former-${suffix}`] } }, select: { id: true } })).map((o) => o.id)
+  const orgIds = (
+    await owner.organization.findMany({ where: { slug: { in: [slug, racedSlug, `former-${suffix}`] } }, select: { id: true } })
+  ).map((o) => o.id)
   await owner.sLAPolicy.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.knowledgeArticle.deleteMany({ where: { orgId: { in: orgIds } } })
   await owner.category.deleteMany({ where: { orgId: { in: orgIds }, parentId: { not: null } } })
@@ -94,7 +101,11 @@ const create = (body: object) => http().post("/api/v1/orgs").set(HEADERS).set("C
 describe("workspace provisioning", () => {
   it("answers the live slug check, including a retired slug as taken", async () => {
     expect((await http().get(`/api/v1/orgs/slug-available?slug=${slug}`)).body).toEqual({ slug, available: true, reason: null })
-    expect((await http().get(`/api/v1/orgs/slug-available?slug=${retiredSlug}`)).body).toEqual({ slug: retiredSlug, available: false, reason: "taken" })
+    expect((await http().get(`/api/v1/orgs/slug-available?slug=${retiredSlug}`)).body).toEqual({
+      slug: retiredSlug,
+      available: false,
+      reason: "taken",
+    })
     expect((await http().get("/api/v1/orgs/slug-available?slug=api")).body.reason).toBe("reserved")
   })
 
@@ -117,19 +128,34 @@ describe("workspace provisioning", () => {
     expect(org?.memberships).toHaveLength(1)
     expect(org?.memberships[0]).toMatchObject({ userId, role: "OWNER", status: "ACTIVE", kind: "HUMAN", displayName: "Founder" })
     expect(org?.userOrgIndex[0]).toMatchObject({ userId, roleForDisplay: "OWNER", orgSlug: slug, orgName: "Acme" })
-    const seats = await owner.usageCounter.findUnique({ where: { orgId_period_metric: { orgId: org?.id ?? "", period: "current", metric: "AGENT_SEATS" } } })
+    const seats = await owner.usageCounter.findUnique({
+      where: { orgId_period_metric: { orgId: org?.id ?? "", period: "current", metric: "AGENT_SEATS" } },
+    })
     expect(seats?.value).toBe(1n)
     // The starter taxonomy, routed, and the eight SLA policies (TENANCY.md §4).
-    const network = await owner.category.findFirstOrThrow({ where: { orgId: org?.id ?? "", name: "Network", parentId: null }, include: { children: true, defaultTeam: true } })
+    const network = await owner.category.findFirstOrThrow({
+      where: { orgId: org?.id ?? "", name: "Network", parentId: null },
+      include: { children: true, defaultTeam: true },
+    })
     expect(network.defaultTeam?.name).toBe("Network")
     expect(network.children.map((c) => c.name).toSorted()).toEqual(["Other", "VPN", "Wi-Fi"])
     expect(await owner.sLAPolicy.count({ where: { orgId: org?.id ?? "" } })).toBe(8)
     // The starter knowledge base, the owner's, counted against the plan from the start.
-    const articles = await owner.knowledgeArticle.findMany({ where: { orgId: org?.id ?? "" }, select: { slug: true, visibility: true, authorMembershipId: true, category: { select: { name: true } } } })
-    expect(articles.map((a) => a.slug).toSorted()).toEqual(["how-to-raise-a-ticket", "reporting-a-suspicious-email", "what-the-priorities-mean", "working-the-queue"])
+    const articles = await owner.knowledgeArticle.findMany({
+      where: { orgId: org?.id ?? "" },
+      select: { slug: true, visibility: true, authorMembershipId: true, category: { select: { name: true } } },
+    })
+    expect(articles.map((a) => a.slug).toSorted()).toEqual([
+      "how-to-raise-a-ticket",
+      "reporting-a-suspicious-email",
+      "what-the-priorities-mean",
+      "working-the-queue",
+    ])
     expect(articles.every((a) => a.authorMembershipId === org?.memberships[0]?.id)).toBe(true)
     expect(articles.find((a) => a.slug === "reporting-a-suspicious-email")?.category?.name).toBe("Security")
-    const kb = await owner.usageCounter.findUnique({ where: { orgId_period_metric: { orgId: org?.id ?? "", period: "current", metric: "KB_ARTICLES" } } })
+    const kb = await owner.usageCounter.findUnique({
+      where: { orgId_period_metric: { orgId: org?.id ?? "", period: "current", metric: "KB_ARTICLES" } },
+    })
     expect(kb?.value).toBe(4n)
 
     // The session it opened works on the new tenant, as its owner.

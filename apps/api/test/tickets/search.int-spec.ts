@@ -95,7 +95,12 @@ describe("full text", () => {
 
   it("gives an admin the whole workspace, and still nothing of another tenant's", async () => {
     const res = await search(ws.people.admin, "printer")
-    expect(titles(res.body).toSorted()).toEqual(["Laptop fan is loud", "Printer jams", "Printer offline on floor three", "Printer toner is empty"])
+    expect(titles(res.body).toSorted()).toEqual([
+      "Laptop fan is loud",
+      "Printer jams",
+      "Printer offline on floor three",
+      "Printer toner is empty",
+    ])
     const theirs = await search(elsewhere.people.admin, "printer", elsewhere.origin)
     expect(titles(theirs.body)).toEqual(["Printer on fire"])
   })

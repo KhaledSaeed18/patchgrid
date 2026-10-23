@@ -118,7 +118,10 @@ beforeAll(async () => {
   })
 
   // One audited change in each workspace, so the audit log has rows on both sides.
-  for (const [person, slug, team] of [["alice", slugs.acme, seed.acme.teams.Security], ["gus", slugs.globex, seed.globex.teams.Security]] as const) {
+  for (const [person, slug, team] of [
+    ["alice", slugs.acme, seed.acme.teams.Security],
+    ["gus", slugs.globex, seed.globex.teams.Security],
+  ] as const) {
     expect((await (await as(person, slug)).patch(`/teams/${team}`, { description: "Firewalls" })).status).toBe(200)
   }
 })
@@ -186,10 +189,29 @@ describe("2 · another org's id is a 404, never a 403", () => {
       ["read its thread", () => dana.get(`/tickets/${seed.globex.ticketId}/comments`)],
       ["read its trail", () => dana.get(`/tickets/${seed.globex.ticketId}/audit`)],
       ["edit it", () => dana.patch(`/tickets/${seed.globex.ticketId}`, { version: 1, title: "Hijacked" })],
-      ["move it on", () => dana.post(`/tickets/${seed.globex.ticketId}/transitions`, { action: "resolve", version: 1, comment: { body: "x", visibility: "PUBLIC" } })],
+      [
+        "move it on",
+        () =>
+          dana.post(`/tickets/${seed.globex.ticketId}/transitions`, {
+            action: "resolve",
+            version: 1,
+            comment: { body: "x", visibility: "PUBLIC" },
+          }),
+      ],
       ["comment on it", () => dana.post(`/tickets/${seed.globex.ticketId}/comments`, { body: "x", visibility: "PUBLIC" })],
       ["watch it", () => dana.put(`/tickets/${seed.globex.ticketId}/watchers/${ours.member}`)],
-      ["file under their category", () => dana.post("/tickets", { type: "INCIDENT", title: "x", description: "y", impact: "LOW", urgency: "LOW", categoryId: seed.globex.categories.laptop })],
+      [
+        "file under their category",
+        () =>
+          dana.post("/tickets", {
+            type: "INCIDENT",
+            title: "x",
+            description: "y",
+            impact: "LOW",
+            urgency: "LOW",
+            categoryId: seed.globex.categories.laptop,
+          }),
+      ],
     ]
     for (const [what, attempt] of attempts) {
       // Filing under a foreign category is a validation answer about the field, never a write.
@@ -198,7 +220,10 @@ describe("2 · another org's id is a 404, never a 403", () => {
     // And nothing moved on the other side.
     expect((await owner.membership.findUniqueOrThrow({ where: { id: theirs.member } })).status).toBe("ACTIVE")
     expect((await owner.team.findUniqueOrThrow({ where: { id: theirs.team } })).name).toBe("Network")
-    expect(await owner.ticket.findUniqueOrThrow({ where: { id: seed.globex.ticketId } })).toMatchObject({ title: "VPN drops every hour", status: "IN_PROGRESS" })
+    expect(await owner.ticket.findUniqueOrThrow({ where: { id: seed.globex.ticketId } })).toMatchObject({
+      title: "VPN drops every hour",
+      status: "IN_PROGRESS",
+    })
     expect(await owner.comment.count({ where: { ticketId: seed.globex.ticketId } })).toBe(2)
   })
 })
@@ -258,7 +283,7 @@ describe("4 · RLS holds when the repository does not", () => {
         "SavedView",
         "SsoConnection",
         "SsoIdentity",
-      ])
+      ]),
     )
 
     for (const table of tables) {
@@ -274,7 +299,10 @@ describe("4 · RLS holds when the repository does not", () => {
 describe("5 · WITH CHECK refuses a row written with a foreign orgId", () => {
   it("on the app role, with Globex's context set and Acme's orgId in the row", async () => {
     await expect(
-      raw(seed.globex.id, `INSERT INTO "Team" (id, "orgId", name, "updatedAt") VALUES ('${randomUUID()}', '${seed.acme.id}', 'Planted', now())`),
+      raw(
+        seed.globex.id,
+        `INSERT INTO "Team" (id, "orgId", name, "updatedAt") VALUES ('${randomUUID()}', '${seed.acme.id}', 'Planted', now())`,
+      ),
     ).rejects.toThrow(/row-level security/)
   })
 })
@@ -315,7 +343,13 @@ describe("8 · background jobs carry their tenant", () => {
 
   it("a sweep job without its tenant is refused, never run across tenants — every sweep", async () => {
     const job = { id: "isolation/sweep-missing-org", data: { tick: 1 } } as unknown as Job
-    for (const processor of [SlaScanProcessor, AutoCloseProcessor, AttachmentSweepProcessor, ProjectionReconcileProcessor, UsageReconcileProcessor]) {
+    for (const processor of [
+      SlaScanProcessor,
+      AutoCloseProcessor,
+      AttachmentSweepProcessor,
+      ProjectionReconcileProcessor,
+      UsageReconcileProcessor,
+    ]) {
       await expect(app.get(processor).process(job), processor.name).rejects.toBeInstanceOf(UnrecoverableError)
     }
   })
@@ -331,22 +365,35 @@ describe("8 · background jobs carry their tenant", () => {
     expect(await app.get(ProjectionReconcileProcessor).process(job)).toBe(2)
     expect(await owner.apiTokenIndex.count({ where: { orgId: seed.acme.id, revokedAt: null } })).toBe(0)
     expect(await owner.apiTokenIndex.count({ where: { orgId: seed.globex.id, revokedAt: null } })).toBe(1)
-    expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rita, orgId: seed.acme.id } } })).orgName).not.toBe("Drifted")
-    expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rosa, orgId: seed.globex.id } } })).orgName).toBe("Drifted")
-    await app.get(ProjectionReconcileProcessor).process({ id: "isolation/reconcile-globex", data: { orgId: seed.globex.id, tick: 1 } } as unknown as Job)
+    expect(
+      (await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rita, orgId: seed.acme.id } } })).orgName,
+    ).not.toBe("Drifted")
+    expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rosa, orgId: seed.globex.id } } })).orgName).toBe(
+      "Drifted",
+    )
+    await app
+      .get(ProjectionReconcileProcessor)
+      .process({ id: "isolation/reconcile-globex", data: { orgId: seed.globex.id, tick: 1 } } as unknown as Job)
   })
 
   it("usage-reconcile recounts one tenant's counters from its own rows and never touches the other's", async () => {
-    const seats = (orgId: string) => owner.usageCounter.findUniqueOrThrow({ where: { orgId_period_metric: { orgId, period: "current", metric: "AGENT_SEATS" } } })
+    const seats = (orgId: string) =>
+      owner.usageCounter.findUniqueOrThrow({ where: { orgId_period_metric: { orgId, period: "current", metric: "AGENT_SEATS" } } })
     const [acmeSeats, globexSeats] = [(await seats(seed.acme.id)).value, (await seats(seed.globex.id)).value]
-    await owner.usageCounter.updateMany({ where: { orgId: { in: [seed.acme.id, seed.globex.id] }, period: "current", metric: "AGENT_SEATS" }, data: { value: 99n } })
+    await owner.usageCounter.updateMany({
+      where: { orgId: { in: [seed.acme.id, seed.globex.id] }, period: "current", metric: "AGENT_SEATS" },
+      data: { value: 99n },
+    })
     try {
       const job = { id: "isolation/usage", data: { orgId: seed.acme.id, tick: 1 } } as unknown as Job
       expect(await app.get(UsageReconcileProcessor).process(job)).toBeGreaterThanOrEqual(1)
       expect((await seats(seed.acme.id)).value).toBe(acmeSeats)
       expect((await seats(seed.globex.id)).value).toBe(99n)
     } finally {
-      await owner.usageCounter.updateMany({ where: { orgId: seed.globex.id, period: "current", metric: "AGENT_SEATS" }, data: { value: globexSeats } })
+      await owner.usageCounter.updateMany({
+        where: { orgId: seed.globex.id, period: "current", metric: "AGENT_SEATS" },
+        data: { value: globexSeats },
+      })
     }
   })
 })
@@ -421,12 +468,16 @@ describe("the live stream keeps to the credential's org (TENANCY.md §9, ADR-000
     const jobs = settler(app, [OUTBOX_DRAIN_QUEUE])
     try {
       // Globex first: Dana watches this ticket there, so in Globex she would hear of it.
-      const theirs = await (await as("gus", slugs.globex)).post(`/tickets/${seed.globex.ticketId}/comments`, { body: "Any news?", visibility: "PUBLIC" })
+      const theirs = await (
+        await as("gus", slugs.globex)
+      ).post(`/tickets/${seed.globex.ticketId}/comments`, { body: "Any news?", visibility: "PUBLIC" })
       expect(theirs.status).toBe(201)
       await jobs.settle()
       expect(await owner.notification.count({ where: { orgId: seed.globex.id, membershipId: seed.globex.members.dana ?? "" } })).toBe(1)
       // Then the sentinel in Acme, which her Acme stream must hear.
-      const ours = await (await as("alice", slugs.acme)).post(`/tickets/${seed.acme.ticketId}/comments`, { body: "Any news?", visibility: "PUBLIC" })
+      const ours = await (
+        await as("alice", slugs.acme)
+      ).post(`/tickets/${seed.acme.ticketId}/comments`, { body: "Any news?", visibility: "PUBLIC" })
       expect(ours.status).toBe(201)
       await stream.next((f) => f.event === "notification")
       const tickets = stream.frames.map((f) => (f.data as { ticketId: string | null }).ticketId)

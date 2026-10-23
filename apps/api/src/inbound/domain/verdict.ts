@@ -30,7 +30,7 @@ function authservIdOf(value: string): string {
 function withoutComments(value: string): string {
   let out = value.replace(/\r?\n[ \t]+/g, " ")
   // Nested comments: strip the innermost until none remain.
-  for (let previous = ""; previous !== out; ) {
+  for (let previous = ""; previous !== out;) {
     previous = out
     out = out.replace(/\([^()]*\)/g, " ")
   }

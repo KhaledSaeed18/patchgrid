@@ -1,24 +1,12 @@
 import { Injectable } from "@nestjs/common"
-import {
-  decodeCursor,
-  encodeCursor,
-  type Member,
-  type MemberListQuery,
-  type MemberPage,
-  type Role,
-} from "@patchgrid/contracts"
+import { decodeCursor, encodeCursor, type Member, type MemberListQuery, type MemberPage, type Role } from "@patchgrid/contracts"
 
 import { ActorService, type TenantActor } from "../auth/actor"
 import { StepUpService } from "../auth/mfa/step-up.service"
 import { RevocationEpochService } from "../auth/revocation/revocation-epoch.service"
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
-import {
-  ConflictProblem,
-  NotFoundProblem,
-  NotPermittedProblem,
-  ValidationProblem,
-} from "../common/problems/problem.exception"
+import { ConflictProblem, NotFoundProblem, NotPermittedProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { UserOrgIndexRepository } from "../platform/repositories/user-org-index.repository"
 import { PrismaService } from "../prisma/prisma.service"
 import { holdsSeat, QuotaService } from "../quota/quota.service"
@@ -79,20 +67,14 @@ export class MembersService {
     return {
       items: page.map((row) => toMember(row, memberCapabilities(this.permissions, actor, row))),
       nextCursor:
-        rows.length > query.limit && last !== undefined
-          ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id })
-          : null,
+        rows.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id }) : null,
     }
   }
 
   async get(id: string): Promise<Member> {
     const actor = this.actors.requireTenantActor()
     this.permissions.assertVisible(actor, "member:read")
-    const row = await this.memberships.findMember(
-      this.tenant.requireOrgId(),
-      id,
-      this.permissions.can(actor, "member:read_contact"),
-    )
+    const row = await this.memberships.findMember(this.tenant.requireOrgId(), id, this.permissions.can(actor, "member:read_contact"))
     if (row === null || (row.status === "REMOVED" && !this.seesRemoved(actor))) throw new NotFoundProblem()
     return toMember(row, memberCapabilities(this.permissions, actor, row))
   }
@@ -239,10 +221,7 @@ function toMember(row: MemberRow, capabilities: Member["capabilities"]): Member 
     kind: row.kind,
     joinedAt: row.joinedAt?.toISOString() ?? null,
     teams: row.teams,
-    contact:
-      row.contact === null
-        ? null
-        : { email: row.contact.email, lastLoginAt: row.contact.lastLoginAt?.toISOString() ?? null },
+    contact: row.contact === null ? null : { email: row.contact.email, lastLoginAt: row.contact.lastLoginAt?.toISOString() ?? null },
     capabilities,
   }
 }

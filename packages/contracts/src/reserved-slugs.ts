@@ -13,39 +13,105 @@
  */
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // Product surfaces — these are real hosts today
-  "www", "app", "api", "admin", "files", "inbound",
+  "www",
+  "app",
+  "api",
+  "admin",
+  "files",
+  "inbound",
 
   // Reserved for surfaces we have named but not built
-  "status", "docs", "help", "support", "portal", "billing", "account", "accounts",
+  "status",
+  "docs",
+  "help",
+  "support",
+  "portal",
+  "billing",
+  "account",
+  "accounts",
 
   // Certificate and platform machinery
-  "renewal-canary", "well-known", "health", "metrics", "ops", "grafana", "internal",
+  "renewal-canary",
+  "well-known",
+  "health",
+  "metrics",
+  "ops",
+  "grafana",
+  "internal",
 
   // Mail and DNS labels: claiming one of these would shadow real infrastructure
-  "mail", "smtp", "imap", "ns1", "ns2", "email",
-  "autodiscover", "autoconfig", "dmarc", "dkim", "spf",
+  "mail",
+  "smtp",
+  "imap",
+  "ns1",
+  "ns2",
+  "email",
+  "autodiscover",
+  "autoconfig",
+  "dmarc",
+  "dkim",
+  "spf",
   // Role mailboxes (RFC 2142, CA/Browser validation addresses): a slug is also
   // a mailbox at the inbound host, and mail to these must reach nobody's workspace.
-  "postmaster", "abuse", "hostmaster", "webmaster", "administrator", "mailer-daemon",
-  "noreply", "no-reply",
+  "postmaster",
+  "abuse",
+  "hostmaster",
+  "webmaster",
+  "administrator",
+  "mailer-daemon",
+  "noreply",
+  "no-reply",
 
   // Content and asset hosts
-  "cdn", "static", "assets", "media", "img", "attachments",
+  "cdn",
+  "static",
+  "assets",
+  "media",
+  "img",
+  "attachments",
 
   // Environments — a tenant named `staging` makes every runbook ambiguous
-  "staging", "stage", "dev", "test", "demo", "sandbox", "preview", "local",
+  "staging",
+  "stage",
+  "dev",
+  "test",
+  "demo",
+  "sandbox",
+  "preview",
+  "local",
 
   // Authentication paths
-  "auth", "login", "logout", "signup", "register", "sso", "oauth", "oidc", "saml",
+  "auth",
+  "login",
+  "logout",
+  "signup",
+  "register",
+  "sso",
+  "oauth",
+  "oidc",
+  "saml",
 
   // Marketing and legal pages
-  "about", "blog", "legal", "privacy", "terms", "security", "pricing", "contact",
+  "about",
+  "blog",
+  "legal",
+  "privacy",
+  "terms",
+  "security",
+  "pricing",
+  "contact",
 
   // Brand: a tenant must not be able to look like us
-  "patchgrid", "official", "team", "staff", "root", "system",
+  "patchgrid",
+  "official",
+  "team",
+  "staff",
+  "root",
+  "system",
 
   // Webhook endpoints, reserved before they exist
-  "webhook", "webhooks",
+  "webhook",
+  "webhooks",
 ])
 
 /**

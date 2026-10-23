@@ -5,3 +5,8 @@ node_modules/
 coverage/
 pnpm-lock.yaml
 .pnpm-store/
+packages/database/generated/
+apps/app/playwright-report/
+apps/app/test-results/
+# Hand-written prose and tables the contracts' tests read cell by cell (RBAC.md §6, DOMAIN.md §4.1).
+docs/

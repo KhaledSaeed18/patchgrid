@@ -65,7 +65,15 @@ import { OrgThrottlerGuard } from "../throttling/throttler.guards"
     SsoCoreModule,
     BullModule.registerQueue({ name: CREDENTIAL_RETENTION_QUEUE }),
   ],
-  controllers: [AuthController, IdentityController, PlatformAuthController, MfaController, PasskeyController, AccountController, SsoController],
+  controllers: [
+    AuthController,
+    IdentityController,
+    PlatformAuthController,
+    MfaController,
+    PasskeyController,
+    AccountController,
+    SsoController,
+  ],
   providers: [
     CookieService,
     PasswordService,
@@ -101,6 +109,16 @@ import { OrgThrottlerGuard } from "../throttling/throttler.guards"
     // Per-org limits count verified requests only: after the credential, never on a bare claim (THREAT-MODEL §7).
     { provide: APP_GUARD, useClass: OrgThrottlerGuard },
   ],
-  exports: [ActorService, RevocationEpochService, SessionService, StandingService, CookieService, PasswordService, SupportTokenService, SupportReadLog, StepUpService],
+  exports: [
+    ActorService,
+    RevocationEpochService,
+    SessionService,
+    StandingService,
+    CookieService,
+    PasswordService,
+    SupportTokenService,
+    SupportReadLog,
+    StepUpService,
+  ],
 })
 export class AuthModule {}

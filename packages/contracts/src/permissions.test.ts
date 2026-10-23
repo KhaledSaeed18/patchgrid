@@ -53,7 +53,10 @@ const CELLS: Record<string, Grant> = {
 type DocRow = { names: Permission[]; qualifier: string; grants: Grant[] }
 
 function cells(line: string): string[] {
-  return line.split("|").slice(1, -1).map((c) => c.trim())
+  return line
+    .split("|")
+    .slice(1, -1)
+    .map((c) => c.trim())
 }
 
 function documentedRows(): DocRow[] {
@@ -75,7 +78,10 @@ function documentedRows(): DocRow[] {
     for (const name of names) {
       if (!isPermission(name)) throw new Error(`RBAC.md names an unknown permission: ${name}`)
     }
-    const qualifier = first.replace(/`[^`]+`/g, "").replace(/[/\s]+/g, " ").trim()
+    const qualifier = first
+      .replace(/`[^`]+`/g, "")
+      .replace(/[/\s]+/g, " ")
+      .trim()
     const grants = roleCells.map((text) => {
       const grant = CELLS[text]
       if (grant === undefined) throw new Error(`Unrecognised matrix cell in RBAC.md: "${text}"`)
@@ -135,8 +141,16 @@ describe("the permission matrix", () => {
       const grants = ROLES.map((role) => PERMISSION_MATRIX[permission][role])
       grants.forEach((grant, i) => {
         const higher = grants.slice(i + 1)
-        if (grant === true) expect(higher.every((g) => g === true), permission).toBe(true)
-        if (grant !== false) expect(higher.every((g) => g !== false), permission).toBe(true)
+        if (grant === true)
+          expect(
+            higher.every((g) => g === true),
+            permission,
+          ).toBe(true)
+        if (grant !== false)
+          expect(
+            higher.every((g) => g !== false),
+            permission,
+          ).toBe(true)
       })
     }
   })
@@ -159,7 +173,10 @@ describe("token scopes", () => {
       const grantParts = grantCell.split(" / ")
       scopes.forEach((scope, i) => {
         const part = grantParts.length === scopes.length ? (grantParts[i] ?? "") : grantCell
-        map.set(scope, [...part.matchAll(/`([a-z_]+:[a-z_]+)`/g)].map((m) => m[1] ?? ""))
+        map.set(
+          scope,
+          [...part.matchAll(/`([a-z_]+:[a-z_]+)`/g)].map((m) => m[1] ?? ""),
+        )
       })
     }
     return map

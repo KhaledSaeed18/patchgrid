@@ -41,7 +41,9 @@ export function EmailPreferences({
       }),
     onSuccess: setPreferences,
     onError: (error) =>
-      toast.error(failureMessage(error, "That choice wasn't saved. Try again.")),
+      toast.error(
+        failureMessage(error, "That choice wasn't saved. Try again.")
+      ),
   })
 
   return (
@@ -49,8 +51,8 @@ export function EmailPreferences({
       {!preferences.emailEnabledForOrg && (
         <Alert>
           <AlertDescription>
-            An admin has turned email notifications off for this workspace.
-            Your choices are kept for when they are back on.
+            An admin has turned email notifications off for this workspace. Your
+            choices are kept for when they are back on.
           </AlertDescription>
         </Alert>
       )}

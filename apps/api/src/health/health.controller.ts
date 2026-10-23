@@ -41,10 +41,6 @@ export class HealthController {
   @Public()
   @HealthCheck()
   async readiness(): Promise<HealthCheckResult> {
-    return this.health.check([
-      () => this.database.check(),
-      () => this.redis.check(),
-      () => this.objectStorage.check(),
-    ])
+    return this.health.check([() => this.database.check(), () => this.redis.check(), () => this.objectStorage.check()])
   }
 }

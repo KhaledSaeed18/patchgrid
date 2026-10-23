@@ -38,10 +38,12 @@ try {
   try {
     // A clone made before a new setting existed would otherwise refuse to boot on it.
     const have = names(readFileSync(fd, "utf8"))
-    const missing = readFileSync(example, "utf8").split("\n").filter((line) => {
-      const name = /^([A-Z][A-Z0-9_]*)=/.exec(line)?.[1]
-      return name !== undefined && !have.has(name)
-    })
+    const missing = readFileSync(example, "utf8")
+      .split("\n")
+      .filter((line) => {
+        const name = /^([A-Z][A-Z0-9_]*)=/.exec(line)?.[1]
+        return name !== undefined && !have.has(name)
+      })
     if (missing.length > 0) {
       appendFileSync(fd, `\n# Added by local:up from .env.example\n${missing.join("\n")}\n`)
       console.log(`▸ .env exists — keeping it, and adding ${missing.map((l) => l.split("=")[0]).join(", ")} from .env.example`)
@@ -55,7 +57,14 @@ try {
 
 try {
   step("Postgres, Redis, MinIO and Mailpit, waiting for each to be healthy", "docker", [
-    "compose", "up", "-d", "--wait", "postgres", "redis", "minio", "mailpit",
+    "compose",
+    "up",
+    "-d",
+    "--wait",
+    "postgres",
+    "redis",
+    "minio",
+    "mailpit",
   ])
   step("The attachments bucket and its lifecycle rule", "docker", ["compose", "run", "--rm", "minio-init"])
   step("Database roles and grants (ADR-0015, ADR-0022)", "pnpm", ["db:bootstrap"])

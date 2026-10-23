@@ -24,9 +24,7 @@ const matchesAny = (file, globs = []) => globs.some((glob) => minimatch(file, gl
 
 function forbids(source, imports) {
   return imports.some((rule) =>
-    "name" in rule
-      ? source === rule.name || source.startsWith(`${rule.name}/`)
-      : new RegExp(rule.regex).test(source),
+    "name" in rule ? source === rule.name || source.startsWith(`${rule.name}/`) : new RegExp(rule.regex).test(source),
   )
 }
 
@@ -80,14 +78,10 @@ export const importZones = {
   },
 
   create(context) {
-    const file = path.isAbsolute(context.filename)
-      ? path.relative(context.cwd, context.filename)
-      : context.filename
+    const file = path.isAbsolute(context.filename) ? path.relative(context.cwd, context.filename) : context.filename
     const posix = file.split(path.sep).join("/")
 
-    const zones = context.options[0].zones.filter(
-      (zone) => matchesAny(posix, zone.files) && !matchesAny(posix, zone.except),
-    )
+    const zones = context.options[0].zones.filter((zone) => matchesAny(posix, zone.files) && !matchesAny(posix, zone.except))
     if (zones.length === 0) return {}
 
     const check = (node, source) => {
@@ -104,8 +98,7 @@ export const importZones = {
       ImportDeclaration: (node) => check(node, node.source.value),
       ExportNamedDeclaration: (node) => node.source && check(node, node.source.value),
       ExportAllDeclaration: (node) => check(node, node.source.value),
-      ImportExpression: (node) =>
-        node.source.type === "Literal" && check(node, node.source.value),
+      ImportExpression: (node) => node.source.type === "Literal" && check(node, node.source.value),
       "CallExpression[callee.name='require']": (node) => {
         const [argument] = node.arguments
         if (argument?.type === "Literal") check(node, argument.value)

@@ -39,7 +39,8 @@ const ASSETS: [string, AssetType, AssetStatus, Holder, number, number][] = [
 
 /** Which asset a demo incident is about, by the words in its title. */
 const ABOUT: [RegExp, string][] = [
-  [/^Laptop|Cracked screen/, "ThinkPad T14 Gen 4"],
+  // A title that starts with "Laptop", or mentions a cracked screen anywhere.
+  [/(?:^Laptop)|(?:Cracked screen)/, "ThinkPad T14 Gen 4"],
   [/Monitor flickers/, "Dell U2723QE — desk 22"],
   [/Docking station/, "CalDigit TS4 dock"],
   [/Printer on floor 3/, "HP LaserJet M507 — floor 3"],
@@ -82,7 +83,10 @@ export async function seedDemoAssets(
     ids.set(name, asset.id)
   }
 
-  const incidents = await db.ticket.findMany({ where: { orgId: org.id, type: "INCIDENT" }, select: { id: true, title: true, createdAt: true } })
+  const incidents = await db.ticket.findMany({
+    where: { orgId: org.id, type: "INCIDENT" },
+    select: { id: true, title: true, createdAt: true },
+  })
   const links = incidents.flatMap((ticket) => {
     const assetId = ids.get(ABOUT.find(([pattern]) => pattern.test(ticket.title))?.[1] ?? "")
     return assetId === undefined ? [] : [{ orgId: org.id, ticketId: ticket.id, assetId, createdAt: ticket.createdAt }]

@@ -1,1 +1,1 @@
-export { default } from "@patchgrid/ui/postcss.config";
+export { default } from "@patchgrid/ui/postcss.config"

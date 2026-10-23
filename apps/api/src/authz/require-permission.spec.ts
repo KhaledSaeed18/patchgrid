@@ -20,8 +20,7 @@ function guardFor(actor: Actor | undefined): PermissionGuard {
   return new PermissionGuard(new Reflector(), actors, new PermissionService())
 }
 
-const context = (handler: () => void) =>
-  ({ getHandler: () => handler, getClass: () => Probe }) as unknown as ExecutionContext
+const context = (handler: () => void) => ({ getHandler: () => handler, getClass: () => Probe }) as unknown as ExecutionContext
 
 const member = (role: "OWNER" | "ADMIN" | "AGENT" | "REQUESTER"): Actor => ({
   kind: "member",

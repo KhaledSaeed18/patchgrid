@@ -66,22 +66,42 @@ describe("the back-office", () => {
     expect(refused.body.type).toContain("organization-suspended")
     expect((await operator.post(`/orgs/${ws.orgId}/suspend`, { reason: "again" })).status).toBe(409)
     const entry = await db.auditLog.findFirstOrThrow({ where: { orgId: ws.orgId, action: "ORG_SUSPENDED" } })
-    expect(entry).toMatchObject({ actorKind: "PLATFORM", actorPlatformAdminId: operator.platformAdminId, diff: { reason: "Abuse report 1234" } })
+    expect(entry).toMatchObject({
+      actorKind: "PLATFORM",
+      actorPlatformAdminId: operator.platformAdminId,
+      diff: { reason: "Abuse report 1234" },
+    })
   })
 
   it("unsuspends it, and sets its plan, each in both logs", async () => {
     expect((await operator.post(`/orgs/${ws.orgId}/unsuspend`)).body.status).toBe("ACTIVE")
     expect((await operator.put(`/orgs/${ws.orgId}/plan`, { plan: "PRO" })).body.plan).toBe("PRO")
-    const tenantLog = await db.auditLog.findMany({ where: { orgId: ws.orgId, actorPlatformAdminId: operator.platformAdminId }, select: { action: true } })
+    const tenantLog = await db.auditLog.findMany({
+      where: { orgId: ws.orgId, actorPlatformAdminId: operator.platformAdminId },
+      select: { action: true },
+    })
     expect(tenantLog.map((e) => e.action).toSorted()).toEqual(["ORG_PLAN_CHANGED", "ORG_SUSPENDED", "ORG_UNSUSPENDED"])
-    const platformLog = await db.platformAuditLog.findMany({ where: { platformAdminId: operator.platformAdminId, targetOrgId: ws.orgId }, select: { action: true } })
-    expect(platformLog.map((e) => e.action).toSorted()).toEqual(["PLATFORM_ORG_PLAN_SET", "PLATFORM_ORG_SUSPENDED", "PLATFORM_ORG_UNSUSPENDED"])
+    const platformLog = await db.platformAuditLog.findMany({
+      where: { platformAdminId: operator.platformAdminId, targetOrgId: ws.orgId },
+      select: { action: true },
+    })
+    expect(platformLog.map((e) => e.action).toSorted()).toEqual([
+      "PLATFORM_ORG_PLAN_SET",
+      "PLATFORM_ORG_SUSPENDED",
+      "PLATFORM_ORG_UNSUSPENDED",
+    ])
   })
 
   it("answers no member, whatever they hold", async () => {
-    const owner = await request(app.getHttpServer()).get("/api/v1/platform/orgs").set("Origin", ADMIN_ORIGIN).set("Cookie", ws.people.owner.access)
+    const owner = await request(app.getHttpServer())
+      .get("/api/v1/platform/orgs")
+      .set("Origin", ADMIN_ORIGIN)
+      .set("Cookie", ws.people.owner.access)
     expect(owner.status).toBe(401)
-    const fromTenant = await request(app.getHttpServer()).get("/api/v1/platform/orgs").set("Origin", ws.origin).set("Cookie", ws.people.owner.access)
+    const fromTenant = await request(app.getHttpServer())
+      .get("/api/v1/platform/orgs")
+      .set("Origin", ws.origin)
+      .set("Cookie", ws.people.owner.access)
     expect(fromTenant.status).toBe(403)
   })
 })

@@ -47,17 +47,7 @@ import { QuotaService } from "../quota/quota.service"
 import { SlaPoliciesService } from "../sla/sla-policies.service"
 import { TeamRepository } from "../teams/repositories/team.repository"
 import { TenantContextService } from "../tenancy/tenant-context.service"
-import {
-  onClose,
-  onCreate,
-  onPause,
-  onPolicyChange,
-  onReopen,
-  onResolve,
-  onResponded,
-  onResume,
-  type SlaState,
-} from "./domain/sla"
+import { onClose, onCreate, onPause, onPolicyChange, onReopen, onResolve, onResponded, onResume, type SlaState } from "./domain/sla"
 import { approvalRoute } from "./domain/approvers"
 import { type ApprovalStanding, availableActions, checkTransition, type TransitionTicket } from "./domain/transitions"
 import { CommentRepository } from "./repositories/comment.repository"
@@ -189,31 +179,31 @@ export class TicketsService {
       const created = await this.tickets.create(
         orgId,
         {
-        number,
-        type: request.type,
-        title: request.title,
-        description: request.description,
-        status: request.type === "CHANGE" ? "DRAFT" : "NEW",
-        impact: request.impact,
-        urgency: request.urgency,
-        priority,
-        source: options.source ?? sourceOf(actor),
-        categoryId,
-        requesterMembershipId: requesterId,
-        assigneeMembershipId: null,
-        teamId,
-        slaPolicyId: policy?.id ?? null,
-        ...onCreate(now, policy),
-        respondedAt: null,
-        resolvedAt: null,
-        closedAt: null,
-        cancelledAt: null,
-        pausedAt: null,
-        responseBreached: false,
-        resolutionBreached: false,
-        responseWarningSentAt: null,
-        resolutionWarningSentAt: null,
-        reopenCount: 0,
+          number,
+          type: request.type,
+          title: request.title,
+          description: request.description,
+          status: request.type === "CHANGE" ? "DRAFT" : "NEW",
+          impact: request.impact,
+          urgency: request.urgency,
+          priority,
+          source: options.source ?? sourceOf(actor),
+          categoryId,
+          requesterMembershipId: requesterId,
+          assigneeMembershipId: null,
+          teamId,
+          slaPolicyId: policy?.id ?? null,
+          ...onCreate(now, policy),
+          respondedAt: null,
+          resolvedAt: null,
+          closedAt: null,
+          cancelledAt: null,
+          pausedAt: null,
+          responseBreached: false,
+          resolutionBreached: false,
+          responseWarningSentAt: null,
+          resolutionWarningSentAt: null,
+          reopenCount: 0,
         },
         { ...(request.problem === undefined ? {} : { problem: defined(request.problem) }), ...(change === undefined ? {} : { change }) },
       )
@@ -232,7 +222,12 @@ export class TicketsService {
           diff: { type: request.type, priority, teamId, onBehalfOf: requesterId === actor.membershipId ? null : requesterId },
         },
         ...links.map((link): AuditEntry => ({ action: "TICKET_LINKED", entityType: "Ticket", entityId: created, diff: { ...link } })),
-        ...assetIds.map((assetId): AuditEntry => ({ action: "TICKET_ASSET_LINKED", entityType: "Ticket", entityId: created, diff: { assetId } })),
+        ...assetIds.map((assetId): AuditEntry => ({
+          action: "TICKET_ASSET_LINKED",
+          entityType: "Ticket",
+          entityId: created,
+          diff: { assetId },
+        })),
       ])
       // The caller's own record of the create, committed with it or not at all (ADR-0039).
       if (options.within !== undefined) await options.within(created)
@@ -329,7 +324,10 @@ export class TicketsService {
       const touched = changes.assigneeMembershipId ?? changes.teamId ?? null
       if (loaded.row.status === "NEW" && touched !== null) changes.status = "ASSIGNED"
       const handingOn = changes.assigneeMembershipId !== undefined && changes.assigneeMembershipId !== loaded.row.assigneeMembershipId
-      if (request.keepWatching === true && !(actor.kind === "member" && handingOn && loaded.row.assigneeMembershipId === actor.membershipId)) {
+      if (
+        request.keepWatching === true &&
+        !(actor.kind === "member" && handingOn && loaded.row.assigneeMembershipId === actor.membershipId)
+      ) {
         throw fieldError("keepWatching", "is for the assignee handing their own ticket on")
       }
       if (!(await this.tickets.updateVersioned(orgId, id, request.version, changes))) throw new StaleWriteProblem()
@@ -341,7 +339,12 @@ export class TicketsService {
       await this.audit.record(orgId, entries)
       const assignee = changes.assigneeMembershipId
       if (assignee !== undefined && assignee !== null && assignee !== loaded.row.assigneeMembershipId) {
-        await this.notifier.notify(orgId, { kind: "ticket-assigned", ticketId: id, actorMembershipId: actor.membershipId, assigneeMembershipId: assignee })
+        await this.notifier.notify(orgId, {
+          kind: "ticket-assigned",
+          ticketId: id,
+          actorMembershipId: actor.membershipId,
+          assigneeMembershipId: assignee,
+        })
       } else {
         // A team-only move or an unassignment tells nobody, but the log still hears of it (ADR-0051).
         await this.outbox.append(orgId, [{ type: "ticket-changed", payload: { ticketId: id } }])
@@ -434,8 +437,13 @@ export class TicketsService {
           break
         case "submit":
           // A change nobody could decide would sit waiting for ever (DOMAIN.md §2.3).
-          if (approvalRoute(await this.tickets.approverCandidates(orgId, row.teamId), [row.requesterMembershipId, row.assigneeMembershipId]).kind === "nobody") {
-            throw new ConflictProblem("Nobody could approve this change: everyone who may approve changes is its requester or its assignee. Assign it to someone else first")
+          if (
+            approvalRoute(await this.tickets.approverCandidates(orgId, row.teamId), [row.requesterMembershipId, row.assigneeMembershipId])
+              .kind === "nobody"
+          ) {
+            throw new ConflictProblem(
+              "Nobody could approve this change: everyone who may approve changes is its requester or its assignee. Assign it to someone else first",
+            )
           }
           break
         case "workaround":
@@ -466,7 +474,14 @@ export class TicketsService {
         const selfApproved = request.action === "approve" && relation.approval === "self"
         const decision = request.action === "approve" ? "APPROVED" : "REJECTED"
         const reason = request.action === "reject" ? (request.comment?.body ?? null) : null
-        await this.tickets.addApproval(orgId, { ticketId: id, approverMembershipId: actor.membershipId, decision, selfApproved, reason, decidedAt: now })
+        await this.tickets.addApproval(orgId, {
+          ticketId: id,
+          approverMembershipId: actor.membershipId,
+          decision,
+          selfApproved,
+          reason,
+          decidedAt: now,
+        })
         entries.push({
           action: selfApproved ? "CHANGE_SELF_APPROVED" : decision === "APPROVED" ? "CHANGE_APPROVED" : "CHANGE_REJECTED",
           entityType: "Ticket",
@@ -490,7 +505,10 @@ export class TicketsService {
         })
       }
       await this.audit.record(orgId, entries)
-      await this.notifier.notifyAll(orgId, movedEvents(id, request, actor.membershipId, check.row.to, changes.assigneeMembershipId ?? null, row.assigneeMembershipId))
+      await this.notifier.notifyAll(
+        orgId,
+        movedEvents(id, request, actor.membershipId, check.row.to, changes.assigneeMembershipId ?? null, row.assigneeMembershipId),
+      )
     })
     await this.pulse.changed(orgId, id)
   }
@@ -529,8 +547,7 @@ export class TicketsService {
     for (const row of results.flat()) merged.set(row.id, row)
     const sign = direction === "desc" ? 1 : -1
     const ordered = [...merged.values()].sort(
-      (a, b) =>
-        sign * (b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)),
+      (a, b) => sign * (b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)),
     )
     const page = ordered.slice(0, query.limit)
     const last = page.at(-1)
@@ -538,9 +555,7 @@ export class TicketsService {
     return {
       items: page.map((row) => toSummary(row, now)),
       nextCursor:
-        ordered.length > query.limit && last !== undefined
-          ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id })
-          : null,
+        ordered.length > query.limit && last !== undefined ? encodeCursor({ sortValue: last.createdAt.toISOString(), id: last.id }) : null,
     }
   }
 
@@ -666,7 +681,12 @@ export class TicketsService {
    * and may link, and of the type the relation joins — incidents for a new
    * Problem, a Problem for a new Change. Loaded in one go.
    */
-  private async linkTargets(orgId: string, actor: TenantActor, request: CreateTicketRequest, visibility: AgentVisibility): Promise<TicketRow[]> {
+  private async linkTargets(
+    orgId: string,
+    actor: TenantActor,
+    request: CreateTicketRequest,
+    visibility: AgentVisibility,
+  ): Promise<TicketRow[]> {
     const [path, ids, type] =
       request.causedIncidentIds !== undefined
         ? (["causedIncidentIds", [...new Set(request.causedIncidentIds)], "INCIDENT"] as const)
@@ -711,7 +731,10 @@ export class TicketsService {
     if (this.permissions.can(actor, "ticket:approve_change", { lead, own })) return "eligible"
     // Rule 3 is a person's, never a token's: an API token is no one's last resort.
     if (!own || actor.role !== "OWNER" || actor.kind !== "member") return "none"
-    const route = approvalRoute(await this.tickets.approverCandidates(orgId, row.teamId), [row.requesterMembershipId, row.assigneeMembershipId])
+    const route = approvalRoute(await this.tickets.approverCandidates(orgId, row.teamId), [
+      row.requesterMembershipId,
+      row.assigneeMembershipId,
+    ])
     return route.kind === "self" && route.ownerMembershipId === actor.membershipId ? "self" : "none"
   }
 
@@ -758,7 +781,13 @@ function movedEvents(
       : request.action === "submit"
         ? { kind: "change-submitted", ticketId, actorMembershipId: by }
         : request.action === "approve" || request.action === "reject"
-          ? { kind: "change-decided", ticketId, actorMembershipId: by, decision: request.action === "approve" ? "APPROVED" : "REJECTED", comment }
+          ? {
+              kind: "change-decided",
+              ticketId,
+              actorMembershipId: by,
+              decision: request.action === "approve" ? "APPROVED" : "REJECTED",
+              comment,
+            }
           : { kind: "status-changed", ticketId, actorMembershipId: by, to, comment }
   const events: NotifyEvent[] = [event]
   if (assigned !== null && assigned !== previousAssignee) {
@@ -795,7 +824,8 @@ function changeFields(input: ChangeFieldsInput, stored: ChangeRow | null): Chang
   if (input.outcomeNotes !== undefined) out.outcomeNotes = input.outcomeNotes
   const from = start === undefined ? (stored?.plannedStart ?? null) : start
   const to = end === undefined ? (stored?.plannedEnd ?? null) : end
-  if (from !== null && to !== null && to.getTime() <= from.getTime()) throw fieldError("change.plannedEnd", "must be after the planned start")
+  if (from !== null && to !== null && to.getTime() <= from.getTime())
+    throw fieldError("change.plannedEnd", "must be after the planned start")
   return out
 }
 
@@ -819,7 +849,5 @@ function defined<T extends Record<string, unknown>>(input: T): { [K in keyof T]?
 /** `{ field: { from, to } }` for the fields that moved (DOMAIN.md §7). */
 function diffOf(row: Record<string, unknown>, changes: Record<string, unknown>): Record<string, { from: unknown; to: unknown }> {
   const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v)
-  return Object.fromEntries(
-    Object.entries(changes).map(([field, to]) => [field, { from: iso(row[field] ?? null), to: iso(to ?? null) }]),
-  )
+  return Object.fromEntries(Object.entries(changes).map(([field, to]) => [field, { from: iso(row[field] ?? null), to: iso(to ?? null) }]))
 }

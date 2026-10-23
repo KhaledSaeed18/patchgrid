@@ -9,12 +9,7 @@ import { z } from "zod"
  * is correct and expected (ADR-0013).
  */
 
-export const ticketTypeSchema = z.enum([
-  "INCIDENT",
-  "SERVICE_REQUEST",
-  "PROBLEM",
-  "CHANGE",
-])
+export const ticketTypeSchema = z.enum(["INCIDENT", "SERVICE_REQUEST", "PROBLEM", "CHANGE"])
 export type TicketType = z.infer<typeof ticketTypeSchema>
 
 export const TICKET_TYPE_PREFIX = {
@@ -42,9 +37,7 @@ export function formatTicketNumber(type: TicketType, number: number): string {
  * and the `[INC-000042]` email-subject match, where a human may have retyped it.
  * A bare number has no type, so the caller searches every type.
  */
-export function parseTicketNumber(
-  input: string,
-): { type: TicketType | null; number: number } | null {
+export function parseTicketNumber(input: string): { type: TicketType | null; number: number } | null {
   const trimmed = input.trim()
 
   const bare = /^#?(\d{1,9})$/.exec(trimmed)
@@ -62,9 +55,7 @@ export function parseTicketNumber(
 }
 
 /** Finds `[INC-000042]` in an email subject, for threading (ADR-0018). */
-export function findTicketNumberInSubject(
-  subject: string,
-): { type: TicketType; number: number } | null {
+export function findTicketNumberInSubject(subject: string): { type: TicketType; number: number } | null {
   const match = /\[([A-Za-z]{2,4}-\d{1,9})\]/.exec(subject)
   if (match?.[1] === undefined) return null
   const parsed = parseTicketNumber(match[1])

@@ -1,4 +1,9 @@
-import type { PasskeyAssertionCredential, PasskeyCreationOptions, PasskeyRegistrationCredential, PasskeyRequestOptions } from "@patchgrid/contracts"
+import type {
+  PasskeyAssertionCredential,
+  PasskeyCreationOptions,
+  PasskeyRegistrationCredential,
+  PasskeyRequestOptions,
+} from "@patchgrid/contracts"
 import { isoCBOR } from "@simplewebauthn/server/helpers"
 import { createHash, generateKeyPairSync, type KeyObject, randomBytes, sign } from "node:crypto"
 
@@ -44,7 +49,13 @@ export class SoftAuthenticator {
     const counter = this.options.synced === true ? 0 : 1
     const length = Buffer.alloc(2)
     length.writeUInt16BE(credentialId.length)
-    const authData = Buffer.concat([this.header(options.rp.id ?? "", AT, counter), Buffer.alloc(16), length, credentialId, Buffer.from(cose)])
+    const authData = Buffer.concat([
+      this.header(options.rp.id ?? "", AT, counter),
+      Buffer.alloc(16),
+      length,
+      credentialId,
+      Buffer.from(cose),
+    ])
     const attestation = new Map<string, string | Uint8Array | Map<string, never>>()
     attestation.set("fmt", "none").set("attStmt", new Map<string, never>()).set("authData", authData)
     const attestationObject = isoCBOR.encode(attestation)

@@ -9,7 +9,15 @@ import { requireEnv } from "../support/env"
 import type { INestApplication } from "@nestjs/common"
 import { Test } from "@nestjs/testing"
 import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
-import { createPrismaClient, isTenantOwned, lookalikeEmails, type Lookalikes, type PrismaClient, removeLookalikes, seedLookalikes } from "@patchgrid/database"
+import {
+  createPrismaClient,
+  isTenantOwned,
+  lookalikeEmails,
+  type Lookalikes,
+  type PrismaClient,
+  removeLookalikes,
+  seedLookalikes,
+} from "@patchgrid/database"
 import type { Job } from "bullmq"
 import { randomUUID } from "node:crypto"
 import request from "supertest"
@@ -47,7 +55,12 @@ beforeAll(async () => {
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
   storage = app.get(StorageService)
-  seed = await seedLookalikes(owner, { slugs, emailSuffix: suffix, passwordHash: await app.get(PasswordService).hash("purge suite"), slaTargets: DEFAULT_SLA_TARGETS })
+  seed = await seedLookalikes(owner, {
+    slugs,
+    emailSuffix: suffix,
+    passwordHash: await app.get(PasswordService).hash("purge suite"),
+    slaTargets: DEFAULT_SLA_TARGETS,
+  })
   tables = (
     await owner.$queryRawUnsafe<{ relname: string }[]>(
       `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -59,7 +72,9 @@ beforeAll(async () => {
   // An audit row on each side; the lookalikes seed none.
   for (const org of [seed.acme, seed.globex]) {
     await owner.$executeRawUnsafe(`SELECT ensure_audit_log_partition(now())`)
-    await owner.auditLog.create({ data: { orgId: org.id, action: "TEAM_UPDATED", entityType: "Team", entityId: org.id, actorKind: "SYSTEM", diff: {} } })
+    await owner.auditLog.create({
+      data: { orgId: org.id, action: "TEAM_UPDATED", entityType: "Team", entityId: org.id, actorKind: "SYSTEM", diff: {} },
+    })
   }
   for (const org of [seed.acme, seed.globex]) {
     for (const prefix of [`org/${org.id}/`, `staging/org/${org.id}/`]) {
@@ -68,7 +83,10 @@ beforeAll(async () => {
     }
   }
   // Acme asked 31 days ago — past its window and the hour's grace; Globex 29 days ago.
-  for (const [org, days] of [[seed.acme, 31], [seed.globex, 29]] as const) {
+  for (const [org, days] of [
+    [seed.acme, 31],
+    [seed.globex, 29],
+  ] as const) {
     const at = new Date(Date.now() - days * DAY)
     await owner.organization.update({ where: { id: org.id }, data: { status: "PENDING_DELETION", deletionRequestedAt: at } })
     await owner.userOrgIndex.updateMany({ where: { orgId: org.id }, data: { orgStatus: "PENDING_DELETION", orgDeletionRequestedAt: at } })
@@ -92,7 +110,12 @@ afterAll(async () => {
 
 describe("the purge", () => {
   it("names every tenant-owned table, so a new one cannot outlive its workspace", () => {
-    expect(app.get(OrgPurgeRepository).steps.map((s) => s.table).sort()).toEqual([...tables].sort())
+    expect(
+      app
+        .get(OrgPurgeRepository)
+        .steps.map((s) => s.table)
+        .sort(),
+    ).toEqual([...tables].sort())
   })
 
   it("leaves a workspace inside its window alone", async () => {

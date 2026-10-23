@@ -55,7 +55,10 @@ export class UserRepository {
    * without a password — its credential lives at the provider.
    */
   createProvisioned(account: { email: string; name: string; verifiedAt: Date }): Promise<AccountRecord> {
-    return this.prisma.db.user.create({ data: { email: account.email, name: account.name, emailVerifiedAt: account.verifiedAt }, select: ACCOUNT })
+    return this.prisma.db.user.create({
+      data: { email: account.email, name: account.name, emailVerifiedAt: account.verifiedAt },
+      select: ACCOUNT,
+    })
   }
 
   /**
@@ -65,7 +68,10 @@ export class UserRepository {
    * now uses (pre-account takeover, ADR-0054).
    */
   async claimUnverified(id: string, at: Date): Promise<AccountRecord | null> {
-    const { count } = await this.prisma.db.user.updateMany({ where: { id, emailVerifiedAt: null }, data: { emailVerifiedAt: at, passwordHash: null } })
+    const { count } = await this.prisma.db.user.updateMany({
+      where: { id, emailVerifiedAt: null },
+      data: { emailVerifiedAt: at, passwordHash: null },
+    })
     return count === 1 ? this.findById(id) : null
   }
 

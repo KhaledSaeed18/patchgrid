@@ -36,7 +36,8 @@ export function SupportAccess(p: SupportAccessParams) {
       </p>
       <p>{p.detail}</p>
       <p>
-        A support session is read-only, and every page it opens is recorded in your workspace&apos;s audit log. Any owner can end it at once.
+        A support session is read-only, and every page it opens is recorded in your workspace&apos;s audit log. Any owner can end it at
+        once.
       </p>
       <Button href={p.settingsUrl}>Review support access</Button>
       <FallbackLink href={p.settingsUrl} />

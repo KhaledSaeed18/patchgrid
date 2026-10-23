@@ -41,7 +41,11 @@ describe("the event catalogue", () => {
       type: "ticket.created",
       occurredAt: "2026-10-17T09:00:00.000Z",
       orgId: ID,
-      data: { type: "ticket.created", ticket: { id: ID, number: "INC-000007", type: "INCIDENT", title: "Leaked?" }, actorMembershipId: null },
+      data: {
+        type: "ticket.created",
+        ticket: { id: ID, number: "INC-000007", type: "INCIDENT", title: "Leaked?" },
+        actorMembershipId: null,
+      },
     }
     const parsed = webhookPayloadSchema.parse(payload)
     expect(JSON.stringify(parsed)).not.toContain("Leaked")

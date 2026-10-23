@@ -87,11 +87,25 @@ export function BulkBar({
           : {
               kind: "transition",
               action: move.action,
-              ...(move.comment === null ? {} : { comment: { body: move.comment, visibility: "PUBLIC" as const } }),
+              ...(move.comment === null
+                ? {}
+                : {
+                    comment: {
+                      body: move.comment,
+                      visibility: "PUBLIC" as const,
+                    },
+                  }),
             }
       return clientApi("/tickets/bulk", {
         method: "POST",
-        body: { operationId: id, tickets: picked.map(({ id: ticketId, version }) => ({ id: ticketId, version })), action },
+        body: {
+          operationId: id,
+          tickets: picked.map(({ id: ticketId, version }) => ({
+            id: ticketId,
+            version,
+          })),
+          action,
+        },
         schema: bulkTicketResultSchema,
       })
     },
@@ -111,7 +125,12 @@ export function BulkBar({
     onError: (error) => {
       setOperationId(null)
       // Some tickets may have gone through before the failure: say so, and show the list as it is now.
-      toast.error(failureMessage(error, "The action stopped. Some tickets may have changed; the list is refreshed."))
+      toast.error(
+        failureMessage(
+          error,
+          "The action stopped. Some tickets may have changed; the list is refreshed."
+        )
+      )
       onChanged()
     },
   })
@@ -121,12 +140,24 @@ export function BulkBar({
     <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
       <span className="text-sm font-medium">{picked.length} selected</span>
       {tooMany ? (
-        <span className="text-sm text-muted-foreground">At most {MAX_BULK_TICKETS} at once.</span>
+        <span className="text-sm text-muted-foreground">
+          At most {MAX_BULK_TICKETS} at once.
+        </span>
       ) : run.isPending ? (
-        <div className="flex items-center gap-2" role="status" aria-live="polite">
+        <div
+          className="flex items-center gap-2"
+          role="status"
+          aria-live="polite"
+        >
           <Spinner />
-          <div className="h-2 w-40 overflow-hidden rounded-full bg-muted" aria-hidden>
-            <div className="h-full rounded-full bg-chart-3 transition-[width]" style={{ width: `${String((progress / picked.length) * 100)}%` }} />
+          <div
+            className="h-2 w-40 overflow-hidden rounded-full bg-muted"
+            aria-hidden
+          >
+            <div
+              className="h-full rounded-full bg-chart-3 transition-[width]"
+              style={{ width: `${String((progress / picked.length) * 100)}%` }}
+            />
           </div>
           <span className="text-xs text-muted-foreground tabular-nums">
             {progress} of {picked.length}
@@ -138,31 +169,47 @@ export function BulkBar({
             key={move.label}
             variant="outline"
             size="sm"
-            onClick={() => (move.needsComment ? setAsking(move) : run.mutate({ action: move.action, comment: null }))}
+            onClick={() =>
+              move.needsComment
+                ? setAsking(move)
+                : run.mutate({ action: move.action, comment: null })
+            }
           >
             {move.label}
           </Button>
         ))
       )}
 
-      <Dialog open={asking !== null} onOpenChange={(open) => !open && setAsking(null)}>
+      <Dialog
+        open={asking !== null}
+        onOpenChange={(open) => !open && setAsking(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {asking?.label.replace("…", "")} {picked.length} tickets
             </DialogTitle>
             <DialogDescription>
-              This reply is posted publicly on each ticket, as it would be on one.
+              This reply is posted publicly on each ticket, as it would be on
+              one.
             </DialogDescription>
           </DialogHeader>
-          <Textarea aria-label="Reply" value={comment} rows={4} onChange={(e) => setComment(e.target.value)} />
+          <Textarea
+            aria-label="Reply"
+            value={comment}
+            rows={4}
+            onChange={(e) => setComment(e.target.value)}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAsking(null)}>
               Back
             </Button>
             <Button
               disabled={comment.trim() === "" || run.isPending}
-              onClick={() => asking !== null && run.mutate({ action: asking.action, comment: comment.trim() })}
+              onClick={() =>
+                asking !== null &&
+                run.mutate({ action: asking.action, comment: comment.trim() })
+              }
             >
               {run.isPending && <Spinner />}
               {asking?.label.replace("…", "")}
@@ -184,18 +231,29 @@ export function BulkBar({
             <DialogTitle>
               {result?.done ?? 0} of {result?.total ?? 0} done
             </DialogTitle>
-            <DialogDescription>The rest were left as they were, each for its own reason.</DialogDescription>
+            <DialogDescription>
+              The rest were left as they were, each for its own reason.
+            </DialogDescription>
           </DialogHeader>
           <ul className="grid max-h-80 gap-2 overflow-y-auto text-sm">
             {result?.results
               .filter((r) => r.outcome !== "done")
               .map((r) => (
-                <li key={r.ticketId} className="rounded-md border border-border px-3 py-2">
-                  <a href={`/tickets/${r.ticketId}`} className="font-mono text-xs hover:underline">
-                    {picked.find((p) => p.id === r.ticketId)?.number ?? "Ticket"}
+                <li
+                  key={r.ticketId}
+                  className="rounded-md border border-border px-3 py-2"
+                >
+                  <a
+                    href={`/tickets/${r.ticketId}`}
+                    className="font-mono text-xs hover:underline"
+                  >
+                    {picked.find((p) => p.id === r.ticketId)?.number ??
+                      "Ticket"}
                   </a>
                   <p>{r.outcome === "done" ? "" : OUTCOME_LABEL[r.outcome]}</p>
-                  {r.detail !== null && <p className="text-xs text-muted-foreground">{r.detail}</p>}
+                  {r.detail !== null && (
+                    <p className="text-xs text-muted-foreground">{r.detail}</p>
+                  )}
                 </li>
               ))}
           </ul>

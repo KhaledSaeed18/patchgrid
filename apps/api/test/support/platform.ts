@@ -44,8 +44,10 @@ export async function signInOperator(app: INestApplication, db: PrismaClient): P
     return response
   }
   const http = () => request(app.getHttpServer())
-  const send = (method: "post" | "put") => async (path: string, body: object = {}) =>
-    keep(await http()[method](`/api/v1/platform${path}`).set(HEADERS).set("Origin", ADMIN_ORIGIN).set("Cookie", cookie()).send(body))
+  const send =
+    (method: "post" | "put") =>
+    async (path: string, body: object = {}) =>
+      keep(await http()[method](`/api/v1/platform${path}`).set(HEADERS).set("Origin", ADMIN_ORIGIN).set("Cookie", cookie()).send(body))
   const post = send("post")
 
   await post("/auth/login", { email, password })

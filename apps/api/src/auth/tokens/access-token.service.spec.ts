@@ -44,7 +44,9 @@ describe("AccessTokenService", () => {
     expect(await ours.verify(token)).toBeNull()
 
     const [header, payload, signature] = (await ours.sign(session)).token.split(".")
-    const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(payload ?? "", "base64url").toString()), role: "OWNER" })).toString("base64url")
+    const forged = Buffer.from(
+      JSON.stringify({ ...JSON.parse(Buffer.from(payload ?? "", "base64url").toString()), role: "OWNER" }),
+    ).toString("base64url")
     expect(await ours.verify(`${header}.${forged}.${signature}`)).toBeNull()
   })
 

@@ -51,7 +51,15 @@ export class InboundEmailRepository {
    */
   async receive(
     orgId: string,
-    data: { id: string; messageKey: string; fromAddress: string; subject: string; authVerdict: AuthVerdict; rawStorageKey: string; receivedAt: Date },
+    data: {
+      id: string
+      messageKey: string
+      fromAddress: string
+      subject: string
+      authVerdict: AuthVerdict
+      rawStorageKey: string
+      receivedAt: Date
+    },
   ): Promise<{ id: string; outcome: InboundOutcome; replacedRawKey: string | null }> {
     await this.prisma.db.inboundEmail.createMany({ data: [{ orgId, ...data }], skipDuplicates: true })
     const row = await this.prisma.db.inboundEmail.findUniqueOrThrow({
@@ -97,7 +105,11 @@ export class InboundEmailRepository {
    * made it, so a retry after a later failure finds it done and never makes
    * a second one.
    */
-  async markActed(orgId: string, id: string, acted: { outcome: "CREATED" | "THREADED"; ticketId: string; senderMembershipId: string }): Promise<void> {
+  async markActed(
+    orgId: string,
+    id: string,
+    acted: { outcome: "CREATED" | "THREADED"; ticketId: string; senderMembershipId: string },
+  ): Promise<void> {
     const { count } = await this.prisma.db.inboundEmail.updateMany({ where: { orgId, id, outcome: "RECEIVED" }, data: acted })
     if (count !== 1) throw new Error(`inbound message ${id} was settled by someone else mid-way`)
   }
@@ -125,7 +137,10 @@ export class InboundEmailRepository {
 
   /** A message whose processing gave up: `FAILED`, if nothing else became of it first. */
   async failReceived(orgId: string, id: string, error: string, processedAt: Date): Promise<void> {
-    await this.prisma.db.inboundEmail.updateMany({ where: { orgId, id, outcome: "RECEIVED" }, data: { outcome: "FAILED", error, processedAt } })
+    await this.prisma.db.inboundEmail.updateMany({
+      where: { orgId, id, outcome: "RECEIVED" },
+      data: { outcome: "FAILED", error, processedAt },
+    })
   }
 
   /** Whether the workspace takes mail from addresses that are no member's (ADR-0027 §4) — read now, never cached. */
@@ -183,7 +198,10 @@ export class InboundEmailRepository {
   }
 
   /** Newest first, keyset on (receivedAt, id). */
-  page(orgId: string, filter: { outcome?: InboundOutcome; after: { receivedAt: Date; id: string } | null; limit: number }): Promise<InboundEmailRow[]> {
+  page(
+    orgId: string,
+    filter: { outcome?: InboundOutcome; after: { receivedAt: Date; id: string } | null; limit: number },
+  ): Promise<InboundEmailRow[]> {
     return this.prisma.db.inboundEmail.findMany({
       where: {
         orgId,
@@ -192,10 +210,7 @@ export class InboundEmailRepository {
           filter.after === null
             ? {}
             : {
-                OR: [
-                  { receivedAt: { lt: filter.after.receivedAt } },
-                  { receivedAt: filter.after.receivedAt, id: { lt: filter.after.id } },
-                ],
+                OR: [{ receivedAt: { lt: filter.after.receivedAt } }, { receivedAt: filter.after.receivedAt, id: { lt: filter.after.id } }],
               },
         ],
       },

@@ -125,7 +125,11 @@ export function guardedLookup(allowPrivate: boolean): LookupFunction {
       }
       const blocked = allowPrivate ? undefined : addresses.find((a) => isBlockedAddress(a.address))
       if (blocked !== undefined) {
-        callback(new BlockedTargetError("the host resolves to a private or reserved address", `${hostname} resolves to ${blocked.address}`), "", 0)
+        callback(
+          new BlockedTargetError("the host resolves to a private or reserved address", `${hostname} resolves to ${blocked.address}`),
+          "",
+          0,
+        )
         return
       }
       if (options.all === true) {
@@ -175,7 +179,12 @@ export function postSafely(url: string, body: string, options: SafeRequestOption
 }
 
 /** Any method, the same rules: vetted addresses, no redirects, a deadline, a bounded body. */
-export function requestSafely(method: string, url: string, body: string | Buffer | null, options: SafeRequestOptions): Promise<SafeResponse> {
+export function requestSafely(
+  method: string,
+  url: string,
+  body: string | Buffer | null,
+  options: SafeRequestOptions,
+): Promise<SafeResponse> {
   const target = checkTarget(url, options.allowPrivate)
   const transport = target.protocol === "https:" ? https : http
   const started = performance.now()
@@ -205,7 +214,12 @@ export function requestSafely(method: string, url: string, body: string | Buffer
             if (typeof value === "string") headers.set(name, value)
             else if (Array.isArray(value)) for (const one of value) headers.append(name, one)
           }
-          resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8"), durationMs: Math.round(performance.now() - started), headers })
+          resolve({
+            status: response.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8"),
+            durationMs: Math.round(performance.now() - started),
+            headers,
+          })
         })
         response.on("error", (error) => {
           clearTimeout(timer)

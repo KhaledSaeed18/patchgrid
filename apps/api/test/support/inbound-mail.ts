@@ -47,7 +47,14 @@ export function buildMessage(mail: SampleMail): Buffer {
   if (files.length === 0) {
     lines.push("Content-Type: text/plain; charset=utf-8", "Content-Transfer-Encoding: 8bit", "", mail.text)
   } else {
-    lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`, "", `--${boundary}`, "Content-Type: text/plain; charset=utf-8", "", mail.text)
+    lines.push(
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      mail.text,
+    )
     for (const file of files) {
       lines.push(
         `--${boundary}`,
@@ -68,5 +75,13 @@ export function webhookRequest(secret: string, recipients: string[], raw: Buffer
   const body = Buffer.from(JSON.stringify({ type: "email.received", data: { recipients, raw: raw.toString("base64") } }))
   const id = `msg_${randomUUID()}`
   const timestamp = String(Math.floor(now.getTime() / 1000))
-  return { body, headers: { "webhook-id": id, "webhook-timestamp": timestamp, "webhook-signature": sign(secret, id, timestamp, body), "content-type": "application/json" } }
+  return {
+    body,
+    headers: {
+      "webhook-id": id,
+      "webhook-timestamp": timestamp,
+      "webhook-signature": sign(secret, id, timestamp, body),
+      "content-type": "application/json",
+    },
+  }
 }

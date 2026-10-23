@@ -312,13 +312,32 @@ export async function seedDemoProblemsAndChanges(
   let problemNumber = counters.find((c) => c.type === "PROBLEM")?.nextValue ?? 1
   let changeNumber = counters.find((c) => c.type === "CHANGE")?.nextValue ?? 1
   const day = (n: number) => at(now, -n * 1440)
-  const base = { orgId: org.id, impact: "MEDIUM" as const, urgency: "MEDIUM" as const, priority: "MEDIUM" as const, source: "CONSOLE" as const, teamId: team }
+  const base = {
+    orgId: org.id,
+    impact: "MEDIUM" as const,
+    urgency: "MEDIUM" as const,
+    priority: "MEDIUM" as const,
+    source: "CONSOLE" as const,
+    teamId: team,
+  }
 
   const PROBLEMS = [
     { title: "Outlook password prompts after the update", status: "NEW", workaround: null, rootCause: null, age: 1 },
     { title: "Laptops failing to wake from sleep", status: "IN_PROGRESS", workaround: null, rootCause: null, age: 4 },
-    { title: "Wi-Fi drops in the warehouse", status: "KNOWN_ERROR", workaround: "Pin scanners to the 5 GHz access point by the bay door.", rootCause: null, age: 9 },
-    { title: "Calendar invites arriving late", status: "RESOLVED", workaround: "Send from the web client.", rootCause: "The mail relay kept the old daylight-saving offset.", age: 20 },
+    {
+      title: "Wi-Fi drops in the warehouse",
+      status: "KNOWN_ERROR",
+      workaround: "Pin scanners to the 5 GHz access point by the bay door.",
+      rootCause: null,
+      age: 9,
+    },
+    {
+      title: "Calendar invites arriving late",
+      status: "RESOLVED",
+      workaround: "Send from the web client.",
+      rootCause: "The mail relay kept the old daylight-saving offset.",
+      age: 20,
+    },
   ] as const
   const problemIds: string[] = []
   for (const [index, p] of PROBLEMS.entries()) {
@@ -338,7 +357,9 @@ export async function seedDemoProblemsAndChanges(
         resolvedAt: p.status === "RESOLVED" ? day(p.age - 3) : null,
         createdAt,
         updatedAt: createdAt,
-        problem: { create: { workaround: p.workaround, rootCause: p.rootCause, knownErrorAt: p.workaround === null ? null : day(p.age - 1) } },
+        problem: {
+          create: { workaround: p.workaround, rootCause: p.rootCause, knownErrorAt: p.workaround === null ? null : day(p.age - 1) },
+        },
       },
       select: { id: true },
     })
@@ -346,7 +367,13 @@ export async function seedDemoProblemsAndChanges(
     problemIds.push(problem.id)
     const caused = incidents.slice(index * 3, index * 3 + 2 + (index % 2))
     await db.ticketLink.createMany({
-      data: caused.map((i) => ({ orgId: org.id, fromTicketId: i.id, toTicketId: problem.id, relation: "CAUSED_BY" as const, createdByMembershipId: people.lead })),
+      data: caused.map((i) => ({
+        orgId: org.id,
+        fromTicketId: i.id,
+        toTicketId: problem.id,
+        relation: "CAUSED_BY" as const,
+        createdByMembershipId: people.lead,
+      })),
     })
   }
 
@@ -358,14 +385,39 @@ export async function seedDemoProblemsAndChanges(
     rollbackPlan: "Restore the previous configuration from the nightly backup.",
   })
   const CHANGES = [
-    { title: "Replace the warehouse access points", status: "DRAFT", plan: { risk: "MEDIUM" as const }, decisions: [], outcome: null, offset: 7 },
+    {
+      title: "Replace the warehouse access points",
+      status: "DRAFT",
+      plan: { risk: "MEDIUM" as const },
+      decisions: [],
+      outcome: null,
+      offset: 7,
+    },
     { title: "Move the mail relay to the new cluster", status: "AWAITING_APPROVAL", decisions: ["REJECTED"], outcome: null, offset: 3 },
     { title: "Raise the VPN lease table size", status: "AWAITING_APPROVAL", decisions: [], outcome: null, offset: 2 },
     { title: "Upgrade the core switch firmware", status: "APPROVED", decisions: ["APPROVED"], outcome: null, offset: 1 },
     { title: "Roll out the new laptop sleep policy", status: "IN_PROGRESS", decisions: ["APPROVED"], outcome: null, offset: 0 },
-    { title: "Rotate the guest Wi-Fi password weekly", status: "IMPLEMENTED", decisions: ["APPROVED"], outcome: "Rotation scheduled; the reception screen shows the new code.", offset: -2 },
-    { title: "Enable the new spam filter rules", status: "ROLLED_BACK", decisions: ["APPROVED"], outcome: "Blocked two clients' invoices; rolled back within the hour.", offset: -4 },
-    { title: "Fix the daylight-saving offset on the relay", status: "CLOSED", decisions: ["REJECTED", "APPROVED"], outcome: "Offset corrected; invites arrive on time.", offset: -15 },
+    {
+      title: "Rotate the guest Wi-Fi password weekly",
+      status: "IMPLEMENTED",
+      decisions: ["APPROVED"],
+      outcome: "Rotation scheduled; the reception screen shows the new code.",
+      offset: -2,
+    },
+    {
+      title: "Enable the new spam filter rules",
+      status: "ROLLED_BACK",
+      decisions: ["APPROVED"],
+      outcome: "Blocked two clients' invoices; rolled back within the hour.",
+      offset: -4,
+    },
+    {
+      title: "Fix the daylight-saving offset on the relay",
+      status: "CLOSED",
+      decisions: ["REJECTED", "APPROVED"],
+      outcome: "Offset corrected; invites arrive on time.",
+      offset: -15,
+    },
     { title: "Retire the old print server", status: "CANCELLED", decisions: [], outcome: null, offset: 10 },
   ] as const
   for (const c of CHANGES) {
@@ -408,7 +460,13 @@ export async function seedDemoProblemsAndChanges(
     }
     if (c.title.startsWith("Fix the daylight-saving")) {
       await db.ticketLink.create({
-        data: { orgId: org.id, fromTicketId: problemIds[3] ?? "", toTicketId: change.id, relation: "RESOLVED_BY", createdByMembershipId: people.lead },
+        data: {
+          orgId: org.id,
+          fromTicketId: problemIds[3] ?? "",
+          toTicketId: change.id,
+          relation: "RESOLVED_BY",
+          createdByMembershipId: people.lead,
+        },
       })
     }
   }

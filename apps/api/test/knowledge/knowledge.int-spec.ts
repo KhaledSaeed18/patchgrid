@@ -56,8 +56,15 @@ describe("writing", () => {
     expect(published.body).toMatchObject({ slug: "connecting-to-the-vpn", visibility: "PUBLISHED", version: 1 })
     ids.published = published.body.id as string
 
-    ids.internal = (await as("agent").post("/articles", { title: "VPN concentrator runbook", body: "Renew the lease on the concentrator.", visibility: "INTERNAL" })).body.id as string
-    ids.draft = (await as("agent").post("/articles", { title: "VPN printing notes", body: "Half-written notes on printing." })).body.id as string
+    ids.internal = (
+      await as("agent").post("/articles", {
+        title: "VPN concentrator runbook",
+        body: "Renew the lease on the concentrator.",
+        visibility: "INTERNAL",
+      })
+    ).body.id as string
+    ids.draft = (await as("agent").post("/articles", { title: "VPN printing notes", body: "Half-written notes on printing." })).body
+      .id as string
 
     const again = await as("other").post("/articles", { title: "Connecting to the VPN", body: "A second take." })
     expect(again.body.slug).toBe("connecting-to-the-vpn-2")
@@ -66,7 +73,10 @@ describe("writing", () => {
   })
 
   it("edits against the version, and a stale one is 409", async () => {
-    const edited = await as("other").patch(`/articles/${ids.published}`, { version: 1, body: "Open the client and sign in. Printers need the second profile." })
+    const edited = await as("other").patch(`/articles/${ids.published}`, {
+      version: 1,
+      body: "Open the client and sign in. Printers need the second profile.",
+    })
     expect(edited.status).toBe(200)
     expect(edited.body.version).toBe(2)
     expect((await as("agent").patch(`/articles/${ids.published}`, { version: 1, title: "Too late" })).status).toBe(409)
@@ -77,8 +87,16 @@ describe("writing", () => {
 describe("reading", () => {
   it("lists by visibility: a requester published, an agent internal and their own drafts, an admin all", async () => {
     expect(titles((await as("requester").get("/articles")).body)).toEqual(["Connecting to the VPN"])
-    expect(titles((await as("other").get("/articles")).body)).toEqual(["Connecting to the VPN", "Connecting to the VPN", "VPN concentrator runbook"])
-    expect(titles((await as("agent").get("/articles")).body)).toEqual(["Connecting to the VPN", "VPN concentrator runbook", "VPN printing notes"])
+    expect(titles((await as("other").get("/articles")).body)).toEqual([
+      "Connecting to the VPN",
+      "Connecting to the VPN",
+      "VPN concentrator runbook",
+    ])
+    expect(titles((await as("agent").get("/articles")).body)).toEqual([
+      "Connecting to the VPN",
+      "VPN concentrator runbook",
+      "VPN printing notes",
+    ])
     expect((await as("admin").get("/articles")).body.items).toHaveLength(4)
   })
 

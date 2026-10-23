@@ -31,31 +31,50 @@ function instruments() {
       description: "Request duration by route, status and tenant — the first question (ADR-0030)",
       unit: "ms",
     }),
-    dbTransactionDuration: meter.createHistogram("db_transaction_duration", { description: "One interactive transaction, by tenant", unit: "ms" }),
+    dbTransactionDuration: meter.createHistogram("db_transaction_duration", {
+      description: "One interactive transaction, by tenant",
+      unit: "ms",
+    }),
     dbTransactionsPerRequest: meter.createHistogram("db_transactions_per_request", {
       description: "Transactions one request opened — an N+1 becomes N pooled connections",
       unit: "1",
     }),
     jobDuration: meter.createHistogram("job_duration", { description: "A background job, by queue, outcome and tenant", unit: "ms" }),
-    rlsDenied: meter.createCounter("rls_denied_total", { description: "Statements Postgres refused under row-level security — a non-zero value is a bug" }),
+    rlsDenied: meter.createCounter("rls_denied_total", {
+      description: "Statements Postgres refused under row-level security — a non-zero value is a bug",
+    }),
     slaBreaches: meter.createCounter("sla_breaches_total", { description: "SLA breaches flagged, by tenant and priority" }),
     quotaRejections: meter.createCounter("quota_rejections_total", { description: "Writes refused by a plan limit, by tenant and metric" }),
-    authorizationDecisions: meter.createCounter("authorization_decisions_total", { description: "Permission decisions by permission and outcome" }),
+    authorizationDecisions: meter.createCounter("authorization_decisions_total", {
+      description: "Permission decisions by permission and outcome",
+    }),
     outboxEventAge: meter.createHistogram("outbox_event_age", {
       description: "How long an event waited in the outbox before its consumer read it, by consumer and tenant (ADR-0049)",
       unit: "ms",
       // Delivery latency spans milliseconds to a stuck consumer's minutes; the default buckets stop at 10 s.
       advice: { explicitBucketBoundaries: [5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 30_000, 60_000, 300_000, 900_000] },
     }),
-    outboxDrains: meter.createCounter("outbox_drains_total", { description: "Drains by consumer and outcome: drained, idle, held back by the horizon, busy" }),
-    reportingDrift: meter.createCounter("reporting_drift_total", { description: "Reporting facts the reconcile had to rewrite, by tenant — after the first build, any value is a missed write" }),
-    outboxParked: meter.createCounter("outbox_events_parked_total", { description: "Events a consumer gave up on, by consumer and tenant — any value needs a look" }),
+    outboxDrains: meter.createCounter("outbox_drains_total", {
+      description: "Drains by consumer and outcome: drained, idle, held back by the horizon, busy",
+    }),
+    reportingDrift: meter.createCounter("reporting_drift_total", {
+      description: "Reporting facts the reconcile had to rewrite, by tenant — after the first build, any value is a missed write",
+    }),
+    outboxParked: meter.createCounter("outbox_events_parked_total", {
+      description: "Events a consumer gave up on, by consumer and tenant — any value needs a look",
+    }),
   }
 }
 let made: ReturnType<typeof instruments> | undefined
 const the = () => (made ??= instruments())
 
-export function recordHttpRequest(input: { method: string; route: string; status: number; orgId: string | null | undefined; durationMs: number }): void {
+export function recordHttpRequest(input: {
+  method: string
+  route: string
+  status: number
+  orgId: string | null | undefined
+  durationMs: number
+}): void {
   the().httpDuration.record(input.durationMs, {
     "http.request.method": input.method,
     "http.route": input.route,
@@ -122,7 +141,11 @@ export function recordAuthorization(permission: string, allowed: boolean, actorK
 }
 
 /** Every span carries the tenant (ADR-0030): set once the credential is verified, on whatever span is active. */
-export function tagActiveSpanWithTenant(input: { orgId?: string | undefined; membershipId?: string | undefined; actorKind?: string | undefined }): void {
+export function tagActiveSpanWithTenant(input: {
+  orgId?: string | undefined
+  membershipId?: string | undefined
+  actorKind?: string | undefined
+}): void {
   const span = trace.getActiveSpan()
   if (span === undefined) return
   span.setAttributes({
@@ -144,7 +167,10 @@ export function activeTraceId(): string | undefined {
  */
 export function observePool(stats: () => { total: number; idle: number; waiting: number; max: number } | null): void {
   const meter = metrics.getMeter("patchgrid-api")
-  const saturation = meter.createObservableGauge("db_pool_saturation", { description: "Connections in use over the pool ceiling (0–1)", unit: "1" })
+  const saturation = meter.createObservableGauge("db_pool_saturation", {
+    description: "Connections in use over the pool ceiling (0–1)",
+    unit: "1",
+  })
   const waiting = meter.createObservableGauge("db_pool_waiting", { description: "Callers waiting for a pooled connection" })
   meter.addBatchObservableCallback(
     (result) => {

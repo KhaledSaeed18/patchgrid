@@ -120,7 +120,10 @@ export class WebhookRepository {
 
   /** The endpoints that should hear of new events: active ones, with what they listen for. */
   activeEndpoints(orgId: string): Promise<{ id: string; eventTypes: string[]; createdAt: Date }[]> {
-    return this.prisma.db.webhookEndpoint.findMany({ where: { orgId, status: "ACTIVE" }, select: { id: true, eventTypes: true, createdAt: true } })
+    return this.prisma.db.webhookEndpoint.findMany({
+      where: { orgId, status: "ACTIVE" },
+      select: { id: true, eventTypes: true, createdAt: true },
+    })
   }
 
   async updateEndpoint(orgId: string, id: string, changes: EndpointChanges): Promise<EndpointRow | null> {
@@ -203,7 +206,12 @@ export class WebhookRepository {
   async lockCircuit(
     orgId: string,
     id: string,
-  ): Promise<{ status: WebhookEndpointStatus; consecutiveFailures: number; circuitOpenUntil: Date | null; failingSince: Date | null } | null> {
+  ): Promise<{
+    status: WebhookEndpointStatus
+    consecutiveFailures: number
+    circuitOpenUntil: Date | null
+    failingSince: Date | null
+  } | null> {
     const rows = await this.prisma.tx.$queryRaw<
       { status: WebhookEndpointStatus; consecutiveFailures: number; circuitOpenUntil: Date | null; failingSince: Date | null }[]
     >`
@@ -230,7 +238,10 @@ export class WebhookRepository {
    * where the endpoint sent, and its active human admins and owners — the
    * people `webhook:manage` lets act on it.
    */
-  async disabledNotice(orgId: string, endpointId: string): Promise<{ org: { name: string; slug: string }; url: string; to: { membershipId: string; email: string }[] } | null> {
+  async disabledNotice(
+    orgId: string,
+    endpointId: string,
+  ): Promise<{ org: { name: string; slug: string }; url: string; to: { membershipId: string; email: string }[] } | null> {
     const endpoint = await this.prisma.db.webhookEndpoint.findFirst({
       where: { orgId, id: endpointId },
       select: { url: true, organization: { select: { name: true, slug: true } } },
@@ -259,7 +270,10 @@ export class WebhookRepository {
   }
 
   async markDead(orgId: string, id: string, reason: string): Promise<void> {
-    await this.prisma.db.webhookDelivery.updateMany({ where: { orgId, id, status: "PENDING" }, data: { status: "DEAD", nextAttemptAt: null, lastError: reason } })
+    await this.prisma.db.webhookDelivery.updateMany({
+      where: { orgId, id, status: "PENDING" },
+      data: { status: "DEAD", nextAttemptAt: null, lastError: reason },
+    })
   }
 
   /** An endpoint's log, newest first, keyset-paged on (createdAt, id). */

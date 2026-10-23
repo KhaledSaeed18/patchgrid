@@ -71,7 +71,8 @@ export class PlatformAuthService {
   /** A new, unconfirmed factor — only for an operator who has none. */
   async enrol(challengeToken: string | undefined): Promise<MfaEnrolment> {
     const challenge = await this.challenge(challengeToken, "enrol")
-    if ((await this.mfa.confirmed(challenge.userId)) !== null) throw new NotAuthenticatedProblem("A factor is already enrolled; sign in again")
+    if ((await this.mfa.confirmed(challenge.userId)) !== null)
+      throw new NotAuthenticatedProblem("A factor is already enrolled; sign in again")
     const admin = await this.activeAdmin(challenge)
     const secret = newTotpSecret()
     await this.mfa.startEnrolment(challenge.userId, this.box.seal(secret), "Authenticator app")
@@ -114,7 +115,11 @@ export class PlatformAuthService {
     for (const stored of await this.mfa.unusedRecoveryCodes(challenge.userId)) {
       if ((await this.passwords.verify(stored.codeHash, presented)) && (await this.mfa.spendRecoveryCode(stored.id, now))) {
         await this.lockout.clear(challenge.userId)
-        await this.audit.record({ platformAdminId: challenge.platformAdminId, action: "PLATFORM_RECOVERY_CODE_USED", targetUserId: challenge.userId })
+        await this.audit.record({
+          platformAdminId: challenge.platformAdminId,
+          action: "PLATFORM_RECOVERY_CODE_USED",
+          targetUserId: challenge.userId,
+        })
         // A recovery code means the factor may be lost — or taken: every other session ends, and the operator hears of it.
         await this.epochs.bump(platformEpochKey(challenge.platformAdminId), { before: true })
         await this.tell(challenge, "recovery-code-used", (await this.mfa.unusedRecoveryCodes(challenge.userId)).length)
@@ -160,14 +165,24 @@ export class PlatformAuthService {
         `${challenge.platformAdminId}.${event}.${String(this.clock.now().getTime())}`,
       )
     } catch (error) {
-      this.logger.error({ msg: "platform security mail not queued", platformAdminId: challenge.platformAdminId, event, error: String(error) })
+      this.logger.error({
+        msg: "platform security mail not queued",
+        platformAdminId: challenge.platformAdminId,
+        event,
+        error: String(error),
+      })
     }
   }
 
   private async signIn(challenge: PlatformChallenge, factor: "totp" | "recovery"): Promise<SignedIn> {
     await this.activeAdmin(challenge)
     const session = await this.tokens.session(challenge.userId, challenge.platformAdminId)
-    await this.audit.record({ platformAdminId: challenge.platformAdminId, action: "PLATFORM_SIGNED_IN", targetUserId: challenge.userId, diff: { factor } })
+    await this.audit.record({
+      platformAdminId: challenge.platformAdminId,
+      action: "PLATFORM_SIGNED_IN",
+      targetUserId: challenge.userId,
+      diff: { factor },
+    })
     this.logger.log({ msg: "platform admin signed in", platformAdminId: challenge.platformAdminId, factor })
     return { session }
   }

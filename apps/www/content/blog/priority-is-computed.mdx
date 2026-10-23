@@ -4,11 +4,11 @@ In Patchgrid you can't set a ticket's priority. You give an impact and an urgenc
 
 Patchgrid's domain follows ITIL, which splits "how bad is this?" into two narrower questions: **impact** (how much of the business is affected) and **urgency** (how quickly it gets worse). Patchgrid asks for both and combines them with one matrix, defined once in `@patchgrid/contracts`:
 
-| Impact \ Urgency | Low | Medium | High |
-| --- | --- | --- | --- |
-| **High** | Medium | High | Critical |
-| **Medium** | Low | Medium | High |
-| **Low** | Low | Low | Medium |
+| Impact \ Urgency | Low    | Medium | High     |
+| ---------------- | ------ | ------ | -------- |
+| **High**         | Medium | High   | Critical |
+| **Medium**       | Low    | Medium | High     |
+| **Low**          | Low    | Low    | Medium   |
 
 ```ts
 /** Rows are impact, columns urgency. */
@@ -33,8 +33,13 @@ Priority is the key that selects an SLA policy, and the policy sets the deadline
 
 ```ts
 it("refuse a priority from the client — it is computed (DOMAIN.md §3)", () => {
-  expect(createTicketRequestSchema.safeParse({ ...base, priority: "CRITICAL" }).success).toBe(false)
-  expect(updateTicketRequestSchema.safeParse({ version: 1, priority: "LOW" }).success).toBe(false)
+  expect(
+    createTicketRequestSchema.safeParse({ ...base, priority: "CRITICAL" })
+      .success
+  ).toBe(false)
+  expect(
+    updateTicketRequestSchema.safeParse({ version: 1, priority: "LOW" }).success
+  ).toBe(false)
 })
 ```
 
@@ -64,11 +69,11 @@ Priority applies to all four ticket types, since it is a useful sort key for Pro
 Each workspace gets eight SLA policies when it is provisioned: one per `(ticketType, priority)` for Incidents and Service Requests. They start out identical, so an admin can relax Service Request targets without touching Incidents. The defaults:
 
 | Priority | Response | Warn before | Resolution | Warn before |
-| --- | --- | --- | --- | --- |
-| Critical | 15 min | 5 min | 4 h | 45 min |
-| High | 30 min | 10 min | 8 h | 1 h |
-| Medium | 1 h | 15 min | 24 h | 2 h |
-| Low | 4 h | 1 h | 72 h | 4 h |
+| -------- | -------- | ----------- | ---------- | ----------- |
+| Critical | 15 min   | 5 min       | 4 h        | 45 min      |
+| High     | 30 min   | 10 min      | 8 h        | 1 h         |
+| Medium   | 1 h      | 15 min      | 24 h       | 2 h         |
+| Low      | 4 h      | 1 h         | 72 h       | 4 h         |
 
 There are two warning thresholds on purpose. One threshold cannot serve a 15-minute response target and a 4-hour resolution target at the same time. Set it to 15 minutes for both and a Critical incident would raise a response warning the moment it was created.
 
@@ -81,7 +86,7 @@ respondBy = responseClockStartedAt   + responseTargetMinutes
 resolveBy = resolutionClockStartedAt + resolutionTargetMinutes + pausedMinutes
 ```
 
-Storing the start points as columns resolves a conflict between two rules. ADR-0003 first said a priority change recomputes targets from `createdAt`. But reopening a ticket starts a fresh resolution clock, and a later priority change must not silently move that clock's start back to creation. `DOMAIN.md` therefore refines the rule: priority changes recompute from the *stored* start, which a reopen has moved forward.
+Storing the start points as columns resolves a conflict between two rules. ADR-0003 first said a priority change recomputes targets from `createdAt`. But reopening a ticket starts a fresh resolution clock, and a later priority change must not silently move that clock's start back to creation. `DOMAIN.md` therefore refines the rule: priority changes recompute from the _stored_ start, which a reopen has moved forward.
 
 ## The pause while pending
 
@@ -92,10 +97,20 @@ Only the resolution clock pauses. A ticket can enter `PENDING` only through a pu
 Entering `PENDING` records `pausedAt`. Leaving it adds the elapsed time to `pausedMinutes` and moves `resolveBy` out by the same amount:
 
 ```ts
-export function onResume(state: SlaState, now: Date, policy: SlaPolicyTargets | null): Partial<SlaState> {
+export function onResume(
+  state: SlaState,
+  now: Date,
+  policy: SlaPolicyTargets | null
+): Partial<SlaState> {
   if (state.pausedAt === null) return {}
-  const pausedMinutes = state.pausedMinutes + Math.floor((now.getTime() - state.pausedAt.getTime()) / MINUTE)
-  return { pausedAt: null, pausedMinutes, resolveBy: deadlines({ ...state, pausedMinutes }, policy).resolveBy }
+  const pausedMinutes =
+    state.pausedMinutes +
+    Math.floor((now.getTime() - state.pausedAt.getTime()) / MINUTE)
+  return {
+    pausedAt: null,
+    pausedMinutes,
+    resolveBy: deadlines({ ...state, pausedMinutes }, policy).resolveBy,
+  }
 }
 ```
 
@@ -105,7 +120,7 @@ The rounding is down, which in the code's own words is "the stricter reading, ne
 
 Business-hours SLAs are real and common. Supporting them properly means calendars, time zones, holiday tables and arithmetic like "add four business hours to Friday at 16:00". The worker, the countdown in the UI and the reports all depend on the clock model, so it had to be fixed early. Building calendars first would have delayed the first usable milestone considerably.
 
-Because deadlines are stored as absolute timestamps, the extension path is narrow. A `BusinessCalendar` entity plus a clock strategy that turns "N business minutes from T" into a timestamp would change only how deadlines are *computed*. Storage and the scanner would stay the same.
+Because deadlines are stored as absolute timestamps, the extension path is narrow. A `BusinessCalendar` entity plus a clock strategy that turns "N business minutes from T" into a timestamp would change only how deadlines are _computed_. Storage and the scanner would stay the same.
 
 ## The scanner, and keeping it honest
 

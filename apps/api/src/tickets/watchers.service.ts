@@ -63,7 +63,9 @@ export class WatchersService {
       if (!(self && actor.kind === "member")) {
         const target = await this.memberships.findById(orgId, membershipId)
         if (target === null || target.status !== "ACTIVE" || target.kind !== "HUMAN") {
-          throw new ValidationProblem([{ path: "membershipId", message: "is not an active person in this workspace", code: "invalid_watcher" }])
+          throw new ValidationProblem([
+            { path: "membershipId", message: "is not an active person in this workspace", code: "invalid_watcher" },
+          ])
         }
       }
       if (!(await this.watchers.add(orgId, ticketId, membershipId, actor.membershipId))) return false

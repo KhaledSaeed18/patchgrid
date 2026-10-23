@@ -31,7 +31,10 @@ const recorder = new RecordingMailProvider()
 
 beforeAll(async () => {
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(recorder).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(recorder)
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
@@ -67,7 +70,13 @@ let recovery: string[] = []
 describe("enrolling", () => {
   it("starts from the picker, confirms with one code, and shows ten recovery codes once", async () => {
     const owner = picker("owner")
-    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: [], password: true, recoveryCodesRemaining: 0 })
+    expect((await owner.get("/auth/mfa")).body).toEqual({
+      enrolled: false,
+      confirmedAt: null,
+      methods: [],
+      password: true,
+      recoveryCodesRemaining: 0,
+    })
     expect((await owner.get("/auth/identity")).body.mfa).toEqual({ enrolled: false })
     // The password, not the cookie alone, sets the factor (M9 review).
     expect((await owner.post("/auth/mfa/enrol", { password: "nope-nope-nope" })).status).toBe(400)
@@ -167,7 +176,12 @@ describe("signing in with a factor", () => {
 describe("step-up before an irreversible action", () => {
   it("refuses a plain session, takes the factor when one exists, and stamps the re-issued pair for five minutes", async () => {
     const owner = picker("owner")
-    const unproved = await as("owner").post("/org/api-tokens", { name: "Zabbix", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
+    const unproved = await as("owner").post("/org/api-tokens", {
+      name: "Zabbix",
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      expiresInDays: null,
+    })
     expect(unproved.status).toBe(403)
     expect(unproved.body.type).toContain("step-up-required")
     // The password cannot stand in for the factor.
@@ -176,7 +190,12 @@ describe("step-up before an irreversible action", () => {
     const proved = await owner.post("/auth/step-up", { slug: ws.slug, code: codeAt(secret, new Date()) })
     expect(proved.status).toBe(200)
     expect(new Date(proved.body.stepUpExpiresAt as string).getTime()).toBeGreaterThan(Date.now() + 4 * 60_000)
-    const minted = await jarred(ws.origin, owner.jar).post("/org/api-tokens", { name: "Zabbix", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
+    const minted = await jarred(ws.origin, owner.jar).post("/org/api-tokens", {
+      name: "Zabbix",
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      expiresInDays: null,
+    })
     expect(minted.status, JSON.stringify(minted.body)).toBe(201)
   })
 
@@ -185,12 +204,26 @@ describe("step-up before an irreversible action", () => {
     expect((await admin.post("/auth/step-up", { slug: ws.slug, code: "123456" })).status).toBe(400)
     expect((await admin.post("/auth/step-up", { slug: ws.slug, password: "nope-nope-nope" })).status).toBe(400)
     expect((await admin.post("/auth/step-up", { slug: ws.slug, password: PASSWORD })).status).toBe(200)
-    const minted = await jarred(ws.origin, admin.jar).post("/org/api-tokens", { name: "Grafana", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })
+    const minted = await jarred(ws.origin, admin.jar).post("/org/api-tokens", {
+      name: "Grafana",
+      role: "AGENT",
+      scopes: ["tickets:read"],
+      expiresInDays: null,
+    })
     expect(minted.status).toBe(201)
     // A refresh re-mints without the proof: the claim is the step-up's, not the session's.
     const refreshed = await jarred(APP_ORIGIN, admin.jar).post("/auth/refresh", { slug: ws.slug })
     expect(refreshed.status).toBe(204)
-    expect((await jarred(ws.origin, admin.jar).post("/org/api-tokens", { name: "Again", role: "AGENT", scopes: ["tickets:read"], expiresInDays: null })).status).toBe(403)
+    expect(
+      (
+        await jarred(ws.origin, admin.jar).post("/org/api-tokens", {
+          name: "Again",
+          role: "AGENT",
+          scopes: ["tickets:read"],
+          expiresInDays: null,
+        })
+      ).status,
+    ).toBe(403)
   })
 })
 

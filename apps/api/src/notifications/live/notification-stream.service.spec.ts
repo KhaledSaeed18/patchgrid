@@ -69,7 +69,10 @@ function harness(options: { actor?: MemberActor; credential?: Credential; replay
     notifications as unknown as NotificationRepository,
     standing as unknown as StandingService,
     new PermissionService(),
-    { requireTenantActor: () => actor, credential: () => options.credential ?? { issuedAt: nowSeconds - 60, expiresAt: nowSeconds + 840 } } as unknown as ActorService,
+    {
+      requireTenantActor: () => actor,
+      credential: () => options.credential ?? { issuedAt: nowSeconds - 60, expiresAt: nowSeconds + 840 },
+    } as unknown as ActorService,
     { requireOrgId: () => ORG } as unknown as TenantContextService,
     new FixedClock(NOW),
   )
@@ -120,11 +123,25 @@ describe("NotificationStreamService", () => {
   })
 
   it("replays what came after Last-Event-ID first, and ignores one that is not an id", async () => {
-    const row: NotificationRow = { id: ID(600), type: "COMMENT_PUBLIC", title: "New reply", body: null, ticketId: ID(77), count: 2, readAt: null, createdAt: NOW, updatedAt: NOW }
+    const row: NotificationRow = {
+      id: ID(600),
+      type: "COMMENT_PUBLIC",
+      title: "New reply",
+      body: null,
+      ticketId: ID(77),
+      count: 2,
+      readAt: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+    }
     const h = harness({ replay: [row] })
     const s = await collect(h, ID(599))
     expect(h.notifications.since).toHaveBeenCalledWith(ORG, ID(100), ID(599), 50)
-    expect(s.frames[0]).toEqual({ event: "notification", id: ID(600), data: { id: ID(600), type: "COMMENT_PUBLIC", title: "New reply", ticketId: ID(77) } })
+    expect(s.frames[0]).toEqual({
+      event: "notification",
+      id: ID(600),
+      data: { id: ID(600), type: "COMMENT_PUBLIC", title: "New reply", ticketId: ID(77) },
+    })
     const bogus = harness()
     await collect(bogus, "'; drop table")
     expect(bogus.notifications.since).not.toHaveBeenCalled()
@@ -208,7 +225,10 @@ describe("NotificationStreamService", () => {
       h.notifications as unknown as NotificationRepository,
       h.standing as unknown as StandingService,
       new PermissionService(),
-      { requireTenantActor: () => ({ kind: "service", orgId: ORG, membershipId: ID(3), role: "AGENT", scopes: ["tickets:read"] }), credential: () => undefined } as unknown as ActorService,
+      {
+        requireTenantActor: () => ({ kind: "service", orgId: ORG, membershipId: ID(3), role: "AGENT", scopes: ["tickets:read"] }),
+        credential: () => undefined,
+      } as unknown as ActorService,
       { requireOrgId: () => ORG } as unknown as TenantContextService,
       new FixedClock(NOW),
     )

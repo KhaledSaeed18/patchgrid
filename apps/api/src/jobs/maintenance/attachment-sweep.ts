@@ -55,9 +55,9 @@ export class AttachmentSweepService {
         // A pending upload's bytes are in staging (ADR-0038) — or, when a `complete` copied them just
         // before this batch took the row, at the final key too. Each key is the upload's own.
         for (const key of [stagingKey(row.storageKey), row.storageKey]) {
-          await this.storage.remove(key).catch((error: unknown) =>
-            this.logger.warn({ msg: "abandoned upload's object not removed", orgId, key, error: String(error) }),
-          )
+          await this.storage
+            .remove(key)
+            .catch((error: unknown) => this.logger.warn({ msg: "abandoned upload's object not removed", orgId, key, error: String(error) }))
         }
       }
       removed += gone.length

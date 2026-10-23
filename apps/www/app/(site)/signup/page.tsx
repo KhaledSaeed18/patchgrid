@@ -14,9 +14,7 @@ export const metadata: Metadata = pageMetadata({
 export default function SignupPage() {
   return (
     <main className="mx-auto max-w-md px-6 pt-10 pb-24">
-      <h1 className="font-serif text-3xl tracking-tight">
-        Create a workspace
-      </h1>
+      <h1 className="font-serif text-3xl tracking-tight">Create a workspace</h1>
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
         Your account first. We&rsquo;ll email a link to confirm your address;
         following it brings you to your new workspace&rsquo;s setup, with the

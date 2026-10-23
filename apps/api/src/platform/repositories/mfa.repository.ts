@@ -61,7 +61,14 @@ export class MfaRepository {
    * have stand. An operator's are replaced every time (`codes: "always"`),
    * as their enrolment has always done (ADR-0040).
    */
-  async confirm(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[] | null, codes: "if-first" | "always"): Promise<Confirmed> {
+  async confirm(
+    userId: string,
+    factorId: string,
+    step: number,
+    now: Date,
+    recoveryHashes: readonly string[] | null,
+    codes: "if-first" | "always",
+  ): Promise<Confirmed> {
     // Two enrolments confirmed at once: the one-confirmed-factor index lets one win; the other is a refusal, not a 500.
     return this.confirmOnce(userId, factorId, step, now, recoveryHashes, codes).catch((error: unknown) => {
       if (isUniqueViolation(error)) return { confirmed: false, codesIssued: false }
@@ -69,7 +76,14 @@ export class MfaRepository {
     })
   }
 
-  private confirmOnce(userId: string, factorId: string, step: number, now: Date, recoveryHashes: readonly string[] | null, codes: "if-first" | "always"): Promise<Confirmed> {
+  private confirmOnce(
+    userId: string,
+    factorId: string,
+    step: number,
+    now: Date,
+    recoveryHashes: readonly string[] | null,
+    codes: "if-first" | "always",
+  ): Promise<Confirmed> {
     return this.prisma.db.$transaction(async (tx) => {
       await lockPerson(tx, userId)
       const { count } = await tx.userMfaFactor.updateMany({
@@ -99,7 +113,11 @@ export class MfaRepository {
     await this.prisma.db.$transaction(async (tx) => {
       // Under the person's lock, like every change to the factor set: never codes outliving the last factor.
       await lockPerson(tx, userId)
-      if ((await tx.userPasskey.count({ where: { userId } })) === 0 && (await tx.userMfaFactor.count({ where: { userId, confirmedAt: { not: null } } })) === 0) return
+      if (
+        (await tx.userPasskey.count({ where: { userId } })) === 0 &&
+        (await tx.userMfaFactor.count({ where: { userId, confirmedAt: { not: null } } })) === 0
+      )
+        return
       await tx.userMfaRecovery.deleteMany({ where: { userId } })
       await tx.userMfaRecovery.createMany({ data: recoveryHashes.map((codeHash) => ({ userId, codeHash })) })
     })

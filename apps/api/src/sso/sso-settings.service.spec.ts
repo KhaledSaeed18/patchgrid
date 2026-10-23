@@ -33,7 +33,15 @@ const NOW = new Date("2026-10-23T12:00:00Z")
 const KEY = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
 const ISSUER = "https://idp.acme.test/realms/acme"
 
-type Options = { role?: Role; stepped?: boolean; org?: Partial<OrgDomainRecord>; connection?: Partial<SsoConnectionRecord> | null; txt?: string[] | Error; oidc?: Error; offDomain?: number }
+type Options = {
+  role?: Role
+  stepped?: boolean
+  org?: Partial<OrgDomainRecord>
+  connection?: Partial<SsoConnectionRecord> | null
+  txt?: string[] | Error
+  oidc?: Error
+  offDomain?: number
+}
 
 function harness(options: Options = {}) {
   const secrets = new SsoSecrets({ SSO_SECRETS_KEY: KEY } as AppConfig)
@@ -68,8 +76,13 @@ function harness(options: Options = {}) {
   const domains = {
     find: vi.fn(async () => ({ ...org })),
     lock: vi.fn(async () => undefined),
-    claim: vi.fn(async (_o: string, domain: string | null, challenge: string | null) => void Object.assign(org, { domain, domainChallenge: challenge, domainVerifiedAt: null, allowDomainJoin: false })),
-    setDomainJoin: vi.fn(async (_o: string, enabled: boolean, role: Role) => void Object.assign(org, { allowDomainJoin: enabled, defaultJoinRole: role })),
+    claim: vi.fn(
+      async (_o: string, domain: string | null, challenge: string | null) =>
+        void Object.assign(org, { domain, domainChallenge: challenge, domainVerifiedAt: null, allowDomainJoin: false }),
+    ),
+    setDomainJoin: vi.fn(
+      async (_o: string, enabled: boolean, role: Role) => void Object.assign(org, { allowDomainJoin: enabled, defaultJoinRole: role }),
+    ),
     markVerified: vi.fn(async (_o: string, domain: string, challenge: string, at: Date) => {
       if (org.domain !== domain || org.domainChallenge !== challenge || org.domainVerifiedAt !== null) return false
       Object.assign(org, { domainVerifiedAt: at, domainChallenge: null })
@@ -92,7 +105,15 @@ function harness(options: Options = {}) {
       return options.txt ?? []
     }),
   }
-  const actor: MemberActor = { kind: "member", userId: "u-1", orgId: "o-1", membershipId: "m-1", role: options.role ?? "OWNER", teamIds: [], leadOfTeamIds: [] }
+  const actor: MemberActor = {
+    kind: "member",
+    userId: "u-1",
+    orgId: "o-1",
+    membershipId: "m-1",
+    role: options.role ?? "OWNER",
+    teamIds: [],
+    leadOfTeamIds: [],
+  }
   const stepUp = {
     assert: vi.fn(() => {
       if (options.stepped === false) throw new StepUpRequiredProblem()
@@ -119,13 +140,34 @@ function harness(options: Options = {}) {
     { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
     { record: async (_o: string, e: AuditEntry[]) => void audit.push(...e) } as unknown as AuditService,
     lookup as unknown as OrganizationLookupService,
-    new PublicUrls({ ROOT_DOMAIN: "lvh.me", WEB_ORIGIN_PORTS: [3000, 3001], WEB_APP_PORT: 3001, PORT: 4000, isProduction: false } as AppConfig),
+    new PublicUrls({
+      ROOT_DOMAIN: "lvh.me",
+      WEB_ORIGIN_PORTS: [3000, 3001],
+      WEB_APP_PORT: 3001,
+      PORT: 4000,
+      isProduction: false,
+    } as AppConfig),
     refreshTokens as unknown as RefreshTokenRepository,
     memberships as unknown as MembershipRepository,
     epochs as unknown as RevocationEpochService,
     new FixedClock(NOW),
   )
-  return { service, org, domains, connections: () => connection, oidc, dns, audit, lookup, secrets, stepUp, refreshTokens, epochs, memberships, bumped }
+  return {
+    service,
+    org,
+    domains,
+    connections: () => connection,
+    oidc,
+    dns,
+    audit,
+    lookup,
+    secrets,
+    stepUp,
+    refreshTokens,
+    epochs,
+    memberships,
+    bumped,
+  }
 }
 
 describe("SsoSettingsService: who", () => {
@@ -141,7 +183,9 @@ describe("SsoSettingsService: who", () => {
 
   it("asks for a step-up before the connection or the requirement changes, and before anything is written", async () => {
     const h = harness({ stepped: false, org: { domain: "acme.test", domainVerifiedAt: NOW }, connection: {} })
-    await expect(h.service.saveConnection({ issuer: ISSUER, clientId: "x", defaultRole: "AGENT", enabled: true })).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    await expect(h.service.saveConnection({ issuer: ISSUER, clientId: "x", defaultRole: "AGENT", enabled: true })).rejects.toBeInstanceOf(
+      StepUpRequiredProblem,
+    )
     await expect(h.service.setRequirement({ required: true })).rejects.toBeInstanceOf(StepUpRequiredProblem)
     expect(h.oidc.check).not.toHaveBeenCalled()
     expect(h.audit).toEqual([])
@@ -192,7 +236,9 @@ describe("SsoSettingsService: the domain", () => {
   })
 
   it("answers 503 when DNS cannot be asked, and 409 with nothing claimed", async () => {
-    await expect(harness({ org: { domain: "acme.test", domainChallenge: "abc" }, txt: new DnsUnavailableError("ETIMEOUT") }).service.verifyDomain()).rejects.toBeInstanceOf(ServiceUnavailableProblem)
+    await expect(
+      harness({ org: { domain: "acme.test", domainChallenge: "abc" }, txt: new DnsUnavailableError("ETIMEOUT") }).service.verifyDomain(),
+    ).rejects.toBeInstanceOf(ServiceUnavailableProblem)
     await expect(harness().service.verifyDomain()).rejects.toBeInstanceOf(ConflictProblem)
   })
 
@@ -208,15 +254,34 @@ describe("SsoSettingsService: joining by domain (TENANCY.md §5)", () => {
     const h = harness({ org: { domain: "acme.test", domainVerifiedAt: NOW } })
     const settings = await h.service.setDomainJoin({ enabled: true, role: "AGENT" })
     expect(settings.domain?.join).toEqual({ enabled: true, role: "AGENT" })
-    expect(h.audit).toEqual([expect.objectContaining({ action: "ORG_DOMAIN_JOIN_CHANGED", diff: { enabled: { from: false, to: true }, role: { from: "REQUESTER", to: "AGENT" } } })])
+    expect(h.audit).toEqual([
+      expect.objectContaining({
+        action: "ORG_DOMAIN_JOIN_CHANGED",
+        diff: { enabled: { from: false, to: true }, role: { from: "REQUESTER", to: "AGENT" } },
+      }),
+    ])
   })
 
   it("asks for a fresh proof, a proved domain, and no SSO requirement", async () => {
-    await expect(harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, stepped: false }).service.setDomainJoin({ enabled: true, role: "REQUESTER" })).rejects.toBeInstanceOf(StepUpRequiredProblem)
-    await expect(harness({ org: { domain: "acme.test", domainChallenge: "c" } }).service.setDomainJoin({ enabled: true, role: "REQUESTER" })).rejects.toBeInstanceOf(ConflictProblem)
-    await expect(harness({ org: { domain: "acme.test", domainVerifiedAt: NOW, requireSso: true } }).service.setDomainJoin({ enabled: true, role: "REQUESTER" })).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(
+      harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, stepped: false }).service.setDomainJoin({
+        enabled: true,
+        role: "REQUESTER",
+      }),
+    ).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    await expect(
+      harness({ org: { domain: "acme.test", domainChallenge: "c" } }).service.setDomainJoin({ enabled: true, role: "REQUESTER" }),
+    ).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(
+      harness({ org: { domain: "acme.test", domainVerifiedAt: NOW, requireSso: true } }).service.setDomainJoin({
+        enabled: true,
+        role: "REQUESTER",
+      }),
+    ).rejects.toBeInstanceOf(ConflictProblem)
     for (const role of ["ADMIN", "AGENT"] as const) {
-      await expect(harness({ role }).service.setDomainJoin({ enabled: false, role: "REQUESTER" })).rejects.toBeInstanceOf(NotPermittedProblem)
+      await expect(harness({ role }).service.setDomainJoin({ enabled: false, role: "REQUESTER" })).rejects.toBeInstanceOf(
+        NotPermittedProblem,
+      )
     }
   })
 
@@ -231,7 +296,9 @@ describe("SsoSettingsService: joining by domain (TENANCY.md §5)", () => {
 describe("SsoSettingsService: the connection", () => {
   it("needs a secret the first time, then keeps the stored one when none is sent", async () => {
     const first = harness()
-    await expect(first.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", defaultRole: "REQUESTER", enabled: true })).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(
+      first.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", defaultRole: "REQUESTER", enabled: true }),
+    ).rejects.toBeInstanceOf(ValidationProblem)
 
     const again = harness({ connection: {} })
     const before = again.connections()?.clientSecretSealed
@@ -244,7 +311,13 @@ describe("SsoSettingsService: the connection", () => {
 
   it("seals a new secret and audits that it was replaced, never what it is", async () => {
     const h = harness()
-    await h.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", clientSecret: "brand-new", defaultRole: "REQUESTER", enabled: true })
+    await h.service.saveConnection({
+      issuer: ISSUER,
+      clientId: "patchgrid",
+      clientSecret: "brand-new",
+      defaultRole: "REQUESTER",
+      enabled: true,
+    })
     expect(h.secrets.open(h.connections()?.clientSecretSealed ?? "")).toBe("brand-new")
     expect(h.audit).toHaveLength(1)
     expect(h.audit[0]?.diff).toMatchObject({ clientSecretReplaced: true, issuer: { from: null, to: ISSUER } })
@@ -253,27 +326,43 @@ describe("SsoSettingsService: the connection", () => {
 
   it("refuses an issuer discovery cannot use, saying which way it failed", async () => {
     const rejected = harness({ oidc: new OidcRejectedError("issuer mismatch") })
-    await expect(rejected.service.saveConnection({ issuer: ISSUER, clientId: "x", clientSecret: "s", defaultRole: "REQUESTER", enabled: true })).rejects.toThrow(ValidationProblem)
+    await expect(
+      rejected.service.saveConnection({ issuer: ISSUER, clientId: "x", clientSecret: "s", defaultRole: "REQUESTER", enabled: true }),
+    ).rejects.toThrow(ValidationProblem)
     const down = harness({ oidc: new OidcUnavailableError("discovery") })
-    await expect(down.service.saveConnection({ issuer: ISSUER, clientId: "x", clientSecret: "s", defaultRole: "REQUESTER", enabled: true })).rejects.toThrow(ValidationProblem)
+    await expect(
+      down.service.saveConnection({ issuer: ISSUER, clientId: "x", clientSecret: "s", defaultRole: "REQUESTER", enabled: true }),
+    ).rejects.toThrow(ValidationProblem)
     expect(rejected.audit).toEqual([])
   })
 
   it("will not disable the connection a requirement depends on", async () => {
     const h = harness({ org: { domain: "acme.test", domainVerifiedAt: NOW, requireSso: true }, connection: {} })
-    await expect(h.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", defaultRole: "REQUESTER", enabled: false })).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(
+      h.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", defaultRole: "REQUESTER", enabled: false }),
+    ).rejects.toBeInstanceOf(ConflictProblem)
   })
 
   it("will not hand the stored secret to a new issuer or client", async () => {
     const h = harness({ connection: {} })
-    await expect(h.service.saveConnection({ issuer: "https://idp.other.test/", clientId: "patchgrid", defaultRole: "REQUESTER", enabled: true })).rejects.toBeInstanceOf(ValidationProblem)
-    await expect(h.service.saveConnection({ issuer: ISSUER, clientId: "another", defaultRole: "REQUESTER", enabled: true })).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(
+      h.service.saveConnection({ issuer: "https://idp.other.test/", clientId: "patchgrid", defaultRole: "REQUESTER", enabled: true }),
+    ).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(
+      h.service.saveConnection({ issuer: ISSUER, clientId: "another", defaultRole: "REQUESTER", enabled: true }),
+    ).rejects.toBeInstanceOf(ValidationProblem)
     expect(h.oidc.check).not.toHaveBeenCalled()
   })
 
   it("ends every session a replaced issuer started, and records that its identities were unlinked", async () => {
     const h = harness({ connection: {} })
-    await h.service.saveConnection({ issuer: "https://idp.other.test/", clientId: "patchgrid", clientSecret: "new-one", defaultRole: "REQUESTER", enabled: true })
+    await h.service.saveConnection({
+      issuer: "https://idp.other.test/",
+      clientId: "patchgrid",
+      clientSecret: "new-one",
+      defaultRole: "REQUESTER",
+      enabled: true,
+    })
     expect(h.audit[0]?.diff).toMatchObject({ identitiesUnlinked: true })
     expect(h.refreshTokens.revokeSsoSessions).toHaveBeenCalledWith("o-1", NOW)
     expect(h.bumped).toEqual(["m-u-7", "m-u-8"])
@@ -293,7 +382,11 @@ describe("SsoSettingsService: the connection", () => {
 describe("SsoSettingsService: the requirement", () => {
   it("needs a proved domain and an enabled connection first", async () => {
     await expect(harness({ connection: {} }).service.setRequirement({ required: true })).rejects.toThrow(/Prove/)
-    await expect(harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, connection: { enabled: false } }).service.setRequirement({ required: true })).rejects.toThrow(/Enable/)
+    await expect(
+      harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, connection: { enabled: false } }).service.setRequirement({
+        required: true,
+      }),
+    ).rejects.toThrow(/Enable/)
   })
 
   it("asks for confirmation when members below owner have addresses off the domain", async () => {

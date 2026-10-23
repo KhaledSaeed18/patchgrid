@@ -62,7 +62,10 @@ function absorb(jar: Jar, response: request.Response): Jar {
   return jar
 }
 const cookieHeader = (jar: Jar, ...names: string[]) =>
-  names.filter((n) => jar[n] !== undefined).map((n) => `${n}=${jar[n] ?? ""}`).join("; ")
+  names
+    .filter((n) => jar[n] !== undefined)
+    .map((n) => `${n}=${jar[n] ?? ""}`)
+    .join("; ")
 
 beforeAll(async () => {
   owner = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
@@ -95,7 +98,15 @@ beforeAll(async () => {
     })
     if (org === acme) acmeMembershipId = membership.id
     await owner.userOrgIndex.create({
-      data: { userId, orgId: created.id, roleForDisplay: role, statusForDisplay: status, orgSlug: org.slug, orgName: org.slug, orgStatus: "ACTIVE" },
+      data: {
+        userId,
+        orgId: created.id,
+        roleForDisplay: role,
+        statusForDisplay: status,
+        orgSlug: org.slug,
+        orgName: org.slug,
+        orgStatus: "ACTIVE",
+      },
     })
   }
 })
@@ -125,7 +136,10 @@ describe("session lifecycle", () => {
   })
 
   it("answers an unknown address and a wrong password identically", async () => {
-    const unknown = await http().post("/api/v1/auth/login").set(JSON_HEADERS).send({ email: `nobody-${suffix}@probe.test`, password })
+    const unknown = await http()
+      .post("/api/v1/auth/login")
+      .set(JSON_HEADERS)
+      .send({ email: `nobody-${suffix}@probe.test`, password })
     const wrong = await http().post("/api/v1/auth/login").set(JSON_HEADERS).send({ email, password: "not the password" })
     expect(unknown.status).toBe(401)
     expect(wrong.status).toBe(401)
@@ -133,7 +147,10 @@ describe("session lifecycle", () => {
   })
 
   it("logs in: pg_id plus the requested workspace's pair, and the picker's list", async () => {
-    const response = await http().post("/api/v1/auth/login").set(JSON_HEADERS).send({ email: email.toUpperCase(), password, slug: acme.slug })
+    const response = await http()
+      .post("/api/v1/auth/login")
+      .set(JSON_HEADERS)
+      .send({ email: email.toUpperCase(), password, slug: acme.slug })
     expect(response.status).toBe(200)
     absorb(jar, response)
     expect(Object.keys(jar).sort()).toEqual(["pg_id", "pg_ws", `pg_at_${acme.slug}`, `pg_rt_${acme.slug}`].sort())
@@ -148,7 +165,10 @@ describe("session lifecycle", () => {
   })
 
   it("admits the session on a tenant-bound route as a member actor", async () => {
-    const response = await http().get("/api/v1/probe").set(fromAcme).set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))
+    const response = await http()
+      .get("/api/v1/probe")
+      .set(fromAcme)
+      .set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ kind: "member", userId, orgId: acme.id, membershipId: acmeMembershipId, role: "OWNER" })
   })
@@ -172,25 +192,52 @@ describe("session lifecycle", () => {
 
   it("rotates on refresh and revokes the chain when the old token is replayed", async () => {
     const before = jar[`pg_rt_${acme.slug}`] ?? ""
-    const rotated = await http().post("/api/v1/auth/refresh").set(JSON_HEADERS).set("Cookie", cookieHeader(jar, `pg_rt_${acme.slug}`)).send({ slug: acme.slug })
+    const rotated = await http()
+      .post("/api/v1/auth/refresh")
+      .set(JSON_HEADERS)
+      .set("Cookie", cookieHeader(jar, `pg_rt_${acme.slug}`))
+      .send({ slug: acme.slug })
     expect(rotated.status).toBe(204)
     absorb(jar, rotated)
     expect(jar[`pg_rt_${acme.slug}`]).not.toBe(before)
 
-    const replay = await http().post("/api/v1/auth/refresh").set(JSON_HEADERS).set("Cookie", `pg_rt_${acme.slug}=${before}`).send({ slug: acme.slug })
+    const replay = await http()
+      .post("/api/v1/auth/refresh")
+      .set(JSON_HEADERS)
+      .set("Cookie", `pg_rt_${acme.slug}=${before}`)
+      .send({ slug: acme.slug })
     expect(replay.status).toBe(401)
-    const newest = await http().post("/api/v1/auth/refresh").set(JSON_HEADERS).set("Cookie", cookieHeader(jar, `pg_rt_${acme.slug}`)).send({ slug: acme.slug })
+    const newest = await http()
+      .post("/api/v1/auth/refresh")
+      .set(JSON_HEADERS)
+      .set("Cookie", cookieHeader(jar, `pg_rt_${acme.slug}`))
+      .send({ slug: acme.slug })
     expect(newest.status).toBe(401)
     // The access token minted by the rotation is still valid until it expires or the epoch moves.
-    expect((await http().get("/api/v1/probe").set(fromAcme).set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))).status).toBe(200)
+    expect(
+      (
+        await http()
+          .get("/api/v1/probe")
+          .set(fromAcme)
+          .set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))
+      ).status,
+    ).toBe(200)
   })
 
   it("opens a workspace from pg_id, and refuses one where the membership is disabled", async () => {
-    const denied = await http().post("/api/v1/auth/sessions").set(JSON_HEADERS).set("Cookie", cookieHeader(jar, "pg_id")).send({ slug: globex.slug })
+    const denied = await http()
+      .post("/api/v1/auth/sessions")
+      .set(JSON_HEADERS)
+      .set("Cookie", cookieHeader(jar, "pg_id"))
+      .send({ slug: globex.slug })
     expect(denied.status).toBe(403)
     expect(denied.body.type).toContain("not-permitted")
 
-    const opened = await http().post("/api/v1/auth/sessions").set(JSON_HEADERS).set("Cookie", cookieHeader(jar, "pg_id")).send({ slug: acme.slug })
+    const opened = await http()
+      .post("/api/v1/auth/sessions")
+      .set(JSON_HEADERS)
+      .set("Cookie", cookieHeader(jar, "pg_id"))
+      .send({ slug: acme.slug })
     expect(opened.status).toBe(200)
     absorb(jar, opened)
     expect(opened.body).toEqual({ session: { slug: acme.slug } })
@@ -198,9 +245,23 @@ describe("session lifecycle", () => {
 
   it("ends a disabled member's session on the next request, before any epoch", async () => {
     await owner.membership.update({ where: { id: acmeMembershipId }, data: { status: "DISABLED" } })
-    expect((await http().get("/api/v1/probe").set(fromAcme).set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))).status).toBe(401)
+    expect(
+      (
+        await http()
+          .get("/api/v1/probe")
+          .set(fromAcme)
+          .set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))
+      ).status,
+    ).toBe(401)
     await owner.membership.update({ where: { id: acmeMembershipId }, data: { status: "ACTIVE" } })
-    expect((await http().get("/api/v1/probe").set(fromAcme).set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))).status).toBe(200)
+    expect(
+      (
+        await http()
+          .get("/api/v1/probe")
+          .set(fromAcme)
+          .set("Cookie", cookieHeader(jar, `pg_at_${acme.slug}`))
+      ).status,
+    ).toBe(200)
   })
 
   it("logs out everywhere: tokens revoked, epoch bumped, the live access token refused", async () => {

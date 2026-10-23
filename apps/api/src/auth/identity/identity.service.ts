@@ -82,10 +82,7 @@ export class IdentityService {
   }
 
   /** The link completes signup and starts the session (TENANCY.md §4). */
-  async verifyEmail(
-    token: string,
-    client: ClientInfo,
-  ): Promise<{ response: LoginResponse; cookies: CookieSpec[] }> {
+  async verifyEmail(token: string, client: ClientInfo): Promise<{ response: LoginResponse; cookies: CookieSpec[] }> {
     const now = this.clock.now()
     const record = await this.verifications.findByHash(hash(token))
     if (!isLive(record, now) || !(await this.verifications.consume(record.id, now))) {
@@ -114,12 +111,7 @@ export class IdentityService {
 
     const now = this.clock.now()
     const secret = newSecret()
-    const record = await this.resets.issue(
-      account.id,
-      hash(secret),
-      new Date(now.getTime() + RESET_TTL_MINUTES * 60_000),
-      now,
-    )
+    const record = await this.resets.issue(account.id, hash(secret), new Date(now.getTime() + RESET_TTL_MINUTES * 60_000), now)
     await this.mail.enqueue(
       {
         kind: "reset-password",

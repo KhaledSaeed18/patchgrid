@@ -98,11 +98,7 @@ export class AuthController {
   @Post("refresh")
   @Public()
   @HttpCode(204)
-  async refresh(
-    @Body() body: RefreshDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<void> {
+  async refresh(@Body() body: RefreshDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
     const presented = readCookie(request, refreshCookieName(body.slug))
     const cookies = await this.sessions.refresh(body.slug, presented, clientOf(request))
     this.cookies.set(response, cookies)
@@ -112,11 +108,7 @@ export class AuthController {
   @Post("logout")
   @Public()
   @HttpCode(204)
-  async logout(
-    @Body() body: LogoutDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<void> {
+  async logout(@Body() body: LogoutDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
     const clear = await this.sessions.logout({
       slug: body.slug,
       everywhere: body.everywhere,

@@ -45,16 +45,38 @@ describe("AutoCloseService", () => {
   })
 
   it("skips a ticket someone reopened in the meantime, and audits nothing for it", async () => {
-    const h = harness([[{ id: "t-1", version: 4 }, { id: "t-2", version: 1 }]], ["t-1"])
+    const h = harness(
+      [
+        [
+          { id: "t-1", version: 4 },
+          { id: "t-2", version: 1 },
+        ],
+      ],
+      ["t-1"],
+    )
     expect(await h.service.closeExpired()).toBe(1)
     expect(h.audit.record).toHaveBeenCalledTimes(1)
   })
 
   it("tells the requester about each close it made, in the close's own transaction, and no other", async () => {
-    const h = harness([[{ id: "t-1", version: 4 }, { id: "t-2", version: 1 }]], ["t-1"])
+    const h = harness(
+      [
+        [
+          { id: "t-1", version: 4 },
+          { id: "t-2", version: 1 },
+        ],
+      ],
+      ["t-1"],
+    )
     await h.service.closeExpired()
     expect(h.notifier.notify).toHaveBeenCalledTimes(1)
-    expect(h.notifier.notify).toHaveBeenCalledWith("o-1", { kind: "status-changed", ticketId: "t-2", actorMembershipId: null, to: "CLOSED", comment: null })
+    expect(h.notifier.notify).toHaveBeenCalledWith("o-1", {
+      kind: "status-changed",
+      ticketId: "t-2",
+      actorMembershipId: null,
+      to: "CLOSED",
+      comment: null,
+    })
   })
 
   it("keeps taking batches while they come back full", async () => {

@@ -9,14 +9,18 @@ import type { AccountRecord, UserRepository } from "../../platform/repositories/
 import type { OrganizationLookupService } from "../../tenancy/organization-lookup.service"
 import type { RequestContextStore } from "../../tenancy/request-context"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
-import type {
-  OrganizationProvisioningRepository,
-  ProvisionInput,
-} from "../repositories/organization-provisioning.repository"
+import type { OrganizationProvisioningRepository, ProvisionInput } from "../repositories/organization-provisioning.repository"
 import type { SlugRegistryRepository } from "../repositories/slug-registry.repository"
 import { DEFAULT_TEAMS, ProvisioningService } from "./provisioning.service"
 
-const owner: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "owner@acme.test", name: "Owner", passwordHash: "h", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
+const owner: AccountRecord = {
+  id: "0190b2f0-0000-7000-8000-000000000001",
+  email: "owner@acme.test",
+  name: "Owner",
+  passwordHash: "h",
+  emailVerifiedAt: new Date("2026-01-01T00:00:00Z"),
+  anonymisedAt: null,
+}
 const unverified: AccountRecord = { ...owner, id: "0190b2f0-0000-7000-8000-000000000002", emailVerifiedAt: null }
 const client = { userAgent: "vitest", ip: "127.0.0.1" }
 const context = new TenantContextService(ClsServiceManager.getClsService<RequestContextStore>())
@@ -65,7 +69,13 @@ describe("ProvisioningService.create", () => {
     const input = h.provisioned[0]
     expect(input?.tenantInContext).toBe(input?.orgId)
     expect(input?.orgId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/)
-    expect(input).toMatchObject({ name: "Acme", slug: "acme", domain: "acme.com", owner: { userId: owner.id, displayName: "Owner" }, teams: DEFAULT_TEAMS })
+    expect(input).toMatchObject({
+      name: "Acme",
+      slug: "acme",
+      domain: "acme.com",
+      owner: { userId: owner.id, displayName: "Owner" },
+      teams: DEFAULT_TEAMS,
+    })
     expect(h.lookup.invalidate).toHaveBeenCalledWith({ id: input?.orgId, slug: "acme" })
     expect(h.sessions.open).toHaveBeenCalledWith(owner.id, "acme", client)
     expect(result.response).toEqual({
@@ -85,7 +95,9 @@ describe("ProvisioningService.create", () => {
   it("requires a verified, live account", async () => {
     const h = harness()
     await expect(h.service.create(unverified.id, { name: "Acme", slug: "acme" }, client)).rejects.toThrow(NotAuthenticatedProblem)
-    await expect(h.service.create("0190b2f0-0000-7000-8000-0000000000ff", { name: "Acme", slug: "acme" }, client)).rejects.toThrow(NotAuthenticatedProblem)
+    await expect(h.service.create("0190b2f0-0000-7000-8000-0000000000ff", { name: "Acme", slug: "acme" }, client)).rejects.toThrow(
+      NotAuthenticatedProblem,
+    )
     expect(h.repository.provision).not.toHaveBeenCalled()
   })
 })

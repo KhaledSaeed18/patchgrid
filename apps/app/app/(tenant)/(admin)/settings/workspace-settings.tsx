@@ -172,9 +172,11 @@ export function WorkspaceSettings({
                   </FieldLabel>
                 </div>
                 <FieldDescription>
-                  Mail to <span className="font-mono">{settings.inboundAddress}</span> from an address that is no
-                  member&apos;s opens a ticket for them, marked External. They hear back by email and never sign in.
-                  Pause one under Members to stop their mail.
+                  Mail to{" "}
+                  <span className="font-mono">{settings.inboundAddress}</span>{" "}
+                  from an address that is no member&apos;s opens a ticket for
+                  them, marked External. They hear back by email and never sign
+                  in. Pause one under Members to stop their mail.
                 </FieldDescription>
               </Field>
               {canEdit && (

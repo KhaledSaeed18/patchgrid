@@ -81,7 +81,17 @@ function harness(options: Options = {}) {
     findByUser: vi.fn(async (): Promise<MembershipRecord | null> =>
       options.existing === undefined
         ? null
-        : { id: "m-old", orgId: ORG, userId: alice.id, role: "REQUESTER", status: options.existing, kind: "HUMAN", displayName: "Alice", teamIds: [], leadOfTeamIds: [] },
+        : {
+            id: "m-old",
+            orgId: ORG,
+            userId: alice.id,
+            role: "REQUESTER",
+            status: options.existing,
+            kind: "HUMAN",
+            displayName: "Alice",
+            teamIds: [],
+            leadOfTeamIds: [],
+          },
     ),
     create: vi.fn(async () => "m-new"),
     reactivate: vi.fn(async () => undefined),
@@ -91,7 +101,14 @@ function harness(options: Options = {}) {
     findByEmail: vi.fn(async (email: string) => accounts.find((a) => a.email === email) ?? null),
     findById: vi.fn(async (id: string) => accounts.find((a) => a.id === id) ?? null),
     createVerified: vi.fn(async (a: { email: string; name: string; passwordHash: string; verifiedAt: Date }) => {
-      const account = { id: "u-new", email: a.email, name: a.name, passwordHash: a.passwordHash, emailVerifiedAt: a.verifiedAt, anonymisedAt: null }
+      const account = {
+        id: "u-new",
+        email: a.email,
+        name: a.name,
+        passwordHash: a.passwordHash,
+        emailVerifiedAt: a.verifiedAt,
+        anonymisedAt: null,
+      }
       accounts.push(account)
       return account
     }),
@@ -106,20 +123,30 @@ function harness(options: Options = {}) {
     open: vi.fn(async (_u: string, slug: string) => [{ name: `pg_at_${slug}`, value: "t", path: "/", maxAgeSeconds: 1 }]),
     startIdentity: vi.fn(async (_a: AccountRecord, _c: unknown, slug?: string) => ({
       response: { session: slug === undefined ? null : { slug } },
-      cookies: [{ name: "pg_id", value: "i", path: "/", maxAgeSeconds: 1 }, { name: `pg_at_${slug ?? ""}`, value: "t", path: "/", maxAgeSeconds: 1 }],
+      cookies: [
+        { name: "pg_id", value: "i", path: "/", maxAgeSeconds: 1 },
+        { name: `pg_at_${slug ?? ""}`, value: "t", path: "/", maxAgeSeconds: 1 },
+      ],
     })),
   }
   const service = new InvitationAcceptanceService(
     invitations as unknown as InvitationRepository,
     memberships as unknown as MembershipRepository,
-    { findById: async () => ({ id: "t-1", orgId: ORG, name: "Network", isActive: options.teamActive ?? true }) } as unknown as TeamRepository,
-    { findProfileById: async (id: string) => (id === ORG ? { id: ORG, name: "Acme", slug: "acme", status: options.orgStatus ?? "ACTIVE" } : null) } as unknown as OrganizationRepository,
+    {
+      findById: async () => ({ id: "t-1", orgId: ORG, name: "Network", isActive: options.teamActive ?? true }),
+    } as unknown as TeamRepository,
+    {
+      findProfileById: async (id: string) =>
+        id === ORG ? { id: ORG, name: "Acme", slug: "acme", status: options.orgStatus ?? "ACTIVE" } : null,
+    } as unknown as OrganizationRepository,
     users as unknown as UserRepository,
     workspaces as unknown as UserOrgIndexRepository,
     { hash: async () => "argon2-hash" } as unknown as PasswordService,
     sessions as unknown as SessionService,
     { transaction: async (fn: () => Promise<unknown>) => fn() } as unknown as PrismaService,
-    { record: async (_o: string, entries: AuditEntry[], actor?: AuditActorOverride) => void audit.push({ entries, actor }) } as unknown as AuditService,
+    {
+      record: async (_o: string, entries: AuditEntry[], actor?: AuditActorOverride) => void audit.push({ entries, actor }),
+    } as unknown as AuditService,
     quota as unknown as QuotaService,
     new FixedClock(NOW),
   )
@@ -175,11 +202,23 @@ describe("InvitationAcceptanceService.accept", () => {
   it("joins the signed-in invitee with the team, the picker row, an audit by the joiner, and a session", async () => {
     const h = harness()
     const result = await h.service.accept(alice.id, h.token, client)
-    expect(result.response).toEqual({ organization: { id: ORG, name: "Acme", slug: "acme" }, membershipId: "m-new", session: { slug: "acme" } })
-    expect(h.memberships.create).toHaveBeenCalledWith(ORG, expect.objectContaining({ userId: alice.id, role: "AGENT", invitedByMembershipId: "m-admin" }))
+    expect(result.response).toEqual({
+      organization: { id: ORG, name: "Acme", slug: "acme" },
+      membershipId: "m-new",
+      session: { slug: "acme" },
+    })
+    expect(h.memberships.create).toHaveBeenCalledWith(
+      ORG,
+      expect.objectContaining({ userId: alice.id, role: "AGENT", invitedByMembershipId: "m-admin" }),
+    )
     expect(h.memberships.joinTeam).toHaveBeenCalledWith(ORG, "m-new", "t-1")
-    expect(h.workspaces.upsert).toHaveBeenCalledWith(expect.objectContaining({ userId: alice.id, orgId: ORG, role: "AGENT", status: "ACTIVE" }))
-    expect(h.audit[0]).toMatchObject({ entries: [{ action: "MEMBER_JOINED", entityId: "m-new" }], actor: { kind: "member", membershipId: "m-new" } })
+    expect(h.workspaces.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: alice.id, orgId: ORG, role: "AGENT", status: "ACTIVE" }),
+    )
+    expect(h.audit[0]).toMatchObject({
+      entries: [{ action: "MEMBER_JOINED", entityId: "m-new" }],
+      actor: { kind: "member", membershipId: "m-new" },
+    })
     expect(h.sessions.open).toHaveBeenCalledWith(alice.id, "acme", client)
   })
 
@@ -249,7 +288,12 @@ describe("InvitationAcceptanceService.acceptNew", () => {
   it("creates the account verified, as the invited address, and signs it in to the workspace", async () => {
     const h = harness({ accounts: [] })
     const result = await h.service.acceptNew(h.token, "Alice", "correct horse battery", client)
-    expect(h.users.createVerified).toHaveBeenCalledWith({ email: "alice@acme.test", name: "Alice", passwordHash: "argon2-hash", verifiedAt: NOW })
+    expect(h.users.createVerified).toHaveBeenCalledWith({
+      email: "alice@acme.test",
+      name: "Alice",
+      passwordHash: "argon2-hash",
+      verifiedAt: NOW,
+    })
     expect(result.cookies.map((c) => c.name)).toEqual(["pg_id", "pg_at_acme"])
     expect(result.response.membershipId).toBe("m-new")
   })

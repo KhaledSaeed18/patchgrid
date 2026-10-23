@@ -11,7 +11,8 @@ const org = (n: number, slug: string, status: OrganizationSummary["status"] = "A
   status,
   plan: "FREE",
   agentVisibility: "ALL_TICKETS",
-  requireMfa: false, requireSso: false,
+  requireMfa: false,
+  requireSso: false,
 })
 const acme = org(1, "acme")
 const globex = org(2, "globex")
@@ -37,8 +38,7 @@ const cookie = (o: OrganizationSummary, slug = o.slug): Credential => ({ kind: "
 const bearer = (prefix: string | null): Credential => ({ kind: "bearer", prefix })
 const none: Credential = { kind: "none" }
 
-const resolve = (credential: Credential, assertion: Assertion) =>
-  resolver.resolve({ credential, assertion } satisfies Located)
+const resolve = (credential: Credential, assertion: Assertion) => resolver.resolve({ credential, assertion } satisfies Located)
 
 const refusal = (problem: string) => expect.objectContaining({ ok: false, refusal: expect.objectContaining({ problem }) })
 
@@ -63,12 +63,10 @@ describe("TenantResolver — cookie sessions", () => {
   })
 
   it("is 401 for an unreadable or orphaned claim", async () => {
-    expect(await resolve({ kind: "cookie", slug: "acme", orgId: null }, fromTenant("acme"))).toEqual(
+    expect(await resolve({ kind: "cookie", slug: "acme", orgId: null }, fromTenant("acme"))).toEqual(refusal("not-authenticated"))
+    expect(await resolve({ kind: "cookie", slug: "acme", orgId: "0190b2f0-0000-7000-8000-0000000000ff" }, fromTenant("acme"))).toEqual(
       refusal("not-authenticated"),
     )
-    expect(
-      await resolve({ kind: "cookie", slug: "acme", orgId: "0190b2f0-0000-7000-8000-0000000000ff" }, fromTenant("acme")),
-    ).toEqual(refusal("not-authenticated"))
   })
 })
 

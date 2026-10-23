@@ -1,9 +1,4 @@
-import {
-  type ProblemError,
-  type ProblemTypeSlug,
-  problemStatus,
-  problemTitle,
-} from "@patchgrid/contracts"
+import { type ProblemError, type ProblemTypeSlug, problemStatus, problemTitle } from "@patchgrid/contracts"
 
 /**
  * The only kind of error services throw.

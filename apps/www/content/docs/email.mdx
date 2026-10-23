@@ -61,15 +61,15 @@ Files attached to inbound mail follow the same rules as uploads. That means the 
 
 Admins can see every message that reached the workspace under **Settings → Inbound email**. Each entry shows the sender, the subject, the DMARC verdict, the files left out and the outcome:
 
-| Outcome | Meaning |
-| --- | --- |
-| Created | A new ticket |
-| Threaded | A reply on an existing ticket |
-| Unauthenticated | DMARC did not pass |
-| Unknown sender | Authenticated, but not an active member |
-| Auto-reply | A bounce, out-of-office or list message |
-| Rate limited | Too many messages from this sender in an hour |
-| Failed | Unreadable, or failed while being processed |
+| Outcome         | Meaning                                       |
+| --------------- | --------------------------------------------- |
+| Created         | A new ticket                                  |
+| Threaded        | A reply on an existing ticket                 |
+| Unauthenticated | DMARC did not pass                            |
+| Unknown sender  | Authenticated, but not an active member       |
+| Auto-reply      | A bounce, out-of-office or list message       |
+| Rate limited    | Too many messages from this sender in an hour |
+| Failed          | Unreadable, or failed while being processed   |
 
 The raw message is kept for 30 days. The ticket or comment it produced is kept with the rest of the workspace.
 

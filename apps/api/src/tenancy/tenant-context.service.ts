@@ -1,11 +1,7 @@
 import { Injectable } from "@nestjs/common"
 import { ClsService } from "nestjs-cls"
 
-import {
-  type RequestContextStore,
-  TenantContextMissingError,
-  type TenantScope,
-} from "./request-context"
+import { type RequestContextStore, TenantContextMissingError, type TenantScope } from "./request-context"
 import type { ResolvedTenant } from "./tenant-resolver"
 
 /**

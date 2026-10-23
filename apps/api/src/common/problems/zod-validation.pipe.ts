@@ -23,13 +23,11 @@ export const ZodValidationPipe = createZodValidationPipe({
       return new ProblemException("internal-error", undefined)
     }
     return new ValidationProblem(
-      error.issues.map(
-        (issue): ProblemError => ({
-          path: issue.path.map(String).join("."),
-          message: issue.message,
-          code: issue.code,
-        }),
-      ),
+      error.issues.map((issue): ProblemError => ({
+        path: issue.path.map(String).join("."),
+        message: issue.message,
+        code: issue.code,
+      })),
     )
   },
 })

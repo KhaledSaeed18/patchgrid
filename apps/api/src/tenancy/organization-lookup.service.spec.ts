@@ -2,10 +2,7 @@ import { Logger } from "@nestjs/common"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ApiTokenIndexRepository } from "../platform/repositories/api-token-index.repository"
-import type {
-  OrganizationRepository,
-  OrganizationSummary,
-} from "../platform/repositories/organization.repository"
+import type { OrganizationRepository, OrganizationSummary } from "../platform/repositories/organization.repository"
 import type { RedisService } from "../redis/redis.service"
 import { OrganizationLookupService } from "./organization-lookup.service"
 
@@ -15,7 +12,8 @@ const acme: OrganizationSummary = {
   status: "ACTIVE",
   plan: "FREE",
   agentVisibility: "ALL_TICKETS",
-  requireMfa: false, requireSso: false,
+  requireMfa: false,
+  requireSso: false,
 }
 
 /** An in-memory Redis that can be switched off to simulate an outage. */
@@ -72,11 +70,7 @@ function fakeRepositories(orgs: OrganizationSummary[]) {
   }
   const tokens = {
     findByPrefix: vi.fn(async (prefix: string) =>
-      prefix === "live"
-        ? { orgId: acme.id, revokedAt: null }
-        : prefix === "dead"
-          ? { orgId: acme.id, revokedAt: new Date() }
-          : null,
+      prefix === "live" ? { orgId: acme.id, revokedAt: null } : prefix === "dead" ? { orgId: acme.id, revokedAt: new Date() } : null,
     ),
   }
   return {
@@ -156,11 +150,7 @@ describe("OrganizationLookupService", () => {
   it("invalidates the summary and both slug pointers on a rename", async () => {
     await lookup.bySlug("acme")
     await lookup.invalidate({ id: acme.id, slug: "acme-corp", previousSlug: "acme" })
-    expect(redis.client.del).toHaveBeenCalledWith(
-      `tenant:org:${acme.id}`,
-      "tenant:slug:acme-corp",
-      "tenant:slug:acme",
-    )
+    expect(redis.client.del).toHaveBeenCalledWith(`tenant:org:${acme.id}`, "tenant:slug:acme-corp", "tenant:slug:acme")
     expect([...redis.store.keys()].filter((k) => !k.endsWith(":stale"))).toEqual([])
   })
 

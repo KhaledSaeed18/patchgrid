@@ -21,7 +21,17 @@ function harness(role: MemberActor["role"], last: Date | null) {
   const exportsRepo = {
     latestCounted: vi.fn(async () => last),
     create: vi.fn(async () => "x-1"),
-    find: vi.fn(async () => ({ id: "x-1", status: "QUEUED", requestedAt: NOW, readyAt: null, expiresAt: null, sizeBytes: null, storageKey: null, failure: null, requestedBy: { id: "m-1", displayName: "Alice", user: null } })),
+    find: vi.fn(async () => ({
+      id: "x-1",
+      status: "QUEUED",
+      requestedAt: NOW,
+      readyAt: null,
+      expiresAt: null,
+      sizeBytes: null,
+      storageKey: null,
+      failure: null,
+      requestedBy: { id: "m-1", displayName: "Alice", user: null },
+    })),
   }
   const queue = { add: vi.fn(async () => undefined) }
   const service = new ExportsService(
@@ -43,7 +53,11 @@ describe("ExportsService.request", () => {
   it("queues an owner's export, one job per export", async () => {
     const h = harness("OWNER", new Date(NOW.getTime() - 25 * HOUR))
     expect((await h.service.request()).status).toBe("QUEUED")
-    expect(h.queue.add).toHaveBeenCalledWith("org-export", { orgId: ORG, exportId: "x-1" }, expect.objectContaining({ jobId: "org-export/o-1/x-1/build", attempts: 1 }))
+    expect(h.queue.add).toHaveBeenCalledWith(
+      "org-export",
+      { orgId: ORG, exportId: "x-1" },
+      expect.objectContaining({ jobId: "org-export/o-1/x-1/build", attempts: 1 }),
+    )
   })
 
   it("is an owner's alone", async () => {

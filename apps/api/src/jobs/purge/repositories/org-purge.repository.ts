@@ -67,7 +67,10 @@ export class OrgPurgeRepository {
     this.step("Invitation", (orgId) => this.prisma.db.invitation.deleteMany({ where: { orgId } })),
     this.step("TeamMembership", (orgId) => this.prisma.db.teamMembership.deleteMany({ where: { orgId } })),
     this.step("Membership", async (orgId) => {
-      await this.prisma.db.membership.updateMany({ where: { orgId, invitedByMembershipId: { not: null } }, data: { invitedByMembershipId: null } })
+      await this.prisma.db.membership.updateMany({
+        where: { orgId, invitedByMembershipId: { not: null } },
+        data: { invitedByMembershipId: null },
+      })
       return this.prisma.db.membership.deleteMany({ where: { orgId } })
     }),
     this.step("Team", (orgId) => this.prisma.db.team.deleteMany({ where: { orgId } })),

@@ -46,7 +46,8 @@ export default async function AccountPage() {
           <div className="grid gap-2 text-sm">
             <p className="font-medium">Delete your account</p>
             <p className="text-muted-foreground">
-              An account your workspace&apos;s single sign-on made has no password; a link to your address proves it is you.
+              An account your workspace&apos;s single sign-on made has no
+              password; a link to your address proves it is you.
             </p>
             <ErasureLink email={identity.user.email} />
           </div>

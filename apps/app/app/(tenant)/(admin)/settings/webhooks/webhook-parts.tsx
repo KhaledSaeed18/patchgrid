@@ -20,12 +20,14 @@ import { toast } from "sonner"
 
 /** Active, off, or waiting out an open circuit: what an admin needs to know at a glance. */
 export function EndpointStatus({ endpoint }: { endpoint: WebhookEndpoint }) {
-  if (endpoint.status === "DISABLED") return <Badge variant="destructive">Off</Badge>
+  if (endpoint.status === "DISABLED")
+    return <Badge variant="destructive">Off</Badge>
   const open =
     endpoint.circuitOpenUntil !== null &&
     new Date(endpoint.circuitOpenUntil) > new Date()
   if (open) return <Badge variant="destructive">Paused after failures</Badge>
-  if (endpoint.consecutiveFailures > 0) return <Badge variant="outline">Failing</Badge>
+  if (endpoint.consecutiveFailures > 0)
+    return <Badge variant="outline">Failing</Badge>
   return <Badge variant="outline">Active</Badge>
 }
 
@@ -38,7 +40,9 @@ export function EventPicker({
   onChange: (next: WebhookEventType[]) => void
 }) {
   const toggle = (type: WebhookEventType) =>
-    onChange(value.includes(type) ? value.filter((t) => t !== type) : [...value, type])
+    onChange(
+      value.includes(type) ? value.filter((t) => t !== type) : [...value, type]
+    )
   return (
     <fieldset className="grid gap-2">
       <legend className="mb-1 text-sm font-medium">Events</legend>
@@ -52,7 +56,9 @@ export function EventPicker({
           />
           <span>
             {WEBHOOK_EVENT_DESCRIPTIONS[type]}{" "}
-            <span className="font-mono text-xs text-muted-foreground">{type}</span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {type}
+            </span>
           </span>
         </label>
       ))}
@@ -89,15 +95,18 @@ export function SecretDialog({
           {secret}
         </code>
         <p className="text-xs text-muted-foreground">
-          Requests follow the Standard Webhooks specification, so its libraries verify them. Deliveries can
-          repeat: deduplicate on <span className="font-mono">webhook-id</span>.
+          Requests follow the Standard Webhooks specification, so its libraries
+          verify them. Deliveries can repeat: deduplicate on{" "}
+          <span className="font-mono">webhook-id</span>.
         </p>
         <DialogFooter>
           <Button
             variant="outline"
             onClick={() =>
               secret !== null &&
-              void navigator.clipboard.writeText(secret).then(() => toast.success("Copied."))
+              void navigator.clipboard
+                .writeText(secret)
+                .then(() => toast.success("Copied."))
             }
           >
             Copy

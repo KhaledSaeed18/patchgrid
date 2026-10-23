@@ -47,7 +47,12 @@ export class MfaChallengeService {
 
   async verify(token: string): Promise<MfaChallenge | null> {
     try {
-      const { payload } = await jwtVerify(token, this.key, { algorithms: ["HS256"], issuer: ISSUER, audience: AUDIENCE, currentDate: this.clock.now() })
+      const { payload } = await jwtVerify(token, this.key, {
+        algorithms: ["HS256"],
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        currentDate: this.clock.now(),
+      })
       const parsed = schema.safeParse(payload)
       return parsed.success ? { userId: parsed.data.sub, slug: parsed.data.slug, jti: parsed.data.jti } : null
     } catch {

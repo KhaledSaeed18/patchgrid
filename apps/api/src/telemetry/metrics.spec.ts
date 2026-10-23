@@ -2,7 +2,15 @@ import { metrics } from "@opentelemetry/api"
 import { AggregationTemporality, InMemoryMetricExporter, MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { isRlsDenied, recordHttpRequest, recordOutboxConsumed, recordOutboxDrain, recordOutboxParked, recordQuotaRejection, recordRlsDenied } from "./metrics"
+import {
+  isRlsDenied,
+  recordHttpRequest,
+  recordOutboxConsumed,
+  recordOutboxDrain,
+  recordOutboxParked,
+  recordQuotaRejection,
+  recordRlsDenied,
+} from "./metrics"
 
 /**
  * The meter is global and `metrics.ts` creates its instruments on first
@@ -29,12 +37,23 @@ async function collected(name: string) {
 
 describe("the multi-tenant metrics", () => {
   it("records request duration by route, status and a bounded tenant label — never the URL", async () => {
-    recordHttpRequest({ method: "GET", route: "/api/v1/tickets/:id", status: 200, orgId: "0190b2f0-0000-7000-8000-00000000000a", durationMs: 12 })
+    recordHttpRequest({
+      method: "GET",
+      route: "/api/v1/tickets/:id",
+      status: 200,
+      orgId: "0190b2f0-0000-7000-8000-00000000000a",
+      durationMs: 12,
+    })
     recordHttpRequest({ method: "GET", route: "/api/v1/tickets/:id", status: 404, orgId: null, durationMs: 3 })
     const metric = await collected("http_request_duration")
     expect(metric).toBeDefined()
     const attributes = metric?.dataPoints.map((p) => p.attributes) ?? []
-    expect(attributes).toContainEqual({ "http.request.method": "GET", "http.route": "/api/v1/tickets/:id", "http.response.status_code": 200, org: "0190b2f0-0000-7000-8000-00000000000a" })
+    expect(attributes).toContainEqual({
+      "http.request.method": "GET",
+      "http.route": "/api/v1/tickets/:id",
+      "http.response.status_code": 200,
+      org: "0190b2f0-0000-7000-8000-00000000000a",
+    })
     expect(attributes).toContainEqual(expect.objectContaining({ "http.response.status_code": 404, org: "none" }))
   })
 
@@ -66,8 +85,14 @@ describe("the outbox metrics (ADR-0049)", () => {
   it("counts drains by outcome and parked events by tenant", async () => {
     recordOutboxDrain("notify", "held-back")
     recordOutboxParked("notify", ORG)
-    expect((await collected("outbox_drains_total"))?.dataPoints[0]).toMatchObject({ value: 1, attributes: { consumer: "notify", outcome: "held-back" } })
-    expect((await collected("outbox_events_parked_total"))?.dataPoints[0]).toMatchObject({ value: 1, attributes: { consumer: "notify", org: ORG } })
+    expect((await collected("outbox_drains_total"))?.dataPoints[0]).toMatchObject({
+      value: 1,
+      attributes: { consumer: "notify", outcome: "held-back" },
+    })
+    expect((await collected("outbox_events_parked_total"))?.dataPoints[0]).toMatchObject({
+      value: 1,
+      attributes: { consumer: "notify", org: ORG },
+    })
   })
 })
 

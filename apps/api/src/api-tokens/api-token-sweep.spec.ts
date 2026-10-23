@@ -14,7 +14,9 @@ const LAPSES = new Date("2026-10-20T12:00:00Z")
 
 function harness(due: { id: string; expiresAt: Date | null }[], alreadyWarned: string[] = []) {
   const tokens = {
-    expiringUnwarned: vi.fn(async () => due.map((t) => ({ ...t, name: "Monitoring", prefix: "abcdefabcdef", createdByMembershipId: "m-admin" }))),
+    expiringUnwarned: vi.fn(async () =>
+      due.map((t) => ({ ...t, name: "Monitoring", prefix: "abcdefabcdef", createdByMembershipId: "m-admin" })),
+    ),
     markWarned: vi.fn(async (_o: string, id: string) => !alreadyWarned.includes(id)),
     warningAddresses: vi.fn(async () => ["alice@acme.test"]),
   }
@@ -33,7 +35,13 @@ function harness(due: { id: string; expiresAt: Date | null }[], alreadyWarned: s
 
 describe("ApiTokenSweepService", () => {
   it("looks a week ahead and warns about each lapsing token once, by email to whoever should act", async () => {
-    const h = harness([{ id: "t-1", expiresAt: LAPSES }, { id: "t-2", expiresAt: LAPSES }], ["t-2"])
+    const h = harness(
+      [
+        { id: "t-1", expiresAt: LAPSES },
+        { id: "t-2", expiresAt: LAPSES },
+      ],
+      ["t-2"],
+    )
     expect(await h.service.sweep()).toBe(1)
     expect(h.tokens.expiringUnwarned).toHaveBeenCalledWith(ORG, NOW, new Date("2026-10-22T12:00:00Z"))
     expect(h.mail.enqueueAll).toHaveBeenCalledTimes(1)

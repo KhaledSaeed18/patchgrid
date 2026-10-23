@@ -1,4 +1,8 @@
-import { backlogReportSchema, slaReportSchema, workloadReportSchema } from "@patchgrid/contracts"
+import {
+  backlogReportSchema,
+  slaReportSchema,
+  workloadReportSchema,
+} from "@patchgrid/contracts"
 import type { Metadata } from "next"
 
 import { PageHeader } from "@/components/page-header"
@@ -13,7 +17,9 @@ export default async function ReportsPage() {
   const range = rangeFor(30, new Date())
   const query = `from=${range.from}&to=${range.to}`
   const [sla, backlog, workload] = await Promise.all([
-    serverApi(`/reports/sla?${query}&groupBy=priority`, { schema: slaReportSchema }),
+    serverApi(`/reports/sla?${query}&groupBy=priority`, {
+      schema: slaReportSchema,
+    }),
     serverApi("/reports/backlog", { schema: backlogReportSchema }),
     serverApi(`/reports/workload?${query}`, { schema: workloadReportSchema }),
   ])

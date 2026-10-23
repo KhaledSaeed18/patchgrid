@@ -34,7 +34,10 @@ export function TicketTable({
   columns: "portal" | "console"
   selection?: TicketSelection
 }) {
-  const allOn = selection !== undefined && tickets.length > 0 && tickets.every((t) => selection.selected.has(t.id))
+  const allOn =
+    selection !== undefined &&
+    tickets.length > 0 &&
+    tickets.every((t) => selection.selected.has(t.id))
   return (
     <Table>
       <TableHeader>
@@ -70,7 +73,14 @@ export function TicketTable({
       </TableHeader>
       <TableBody>
         {tickets.map((ticket) => (
-          <TableRow key={ticket.id} data-state={selection?.selected.has(ticket.id) === true ? "selected" : undefined}>
+          <TableRow
+            key={ticket.id}
+            data-state={
+              selection?.selected.has(ticket.id) === true
+                ? "selected"
+                : undefined
+            }
+          >
             {selection !== undefined && (
               <TableCell>
                 <input

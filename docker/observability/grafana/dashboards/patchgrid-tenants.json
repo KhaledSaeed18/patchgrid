@@ -1,9 +1,7 @@
 {
   "uid": "patchgrid-tenants",
   "title": "Patchgrid \u2014 which tenant is slow",
-  "tags": [
-    "patchgrid"
-  ],
+  "tags": ["patchgrid"],
   "timezone": "utc",
   "schemaVersion": 39,
   "version": 1,

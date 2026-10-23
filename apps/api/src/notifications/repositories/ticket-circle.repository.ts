@@ -137,7 +137,10 @@ export class TicketCircleRepository {
    * notice about the workspace rather than a ticket (DOMAIN.md §8).
    */
   async stewards(orgId: string): Promise<{ org: { name: string; slug: string; emailEnabled: boolean }; people: Person[] } | null> {
-    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { name: true, slug: true, emailNotificationsEnabled: true } })
+    const org = await this.prisma.db.organization.findUnique({
+      where: { id: orgId },
+      select: { name: true, slug: true, emailNotificationsEnabled: true },
+    })
     if (org === null) return null
     const rows = await this.prisma.db.membership.findMany({
       where: { orgId, role: { in: ["ADMIN", "OWNER"] }, status: "ACTIVE", kind: "HUMAN" },

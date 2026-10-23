@@ -24,8 +24,8 @@ export function WebhookDisabled(p: WebhookDisabledParams) {
         <strong>{webhookDisabledSubject(p)}.</strong>
       </p>
       <p>
-        The webhook sending to <code>{p.endpointUrl}</code> has stopped: {p.reason.toLowerCase()}. Whatever listens there has
-        heard nothing from Patchgrid since. Fix the receiver, turn the webhook back on, and replay the deliveries it missed.
+        The webhook sending to <code>{p.endpointUrl}</code> has stopped: {p.reason.toLowerCase()}. Whatever listens there has heard nothing
+        from Patchgrid since. Fix the receiver, turn the webhook back on, and replay the deliveries it missed.
       </p>
       <Button href={p.settingsUrl}>Review the webhook</Button>
       <FallbackLink href={p.settingsUrl} />

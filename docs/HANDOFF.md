@@ -1,6 +1,6 @@
-# Handoff — M13 complete, M14 next
+# Handoff — M13 complete, its open items cleared, M14 next
 
-Written 2026-10-23, at the M13 boundary. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
+Written 2026-10-23, after the pass that cleared the M13 boundary's open items. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
 whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
 an ADR, they are right and this is stale.
 
@@ -65,7 +65,31 @@ What M13 built:
   in-process OpenID provider for the integration specs; an SSO scenario in the browser suite, which CI
   runs against Keycloak.
 
-**CI is green on `main`** as of the passkeys merge; this PR's run is the check for the rest.
+**The open items, cleared (2026-10-23, #63–#70).** Every item the M13 handoff left open was built,
+settled or re-filed as out of scope before starting M14:
+
+- **Reliability.** Notification email is at least once, queued with the `notify` cursor (ADR-0049
+  erratum). Parked events can be replayed by an admin (`org:manage_events`, Settings → Event
+  delivery). A webhook turned off for failing emails the workspace's admins. Raw SQL on tenant tables
+  goes through `PrismaService.tx`, and locks on platform rows through `lockTx`; both throw outside a
+  transaction. A transaction's statements reach its connection one at a time (`SerialPrismaPg`), which
+  removes the `pg` "query while executing" warning.
+- **Plans.** A nightly `usage-reconcile` recounts the counters from their rows. A FREE workspace's audit
+  log is kept two years. A limit reached tells the admins and owners (`PLAN_LIMIT_REACHED`). API tokens
+  are a plan limit. `org:manage_plan` left the catalogue (plans are the back-office's).
+- **People.** Keep watching on reassignment; starter knowledge-base articles; per-member capabilities on
+  the members page; erasure by a link for accounts with no password (ADR-0044 erratum); joining by
+  verified domain (TENANCY §5); external requesters as memberships without an account (ADR-0055).
+- **Rules.** Rule 3 can no longer be engineered: an owner self-approves only when they alone can decide,
+  and an undecidable change is refused at `submit` (DOMAIN §2.3). Google's `hd` is checked (ADR-0054
+  erratum). Comments honour `Idempotency-Key`, keyed to the path. The cookie pairs are pruned to five.
+- **Operations.** Exports list files a page at a time; the API image is 778 MB, down from 1.11 GB;
+  CoreDNS makes the domain proof walkable; the SLA browser spec moves its deadline instead of waiting;
+  the marketing page no longer inlines its stylesheet four times. Prettier formats the whole repository
+  (the backend at 140 columns), so commits run the format hook again.
+
+**CI is green on `main`** through #68; #69 (external requesters) and #70 (the format pass) are the
+check for the rest.
 
 ## Earlier milestones, in brief
 
@@ -89,13 +113,13 @@ The detail is in the git history of this file, at those boundaries.
 
 | Suite | Count |
 | --- | --- |
-| `apps/api` unit | 1173 |
-| `apps/api` integration | 265 (`test/auth/passkeys` and `test/auth/sso` are M13's) |
-| `pnpm test:tenancy` | 13 catalog + 37 (3 pointers skipped) |
-| `pnpm test:authz` | 408 |
-| `packages/database` unit / catalog | 8 / 13 |
-| `packages/contracts` | 227 |
-| `apps/app` unit | 68 |
+| `apps/api` unit | 1232 |
+| `apps/api` integration | 278 |
+| `pnpm test:tenancy` | 13 catalog + 38 (3 pointers skipped) |
+| `pnpm test:authz` | 410 |
+| `packages/database` unit / catalog / integration | 11 / 13 / 24 |
+| `packages/contracts` | 228 |
+| `apps/app` unit | 69 |
 | `apps/www` | 19 |
 | `apps/app` browser suite | 12 scenarios (`passkeys` and `sso` are M13's) |
 
@@ -106,6 +130,20 @@ The detail is in the git history of this file, at those boundaries.
 | A passkey is a credential that signs in alone and a factor; one RP across the workspace hosts, the origin partitioned; recovery codes belong to the person | ADR-0053 (errata: as built; the review's settlements) |
 | Per-tenant OIDC routed by a DNS-proved domain; a session an IdP starts is scoped to its workspace; owners exempt from "SSO required" and never step up at the IdP | ADR-0054 (erratum: the review's settlements) |
 | The identity provider as trust boundary TB12 | `THREAT-MODEL.md` §6, §10 |
+
+## Decisions made clearing the open items
+
+| Decision | Where |
+| --- | --- |
+| External requesters are memberships of kind `EXTERNAL`, with no account; an `external` actor built by the intake alone | ADR-0055; erratum on ADR-0039 |
+| Notification email is queued in the cursor's transaction: at least once | ADR-0049 erratum |
+| A disabled webhook emails its admins | ADR-0050 erratum |
+| Google's `hd` must name the proved domain | ADR-0054 erratum |
+| Erasure by a single-use link to the address | ADR-0044 erratum |
+| FREE's two-year audit window is a per-tenant delete; the archival keeps seven | ADR-0028 erratum |
+| `db_transactions_per_request` counts the extension's own transactions | ADR-0046 erratum |
+| `org:manage_plan` is not a permission | Errata on ADR-0029, ADR-0045 |
+| The crossing helpers take a `crossing` | ADR-0022 erratum |
 
 ---
 
@@ -132,43 +170,10 @@ Then M7, per `FEATURES.md`.
 
 | Item | Needed by | Notes |
 | --- | --- | --- |
-| **External requesters** (`allowExternalRequesters`) | when asked for | Deferred by ADR-0039 |
-| The API image is ~525 MB of `node_modules` | any time | The Prisma CLI, Studio and TypeScript ride in as resolved peers of `@prisma/client` |
-| `@nestjs/swagger` warns of duplicate `CreateDto`/`UpdateDto` names | any time | "Will throw in a future version"; name the DTO classes per module |
-| `org:manage_plan` has no tenant route yet; it gets the step-up when it gets the route | spec decision | ADR-0045 |
-| Tokens are unlimited per plan; service accounts hold no seat | spec decision | A plan-limit question, not isolation |
-| A `complete` racing the attachment sweep can orphan a final object | any time | Suspected in the review; a leak, not a bypass |
-| Raw SQL outside `prisma.transaction()` runs with no GUC (fail-closed) | any time | The second site appeared (the outbox sweep saw an empty log); `PrismaService.tx` throws outside a transaction, and the outbox uses it. Move the other raw repositories onto it |
-| `db_transactions_per_request` counts interactive transactions only | docs | Every statement is in `db_client_operation_duration` |
-| The SLA browser scenario waits up to four minutes for a real breach | any time | Passes on retry when the sweep lands late; a test clock would make it instant |
-| The export lists every file's row before streaming | load check | Rows, not bytes; fine to tens of thousands |
-| The back-office "Restore workspace" button was not walked in a browser | any time | Unit- and integration-tested |
-| Plan-limit-reached notification (`DOMAIN.md` §8) | any time | Needs its own event, type and dedupe key |
-| A usage-counter reconcile | any time | Nothing recomputes `KB_ARTICLES` or `STORAGE_BYTES` after a bug |
-| CLAUDE.md says no raw SQL outside `packages/database`, but the lint allows `src/**/repositories/**` | docs | Align the rule with the lint |
-| Parked outbox events have no replay | any time | They are on record in `EventDeadLetter` with their error; replay is an admin action to build with a dead-letter view (THREAT-MODEL §8) |
-| An auto-disabled webhook endpoint emails nobody | any time | ADR-0050: audited as the system and shown on the settings page; a mail to the workspace's admins is the missing half |
-| An email can be lost if Redis refuses it in the instant after a drain commits | any time | The inbox row is exactly-once with the cursor (ADR-0049); the email is queued after it, best effort. A `mail` consumer of the log would make it at-least-once |
-| `ProjectionRepository` duplicates part of `UserOrgIndexRepository` | any time | Merge them |
-| `pg` "client.query() while executing" deprecation warning in integration runs | any time | Present since M2 |
-| Rule 3 can be engineered: an owner may assign their change to the only other admin | spec decision | What DOMAIN.md §2.3 says today |
-| Per-member capabilities in the admin UI | any time | Member actions are offered by role |
-| Doc formatting drift | any time | Docs and API code are not Prettier-clean at 80 cols; commits skip the format hook |
-| A new workspace gets no starter KB articles | any time | `TENANCY.md` §4, ADR-0017 and `PROJECT.md` promise them; provisioning creates none |
-| Joining by email domain without an identity provider is not built | spec decision | `TENANCY.md` §5; the domain proof exists now (ADR-0054), and SSO's just-in-time join is the only domain-based way in |
-| Per-host cookie pairs are never pruned to five | any time | `TENANCY.md` §6 and ADR-0024 say they are; `auth/cookies.ts` keeps them all |
-| `POST /tickets/:id/comments` ignores `Idempotency-Key` | any time | Every other entity-creating `POST` honours it |
-| Audit-log retention per plan is not enforced | any time | ADR-0028's two and seven years; the sweep covers notifications and exports only |
-| `DOMAIN.md` §4.3 skips a warning against `createdAt`; the code uses the clock's own start | docs | The code is right; the doc needs the same correction ADR-0003 got |
-| `DOMAIN.md` §8 offers a reassigned agent to keep watching; nothing does | spec decision | They can watch by hand |
-| `TENANCY.md` §7 and ADR-0022 show `runAsTenant(orgId, fn)`; the code takes a `crossing` too | docs | `CLAUDE.md` has it right |
-| SAML, SCIM and IdP-initiated sign-in | out of scope | ADR-0048; deprovisioning at the provider ends nothing here (R-10) |
-| A domain cannot be proved locally by DNS | any time | No zone to publish a TXT record into; the seed marks `acme.test` proved. `DNS_RESOLVERS` can point the proof at a local nameserver (CoreDNS in Compose would make it walkable) |
-| An SSO-provisioned person has no password, so cannot erase their own account until they set one | spec decision | The reset mail sets one; erasure takes the password (ADR-0044) |
-| SSO step-up needs a provider that honours `max_age=0` | docs | One that ignores it answers `stale`; its members confirm with Patchgrid credentials (ADR-0054 erratum 8) |
-| Google's `hd` is not checked; a provider must be the workspace's own | spec decision | ADR-0054 erratum 8; a social or multi-tenant issuer would trust addresses verified elsewhere |
 | Passkeys need a secure context; locally that is Chrome with a flag until M14's HTTPS | M14 | ADR-0053 |
-| Marketing LCP is 3.3 s on Lighthouse's mobile profile | any time | Five font files contend on simulated 4G; dropping the mono preload is the cheap lever, in `@patchgrid/ui` for both apps |
+| An external requester who later gets an account keeps two memberships | when asked for | ADR-0055: the external one keeps its tickets; merging them is not built |
+| SAML, SCIM and IdP-initiated sign-in | out of scope | ADR-0048; deprovisioning at the provider ends nothing here (R-10) |
+| Automation rules have a plan limit and no rows | M7 | `usage-reconcile` leaves their counter alone until M7 gives them rows |
 
 ## If it is ever deployed
 
@@ -211,6 +216,8 @@ pnpm dev                         # www :3000, app :3001, api :4000; Mailpit UI :
 pnpm --filter @patchgrid/app test:e2e                  # the browser suite, against the running stack
 docker compose --profile observability up -d           # collector, Tempo, Prometheus, Grafana :3100
 docker compose --profile sso up -d                     # Keycloak :8180, Acme's identity provider (ADR-0054)
+docker compose --profile dns up -d                     # CoreDNS :5354 for the domain proof; DNS_RESOLVERS=127.0.0.1:5354
+pnpm --filter @patchgrid/api run inbound:send -- --from carla@contractor.test --to acme --subject "…" --text "…"
 ```
 
 To see traces and the tenant dashboard, set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` in
@@ -227,8 +234,31 @@ With `--profile sso` up, "Sign in with SSO" on the login page takes `kim@acme.te
 Settings → Single sign-on. Passkeys need a secure context: start Chrome with
 `--unsafely-treat-insecure-origin-as-secure=http://app.lvh.me:3001,http://acme.lvh.me:3001` until M14.
 
+To prove a domain locally, claim `globex.test` as Gus under Settings → Single sign-on, add the TXT line the
+page shows to `docker/coredns/zones/db.globex.test` (raise the serial, save the file whole), and check
+DNS, with the API started with `DNS_RESOLVERS=127.0.0.1:5354`. To see external requesters, turn on
+"Take mail from people outside the workspace" under Settings → Workspace and send mail from an
+address no member has with `inbound:send`.
+
 Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session cookies are scoped to
 `.lvh.me`, so a `localhost` cookie jar stays empty and every call is a `401`.
+
+## Gotchas paid for clearing the open items
+
+- **A dev API is a second worker on the test database.** Its outbox listener drains the specs' events
+  and its workers attempt their webhooks; stop it before `test:integration`, every time.
+- **Prisma 7 loads an `include`'s relations with `Promise.all`**, which inside an interactive
+  transaction overlaps queries on one `pg` client. `SerialPrismaPg` queues them; our own `Promise.all`
+  inside a transaction bought nothing either.
+- **A test helper that writes a row and its counter apart races `usage-reconcile`** in another spec's
+  worker; it upserts. Provisioning writes both in one transaction.
+- **A new enum value cannot be used in the migration that adds it**; split it, as `API_TOKENS` and
+  `EXTERNAL` are. A failed `migrate deploy` must be marked rolled back before it is rewritten.
+- **`pnpm add` can prune a store package another lockfile entry still links** (a dangling `zod` under
+  ESLint's React hooks plugin). `pnpm install --force` relinks; it takes a while.
+- **CoreDNS drops a zone it reads half-written.** Save zone files whole, as editors do.
+- **Prettier now runs on every commit**; the docs are ignored, because the contracts' tests read their
+  tables cell by cell.
 
 ## Gotchas paid for in M13
 

@@ -59,7 +59,12 @@ export class DeadLettersService {
         await this.outbox.lock(orgId, consumer.name)
         const after = await consumer.handle(orgId, [row.event])
         await this.audit.record(orgId, [
-          { action: "EVENT_REPLAYED", entityType: "EventDeadLetter", entityId: id, diff: { consumer: row.consumer, eventId: row.event.id, eventType: row.event.type } },
+          {
+            action: "EVENT_REPLAYED",
+            entityType: "EventDeadLetter",
+            entityId: id,
+            diff: { consumer: row.consumer, eventId: row.event.id, eventType: row.event.type },
+          },
         ])
         return { replayed: await this.letters.markReplayed(orgId, id, this.clock.now()), after }
       })

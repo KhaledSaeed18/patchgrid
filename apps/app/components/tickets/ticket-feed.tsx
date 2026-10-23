@@ -1,6 +1,10 @@
 "use client"
 
-import { type TicketPage, ticketPageSchema, type TicketSummary } from "@patchgrid/contracts"
+import {
+  type TicketPage,
+  ticketPageSchema,
+  type TicketSummary,
+} from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useInfiniteQuery } from "@tanstack/react-query"
@@ -32,7 +36,9 @@ export function TicketFeed({
   bulk?: boolean
 }) {
   // The version each picked row showed: what the bulk action sends back, so a ticket changed since is a conflict.
-  const [picked, setPicked] = useState<Map<string, { version: number; number: string }>>(new Map())
+  const [picked, setPicked] = useState<
+    Map<string, { version: number; number: string }>
+  >(new Map())
   const feed = useInfiniteQuery({
     queryKey: ["tickets", query],
     queryFn: ({ pageParam }) => {
@@ -51,7 +57,11 @@ export function TicketFeed({
   // A picked row that changed since it was picked no longer counts as picked: acting on it would only
   // answer `conflict` for a row that looks current on screen (M12 review). Rows not shown keep their pick.
   const shown = new Map(tickets.map((t) => [t.id, t.version]))
-  const live = new Map([...picked].filter(([id, pick]) => (shown.get(id) ?? pick.version) === pick.version))
+  const live = new Map(
+    [...picked].filter(
+      ([id, pick]) => (shown.get(id) ?? pick.version) === pick.version
+    )
+  )
 
   const selection = bulk
     ? {
@@ -60,8 +70,13 @@ export function TicketFeed({
           setPicked((current) => {
             const next = new Map(current)
             // A stale pick shows unchecked; a click on it picks the row as it is now.
-            if (next.get(ticket.id)?.version === ticket.version) next.delete(ticket.id)
-            else next.set(ticket.id, { version: ticket.version, number: ticket.number })
+            if (next.get(ticket.id)?.version === ticket.version)
+              next.delete(ticket.id)
+            else
+              next.set(ticket.id, {
+                version: ticket.version,
+                number: ticket.number,
+              })
             return next
           }),
         setAll: (shown: readonly TicketSummary[], on: boolean) =>
@@ -86,7 +101,11 @@ export function TicketFeed({
           onFinished={() => setPicked(new Map())}
         />
       )}
-      <TicketTable tickets={tickets} columns={columns} {...(selection === undefined ? {} : { selection })} />
+      <TicketTable
+        tickets={tickets}
+        columns={columns}
+        {...(selection === undefined ? {} : { selection })}
+      />
       {feed.hasNextPage && (
         <Button
           variant="outline"

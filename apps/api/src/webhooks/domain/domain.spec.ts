@@ -9,14 +9,20 @@ describe("the Standard Webhooks signature", () => {
   it("matches the specification's published test vector", () => {
     // The specification's own published example: public, and signing nothing.
     const secret = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" // gitleaks:allow
-    expect(sign(secret, "msg_p5jXN8AQM9LWM0D4loKWxJek", 1614265330, '{"test": 2432232314}')).toBe("v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=") // gitleaks:allow
+    const id = "msg_p5jXN8AQM9LWM0D4loKWxJek" // gitleaks:allow
+    const expected = "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=" // gitleaks:allow
+    expect(sign(secret, id, 1614265330, '{"test": 2432232314}')).toBe(expected)
   })
 
   it("signs with every secret in force, and a receiver holding either verifies", () => {
     const current = newWebhookSecret()
     const previous = newWebhookSecret()
     const headers = signatureHeaders([current, previous], "d-1", 1_000, "{}")
-    const received = { id: headers["webhook-id"] ?? "", timestamp: headers["webhook-timestamp"] ?? "", signature: headers["webhook-signature"] ?? "" }
+    const received = {
+      id: headers["webhook-id"] ?? "",
+      timestamp: headers["webhook-timestamp"] ?? "",
+      signature: headers["webhook-signature"] ?? "",
+    }
     expect(received.signature.split(" ")).toHaveLength(2)
     expect(verify(current, received, "{}", 1_000)).toBe(true)
     expect(verify(previous, received, "{}", 1_000)).toBe(true)

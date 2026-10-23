@@ -27,8 +27,7 @@ export const slugSchema = z
   .min(SLUG_MIN_LENGTH, { error: `must be at least ${SLUG_MIN_LENGTH} characters` })
   .max(SLUG_MAX_LENGTH, { error: `must be at most ${SLUG_MAX_LENGTH} characters` })
   .regex(SLUG_PATTERN, {
-    error:
-      "may use lowercase letters, numbers and single hyphens, and must start and end with a letter or number",
+    error: "may use lowercase letters, numbers and single hyphens, and must start and end with a letter or number",
   })
   .refine((value) => !isReservedSlug(value), { error: "is reserved" })
 

@@ -77,7 +77,21 @@ export type TicketRow = SlaState & {
 export type TicketChanges = Partial<
   Omit<
     TicketRow,
-    "id" | "orgId" | "number" | "type" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "source" | "problem" | "change" | "assets"
+    | "id"
+    | "orgId"
+    | "number"
+    | "type"
+    | "version"
+    | "createdAt"
+    | "updatedAt"
+    | "category"
+    | "requester"
+    | "assignee"
+    | "team"
+    | "source"
+    | "problem"
+    | "change"
+    | "assets"
   >
 >
 
@@ -242,7 +256,21 @@ export class TicketRepository {
    */
   async create(
     orgId: string,
-    data: Omit<TicketRow, "id" | "orgId" | "version" | "createdAt" | "updatedAt" | "category" | "requester" | "assignee" | "team" | "problem" | "change" | "assets">,
+    data: Omit<
+      TicketRow,
+      | "id"
+      | "orgId"
+      | "version"
+      | "createdAt"
+      | "updatedAt"
+      | "category"
+      | "requester"
+      | "assignee"
+      | "team"
+      | "problem"
+      | "change"
+      | "assets"
+    >,
     details: { problem?: ProblemChanges; change?: ChangeChanges } = {},
   ): Promise<string> {
     const row = await this.prisma.db.ticket.create({
@@ -301,7 +329,14 @@ export class TicketRepository {
   /** One decision on a Change (DOMAIN.md §2.3), append-only. */
   async addApproval(
     orgId: string,
-    approval: { ticketId: string; approverMembershipId: string; decision: "APPROVED" | "REJECTED"; selfApproved: boolean; reason: string | null; decidedAt: Date },
+    approval: {
+      ticketId: string
+      approverMembershipId: string
+      decision: "APPROVED" | "REJECTED"
+      selfApproved: boolean
+      reason: string | null
+      decidedAt: Date
+    },
   ): Promise<void> {
     await this.prisma.db.changeApproval.create({ data: { orgId, ...approval } })
   }
@@ -313,7 +348,10 @@ export class TicketRepository {
    */
   async approverCandidates(orgId: string, teamId: string | null): Promise<ApproverCandidate[]> {
     const human = { orgId, status: "ACTIVE" as const, kind: "HUMAN" as const }
-    const admins = await this.prisma.db.membership.findMany({ where: { ...human, role: { in: ["ADMIN", "OWNER"] } }, select: { id: true, role: true } })
+    const admins = await this.prisma.db.membership.findMany({
+      where: { ...human, role: { in: ["ADMIN", "OWNER"] } },
+      select: { id: true, role: true },
+    })
     const leads =
       teamId === null
         ? []
@@ -323,7 +361,6 @@ export class TicketRepository {
           })
     return [...admins, ...leads.map((l) => l.membership)].map((m) => ({ membershipId: m.id, role: m.role }))
   }
-
 
   /**
    * Optimistic concurrency (ENGINEERING.md): the write applies only to the
@@ -416,10 +453,16 @@ export class TicketRepository {
     const target =
       clock === "response"
         ? kind === "warning"
-          ? { where: { ...open, respondedAt: null, responseBreached: false, responseWarningSentAt: null }, data: { responseWarningSentAt: now } }
+          ? {
+              where: { ...open, respondedAt: null, responseBreached: false, responseWarningSentAt: null },
+              data: { responseWarningSentAt: now },
+            }
           : { where: { ...open, respondedAt: null, responseBreached: false }, data: { responseBreached: true } }
         : kind === "warning"
-          ? { where: { ...open, pausedAt: null, resolutionBreached: false, resolutionWarningSentAt: null }, data: { resolutionWarningSentAt: now } }
+          ? {
+              where: { ...open, pausedAt: null, resolutionBreached: false, resolutionWarningSentAt: null },
+              data: { resolutionWarningSentAt: now },
+            }
           : { where: { ...open, pausedAt: null, resolutionBreached: false }, data: { resolutionBreached: true } }
     const { count } = await this.prisma.db.ticket.updateMany(target)
     return count === 1
@@ -444,16 +487,10 @@ export class TicketRepository {
             ? {}
             : filter.direction === "desc"
               ? {
-                  OR: [
-                    { createdAt: { lt: filter.after.createdAt } },
-                    { createdAt: filter.after.createdAt, id: { lt: filter.after.id } },
-                  ],
+                  OR: [{ createdAt: { lt: filter.after.createdAt } }, { createdAt: filter.after.createdAt, id: { lt: filter.after.id } }],
                 }
               : {
-                  OR: [
-                    { createdAt: { gt: filter.after.createdAt } },
-                    { createdAt: filter.after.createdAt, id: { gt: filter.after.id } },
-                  ],
+                  OR: [{ createdAt: { gt: filter.after.createdAt } }, { createdAt: filter.after.createdAt, id: { gt: filter.after.id } }],
                 },
         ],
       },

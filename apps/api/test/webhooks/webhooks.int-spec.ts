@@ -60,7 +60,10 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => receiver.listen(0, "127.0.0.1", resolve))
   hookUrl = `http://127.0.0.1:${String((receiver.address() as AddressInfo).port)}/hook`
 
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(new RecordingMailProvider()).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(new RecordingMailProvider())
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
@@ -100,12 +103,21 @@ async function drainLog(): Promise<void> {
 
 /** One attempt at a delivery, now: its `nextAttemptAt` is moved to the past first, standing in for the wait. */
 async function attempt(deliveryId: string) {
-  await owner.webhookDelivery.updateMany({ where: { id: deliveryId, status: "PENDING" }, data: { nextAttemptAt: new Date(Date.now() - 1_000) } })
+  await owner.webhookDelivery.updateMany({
+    where: { id: deliveryId, status: "PENDING" },
+    data: { nextAttemptAt: new Date(Date.now() - 1_000) },
+  })
   return runAsTenant(ws.orgId, crossing, () => app.get(WebhookDeliverer).attempt(ws.orgId, deliveryId))
 }
 
 async function newTicket(title: string): Promise<string> {
-  const created = await as("requester").post("/tickets", { type: "INCIDENT", title, description: "Secret details", impact: "LOW", urgency: "LOW" })
+  const created = await as("requester").post("/tickets", {
+    type: "INCIDENT",
+    title,
+    description: "Secret details",
+    impact: "LOW",
+    urgency: "LOW",
+  })
   expect(created.status).toBe(201)
   return created.body.id as string
 }
@@ -139,7 +151,9 @@ describe("managing endpoints", () => {
   })
 
   it("refuses a URL with credentials, and an event type the catalogue does not have", async () => {
-    expect((await as("owner").post("/org/webhooks", { url: "https://u:p@hooks.example.com/", eventTypes: ["ticket.created"] })).status).toBe(400)
+    expect(
+      (await as("owner").post("/org/webhooks", { url: "https://u:p@hooks.example.com/", eventTypes: ["ticket.created"] })).status,
+    ).toBe(400)
     expect((await as("owner").post("/org/webhooks", { url: hookUrl, eventTypes: ["comment.internal"] })).status).toBe(400)
   })
 })
@@ -156,7 +170,11 @@ describe("a delivery", () => {
     expect(received).toHaveLength(1)
     const [request] = received
     if (request === undefined) throw new Error("nothing arrived")
-    const headers = { id: String(request.headers["webhook-id"]), timestamp: String(request.headers["webhook-timestamp"]), signature: String(request.headers["webhook-signature"]) }
+    const headers = {
+      id: String(request.headers["webhook-id"]),
+      timestamp: String(request.headers["webhook-timestamp"]),
+      signature: String(request.headers["webhook-signature"]),
+    }
     expect(headers.id).toBe(delivery.id)
     expect(verify(hook.secret, headers, request.body, Math.floor(Date.now() / 1000))).toBe(true)
     const payload = JSON.parse(request.body) as { id: string; type: string; data: { ticket: { id: string; number: string } } }
@@ -165,7 +183,11 @@ describe("a delivery", () => {
     // Thin: identifiers and states, never the ticket's words.
     expect(request.body).not.toContain("Printer on fire")
     expect(request.body).not.toContain("Secret details")
-    expect(await owner.webhookDelivery.findUniqueOrThrow({ where: { id: delivery.id } })).toMatchObject({ status: "SUCCEEDED", attempts: 1, lastStatusCode: 200 })
+    expect(await owner.webhookDelivery.findUniqueOrThrow({ where: { id: delivery.id } })).toMatchObject({
+      status: "SUCCEEDED",
+      attempts: 1,
+      lastStatusCode: 200,
+    })
 
     // A second drain of the same log writes nothing twice, and a second attempt sends nothing twice.
     await drainLog()
@@ -210,7 +232,10 @@ describe("failure", () => {
     // Straight to the last attempt; a failure there is the end.
     await owner.webhookDelivery.update({ where: { id: delivery.id }, data: { attempts: MAX_ATTEMPTS - 1 } })
     expect(await attempt(delivery.id)).toEqual({ kind: "dead" })
-    expect(await owner.webhookDelivery.findUniqueOrThrow({ where: { id: delivery.id } })).toMatchObject({ status: "DEAD", nextAttemptAt: null })
+    expect(await owner.webhookDelivery.findUniqueOrThrow({ where: { id: delivery.id } })).toMatchObject({
+      status: "DEAD",
+      nextAttemptAt: null,
+    })
 
     // An endpoint that is off is turned on before its deliveries are replayed.
     await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: false })
@@ -256,7 +281,10 @@ describe("failure", () => {
     respondWith = 200
     const [first, second] = deliveries
     if (first === undefined || second === undefined) throw new Error("no deliveries")
-    await owner.webhookDelivery.updateMany({ where: { id: { in: [first.id, second.id] } }, data: { nextAttemptAt: new Date(Date.now() - 1_000) } })
+    await owner.webhookDelivery.updateMany({
+      where: { id: { in: [first.id, second.id] } },
+      data: { nextAttemptAt: new Date(Date.now() - 1_000) },
+    })
     // The probe is held in flight at the receiver, so the second attempt runs while it is out.
     let release = () => undefined as void
     hold = new Promise<void>((resolve) => (release = resolve))
@@ -271,7 +299,10 @@ describe("failure", () => {
     arrived = null
     expect(await probe).toEqual({ kind: "delivered" })
     // The probe's success closes the circuit.
-    expect(await owner.webhookEndpoint.findUniqueOrThrow({ where: { id: hook.id } })).toMatchObject({ consecutiveFailures: 0, circuitOpenUntil: null })
+    expect(await owner.webhookEndpoint.findUniqueOrThrow({ where: { id: hook.id } })).toMatchObject({
+      consecutiveFailures: 0,
+      circuitOpenUntil: null,
+    })
 
     // Turning it back on closes the circuit.
     await as("owner").patch(`/org/webhooks/${hook.id}`, { enabled: false })
@@ -284,7 +315,10 @@ describe("failure", () => {
 describe("five days without a success", () => {
   it("turns the endpoint off and tells the workspace's admins and owners, in the same transaction", async () => {
     const hook = await endpoint(["ticket.created"])
-    await owner.webhookEndpoint.update({ where: { id: hook.id }, data: { failingSince: new Date(Date.now() - 6 * 24 * 60 * 60_000), consecutiveFailures: 1 } })
+    await owner.webhookEndpoint.update({
+      where: { id: hook.id },
+      data: { failingSince: new Date(Date.now() - 6 * 24 * 60 * 60_000), consecutiveFailures: 1 },
+    })
     respondWith = 500
     await newTicket("Still down")
     await drainLog()
@@ -293,13 +327,16 @@ describe("five days without a success", () => {
     const mail = app.get(MailService)
     const queued: { kind: string; to: string; settingsUrl: string }[] = []
     const spy = vi.spyOn(mail, "enqueueAll").mockImplementation(async (mails) => {
-      for (const { job } of mails) if (job.kind === "webhook-disabled") queued.push({ kind: job.kind, to: job.to, settingsUrl: job.params.settingsUrl })
+      for (const { job } of mails)
+        if (job.kind === "webhook-disabled") queued.push({ kind: job.kind, to: job.to, settingsUrl: job.params.settingsUrl })
     })
     await attempt(delivery.id)
     spy.mockRestore()
     expect(await owner.webhookEndpoint.findUniqueOrThrow({ where: { id: hook.id } })).toMatchObject({ status: "DISABLED" })
     // The owner manages webhooks; the agent and the requester do not hear of it.
-    expect(queued).toEqual([{ kind: "webhook-disabled", to: ws.people.owner.email, settingsUrl: expect.stringContaining(`/settings/webhooks/${hook.id}`) }])
+    expect(queued).toEqual([
+      { kind: "webhook-disabled", to: ws.people.owner.email, settingsUrl: expect.stringContaining(`/settings/webhooks/${hook.id}`) },
+    ])
     await as("owner").delete(`/org/webhooks/${hook.id}`)
   })
 })
@@ -329,7 +366,11 @@ describe("rotation", () => {
     await attempt(delivery.id)
     const [request] = received
     if (request === undefined) throw new Error("nothing arrived")
-    const headers = { id: String(request.headers["webhook-id"]), timestamp: String(request.headers["webhook-timestamp"]), signature: String(request.headers["webhook-signature"]) }
+    const headers = {
+      id: String(request.headers["webhook-id"]),
+      timestamp: String(request.headers["webhook-timestamp"]),
+      signature: String(request.headers["webhook-signature"]),
+    }
     expect(headers.signature.split(" ")).toHaveLength(2)
     const now = Math.floor(Date.now() / 1000)
     expect(verify(fresh, headers, request.body, now)).toBe(true)

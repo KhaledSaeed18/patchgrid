@@ -101,10 +101,14 @@ describe("tickets about an asset", () => {
     expect((await as("agent").put(`/tickets/${id}/assets/${spare}`)).status).toBe(204)
     expect((await as("agent").put(`/tickets/${id}/assets/${laptop}`)).status).toBe(204)
     // Rosa sees the assets on her ticket by name, though she could not open either.
-    expect(((await as("rosa").get(`/tickets/${id}`)).body.assets as { id: string }[]).map((a) => a.id).toSorted()).toEqual([laptop, spare].toSorted())
+    expect(((await as("rosa").get(`/tickets/${id}`)).body.assets as { id: string }[]).map((a) => a.id).toSorted()).toEqual(
+      [laptop, spare].toSorted(),
+    )
     expect((await as("agent").delete(`/tickets/${id}/assets/${spare}`)).status).toBe(204)
     expect((await as("agent").delete(`/tickets/${id}/assets/${spare}`)).status).toBe(404)
-    const trail = await db.auditLog.findMany({ where: { orgId: ws.orgId, entityId: id, action: { in: ["TICKET_ASSET_LINKED", "TICKET_ASSET_UNLINKED"] } } })
+    const trail = await db.auditLog.findMany({
+      where: { orgId: ws.orgId, entityId: id, action: { in: ["TICKET_ASSET_LINKED", "TICKET_ASSET_UNLINKED"] } },
+    })
     expect(trail.map((t) => t.action).toSorted()).toEqual(["TICKET_ASSET_LINKED", "TICKET_ASSET_LINKED", "TICKET_ASSET_UNLINKED"])
   })
 

@@ -72,9 +72,16 @@ function harness(accounts: AccountRecord[] = []) {
     verify: vi.fn(async (stored: string | null, p: string) => stored === `hashed:${p}`),
   }
   const sent: MailJob[] = []
-  const mail = { enqueue: vi.fn(async (job: MailJob) => { sent.push(job) }) }
+  const mail = {
+    enqueue: vi.fn(async (job: MailJob) => {
+      sent.push(job)
+    }),
+  }
   const sessions = {
-    startIdentity: vi.fn(async (account: AccountRecord) => ({ response: { user: { id: account.id, email: account.email, name: account.name }, workspaces: [], session: null }, cookies: [{ name: "pg_id", value: "x", path: "/", maxAgeSeconds: 1 }] })),
+    startIdentity: vi.fn(async (account: AccountRecord) => ({
+      response: { user: { id: account.id, email: account.email, name: account.name }, workspaces: [], session: null },
+      cookies: [{ name: "pg_id", value: "x", path: "/", maxAgeSeconds: 1 }],
+    })),
     revokeEverywhere: vi.fn(async () => [{ name: "pg_id", path: "/" }]),
   }
   const service = new IdentityService(
@@ -91,8 +98,22 @@ function harness(accounts: AccountRecord[] = []) {
 }
 
 const tokenIn = (url: string) => new URL(url).searchParams.get("token") ?? ""
-const verified: AccountRecord = { id: "u-v", email: "owner@acme.test", name: "Owner", passwordHash: "hashed:old password here", emailVerifiedAt: NOW, anonymisedAt: null }
-const unverified: AccountRecord = { id: "u-n", email: "new@acme.test", name: "New", passwordHash: "hashed:first password", emailVerifiedAt: null, anonymisedAt: null }
+const verified: AccountRecord = {
+  id: "u-v",
+  email: "owner@acme.test",
+  name: "Owner",
+  passwordHash: "hashed:old password here",
+  emailVerifiedAt: NOW,
+  anonymisedAt: null,
+}
+const unverified: AccountRecord = {
+  id: "u-n",
+  email: "new@acme.test",
+  name: "New",
+  passwordHash: "hashed:first password",
+  emailVerifiedAt: null,
+  anonymisedAt: null,
+}
 
 beforeEach(() => {
   vi.spyOn(Logger.prototype, "log").mockImplementation(() => undefined)
@@ -102,7 +123,11 @@ describe("IdentityService.signup", () => {
   it("creates an unverified account and mails a verification link", async () => {
     const h = harness()
     await h.service.signup("sam@acme.test", "correct horse battery staple", "Sam")
-    expect(h.users.create).toHaveBeenCalledWith({ email: "sam@acme.test", name: "Sam", passwordHash: "hashed:correct horse battery staple" })
+    expect(h.users.create).toHaveBeenCalledWith({
+      email: "sam@acme.test",
+      name: "Sam",
+      passwordHash: "hashed:correct horse battery staple",
+    })
     expect(h.sent).toHaveLength(1)
     const job = h.sent[0]
     expect(job?.kind).toBe("verify-email")

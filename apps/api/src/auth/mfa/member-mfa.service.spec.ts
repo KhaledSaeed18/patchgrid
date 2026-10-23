@@ -21,23 +21,58 @@ import { SecretBox } from "./secret-box"
 import { codeAt, stepAt } from "./totp"
 
 const KEY = Buffer.alloc(32, 7).toString("base64")
-const config = { JWT_SECRET: "local-development-secret-that-is-at-least-32-chars", MFA_ENCRYPTION_KEY: KEY, COOKIE_DOMAIN: ".lvh.me", isProduction: false } as AppConfig
+const config = {
+  JWT_SECRET: "local-development-secret-that-is-at-least-32-chars",
+  MFA_ENCRYPTION_KEY: KEY,
+  COOKIE_DOMAIN: ".lvh.me",
+  isProduction: false,
+} as AppConfig
 const NOW = new Date("2026-10-16T09:00:00Z")
 const client = { userAgent: "vitest", ip: "127.0.0.1" }
 
-const ada: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "ada@acme.test", name: "Ada", passwordHash: "h:correct", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
+const ada: AccountRecord = {
+  id: "0190b2f0-0000-7000-8000-000000000001",
+  email: "ada@acme.test",
+  name: "Ada",
+  passwordHash: "h:correct",
+  emailVerifiedAt: new Date("2026-01-01T00:00:00Z"),
+  anonymisedAt: null,
+}
 
 /** An in-memory `MfaRepository` with the same conditional-update semantics as the real one. */
 function harness(options: { secret?: string; pendingSecret?: string; recovery?: string[]; locked?: boolean; passkeys?: number } = {}) {
   const clock = new FixedClock(NOW)
   const box = new SecretBox(KEY)
   const factors: (FactorRecord & { userId: string; createdAt: Date })[] = []
-  if (options.secret !== undefined) factors.push({ id: "f-1", userId: ada.id, secretEncrypted: box.seal(options.secret), confirmedAt: new Date("2026-02-01T00:00:00Z"), lastUsedStep: null, createdAt: new Date("2026-02-01T00:00:00Z") })
-  if (options.pendingSecret !== undefined) factors.push({ id: "f-2", userId: ada.id, secretEncrypted: box.seal(options.pendingSecret), confirmedAt: null, lastUsedStep: null, createdAt: new Date(NOW.getTime() - 60_000) })
-  const recovery = (options.recovery ?? []).map((code, i) => ({ id: `r-${String(i)}`, codeHash: `h:${normaliseRecoveryCode(code)}`, usedAt: null as Date | null }))
+  if (options.secret !== undefined)
+    factors.push({
+      id: "f-1",
+      userId: ada.id,
+      secretEncrypted: box.seal(options.secret),
+      confirmedAt: new Date("2026-02-01T00:00:00Z"),
+      lastUsedStep: null,
+      createdAt: new Date("2026-02-01T00:00:00Z"),
+    })
+  if (options.pendingSecret !== undefined)
+    factors.push({
+      id: "f-2",
+      userId: ada.id,
+      secretEncrypted: box.seal(options.pendingSecret),
+      confirmedAt: null,
+      lastUsedStep: null,
+      createdAt: new Date(NOW.getTime() - 60_000),
+    })
+  const recovery = (options.recovery ?? []).map((code, i) => ({
+    id: `r-${String(i)}`,
+    codeHash: `h:${normaliseRecoveryCode(code)}`,
+    usedAt: null as Date | null,
+  }))
   const passkeys = options.passkeys ?? 0
   const mfa = {
-    methods: vi.fn(async () => [...(factors.some((f) => f.confirmedAt !== null) ? (["totp"] as const) : []), ...(passkeys > 0 ? (["passkey"] as const) : [])]),
+    methods: vi.fn(async () => [
+      ...(factors.some((f) => f.confirmedAt !== null) ? (["totp"] as const) : []),
+      ...(passkeys > 0 ? (["passkey"] as const) : []),
+    ]),
     confirmed: vi.fn(async () => factors.find((f) => f.confirmedAt !== null) ?? null),
     pending: vi.fn(async (_u: string, after: Date) => factors.filter((f) => f.confirmedAt === null && f.createdAt > after).at(-1) ?? null),
     startEnrolment: vi.fn(async (userId: string, secretEncrypted: string) => {
@@ -88,15 +123,27 @@ function harness(options: { secret?: string; pendingSecret?: string; recovery?: 
   const mail = { enqueue: vi.fn<(job: SecurityMail, key: string) => Promise<void>>(async () => undefined) }
   const sessions = {
     startIdentity: vi.fn(async (account: AccountRecord, _c: unknown, slug?: string) => ({
-      response: { status: "signed-in" as const, user: { id: account.id, email: account.email, name: account.name }, workspaces: [], session: slug === undefined ? null : { slug } },
+      response: {
+        status: "signed-in" as const,
+        user: { id: account.id, email: account.email, name: account.name },
+        workspaces: [],
+        session: slug === undefined ? null : { slug },
+      },
       cookies: [{ name: "pg_id", value: "x", path: "/", maxAgeSeconds: 1 }],
     })),
     revokeEverywhere: vi.fn(async () => []),
   }
-  const passwords = { hash: vi.fn(async (plain: string) => `h:${plain}`), verify: vi.fn(async (stored: string | null, plain: string) => stored === `h:${plain}`) }
+  const passwords = {
+    hash: vi.fn(async (plain: string) => `h:${plain}`),
+    verify: vi.fn(async (stored: string | null, plain: string) => stored === `h:${plain}`),
+  }
   const challenges = new MfaChallengeService(config, clock)
   // A passkey proof verifies when its challenge id says so; the ceremonies have their own spec.
-  const ceremonies = { verifyAssertion: vi.fn(async (_p: string, challengeId: string, _c: unknown, userId: string) => (challengeId === "good" ? { userId, passkeyId: "pk-1" } : null)) }
+  const ceremonies = {
+    verifyAssertion: vi.fn(async (_p: string, challengeId: string, _c: unknown, userId: string) =>
+      challengeId === "good" ? { userId, passkeyId: "pk-1" } : null,
+    ),
+  }
   const spent = new Set<string>()
   const redis = { client: { set: vi.fn(async (key: string) => (spent.has(key) ? null : (spent.add(key), "OK"))) } }
   const service = new MemberMfaService(
@@ -108,7 +155,11 @@ function harness(options: { secret?: string; pendingSecret?: string; recovery?: 
     ceremonies as unknown as PasskeyCeremonies,
     sessions as unknown as SessionService,
     new CookieService(config),
-    new AccountSecurityNotifier({ findById: async (id: string) => (id === ada.id ? ada : null) } as unknown as UserRepository, mail as unknown as MailService, clock),
+    new AccountSecurityNotifier(
+      { findById: async (id: string) => (id === ada.id ? ada : null) } as unknown as UserRepository,
+      mail as unknown as MailService,
+      clock,
+    ),
     redis as unknown as RedisService,
     config,
     clock,
@@ -140,7 +191,9 @@ describe("MemberMfaService.completeLogin", () => {
     await expect(h.service.completeLogin("not.a.jwt", { code: "000000" }, client)).rejects.toBeInstanceOf(NotAuthenticatedProblem)
     const token = await h.challenges.issue(ada.id, undefined)
     h.clock.set(new Date(NOW.getTime() + 6 * 60_000))
-    await expect(h.service.completeLogin(token, { code: codeAt(SECRET, h.clock.now()) }, client)).rejects.toBeInstanceOf(NotAuthenticatedProblem)
+    await expect(h.service.completeLogin(token, { code: codeAt(SECRET, h.clock.now()) }, client)).rejects.toBeInstanceOf(
+      NotAuthenticatedProblem,
+    )
     expect(h.lockout.assertOpen).not.toHaveBeenCalled()
   })
 
@@ -149,7 +202,9 @@ describe("MemberMfaService.completeLogin", () => {
     const token = await h.challenges.issue(ada.id, undefined)
     await h.service.completeLogin(token, { code: codeAt(SECRET, NOW) }, client)
     h.clock.set(new Date(NOW.getTime() + 31_000))
-    await expect(h.service.completeLogin(token, { code: codeAt(SECRET, h.clock.now()) }, client)).rejects.toBeInstanceOf(NotAuthenticatedProblem)
+    await expect(h.service.completeLogin(token, { code: codeAt(SECRET, h.clock.now()) }, client)).rejects.toBeInstanceOf(
+      NotAuthenticatedProblem,
+    )
     expect(h.sessions.startIdentity).toHaveBeenCalledTimes(1)
   })
 
@@ -157,7 +212,9 @@ describe("MemberMfaService.completeLogin", () => {
     const h = harness({ secret: SECRET })
     const code = codeAt(SECRET, NOW)
     await h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { code }, client)
-    await expect(h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { code }, client)).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { code }, client)).rejects.toBeInstanceOf(
+      ValidationProblem,
+    )
     expect(h.failures).toHaveLength(1)
   })
 
@@ -168,17 +225,23 @@ describe("MemberMfaService.completeLogin", () => {
     expect(h.sessions.revokeEverywhere).toHaveBeenCalledWith(ada.id, { before: true })
     expect(h.sent()).toEqual(["recovery-code-used"])
     expect(h.mail.enqueue.mock.calls[0]?.[0]).toMatchObject({ to: ada.email, orgId: null, params: { remaining: 1 } })
-    await expect(h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { recoveryCode: "abcde-fghij" }, client)).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(
+      h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { recoveryCode: "abcde-fghij" }, client),
+    ).rejects.toBeInstanceOf(ValidationProblem)
   })
 
   it("locks the factor on the fifth wrong proof and tells the person; a locked factor refuses even a good code", async () => {
     const h = harness({ secret: SECRET })
     for (let i = 0; i < 5; i += 1) {
-      await expect(h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { code: "000000" }, client)).rejects.toBeInstanceOf(ValidationProblem)
+      await expect(h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { code: "000000" }, client)).rejects.toBeInstanceOf(
+        ValidationProblem,
+      )
     }
     expect(h.sent()).toEqual(["factor-locked"])
     const locked = harness({ secret: SECRET, locked: true })
-    await expect(locked.service.completeLogin(await locked.challenges.issue(ada.id, undefined), { code: codeAt(SECRET, NOW) }, client)).rejects.toBeInstanceOf(RateLimitedProblem)
+    await expect(
+      locked.service.completeLogin(await locked.challenges.issue(ada.id, undefined), { code: codeAt(SECRET, NOW) }, client),
+    ).rejects.toBeInstanceOf(RateLimitedProblem)
     expect(locked.mfa.spendStep).not.toHaveBeenCalled()
   })
 })
@@ -186,7 +249,13 @@ describe("MemberMfaService.completeLogin", () => {
 describe("MemberMfaService self-service", () => {
   it("enrols, refuses a wrong code, then confirms with the right one and shows ten recovery codes once", async () => {
     const h = harness()
-    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: [], password: true, recoveryCodesRemaining: 0 })
+    expect(await h.service.status(ada.id)).toEqual({
+      enrolled: false,
+      confirmedAt: null,
+      methods: [],
+      password: true,
+      recoveryCodesRemaining: 0,
+    })
     // The password first: a pg_id alone does not get to set the factor.
     await expect(h.service.enrol(ada.id, { password: "wrong" })).rejects.toBeInstanceOf(ValidationProblem)
     expect(h.lockout.fail).toHaveBeenCalledWith(ada.id)
@@ -239,12 +308,23 @@ describe("MemberMfaService self-service", () => {
   })
 })
 
-const passkey = (challengeId: string) => ({ challengeId, credential: { id: "x", rawId: "x", type: "public-key" as const, clientExtensionResults: {}, response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" } } })
+const passkey = (challengeId: string) => ({
+  challengeId,
+  credential: {
+    id: "x",
+    rawId: "x",
+    type: "public-key" as const,
+    clientExtensionResults: {},
+    response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+  },
+})
 
 describe("MemberMfaService with passkeys (ADR-0053)", () => {
   it("will not take a recovery code where a second request must follow: it would end this very session (M13 review)", async () => {
     const h = harness({ passkeys: 1, recovery: ["abcde-fghij"] })
-    await expect(h.service.proveHolder(ada.id, { recoveryCode: "abcde-fghij" }, { recovery: false })).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(h.service.proveHolder(ada.id, { recoveryCode: "abcde-fghij" }, { recovery: false })).rejects.toBeInstanceOf(
+      ValidationProblem,
+    )
     expect(h.recovery).toHaveLength(1)
   })
 
@@ -253,7 +333,9 @@ describe("MemberMfaService with passkeys (ADR-0053)", () => {
     const result = await h.service.completeLogin(await h.challenges.issue(ada.id, "acme"), { passkey: passkey("good") }, client)
     expect(result.response).toMatchObject({ status: "signed-in", session: { slug: "acme" } })
     expect(h.ceremonies.verifyAssertion).toHaveBeenCalledWith("proof", "good", expect.anything(), ada.id)
-    await expect(h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { passkey: passkey("bad") }, client)).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(
+      h.service.completeLogin(await h.challenges.issue(ada.id, undefined), { passkey: passkey("bad") }, client),
+    ).rejects.toBeInstanceOf(ValidationProblem)
     // A passkey is not guessable: a refused one is not a guess against the lockout.
     expect(h.lockout.fail).not.toHaveBeenCalled()
   })
@@ -292,7 +374,13 @@ describe("MemberMfaService with passkeys (ADR-0053)", () => {
     await h.service.disable(ada.id, { passkey: passkey("good") })
     expect(h.factors).toHaveLength(0)
     expect(h.recovery).toHaveLength(1)
-    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], password: true, recoveryCodesRemaining: 1 })
+    expect(await h.service.status(ada.id)).toEqual({
+      enrolled: false,
+      confirmedAt: null,
+      methods: ["passkey"],
+      password: true,
+      recoveryCodesRemaining: 1,
+    })
   })
 
   it("replaces the recovery codes against a passkey for someone who holds no authenticator app", async () => {

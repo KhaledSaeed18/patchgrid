@@ -195,7 +195,12 @@ Rollback: the previous lease stays valid for 24 hours.`,
 
 const DAY = 86_400_000
 
-export async function seedDemoArticles(db: PrismaClient, org: SeededOrg, authors: Record<Author, string>, now = new Date()): Promise<number> {
+export async function seedDemoArticles(
+  db: PrismaClient,
+  org: SeededOrg,
+  authors: Record<Author, string>,
+  now = new Date(),
+): Promise<number> {
   const categories = await db.category.findMany({ where: { orgId: org.id }, select: { id: true, name: true } })
   const categoryId = (name: string | null) => (name === null ? null : (categories.find((c) => c.name === name)?.id ?? null))
   for (const [title, category, visibility, author, days, body] of ARTICLES) {

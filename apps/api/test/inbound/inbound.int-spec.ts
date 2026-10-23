@@ -57,7 +57,10 @@ afterAll(async () => {
   const keys = await db.inboundEmail.findMany({ where: { orgId: ws.orgId }, select: { rawStorageKey: true } })
   const files = await db.attachment.findMany({ where: { orgId: ws.orgId }, select: { storageKey: true } })
   for (const key of [...keys.map((k) => k.rawStorageKey), ...files.map((f) => f.storageKey)]) {
-    await app.get(StorageService).remove(key).catch(() => undefined)
+    await app
+      .get(StorageService)
+      .remove(key)
+      .catch(() => undefined)
   }
   await db.inboundEmail.deleteMany({ where: { orgId: ws.orgId } })
   await db.attachment.deleteMany({ where: { orgId: ws.orgId } })
@@ -91,13 +94,19 @@ describe("the webhook", () => {
     const raw = buildMessage({ authservId: AUTHSERV, to: address(), from: ws.people.rita.email, subject: "x", text: "x" })
     const signed = webhookRequest(SECRET, [address()], raw)
     expect((await request(app.getHttpServer()).post(INBOUND_WEBHOOK_PATH).send(signed.body)).status).toBe(401)
-    const forged = await deliver({ from: ws.people.rita.email, subject: "x", text: "x" }, { secret: "whsec_b3RoZXItc2VjcmV0LW90aGVyLXNlY3JldA==" })
+    const forged = await deliver(
+      { from: ws.people.rita.email, subject: "x", text: "x" },
+      { secret: "whsec_b3RoZXItc2VjcmV0LW90aGVyLXNlY3JldA==" }, // gitleaks:allow
+    )
     expect(forged.status).toBe(401)
     expect(await db.inboundEmail.count({ where: { orgId: ws.orgId } })).toBe(0)
   })
 
   it("answers 202 for a recipient that is no workspace, and records nothing", async () => {
-    const response = await deliver({ from: ws.people.rita.email, subject: "x", text: "x" }, { recipients: ["no-such-workspace@inbound.lvh.me"] })
+    const response = await deliver(
+      { from: ws.people.rita.email, subject: "x", text: "x" },
+      { recipients: ["no-such-workspace@inbound.lvh.me"] },
+    )
     expect(response.status).toBe(202)
     expect(await db.inboundEmail.count({ where: { orgId: ws.orgId } })).toBe(0)
   })
@@ -121,14 +130,23 @@ describe("a new ticket", () => {
     expect(row.skippedAttachments).toEqual([{ filename: "pretty.svg", reason: "not an allowed type" }])
     ritasTicket = row.ticketId ?? ""
     const ticket = await as("rita").get(`/tickets/${ritasTicket}`)
-    expect(ticket.body).toMatchObject({ title: "Printer on floor 3 says offline", source: "EMAIL", requester: { membershipId: ws.people.rita.membershipId } })
+    expect(ticket.body).toMatchObject({
+      title: "Printer on floor 3 says offline",
+      source: "EMAIL",
+      requester: { membershipId: ws.people.rita.membershipId },
+    })
     expect(ticket.body.description).toBe("It shows offline from every laptop.")
     const files = await as("rita").get(`/tickets/${ritasTicket}/attachments`)
     expect(files.body.map((f: { filename: string }) => f.filename)).toEqual(["spooler.log"])
   })
 
   it("lands once, however many times it is delivered", async () => {
-    await deliver({ from: ws.people.rita.email, subject: "Printer on floor 3 says offline", text: "again", messageId: "<printer-1@mail.test>" })
+    await deliver({
+      from: ws.people.rita.email,
+      subject: "Printer on floor 3 says offline",
+      text: "again",
+      messageId: "<printer-1@mail.test>",
+    })
     expect(await db.ticket.count({ where: { orgId: ws.orgId } })).toBe(1)
     expect(await db.inboundEmail.count({ where: { orgId: ws.orgId, messageKey: "<printer-1@mail.test>" } })).toBe(1)
   })
@@ -144,7 +162,12 @@ describe("mail that is not trusted", () => {
     expect(await latest()).toMatchObject({ outcome: "UNAUTHENTICATED", authVerdict: "NONE" })
     await deliver({ from: "stranger@elsewhere.test", subject: "Hello", text: "x" })
     expect(await latest()).toMatchObject({ outcome: "UNKNOWN_SENDER", authVerdict: "PASS", senderMembershipId: null })
-    await deliver({ from: ws.people.rita.email, subject: "Out of office", text: "Back Monday", headers: { "Auto-Submitted": "auto-replied" } })
+    await deliver({
+      from: ws.people.rita.email,
+      subject: "Out of office",
+      text: "Back Monday",
+      headers: { "Auto-Submitted": "auto-replied" },
+    })
     expect(await latest()).toMatchObject({ outcome: "AUTO_REPLY" })
     expect(await db.ticket.count({ where: { orgId: ws.orgId } })).toBe(before)
     // No backscatter: nothing is sent to a sender we did not trust.
@@ -205,7 +228,11 @@ describe("replies", () => {
     expect(await latest()).toMatchObject({ outcome: "THREADED", ticketId: ritasTicket })
     const thread = await as("rita").get(`/tickets/${ritasTicket}/comments`)
     const last = (thread.body as { body: string; visibility: string; author: { membershipId: string } | null }[]).at(-1)
-    expect(last).toMatchObject({ body: "Restarted, still offline.", visibility: "PUBLIC", author: { membershipId: ws.people.rita.membershipId } })
+    expect(last).toMatchObject({
+      body: "Restarted, still offline.",
+      visibility: "PUBLIC",
+      author: { membershipId: ws.people.rita.membershipId },
+    })
   })
 
   it("from an agent are public replies, never internal notes", async () => {
@@ -236,7 +263,15 @@ describe("the inbound sweep", () => {
   it("fails what no worker will finish, and keeps raw mail only as long as retention says", async () => {
     const old = new Date(Date.now() - 31 * 24 * 60 * 60_000)
     const stuck = await db.inboundEmail.create({
-      data: { orgId: ws.orgId, messageKey: "<stuck@mail.test>", fromAddress: "x@y.test", subject: "Stuck", rawStorageKey: `org/${ws.orgId}/inbound/stuck.eml`, receivedAt: old, processedAt: old },
+      data: {
+        orgId: ws.orgId,
+        messageKey: "<stuck@mail.test>",
+        fromAddress: "x@y.test",
+        subject: "Stuck",
+        rawStorageKey: `org/${ws.orgId}/inbound/stuck.eml`,
+        receivedAt: old,
+        processedAt: old,
+      },
     })
     const ancient = await db.inboundEmail.create({
       data: {
@@ -250,9 +285,14 @@ describe("the inbound sweep", () => {
       },
     })
     await app.get(StorageService).put(ancient.rawStorageKey, Buffer.from("From: x@y.test\r\n\r\nold"), "message/rfc822")
-    const swept = await app.get(InboundSweepProcessor).process({ id: "spec/inbound-sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
+    const swept = await app
+      .get(InboundSweepProcessor)
+      .process({ id: "spec/inbound-sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
     expect(swept.failed).toBe(1)
-    expect(await db.inboundEmail.findUnique({ where: { id: stuck.id } })).toMatchObject({ outcome: "FAILED", error: "Processing did not finish" })
+    expect(await db.inboundEmail.findUnique({ where: { id: stuck.id } })).toMatchObject({
+      outcome: "FAILED",
+      error: "Processing did not finish",
+    })
     // Past both retentions: its bytes go, then its row.
     expect(await app.get(StorageService).size(ancient.rawStorageKey)).toBeNull()
     expect(await db.inboundEmail.findUnique({ where: { id: ancient.id } })).toBeNull()
@@ -268,7 +308,9 @@ describe("the inbound log", () => {
     expect(outcomes).toEqual(expect.arrayContaining(["CREATED", "THREADED", "UNAUTHENTICATED", "UNKNOWN_SENDER", "AUTO_REPLY"]))
     const rejected = await as("admin").get("/org/inbound-emails?outcome=UNKNOWN_SENDER&limit=100")
     expect((rejected.body.items as { outcome: string }[]).every((i) => i.outcome === "UNKNOWN_SENDER")).toBe(true)
-    expect(rejected.body.items).toContainEqual(expect.objectContaining({ fromAddress: "stranger@elsewhere.test", sender: null, ticket: null }))
+    expect(rejected.body.items).toContainEqual(
+      expect.objectContaining({ fromAddress: "stranger@elsewhere.test", sender: null, ticket: null }),
+    )
     expect((await as("agent").get("/org/inbound-emails")).status).toBe(403)
   })
 })

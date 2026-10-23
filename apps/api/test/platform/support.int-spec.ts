@@ -38,14 +38,22 @@ let supportCookie = ""
 
 beforeAll(async () => {
   db = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MAIL_PROVIDER).useValue(recorder).compile()
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MAIL_PROVIDER)
+    .useValue(recorder)
+    .compile()
   app = moduleRef.createNestApplication({ logger: false })
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] })
   await app.listen(0)
-  ws = await seedWorkspace(app, db, { prefix: "consent", people: { owner: "OWNER", admin: "ADMIN", agent: "AGENT", requester: "REQUESTER" } })
+  ws = await seedWorkspace(app, db, {
+    prefix: "consent",
+    people: { owner: "OWNER", admin: "ADMIN", agent: "AGENT", requester: "REQUESTER" },
+  })
   operator = await signInOperator(app, db)
   jobs = settler(app, [MAIL_QUEUE])
-  ticketId = (await as("requester").post("/tickets", { type: "INCIDENT", title: "VPN drops", description: "x", impact: "LOW", urgency: "LOW" })).body.id as string
+  ticketId = (
+    await as("requester").post("/tickets", { type: "INCIDENT", title: "VPN drops", description: "x", impact: "LOW", urgency: "LOW" })
+  ).body.id as string
   await as("agent").post(`/tickets/${ticketId}/comments`, { body: "Looks like the concentrator lease.", visibility: "INTERNAL" })
 })
 
@@ -85,7 +93,9 @@ describe("asking and granting", () => {
     expect(await ownerMail()).toEqual([expect.stringMatching(/asked to read/)])
     expect((await operator.post(`/orgs/${ws.orgId}/support/${sessionId}/enter`)).status).toBe(409)
     const seen = await as("admin").get("/org/support-sessions")
-    expect(seen.body).toEqual([expect.objectContaining({ id: sessionId, status: "REQUESTED", reason: "Diagnose the VPN ticket the owner reported" })])
+    expect(seen.body).toEqual([
+      expect.objectContaining({ id: sessionId, status: "REQUESTED", reason: "Diagnose the VPN ticket the owner reported" }),
+    ])
     expect((await as("agent").get("/org/support-sessions")).status).toBe(403)
   })
 
@@ -121,7 +131,10 @@ describe("reading as support", () => {
     expect(write.status).toBe(403)
     // Recorded as each response finishes; wait for those writes rather than for time.
     await app.get(SupportReadLog).drain()
-    const reads = await db.auditLog.findMany({ where: { orgId: ws.orgId, action: "SUPPORT_READ", supportSessionId: sessionId }, orderBy: { createdAt: "asc" } })
+    const reads = await db.auditLog.findMany({
+      where: { orgId: ws.orgId, action: "SUPPORT_READ", supportSessionId: sessionId },
+      orderBy: { createdAt: "asc" },
+    })
     expect(reads.length).toBeGreaterThanOrEqual(4)
     expect(reads.every((r) => r.actorKind === "PLATFORM" && r.actorPlatformAdminId === operator.platformAdminId)).toBe(true)
     expect(reads.map((r) => r.diff)).toContainEqual(expect.objectContaining({ endpoint: "GET /api/v1/tickets/:id/comments", status: 200 }))
@@ -132,7 +145,10 @@ describe("reading as support", () => {
   })
 
   it("ends on an owner's word, at once", async () => {
-    expect((await as("owner").post(`/org/support-sessions/${sessionId}/revoke`)).body).toMatchObject({ status: "ENDED", endReason: "REVOKED" })
+    expect((await as("owner").post(`/org/support-sessions/${sessionId}/revoke`)).body).toMatchObject({
+      status: "ENDED",
+      endReason: "REVOKED",
+    })
     expect((await asSupport().get("/tickets?view=all")).status).toBe(401)
     expect(await ownerMail()).toContainEqual(expect.stringMatching(/has ended/))
   })
@@ -146,8 +162,13 @@ describe("declining and expiry", () => {
 
     const expiring = (await operator.post(`/orgs/${ws.orgId}/support`, { reason: "A third look at the VPN ticket" })).body.id as string
     await (await proved("owner")).post(`/org/support-sessions/${expiring}/grant`, { hours: 1 })
-    await db.supportSession.update({ where: { id: expiring }, data: { grantedAt: new Date(Date.now() - 2 * 3_600_000), expiresAt: new Date(Date.now() - 3_600_000) } })
-    const ended = await app.get(SupportSweepProcessor).process({ id: "spec/support-sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
+    await db.supportSession.update({
+      where: { id: expiring },
+      data: { grantedAt: new Date(Date.now() - 2 * 3_600_000), expiresAt: new Date(Date.now() - 3_600_000) },
+    })
+    const ended = await app
+      .get(SupportSweepProcessor)
+      .process({ id: "spec/support-sweep", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
     expect(ended).toBe(1)
     expect(await db.supportSession.findUnique({ where: { id: expiring } })).toMatchObject({ endReason: "EXPIRED" })
     expect(await db.auditLog.count({ where: { orgId: ws.orgId, action: "SUPPORT_ACCESS_EXPIRED", entityId: expiring } })).toBe(1)
