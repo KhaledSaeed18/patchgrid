@@ -51,6 +51,13 @@ export const envSchema = z
      */
     DATABASE_MIGRATION_URL: url("DATABASE_MIGRATION_URL"),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+    /**
+     * The outbox wake's dedicated `LISTEN` connection (ADR-0049), as the same
+     * application role. `LISTEN` belongs to a session, so behind a pooler in
+     * transaction mode it must reach the database directly; unset, it is
+     * DATABASE_URL, which is the database itself when nothing pools.
+     */
+    DATABASE_LISTEN_URL: url("DATABASE_LISTEN_URL").optional(),
 
     REDIS_URL: url("REDIS_URL"),
 
@@ -74,11 +81,26 @@ export const envSchema = z
       .regex(/^\.[a-z0-9.-]+$/, { error: "COOKIE_DOMAIN must be a dotted domain such as .lvh.me" })
       .default(".lvh.me"),
 
-    S3_ENDPOINT: url("S3_ENDPOINT"),
+    /**
+     * Where the API reaches object storage. Unset on AWS, where the SDK resolves
+     * the regional endpoint (or AWS_ENDPOINT_URL_S3 / AWS_ENDPOINT_URL, which is
+     * how an emulator is named without a line of code knowing it).
+     */
+    S3_ENDPOINT: url("S3_ENDPOINT").optional(),
     S3_REGION: z.string().min(1).default("us-east-1"),
     S3_BUCKET: z.string().min(1),
-    S3_ACCESS_KEY_ID: z.string().min(1),
-    S3_SECRET_ACCESS_KEY: z.string().min(1),
+    /**
+     * Static keys, for MinIO. Unset, the SDK's default chain supplies them: the
+     * ECS task role on AWS, which is the only credential a deployment should
+     * hold. Both or neither.
+     */
+    S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+    S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    /** MinIO and emulators address buckets by path; AWS prefers the bucket in the host. */
+    S3_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
     /**
      * Where browsers reach attachments: presigned URLs are minted against
      * this origin, which must be its own registrable domain — never under
@@ -87,6 +109,11 @@ export const envSchema = z
      */
     FILES_PUBLIC_ORIGIN: url("FILES_PUBLIC_ORIGIN").default("http://localhost:9000"),
 
+    /**
+     * Which `MailProvider` sends: SMTP (Mailpit locally) or SES, through the
+     * SDK's default credentials and region (ADR-0058).
+     */
+    MAIL_TRANSPORT: z.enum(["smtp", "ses"]).default("smtp"),
     SMTP_HOST: z.string().min(1).default("localhost"),
     SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
     /** The envelope sender. The display name is replaced per tenant (ADR-0018). */
@@ -217,6 +244,23 @@ export const envSchema = z
         message:
           "DATABASE_URL must not equal DATABASE_MIGRATION_URL — the migration role owns the tables " +
           "and is exempt from every row-level security policy",
+      })
+    }
+
+    if ((env.S3_ACCESS_KEY_ID === undefined) !== (env.S3_SECRET_ACCESS_KEY === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["S3_ACCESS_KEY_ID"],
+        message: "S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY go together — set both, or neither to use the default credential chain",
+      })
+    }
+
+    // The wake listens as the application, never as anyone above it.
+    if (env.DATABASE_LISTEN_URL !== undefined && new URL(env.DATABASE_LISTEN_URL).username !== new URL(env.DATABASE_URL).username) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["DATABASE_LISTEN_URL"],
+        message: "DATABASE_LISTEN_URL must connect as the same role as DATABASE_URL",
       })
     }
 
