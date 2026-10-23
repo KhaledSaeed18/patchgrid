@@ -4,6 +4,9 @@
 - **Date:** 2026-10-17
 - **Amends:** `FEATURES.md` (build order, out-of-scope list)
 
+> **Erratum (2026-10-23).** "And then M7" no longer holds: M7 is dropped ([0056](0056-m7-dropped.md)),
+> and the build order ends at M14.
+
 ## Context
 
 M10 closed without a public deployment (ADR-0047). The product works end to end and M7, the models, was

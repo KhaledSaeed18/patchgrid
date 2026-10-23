@@ -4,12 +4,11 @@ Vertical slices, not horizontal layers: every milestone ends with something you 
 start the next milestone until the current one's exit criteria are met. Do not add a feature that is not on this
 list without adding it here first (and an ADR if it is a real decision).
 
-**Build order: M0 → M6, then M8 → M9 → M10, then M11 → M14, then M7 last** (re-planned 2026-10-15;
-M11–M14 added 2026-10-17 by ADR-0048). M7 is the only
-milestone that needs local models — Ollama, embeddings, the phishing service — so the platform, hardening
-and ship work come first and M7 lands on a running system. Milestone numbers are kept as they were: ADRs,
-the threat model and code comments refer to them by number, so M7 keeps its name and moves to the end of
-this file. "Milestone N+1" below means the next one in this order.
+**Build order: M0 → M6, then M8 → M14** (re-planned 2026-10-15; M11–M14 added 2026-10-17 by ADR-0048;
+M7 dropped 2026-10-23 by ADR-0056). M7, the models and the automation rule engine, is not part of the
+plan: no LLM, embeddings, phishing service or rule engine is built. Milestone numbers are kept as they
+were, because ADRs, the threat model and code comments refer to them by number; 7 is simply unused.
+"Milestone N+1" below means the next one in this order.
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
@@ -35,14 +34,14 @@ Licensed MIT: the value of this repository is that people read it.
       `prisma.config.ts` holding the connection strings and `@prisma/adapter-pg` driver adapters (Prisma 7
       removed `url` from the datasource block); generator provider `prisma-client`; `prisma`,
       `@prisma/engines` and `esbuild` added to `allowBuilds` in `pnpm-workspace.yaml`;
-      `PrismaService`, migration + seed scripts, `pgvector`, **two DB roles**
+      `PrismaService`, migration + seed scripts, `pgvector` (removed with M7, ADR-0056), **two DB roles**
       (owner **with** `BYPASSRLS`, `patchgrid_app` **without**) created by the Postgres init script,
       including `GRANT`s and `ALTER DEFAULT PRIVILEGES`; the same SQL as an idempotent file run by
       `db:migrate`; boot assertion that the app's role lacks `BYPASSRLS`
 - [x] `packages/contracts`: shared primitives — ids, cursor pagination, Problem Details, slug schema,
       `RESERVED_SLUGS`, `formatTicketNumber` / `parseTicketNumber`, limit constants. 59 round-trip tests;
       `apps/www` renders its problem pages from the registry rather than a copy of it
-- [x] `docker-compose.yml`: postgres (pgvector, init script), redis, minio (+ bucket; **CORS is a
+- [x] `docker-compose.yml`: postgres (init script; pgvector until ADR-0056), redis, minio (+ bucket; **CORS is a
       server setting**, `MINIO_API_CORS_ALLOW_ORIGIN`, not a bucket one), mailpit — all four
       healthchecked, every published port env-overridable
 - [x] Root scripts (`test`, `db:*`), Vitest in api/app/www/contracts — 105 tests; Playwright installed
@@ -379,8 +378,8 @@ browser, including the negative cases; observability answers "which tenant is sl
       Prometheus and a provisioned Grafana dashboard behind `--profile observability`. Done 2026-10-16
 - [x] Security review against the M1 threat model (`THREAT-MODEL.md` §7, 2026-10-16): sixteen confirmed
       findings fixed with tests, the rest recorded with reasons. Covered: headers, rate limits, dependency audit, attachment
-      handling, inbound mail, cookie tossing, token leakage (prompt injection is reviewed with M7, which
-      brings the models)
+      handling, inbound mail, cookie tossing, token leakage (prompt injection was to be reviewed with M7,
+      which is dropped, ADR-0056)
 - [x] OpenAPI at `/api/docs` (`apps/api/src/openapi.ts`): built from the Zod DTOs, tagged by path,
       session and token security schemes, the first-integration requests as examples. Done 2026-10-16
 - [x] Load sanity check (`pnpm --filter @patchgrid/database run load:tickets`, results in
@@ -394,7 +393,7 @@ _Exit: a stranger clones the repo, runs three commands, signs up, and uses a rea
 explains the decisions. There is no public deployment (ADR-0047): Patchgrid runs locally._
 
 - [x] Realistic two-tenant demo seed across all types/ages/statuses, KB, assets, inbound mail; idempotent
-      `db:reset` (M7 adds its rules and phishing tickets to it)
+      `db:reset`
 - [x] `apps/www` finished: docs, pricing, blog, `/problems/*`, OG images, sitemap, robots, Lighthouse pass.
       Eight docs and four posts as MDX from one registry; every page a prerendered shell (Cache
       Components) with the session check streamed in; canonical metadata, build-time OG cards, sitemap,
@@ -490,37 +489,15 @@ against it._
       on the dashboard
 - [ ] A short runbook: what a real deployment would still need (ADR-0047's list)
 
-## M7 — Differentiators (built last)
-
-_Built after M14: the one milestone that needs local models (Ollama, embeddings, the phishing model), so
-everything else ships first and this lands on a running system. Nothing before it calls a model; its
-ports (`TicketClassifier`, `EmbeddingProvider`, `UrlRiskScorer`) and their `Noop` implementations arrive
-with it._
-
-_Exit: new tickets get an LLM suggestion an agent can accept; a phishing report is scored and lands in the
-Security queue; likely duplicates surface with a merge action; admins define automation rules that
-demonstrably fire — all per tenant, none blocking ticket creation._
-
-- [ ] `ollama` in Compose, `TicketClassifier` + Ollama impl, per-tenant `triage` queue, `TicketTriage`,
-      accept/dismiss UI, `Noop` impl for tests, gated on plan
-- [ ] `apps/phishing-svc` (FastAPI) wrapping the thesis model, `UrlRiskScorer`, portal "Report phishing"
-      form, `PhishingReport`, risk badge, Security routing (ADR-0010)
-- [ ] `EmbeddingProvider` (`nomic-embed-text`), `TicketEmbedding` + pgvector HNSW, similar-tickets panel
-      scoped to the tenant, merge via `DUPLICATE_OF` + cancel
-- [ ] `AutomationRule` engine (`DOMAIN.md` §10), admin UI, per-rule execution audit, per-tenant evaluation
-- [ ] Prompt-injection posture documented and tested: ticket text is attacker-controlled, so model output
-      is **data an agent accepts**, never an instruction and never auto-applied
-- [ ] Seed: rules replicating hard-coded escalation; sample phishing tickets
-- [ ] Prompt-injection review against TB8 (`THREAT-MODEL.md`), moved here from M9's security review
-- [ ] Ship the models locally: `phishing-svc` in Compose with its Dockerfile, Ollama in Compose (ADR-0047),
-      and the demo seed's rules and phishing tickets
-
 ---
 
 ## Explicitly out of scope (do not build unless this doc changes)
 
 - Payment processing / self-serve billing (plans exist; a platform admin sets them)
 - SAML and SCIM provisioning (per-tenant OIDC is M13)
+- Machine learning and local models: LLM triage, embeddings and duplicate detection, phishing URL
+  scoring, Ollama, pgvector (M7, dropped by ADR-0056)
+- An automation rule engine (also M7; escalation is the hard-coded rule in `DOMAIN.md` §4.3)
 - Per-tenant custom domains (`support.acme.com`) — the design accommodates it (`DNS.md`), v1 does not
   ship it
 - Custom form builder / configurable workflow DSL
