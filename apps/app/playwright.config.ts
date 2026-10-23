@@ -12,8 +12,7 @@ const isCi = process.env.CI !== undefined
 
 export default defineConfig({
   testDir: "./e2e",
-  // Every spec drives the one shared stack, and the SLA spec rewrites a seeded
-  // policy for a few minutes: one worker, in order, everywhere.
+  // Every spec drives the one shared stack: one worker, in order, everywhere.
   workers: 1,
   fullyParallel: false,
   // A test that only passes sometimes is a test that tells you nothing. Retries

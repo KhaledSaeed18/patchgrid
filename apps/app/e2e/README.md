@@ -12,7 +12,7 @@ pnpm --filter @patchgrid/app test:e2e
 | Spec | What it proves |
 | --- | --- |
 | `signup-to-incident` | Signup (the form's one fetch, made as the site makes it) → the emailed link verifies and signs in → a workspace provisioned on its own subdomain → an agent invited, joining with a new account from the emailed link → one incident raised, started, resolved with a note, and closed by its requester |
-| `sla-breach` | The owner shortens one incident policy to a two-minute response; a requester raises an incident at that priority; the minute sweep marks it overdue, seen from the owner's view; the policy is put back |
+| `sla-breach` | A requester raises an incident; its response deadline is moved into the past (`support/clock.ts`, the suite's test clock); the real minute sweep marks it overdue, seen from the owner's view |
 | `change-approval` | An agent drafts a Change with its plan and submits it; the requester of a change is never offered its approval; an admin who did not raise it approves; the agent takes it, starts, records the outcome, marks it implemented and closes it |
 | `isolation` | **Cross-tenant:** a session for Acme is sent away from Globex's pages, answers `401` when the same cookies are asked as Globex, and cannot open a workspace it is not a member of. **Role escalation:** an agent gets "Nothing here" on admin pages and `403` promoting anyone, themselves included, inviting an admin or minting a token. **Two tabs, two tenants:** one person in Acme and Globex at once, raising a ticket in each, each tab keeping its own workspace and neither list showing the other's ticket (ADR-0024) |
 
@@ -23,5 +23,6 @@ pnpm --filter @patchgrid/app test:e2e
 The negatives are the point. The happy paths are the easy part.
 
 Every run makes its own rows — a workspace `e2e-<run>` and tickets titled with the run id — so a
-re-run never trips over the last one. The SLA spec is the slow one (it waits for a real breach);
-`test.setTimeout` there is five minutes. In CI the suite runs on `main` only (ADR-0011).
+re-run never trips over the last one. The SLA spec moves its ticket's deadline instead of waiting for
+it, so it waits only for the next minute's sweep — the one write the suite makes to the database, as its
+owner, through `DATABASE_MIGRATION_URL`. In CI the suite runs on `main` only (ADR-0011).

@@ -1,6 +1,6 @@
-import { DEFAULT_SLA_TARGETS } from "@patchgrid/contracts"
 import { expect, test } from "@playwright/test"
 
+import { responseDeadlinePassed } from "./support/clock"
 import { signIn, transition } from "./support/session"
 import {
   ACME,
@@ -11,58 +11,20 @@ import {
 } from "./support/stack"
 
 /**
- * An SLA breach, without waiting a working day: the owner shortens the
- * target for one priority to the minimum, a requester raises an incident at
- * that priority, nobody responds, and the sweep — every minute — marks it
- * missed. Then the policy is put back.
+ * An SLA breach, without waiting for it: a requester raises an incident,
+ * nobody responds, and its response deadline is moved into the past — the
+ * suite's test clock — so the real sweep, on its real minute, marks it
+ * missed, and the agents' view says so.
  */
-test.describe.configure({ mode: "serial" })
-test.setTimeout(5 * 60_000)
+test.setTimeout(3 * 60_000)
 
 const title = `Badge reader at the loading dock (${runId})`
-// MEDIUM impact × HIGH urgency is HIGH priority (DOMAIN.md §3).
-const usual = DEFAULT_SLA_TARGETS.HIGH
 
-/** The editor speaks durations — `45m`, `4h` — never bare numbers. */
-async function setTargets(
-  page: import("@playwright/test").Page,
-  t: {
-    response: number
-    responseWarning: number
-    resolution: number
-    resolutionWarning: number
-  }
-) {
-  await page.fill("#sla-responseTargetMinutes", `${String(t.response)}m`)
-  await page.fill(
-    "#sla-responseWarningMinutes",
-    `${String(t.responseWarning)}m`
-  )
-  await page.fill("#sla-resolutionTargetMinutes", `${String(t.resolution)}m`)
-  await page.fill(
-    "#sla-resolutionWarningMinutes",
-    `${String(t.resolutionWarning)}m`
-  )
-  await page.getByRole("button", { name: "Save targets" }).click()
-  await expect(page.locator("[role=dialog]")).toHaveCount(0)
-}
-
-test("a one-minute response target is missed, and the ticket says so", async ({
+test("a missed response deadline is flagged by the sweep, and the ticket says so", async ({
   browser,
   page,
 }) => {
   await signIn(page, people.alice.email, SEED_PASSWORD, ACME)
-  await page.goto(`${workspaceOrigin(ACME)}/settings/sla`)
-  const incidents = page.locator("section", { hasText: "Incident" }).first()
-  const row = incidents.locator("tr", { hasText: "High" }).first()
-  await row.getByRole("button", { name: "Edit" }).click()
-  await setTargets(page, {
-    response: 2,
-    responseWarning: 1,
-    resolution: 3,
-    resolutionWarning: 2,
-  })
-  await expect(row).toContainText("2m")
 
   const theirs = await browser.newContext()
   const requester = await theirs.newPage()
@@ -73,6 +35,7 @@ test("a one-minute response target is missed, and the ticket says so", async ({
     "#ticket-description",
     "Nobody can get in through the dock door."
   )
+  // MEDIUM impact × HIGH urgency is HIGH priority (DOMAIN.md §3).
   await requester.check("input[name=impact][value=MEDIUM]")
   await requester.check("input[name=urgency][value=HIGH]")
   await requester.getByRole("button", { name: "Raise ticket" }).click()
@@ -80,8 +43,10 @@ test("a one-minute response target is missed, and the ticket says so", async ({
   const ticketUrl = requester.url()
   await expect(requester.locator("body")).toContainText("High")
 
-  // The response clock runs from now; the sweep looks once a minute. The due
-  // badge is the agents' view — a requester is not shown clocks — so the owner watches.
+  await responseDeadlinePassed(ticketUrl.split("/").pop() ?? "")
+
+  // The sweep looks once a minute. The due badge is the agents' view — a
+  // requester is not shown clocks — so the owner watches.
   await page.goto(ticketUrl)
   await expect
     .poll(
@@ -89,22 +54,14 @@ test("a one-minute response target is missed, and the ticket says so", async ({
         await page.reload()
         return /overdue|missed/i.test(await page.locator("body").innerText())
       },
-      { timeout: 4 * 60_000, intervals: [10_000] }
+      { timeout: 2 * 60_000, intervals: [5_000] }
     )
     .toBe(true)
 
-  // Put the policy back so the seeded workspace reads as it did; close the ticket.
   await transition(
     requester,
     "Cancel ticket",
     "Raised only to watch the clock run out."
   )
   await theirs.close()
-  await page.goto(`${workspaceOrigin(ACME)}/settings/sla`)
-  await incidents
-    .locator("tr", { hasText: "High" })
-    .first()
-    .getByRole("button", { name: "Edit" })
-    .click()
-  await setTargets(page, usual)
 })
