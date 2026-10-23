@@ -21,8 +21,8 @@ import { InjectConfig, type AppConfig } from "../../config/app-config"
 import { BackofficeService } from "./backoffice.service"
 import { PlatformSupportService } from "./platform-support.service"
 
-class OrgParamsDto extends createZodDto(z.object({ id: idSchema })) {}
-class ListDto extends createZodDto(platformOrgListQuerySchema) {}
+class PlatformOrgParamsDto extends createZodDto(z.object({ id: idSchema })) {}
+class PlatformOrgListQueryDto extends createZodDto(platformOrgListQuerySchema) {}
 class SuspendDto extends createZodDto(suspendOrgRequestSchema) {}
 class PlanDto extends createZodDto(setPlanRequestSchema) {}
 class SupportParamsDto extends createZodDto(z.object({ id: idSchema, sessionId: idSchema })) {}
@@ -39,41 +39,41 @@ export class BackofficeController {
   ) {}
 
   @Get()
-  list(@Query() query: ListDto): Promise<PlatformOrgPage> {
+  list(@Query() query: PlatformOrgListQueryDto): Promise<PlatformOrgPage> {
     return this.backoffice.list(query)
   }
 
   @Get(":id")
-  get(@Param() params: OrgParamsDto): Promise<PlatformOrgDetail> {
+  get(@Param() params: PlatformOrgParamsDto): Promise<PlatformOrgDetail> {
     return this.backoffice.get(params.id)
   }
 
   @Post(":id/suspend")
   @HttpCode(200)
-  suspend(@Param() params: OrgParamsDto, @Body() body: SuspendDto): Promise<PlatformOrgDetail> {
+  suspend(@Param() params: PlatformOrgParamsDto, @Body() body: SuspendDto): Promise<PlatformOrgDetail> {
     return this.backoffice.suspend(params.id, body.reason)
   }
 
   @Post(":id/unsuspend")
   @HttpCode(200)
-  unsuspend(@Param() params: OrgParamsDto): Promise<PlatformOrgDetail> {
+  unsuspend(@Param() params: PlatformOrgParamsDto): Promise<PlatformOrgDetail> {
     return this.backoffice.unsuspend(params.id)
   }
 
   @Post(":id/restore")
   @HttpCode(200)
-  restore(@Param() params: OrgParamsDto): Promise<PlatformOrgDetail> {
+  restore(@Param() params: PlatformOrgParamsDto): Promise<PlatformOrgDetail> {
     return this.backoffice.restore(params.id)
   }
 
   @Get(":id/support")
-  supportSessions(@Param() params: OrgParamsDto): Promise<SupportSession[]> {
+  supportSessions(@Param() params: PlatformOrgParamsDto): Promise<SupportSession[]> {
     return this.support.list(params.id)
   }
 
   @Post(":id/support")
   @HttpCode(201)
-  requestSupport(@Param() params: OrgParamsDto, @Body() body: RequestSupportDto): Promise<SupportSession> {
+  requestSupport(@Param() params: PlatformOrgParamsDto, @Body() body: RequestSupportDto): Promise<SupportSession> {
     return this.support.request(params.id, body.reason)
   }
 
@@ -89,12 +89,12 @@ export class BackofficeController {
   /** Back to being no one in that workspace. */
   @Post(":id/support/leave")
   @HttpCode(204)
-  async leaveSupport(@Param() params: OrgParamsDto, @Res({ passthrough: true }) response: Response): Promise<void> {
+  async leaveSupport(@Param() params: PlatformOrgParamsDto, @Res({ passthrough: true }) response: Response): Promise<void> {
     response.clearCookie(supportCookieName(await this.support.slugOf(params.id)), this.cookie())
   }
 
   @Put(":id/plan")
-  setPlan(@Param() params: OrgParamsDto, @Body() body: PlanDto): Promise<PlatformOrgDetail> {
+  setPlan(@Param() params: PlatformOrgParamsDto, @Body() body: PlanDto): Promise<PlatformOrgDetail> {
     return this.backoffice.setPlan(params.id, body.plan)
   }
 

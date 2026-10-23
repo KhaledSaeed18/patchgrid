@@ -19,10 +19,10 @@ import { KnowledgeService } from "./knowledge.service"
 
 class ArticleParamsDto extends createZodDto(z.object({ id: idSchema })) {}
 class SlugParamsDto extends createZodDto(z.object({ slug: articleSlugSchema })) {}
-class ListDto extends createZodDto(articleListQuerySchema) {}
-class SearchDto extends createZodDto(articleSearchQuerySchema) {}
-class CreateDto extends createZodDto(createArticleRequestSchema) {}
-class UpdateDto extends createZodDto(updateArticleRequestSchema) {}
+class ArticleListQueryDto extends createZodDto(articleListQuerySchema) {}
+class ArticleSearchQueryDto extends createZodDto(articleSearchQuerySchema) {}
+class CreateArticleRequestDto extends createZodDto(createArticleRequestSchema) {}
+class UpdateArticleRequestDto extends createZodDto(updateArticleRequestSchema) {}
 
 /**
  * The knowledge base (DOMAIN.md §9.2). Every member holds
@@ -36,13 +36,13 @@ export class KnowledgeController {
 
   @Get()
   @RequirePermission("kb:read_published")
-  list(@Query() query: ListDto): Promise<ArticlePage> {
+  list(@Query() query: ArticleListQueryDto): Promise<ArticlePage> {
     return this.knowledge.list(query)
   }
 
   @Get("search")
   @RequirePermission("kb:read_published")
-  search(@Query() query: SearchDto): Promise<ArticleSearchResult> {
+  search(@Query() query: ArticleSearchQueryDto): Promise<ArticleSearchResult> {
     return this.knowledge.search(query)
   }
 
@@ -62,13 +62,13 @@ export class KnowledgeController {
   @HttpCode(201)
   @RequirePermission("kb:write")
   @Idempotent()
-  create(@Body() body: CreateDto): Promise<Article> {
+  create(@Body() body: CreateArticleRequestDto): Promise<Article> {
     return this.knowledge.create(body)
   }
 
   @Patch(":id")
   @RequirePermission("kb:write")
-  update(@Param() params: ArticleParamsDto, @Body() body: UpdateDto): Promise<Article> {
+  update(@Param() params: ArticleParamsDto, @Body() body: UpdateArticleRequestDto): Promise<Article> {
     return this.knowledge.update(params.id, body)
   }
 

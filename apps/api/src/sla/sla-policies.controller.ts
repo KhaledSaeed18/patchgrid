@@ -6,8 +6,8 @@ import { z } from "zod"
 import { RequirePermission } from "../authz/require-permission"
 import { SlaPoliciesService } from "./sla-policies.service"
 
-class ParamsDto extends createZodDto(z.object({ id: idSchema })) {}
-class UpdateDto extends createZodDto(updateSlaPolicyRequestSchema) {}
+class SlaPolicyParamsDto extends createZodDto(z.object({ id: idSchema })) {}
+class UpdateSlaPolicyRequestDto extends createZodDto(updateSlaPolicyRequestSchema) {}
 
 /** The eight policies are provisioned with the workspace; they are edited, never created or deleted. */
 @Controller("sla-policies")
@@ -22,7 +22,7 @@ export class SlaPoliciesController {
 
   @Patch(":id")
   @RequirePermission("sla:write")
-  update(@Param() params: ParamsDto, @Body() body: UpdateDto): Promise<SlaPolicy> {
+  update(@Param() params: SlaPolicyParamsDto, @Body() body: UpdateSlaPolicyRequestDto): Promise<SlaPolicy> {
     return this.policies.update(params.id, body)
   }
 }
