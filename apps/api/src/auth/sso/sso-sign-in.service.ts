@@ -6,6 +6,7 @@ import { type Clock, InjectClock } from "../../common/clock/clock"
 import { ProblemException } from "../../common/problems/problem.exception"
 import { PublicUrls } from "../../common/urls"
 import { runAsTenant } from "../../platform/run-as-tenant"
+import { hostedDomainAdmits, requiresHostedDomain } from "../../sso/hosted-domain"
 import { OidcClient, OidcRejectedError, type OidcConnection } from "../../sso/oidc-client"
 import { type OrgDomainRecord, OrgDomainRepository } from "../../sso/repositories/org-domain.repository"
 import { type SsoConnectionRecord, SsoConnectionRepository } from "../../sso/repositories/sso-connection.repository"
@@ -96,6 +97,7 @@ export class SsoSignInService {
       nonce,
       codeChallenge: await oidc.calculatePKCECodeChallenge(codeVerifier),
       ...(query.email === undefined ? {} : { loginHint: query.email }),
+      ...(requiresHostedDomain(routed.connection.issuer) ? { hostedDomain: routed.domain } : {}),
       reauthenticate: query.intent === "step-up",
     })
     return { location: url.toString(), cookies: [this.cookies.ssoFlow(state, SSO_FLOW_TTL_SECONDS)] }
@@ -147,6 +149,8 @@ export class SsoSignInService {
     }
     // The workspace's control of its provider must be no more than its control of its own domain.
     if (!identity.emailVerified || identity.email === null || domainOf(identity.email) !== routed.domain) throw new SsoFailure("email")
+    // A shared issuer vouches for an address only through the domain's own Workspace (`hd`).
+    if (!hostedDomainAdmits(routed.connection.issuer, identity.hostedDomain, routed.domain)) throw new SsoFailure("email")
 
     const person = { subject: identity.subject, email: identity.email, name: identity.name }
     const current = await this.sessions.identityFor(identitySecret)
