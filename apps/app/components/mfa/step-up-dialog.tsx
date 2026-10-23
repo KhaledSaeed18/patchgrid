@@ -86,6 +86,12 @@ export function StepUpDialog({
           />
         )}
         {viaSso && slug !== null && (
+          <p className="text-sm text-pretty text-muted-foreground">
+            Your organization&apos;s sign-in opens in this tab and brings you
+            back here. Then do it again.
+          </p>
+        )}
+        {viaSso && slug !== null && (
           <Button
             variant="outline"
             size="lg"
