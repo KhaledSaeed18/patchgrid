@@ -33,6 +33,7 @@ modelled anyway, so the code written now does not foreclose the fix.
 | **Credential thief**                | A stolen cookie, leaked API token or forwarded link | To act as someone else for as long as possible                         |
 | **Forged email sender**             | A tenant's inbound address                          | Tickets or comments attributed to someone else (M6)                    |
 | **Hostile ticket text**             | Attacker-controlled title/body                      | To steer the LLM triage into acting (M7)                               |
+| **Hostile identity provider**       | A workspace's SSO connection, or its admin console  | To vouch for someone it does not own, in a workspace that is not its own (M13) |
 | **Curious or compromised operator** | A `PlatformAdmin` identity                          | Tenant content without the tenant knowing (M8)                         |
 | **Supply chain**                    | A dependency, a CI action, a DNS/ACME token         | Code execution in CI or production; control of the zone                |
 
@@ -46,6 +47,8 @@ modelled anyway, so the code written now does not foreclose the fix.
     └────────TB6 (presigned URL)──────────▶ object storage ◀─────────────┤
                                                                          ├◀─TB7── inbound mail provider (M6)
                                                                          ├──TB8──▶ Ollama / phishing-svc (M7)
+                                                                         ├──TB11─▶ webhook receivers (M11)
+ Browser ◀──── redirects ────▶ tenant identity provider ◀──TB12 (M13)─────┤
  Operator ──TB9 (admin., M8)─────────────────────────────────────────────┘
  Repo ──TB10──▶ CI ──▶ images, DNS, ACME
 ```
@@ -192,6 +195,8 @@ Stated so they are decisions, not discoveries.
 | R-7 | **Inbound trust rests on the mail provider's verdict**                                                                                                                                                                                                                                                                                                                                                            | We already depend on it to deliver the message at all                                                                              |
 | R-8 | **TOTP is phishable in real time**                                                                                                                                                                                                                                                                                                                                                                                | Passkeys are not (ADR-0053, M13); a member may hold both, and TOTP stays for those who choose it. Operators keep TOTP only         |
 | R-9 | **A support session can read internal notes**                                                                                                                                                                                                                                                                                                                                                                     | Otherwise it cannot diagnose anything; the consent screen says so in those words                                                   |
+| R-10 | **Deprovisioning at the identity provider ends nothing in Patchgrid** (ADR-0054): a person removed there keeps an open session until it expires or an admin disables their membership | No SCIM (out of scope, ADR-0048); the session is bounded by the refresh lifetime, and disabling a member is honoured on the next request |
+| R-11 | **Whoever controls a workspace's domain controls its people's Patchgrid accounts** — through its IdP (scoped to the workspace) and through password-reset mail to addresses on the domain (not scoped) | True of every email-identified product; proving the domain by DNS is what makes the first equal to the second rather than worse |
 
 ---
 
@@ -218,6 +223,33 @@ judged as that IPv4. A refusal tells the tenant the kind of failure, never the a
 ids and states only, so a leaked delivery log holds no ticket text. Secrets are sealed under a key the
 database never holds. No token manages webhooks. Per-tenant in-flight leases and a circuit per endpoint
 keep one tenant's dead receiver from becoming everyone's queue (ADR-0050, §8).
+
+### TB12 · A workspace's identity provider → sign-in (M13)
+
+A tenant admin chooses the issuer, and the issuer's answer decides who is signed in. So the boundary
+has two directions: the API fetching from a URL a tenant typed, and the API believing what that URL
+signs. Both are bounded (ADR-0054).
+
+- **Fetching.** Discovery, keys and the token endpoint go through TB11's guarded request: vetted
+  addresses at connect, no redirects, five seconds, a bounded body. `https` only, unless
+  `SSO_ALLOW_PRIVATE_ISSUERS`, which boot refuses in production. Saving a connection runs discovery, and
+  the issuer the document names must be the one configured.
+- **Believing.** The authorization code is exchanged with PKCE (S256). `openid-client` checks the ID
+  token's signature against the issuer's keys, and its issuer, audience, expiry and nonce. The callback is
+  accepted only in the browser that started it (the `pg_sso` cookie must equal `state`) and only once
+  (`GETDEL`). The address must be verified by the provider **and** be at the workspace's DNS-proved
+  domain. A provider can therefore vouch only for people whose mail its workspace already controls.
+- **Containment.** The session it starts is scoped to its workspace (`RefreshToken.ssoOrgId`, copied
+  through every rotation and pair). It opens no other workspace. Every tenant-less route refuses it
+  unless the route admits it, so no account-wide change (password, factors, passkeys, erasure, a new
+  workspace, an invitation) can be made on a provider's say-so.
+- **Provisioning.** A new person joins at the connection's default role, `REQUESTER` or `AGENT`, never
+  above (a CHECK), and takes a seat if an agent. A disabled or removed membership is never revived. An
+  unverified account at the address loses its password before the provider's person gets it (a
+  pre-registered squatter keeps nothing). A new issuer unlinks every subject.
+- **Control.** The connection and "SSO required" are owner-only and take a step-up, because whoever
+  controls them can sign in as anyone at the domain, owners included. Owners are exempt from the
+  requirement, which is the way back in when the provider is down or hostile.
 
 ---
 
