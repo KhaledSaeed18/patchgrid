@@ -139,8 +139,11 @@ src/
   prisma/       # PrismaService: the tenant-isolated client, `db`, `transaction()`
   platform/     # runAsTenant / runAsPlatform, PlatformRepository, org lifecycle, support sessions
   authz/        # PermissionService (pure can/assert/scopeFor), permission catalog, guards
-  auth/         # signup, login, refresh, logout, verify email, reset, invites, org switch, API-token auth strategy
-  orgs/         # org creation/provisioning, settings, slug change, domain verification
+  auth/         # signup, login, refresh, logout, verify email, reset, invites, org switch, API-token auth strategy,
+                #   factors, passkeys (ADR-0053), and the SSO sign-in round trip (auth/sso, ADR-0054)
+  orgs/         # org creation/provisioning, settings, slug change
+  sso/          # the domain proof (DNS TXT), the OIDC connection and "SSO required"; the OIDC client
+                #   and its guarded fetch, shared with auth/sso through SsoCoreModule
   memberships/ teams/ users/ api-tokens/
   categories/ sla-policies/
   tickets/      # CRUD, transitions, priority, linking, type details
@@ -472,6 +475,7 @@ Each is a Nest injection token with a real implementation and a `Noop`/`Fake` on
 | `redis` | `redis:7-alpine` | 6379 | BullMQ, throttler, tenant cache, quota counters |
 | `minio` | `quay.io/minio/minio` | 9000 / 9001 | S3 API / console. **quay.io, not Docker Hub** — `docker.io/minio/minio` is no longer publicly pullable. Bucket `patchgrid-attachments` created by an init container; **CORS is a server setting** (`MINIO_API_CORS_ALLOW_ORIGIN`), not per-bucket — `mc cors set` reports "functionality that is not implemented" |
 | `mailpit` | `axllent/mailpit` | 1025 / 8025 | SMTP sink + web inbox |
+| `keycloak` (`--profile sso`) | `quay.io/keycloak/keycloak:26.4` | 8180 | Acme's identity provider for SSO (ADR-0054): one realm imported from `docker/keycloak/acme-realm.json` |
 | `ollama` (later) | `ollama/ollama` | 11434 | triage + embeddings |
 
 Every published port is env-overridable (`POSTGRES_PORT`, `REDIS_PORT`, …) defaulting to the values
