@@ -32,6 +32,13 @@
 > - **The reconcile** never recreates an erased membership's picker row.
 > - **A restore** is refused for a workspace whose last owner erased their account while it waited.
 
+> **Erratum (2026-10-23).** Erasure has a second proof: a single-use link to the account's address
+> (`POST /auth/account/erase/link`, then `/erase/confirm`). An account a workspace's identity provider
+> made has no password, and an SSO session reaches no account route, so the password form left such a
+> person no way out but a password reset first. The link is no weaker: the same inbox could already
+> reset the password. It lives 30 minutes in Redis and is spent with `GETDEL`; the ownership and
+> platform-grant refusals apply to it as to the password.
+
 ## Context
 
 ADR-0028 decides the policy:
