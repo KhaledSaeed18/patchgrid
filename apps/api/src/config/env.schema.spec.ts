@@ -42,6 +42,13 @@ describe("envSchema", () => {
     )
   })
 
+  it("starts without the owner's credentials, and refuses the owner's URL as its own", () => {
+    const deployed: Record<string, string> = { ...valid }
+    delete deployed.DATABASE_MIGRATION_URL
+    expect(envSchema.safeParse(deployed).success).toBe(true)
+    expect(issues({ DATABASE_URL: valid.DATABASE_MIGRATION_URL })).toContain("DATABASE_URL")
+  })
+
   it("sends by SMTP unless SES is named, and nothing else", () => {
     expect(envSchema.parse(valid).MAIL_TRANSPORT).toBe("smtp")
     expect(envSchema.parse({ ...valid, MAIL_TRANSPORT: "ses" }).MAIL_TRANSPORT).toBe("ses")

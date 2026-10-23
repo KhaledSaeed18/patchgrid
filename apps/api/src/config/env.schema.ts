@@ -46,10 +46,12 @@ export const envSchema = z
     DATABASE_URL: url("DATABASE_URL"),
     /**
      * The migration role, which owns the tables and is therefore exempt from
-     * their policies (ADR-0059). Present so the API can
-     * refuse to start when someone points both at the same role — see below.
+     * their policies (ADR-0059). The API never uses it, and a deployment should
+     * not hand it the owner's password at all: the boot assertion refuses the
+     * owner, or any member of it, as the application role. Accepted only so a
+     * development environment that sets both is told when they are the same.
      */
-    DATABASE_MIGRATION_URL: url("DATABASE_MIGRATION_URL"),
+    DATABASE_MIGRATION_URL: url("DATABASE_MIGRATION_URL").optional(),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
     /**
      * The outbox wake's dedicated `LISTEN` connection (ADR-0049), as the same
@@ -237,7 +239,7 @@ export const envSchema = z
     // The single most damaging misconfiguration available: running the
     // application as the migration role silently disables every tenant policy
     // in the database. Cheap to check, catastrophic to miss (ADR-0015).
-    if (env.DATABASE_URL === env.DATABASE_MIGRATION_URL) {
+    if (env.DATABASE_MIGRATION_URL !== undefined && env.DATABASE_URL === env.DATABASE_MIGRATION_URL) {
       ctx.addIssue({
         code: "custom",
         path: ["DATABASE_URL"],
