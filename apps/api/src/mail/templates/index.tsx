@@ -15,6 +15,7 @@ import { PlatformSecurity, platformSecuritySubject } from "./platform-security"
 import { SupportAccess, supportSubject } from "./support-access"
 import { TicketNotification } from "./ticket-notification"
 import { VerifyEmail } from "./verify-email"
+import { ConfirmErasure } from "./confirm-erasure"
 import { PlanLimitReached, planLimitReachedSubject } from "./plan-limit-reached"
 import { WebhookDisabled, webhookDisabledSubject } from "./webhook-disabled"
 
@@ -97,6 +98,11 @@ export const MAIL_KINDS = {
     subject: apiTokenExpiringSubject,
     component: ApiTokenExpiring,
   },
+  "confirm-erasure": {
+    params: z.object({ name: z.string(), confirmUrl: url, expiresInMinutes: z.int().positive() }),
+    subject: () => "Erase your Patchgrid account",
+    component: ConfirmErasure,
+  },
   "plan-limit-reached": {
     params: z.object({ orgName: z.string(), headline: z.string().max(200), usageUrl: url, preferencesUrl: url }),
     subject: planLimitReachedSubject,
@@ -173,6 +179,7 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("api-token-expiring"), ...envelope, params: MAIL_KINDS["api-token-expiring"].params }),
   z.object({ kind: z.literal("webhook-disabled"), ...envelope, params: MAIL_KINDS["webhook-disabled"].params }),
   z.object({ kind: z.literal("plan-limit-reached"), ...envelope, params: MAIL_KINDS["plan-limit-reached"].params }),
+  z.object({ kind: z.literal("confirm-erasure"), ...envelope, params: MAIL_KINDS["confirm-erasure"].params }),
   z.object({ kind: z.literal("org-deletion"), ...envelope, params: MAIL_KINDS["org-deletion"].params }),
   z.object({ kind: z.literal("export-ready"), ...envelope, params: MAIL_KINDS["export-ready"].params }),
   z.object({ kind: z.literal("account-erased"), ...envelope, params: MAIL_KINDS["account-erased"].params }),
@@ -218,6 +225,8 @@ function elementFor(job: MailJob): ReactElement {
       return <WebhookDisabled {...job.params} />
     case "plan-limit-reached":
       return <PlanLimitReached {...job.params} />
+    case "confirm-erasure":
+      return <ConfirmErasure {...job.params} />
     case "org-deletion":
       return <OrgDeletion {...job.params} />
     case "export-ready":
