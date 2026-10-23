@@ -21,6 +21,18 @@ import { PrismaService } from "../prisma/prisma.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
 import { type AssetFields, AssetRepository, type AssetRow } from "./repositories/asset.repository"
 
+/** Every field an update may change (`updateAssetRequestSchema`). */
+const ASSET_FIELDS = [
+  "name",
+  "type",
+  "status",
+  "serialNumber",
+  "ownerMembershipId",
+  "purchaseDate",
+  "warrantyExpiresAt",
+  "notes",
+] as const satisfies readonly (keyof UpdateAssetRequest)[]
+
 /**
  * The CMDB (DOMAIN.md §9.3, RBAC.md §6). Agents keep the register; a
  * requester sees the assets they hold. Visibility is `scopeFor("asset")`
@@ -134,8 +146,10 @@ export class AssetsService {
       const before = await this.assets.find(orgId, id)
       if (before === null) throw new NotFoundProblem()
 
+      // The schema's own fields, by name, never the request's keys: a property written is one this list names.
       const requested: Partial<AssetFields> = {}
-      for (const [field, value] of Object.entries(request) as [keyof UpdateAssetRequest, unknown][]) {
+      for (const field of ASSET_FIELDS) {
+        const value = request[field]
         if (value === undefined) continue
         Object.assign(requested, {
           [field]: field === "purchaseDate" || field === "warrantyExpiresAt" ? day(value as string | null) : value,
