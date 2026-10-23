@@ -43,6 +43,24 @@ credential, never from the host (ADR-0040).
 A platform admin who is also a member of some tenant carries no platform power on that tenant's
 subdomain, and no membership power on `admin.`.
 
+**A member signed in through their workspace's single sign-on is an ordinary member there**
+(ADR-0054): same role, same matrix. Their access token says `sso`, and their session opens that
+workspace alone. Inside the workspace nothing changes. Outside it, on the tenant-less identity routes,
+such a session may do only what the route explicitly admits:
+
+| Route | SSO session |
+| --- | --- |
+| `GET /auth/identity`, `GET /auth/mfa`, `GET /auth/passkeys` | ✅ |
+| `POST /auth/sessions` (open a workspace) | ✅ its own workspace only |
+| `POST /auth/step-up`, `POST /auth/passkeys/proof/options` | ✅ its own workspace only; also at the provider with `intent=step-up` |
+| Password change, factor and passkey changes, account erasure | ❌ `403 sso-session-scoped` |
+| Creating a workspace, accepting an invitation, cancelling a deletion | ❌ `403 sso-session-scoped` |
+
+The refusal is deny-by-default at the guard (`@AllowsSsoSession` admits a route), so a new identity
+route is closed to provider sessions until someone decides otherwise. Someone the provider provisioned
+has no password. They can set one through the reset mail, and then sign in with Patchgrid credentials
+like anyone else; "SSO required" still binds them in that workspace unless they are an owner.
+
 ## 3. Roles
 
 Roles live on `Membership` and are strictly cumulative: `REQUESTER ⊂ AGENT ⊂ ADMIN ⊂ OWNER`.
