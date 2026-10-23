@@ -1,11 +1,13 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common"
 import {
   type IdentityResponse,
+  joinWorkspaceRequestSchema,
   type LoginResponse,
   loginRequestSchema,
   logoutRequestSchema,
   openSessionRequestSchema,
   refreshRequestSchema,
+  type Role,
 } from "@patchgrid/contracts"
 import type { Request, Response } from "express"
 import { Throttle } from "@nestjs/throttler"
@@ -15,6 +17,7 @@ import { isIP } from "node:net"
 import { AllowsSsoSession, Public, TenantOptional } from "../common/decorators/route-markers"
 import { ActorService } from "./actor"
 import { CookieService, readCookie } from "./cookies"
+import { DomainJoinService } from "./domain-join/domain-join.service"
 import { type ClientInfo, SessionService } from "./sessions/session.service"
 import { IDENTITY_COOKIE, refreshCookieName } from "./tokens/access-token"
 
@@ -22,6 +25,7 @@ class LoginRequestDto extends createZodDto(loginRequestSchema) {}
 class OpenSessionDto extends createZodDto(openSessionRequestSchema) {}
 class RefreshDto extends createZodDto(refreshRequestSchema) {}
 class LogoutDto extends createZodDto(logoutRequestSchema) {}
+class JoinWorkspaceDto extends createZodDto(joinWorkspaceRequestSchema) {}
 
 /**
  * Sessions. Every route here is tenant-less — the auth routes are the one
@@ -40,6 +44,7 @@ export class AuthController {
     private readonly sessions: SessionService,
     private readonly cookies: CookieService,
     private readonly actors: ActorService,
+    private readonly domainJoin: DomainJoinService,
   ) {}
 
   /** Uniform 401 whether or not the address exists (ADR-0031). */
@@ -56,12 +61,21 @@ export class AuthController {
     return result.response
   }
 
-  /** The picker's data: the signed-in account and its workspaces. */
+  /** The picker's data: the signed-in account, its workspaces, and one it may join by its domain. */
   @Get("identity")
   @TenantOptional()
   @AllowsSsoSession()
-  identity(): Promise<IdentityResponse> {
-    return this.sessions.identity(this.actors.requireIdentity())
+  async identity(): Promise<IdentityResponse> {
+    const identity = this.actors.requireIdentity()
+    return { ...(await this.sessions.identity(identity)), joinable: await this.domainJoin.joinableFor(identity) }
+  }
+
+  /** Joins the workspace the picker offered by verified domain (TENANCY.md §5); the client opens it next. */
+  @Post("workspaces/join")
+  @TenantOptional()
+  @HttpCode(200)
+  join(@Body() body: JoinWorkspaceDto): Promise<{ slug: string; role: Role }> {
+    return this.domainJoin.join(this.actors.requireIdentity(), body.slug)
   }
 
   /** The org switcher: mint a pair for a workspace the `pg_id` holder belongs to — an SSO session, only its own (ADR-0054). */

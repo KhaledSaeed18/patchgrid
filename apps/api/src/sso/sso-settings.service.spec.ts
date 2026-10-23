@@ -46,6 +46,8 @@ function harness(options: Options = {}) {
     domainVerifiedAt: null,
     domainChallenge: null,
     requireSso: false,
+    allowDomainJoin: false,
+    defaultJoinRole: "REQUESTER",
     ...options.org,
   }
   let connection: SsoConnectionRecord | null =
@@ -66,7 +68,8 @@ function harness(options: Options = {}) {
   const domains = {
     find: vi.fn(async () => ({ ...org })),
     lock: vi.fn(async () => undefined),
-    claim: vi.fn(async (_o: string, domain: string | null, challenge: string | null) => void Object.assign(org, { domain, domainChallenge: challenge, domainVerifiedAt: null })),
+    claim: vi.fn(async (_o: string, domain: string | null, challenge: string | null) => void Object.assign(org, { domain, domainChallenge: challenge, domainVerifiedAt: null, allowDomainJoin: false })),
+    setDomainJoin: vi.fn(async (_o: string, enabled: boolean, role: Role) => void Object.assign(org, { allowDomainJoin: enabled, defaultJoinRole: role })),
     markVerified: vi.fn(async (_o: string, domain: string, challenge: string, at: Date) => {
       if (org.domain !== domain || org.domainChallenge !== challenge || org.domainVerifiedAt !== null) return false
       Object.assign(org, { domainVerifiedAt: at, domainChallenge: null })
@@ -197,6 +200,31 @@ describe("SsoSettingsService: the domain", () => {
     const h = harness({ org: { domain: "acme.test", domainChallenge: "abc" }, txt: ["patchgrid-verify=abc"] })
     h.domains.markVerified.mockRejectedValueOnce(Object.assign(new Error("unique"), { code: "P2002" }))
     await expect(h.service.verifyDomain()).rejects.toThrow(/already proved/)
+  })
+})
+
+describe("SsoSettingsService: joining by domain (TENANCY.md §5)", () => {
+  it("lets a proved domain's people join at the chosen role, audited, and shows it", async () => {
+    const h = harness({ org: { domain: "acme.test", domainVerifiedAt: NOW } })
+    const settings = await h.service.setDomainJoin({ enabled: true, role: "AGENT" })
+    expect(settings.domain?.join).toEqual({ enabled: true, role: "AGENT" })
+    expect(h.audit).toEqual([expect.objectContaining({ action: "ORG_DOMAIN_JOIN_CHANGED", diff: { enabled: { from: false, to: true }, role: { from: "REQUESTER", to: "AGENT" } } })])
+  })
+
+  it("asks for a fresh proof, a proved domain, and no SSO requirement", async () => {
+    await expect(harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, stepped: false }).service.setDomainJoin({ enabled: true, role: "REQUESTER" })).rejects.toBeInstanceOf(StepUpRequiredProblem)
+    await expect(harness({ org: { domain: "acme.test", domainChallenge: "c" } }).service.setDomainJoin({ enabled: true, role: "REQUESTER" })).rejects.toBeInstanceOf(ConflictProblem)
+    await expect(harness({ org: { domain: "acme.test", domainVerifiedAt: NOW, requireSso: true } }).service.setDomainJoin({ enabled: true, role: "REQUESTER" })).rejects.toBeInstanceOf(ConflictProblem)
+    for (const role of ["ADMIN", "AGENT"] as const) {
+      await expect(harness({ role }).service.setDomainJoin({ enabled: false, role: "REQUESTER" })).rejects.toBeInstanceOf(NotPermittedProblem)
+    }
+  })
+
+  it("turns off with the domain that proved it, and refuses SSO required while it is on", async () => {
+    const h = harness({ org: { domain: "acme.test", domainVerifiedAt: NOW, allowDomainJoin: true } })
+    expect((await h.service.claimDomain({ domain: "other.test" })).domain?.join.enabled).toBe(false)
+    const open = harness({ org: { domain: "acme.test", domainVerifiedAt: NOW, allowDomainJoin: true }, connection: { enabled: true } })
+    await expect(open.service.setRequirement({ required: true })).rejects.toBeInstanceOf(ConflictProblem)
   })
 })
 

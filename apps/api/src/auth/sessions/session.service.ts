@@ -186,7 +186,7 @@ export class SessionService {
   }
 
   /** Who a `pg_id` holder is and which workspaces the picker lists for them. */
-  async identity(session: IdentitySession): Promise<IdentityResponse> {
+  async identity(session: IdentitySession): Promise<Omit<IdentityResponse, "joinable">> {
     const account = await this.users.findById(session.userId)
     if (account === null || !isUsable(account)) throw new NotAuthenticatedProblem("A session is required")
     const scope = session.ssoOrgId === null ? null : await this.organizations.byId(session.ssoOrgId)
