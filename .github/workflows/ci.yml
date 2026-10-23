@@ -111,8 +111,6 @@ jobs:
         run: |
           docker compose up -d --wait postgres redis minio mailpit
           docker compose up minio-init
-          # Acme's identity provider for the SSO spec (ADR-0054); it imports its realm while the rest builds.
-          docker compose --profile sso up -d keycloak
 
       - run: pnpm db:bootstrap
       - run: pnpm db:generate
@@ -178,6 +176,8 @@ jobs:
         run: |
           docker compose up -d --wait postgres redis minio mailpit
           docker compose up minio-init
+          # Acme's identity provider for the SSO spec (ADR-0054); it imports its realm while the rest builds.
+          docker compose --profile sso up -d keycloak
 
       - run: pnpm db:bootstrap
       - run: pnpm db:generate
@@ -363,7 +363,6 @@ jobs:
       # schema.prisma. A schema edit without its migration fails here.
       - name: Migrations match schema.prisma
         run: pnpm --filter @patchgrid/database run migrations:drift
-
 
   # ───────────────────────────────────────────────────────────────────────────
   # The production images (apps/api/Dockerfile, docker/next.Dockerfile) build
