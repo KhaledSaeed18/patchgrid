@@ -19,6 +19,14 @@ export const IDENTITY_COOKIE = "pg_id"
  */
 export const MFA_CHALLENGE_COOKIE = "pg_mc"
 
+/**
+ * One SSO round trip (ADR-0054): the `state` the identity provider must hand
+ * back, so a callback is accepted only in the browser that started it. Ten
+ * minutes, and only the SSO routes receive it.
+ */
+export const SSO_FLOW_COOKIE = "pg_sso"
+export const SSO_FLOW_COOKIE_PATH = "/api/v1/auth/sso"
+
 /** Only the auth routes ever receive the refresh cookie (ADR-0004, ADR-0024) — never the Next server (ADR-0035). */
 export const REFRESH_COOKIE_PATH = "/api/v1/auth"
 
