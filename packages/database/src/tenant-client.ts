@@ -57,11 +57,7 @@ function setTenant(client: Pick<PrismaClient, "$queryRaw">, orgId: string) {
  * own — one per tenant-owned query outside an interactive one — so a caller
  * counting transactions per request sees the batched ones too.
  */
-export function withTenantIsolation(
-  client: PrismaClient,
-  readContext: TenantContextReader,
-  onTransaction: () => void = () => {},
-) {
+export function withTenantIsolation(client: PrismaClient, readContext: TenantContextReader, onTransaction: () => void = () => {}) {
   return client.$extends({
     name: "tenant-isolation",
     query: {
@@ -96,9 +92,7 @@ export type TenantPrismaClient = ReturnType<typeof withTenantIsolation>
  * also the widest type a repository should ever hold: the un-transacted client
  * is assignable to it, a transaction client is exactly it.
  */
-export type TenantTransactionClient = Parameters<
-  Parameters<TenantPrismaClient["$transaction"]>[0]
->[0]
+export type TenantTransactionClient = Parameters<Parameters<TenantPrismaClient["$transaction"]>[0]>[0]
 
 /**
  * Opens an interactive transaction scoped to `orgId`. Its first statement sets

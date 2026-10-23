@@ -26,7 +26,10 @@ export async function seedDemoSso(db: PrismaClient, orgs: { acme: string; globex
   await db.ssoConnection.deleteMany({ where: { orgId: { in: [orgs.acme, orgs.globex] } } })
   const key = process.env.SSO_SECRETS_KEY
   if (key === undefined || key === "") return false
-  await db.organization.update({ where: { id: orgs.acme }, data: { domain: DEMO_SSO.domain, domainVerifiedAt: new Date(), domainChallenge: null } })
+  await db.organization.update({
+    where: { id: orgs.acme },
+    data: { domain: DEMO_SSO.domain, domainVerifiedAt: new Date(), domainChallenge: null },
+  })
   await db.ssoConnection.create({
     data: {
       orgId: orgs.acme,

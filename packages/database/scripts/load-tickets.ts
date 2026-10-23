@@ -52,7 +52,10 @@ async function main(): Promise<void> {
     return
   }
 
-  const members = await db.membership.findMany({ where: { orgId: org.id, status: "ACTIVE", kind: "HUMAN" }, select: { id: true, role: true } })
+  const members = await db.membership.findMany({
+    where: { orgId: org.id, status: "ACTIVE", kind: "HUMAN" },
+    select: { id: true, role: true },
+  })
   const teams = await db.team.findMany({ where: { orgId: org.id }, select: { id: true } })
   const categories = await db.category.findMany({ where: { orgId: org.id }, select: { id: true } })
   const requesters = members.map((m) => m.id)
@@ -69,7 +72,7 @@ async function main(): Promise<void> {
   const next = rng(count)
   const now = Date.now()
   const span = 2 * 365 * 24 * 60 * 60_000
-  const pick = <T,>(list: readonly T[]): T => list[Math.floor(next() * list.length)] as T
+  const pick = <T>(list: readonly T[]): T => list[Math.floor(next() * list.length)] as T
 
   const BATCH = 5_000
   const started = Date.now()
@@ -114,7 +117,9 @@ async function main(): Promise<void> {
   }
   await db.ticketCounter.update({ where: { orgId_type: { orgId: org.id, type: "INCIDENT" } }, data: { nextValue: number + count } })
   const total = await db.ticket.count({ where: { orgId: org.id } })
-  console.log(`\n${slug} now holds ${String(total)} tickets (${String(count)} added in ${String(Math.round((Date.now() - started) / 1000))}s)`)
+  console.log(
+    `\n${slug} now holds ${String(total)} tickets (${String(count)} added in ${String(Math.round((Date.now() - started) / 1000))}s)`,
+  )
   await db.$disconnect()
 }
 

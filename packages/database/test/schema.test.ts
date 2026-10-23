@@ -37,8 +37,7 @@ const APP_ROLE = "patchgrid_app"
  * exactly, so a hand-edited policy (a missing NULLIF, a text comparison, an `OR`
  * that lets something through) fails here rather than in production.
  */
-const DEPARSED_POLICY =
-  `("orgId" = (NULLIF(current_setting('app.current_org_id'::text, true), ''::text))::uuid)`
+const DEPARSED_POLICY = `("orgId" = (NULLIF(current_setting('app.current_org_id'::text, true), ''::text))::uuid)`
 
 let db: pg.Client
 let tables: string[]
@@ -184,9 +183,7 @@ describe("2 · composite tenant foreign keys", () => {
   it("every tenant-owned table references its Organization", async () => {
     const fks = await foreignKeys()
     const anchored = new Set(
-      fks
-        .filter((fk) => fk.to === "Organization" && fk.fromCols.join() === "orgId" && fk.toCols.join() === "id")
-        .map((fk) => fk.from),
+      fks.filter((fk) => fk.to === "Organization" && fk.fromCols.join() === "orgId" && fk.toCols.join() === "id").map((fk) => fk.from),
     )
     expect(tenantTables.filter((t) => !anchored.has(t))).toEqual([])
   })
@@ -265,7 +262,9 @@ describe("4 · identifiers", () => {
         WHERE table_schema = 'public' AND (column_name = 'id' OR column_name LIKE '%Id')`,
     )
     const bad = found
-      .filter((r) => !TOOLING_TABLES.has(r.table_name) && !EXTERNAL_IDENTIFIERS.has(`${r.table_name}.${r.column_name}`) && r.udt_name !== "uuid")
+      .filter(
+        (r) => !TOOLING_TABLES.has(r.table_name) && !EXTERNAL_IDENTIFIERS.has(`${r.table_name}.${r.column_name}`) && r.udt_name !== "uuid",
+      )
       .map((r) => `${r.table_name}.${r.column_name} is ${r.udt_name}`)
     expect(bad).toEqual([])
   })

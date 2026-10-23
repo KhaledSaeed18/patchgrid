@@ -45,11 +45,7 @@ export type PrismaClientOptions = {
  * datasource block. Two adapters give the two database roles two independent
  * pools, which is what the owner/app split wants.
  */
-export function createPrismaClient({
-  connectionString,
-  maxConnections,
-  onPool,
-}: PrismaClientOptions): PrismaClient {
+export function createPrismaClient({ connectionString, maxConnections, onPool }: PrismaClientOptions): PrismaClient {
   const pool = new Pool({
     connectionString,
     ...(maxConnections === undefined ? {} : { max: maxConnections }),
@@ -67,12 +63,8 @@ export function createPrismaClient({
  * Throws rather than returning a boolean: there is no caller for whom "the app
  * can read every tenant's data" is recoverable.
  */
-export async function assertAppRoleCannotBypassRls(
-  client: Pick<PrismaClient, "$queryRawUnsafe">,
-): Promise<void> {
-  const rows = await client.$queryRawUnsafe<
-    { rolname: string; rolbypassrls: boolean; rolsuper: boolean }[]
-  >(
+export async function assertAppRoleCannotBypassRls(client: Pick<PrismaClient, "$queryRawUnsafe">): Promise<void> {
+  const rows = await client.$queryRawUnsafe<{ rolname: string; rolbypassrls: boolean; rolsuper: boolean }[]>(
     `SELECT rolname, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user`,
   )
 

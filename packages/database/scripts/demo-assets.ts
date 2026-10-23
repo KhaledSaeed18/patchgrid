@@ -82,7 +82,10 @@ export async function seedDemoAssets(
     ids.set(name, asset.id)
   }
 
-  const incidents = await db.ticket.findMany({ where: { orgId: org.id, type: "INCIDENT" }, select: { id: true, title: true, createdAt: true } })
+  const incidents = await db.ticket.findMany({
+    where: { orgId: org.id, type: "INCIDENT" },
+    select: { id: true, title: true, createdAt: true },
+  })
   const links = incidents.flatMap((ticket) => {
     const assetId = ids.get(ABOUT.find(([pattern]) => pattern.test(ticket.title))?.[1] ?? "")
     return assetId === undefined ? [] : [{ orgId: org.id, ticketId: ticket.id, assetId, createdAt: ticket.createdAt }]

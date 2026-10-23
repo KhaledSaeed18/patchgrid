@@ -88,7 +88,7 @@ describe("category and SLA constraints", () => {
     await expect(db.category.create({ data: { orgId: orgs.acme, name: "Orphan", depth: 2 } })).rejects.toThrow(/Category_depth_check/)
     const root = await db.category.create({ data: { orgId: orgs.acme, name: "Software", depth: 1 } })
     await expect(db.category.create({ data: { orgId: orgs.acme, name: "Too deep", depth: 4, parentId: root.id } })).rejects.toThrow(
-      /Category_depth_check/
+      /Category_depth_check/,
     )
   })
 
@@ -102,10 +102,17 @@ describe("category and SLA constraints", () => {
   })
 
   it("allow policies only for the clocked types, with warnings inside their targets", async () => {
-    const base = { orgId: orgs.acme, priority: "HIGH" as const, responseTargetMinutes: 30, resolutionTargetMinutes: 480, responseWarningMinutes: 10, resolutionWarningMinutes: 60 }
+    const base = {
+      orgId: orgs.acme,
+      priority: "HIGH" as const,
+      responseTargetMinutes: 30,
+      resolutionTargetMinutes: 480,
+      responseWarningMinutes: 10,
+      resolutionWarningMinutes: 60,
+    }
     await expect(db.sLAPolicy.create({ data: { ...base, ticketType: "PROBLEM" } })).rejects.toThrow(/SLAPolicy_type_check/)
     await expect(db.sLAPolicy.create({ data: { ...base, ticketType: "INCIDENT", responseWarningMinutes: 30 } })).rejects.toThrow(
-      /SLAPolicy_targets_check/
+      /SLAPolicy_targets_check/,
     )
     await expect(db.sLAPolicy.create({ data: { ...base, ticketType: "INCIDENT" } })).resolves.toBeDefined()
   })

@@ -54,10 +54,7 @@ async function connect(url: string, database?: string): Promise<Client> {
 }
 
 async function main(): Promise<void> {
-  const bootstrapSql = await readFile(
-    path.join(import.meta.dirname, "../sql/bootstrap.sql"),
-    "utf8",
-  )
+  const bootstrapSql = await readFile(path.join(import.meta.dirname, "../sql/bootstrap.sql"), "utf8")
 
   const admin = await connect(superuserUrl, mainDb)
   try {
@@ -68,9 +65,7 @@ async function main(): Promise<void> {
 
     // The Compose image creates POSTGRES_DB owned by the superuser. The owner
     // role must own it so `prisma migrate reset` can drop and recreate public.
-    await admin.query(
-      `ALTER DATABASE ${quoteIdent(mainDb)} OWNER TO ${quoteIdent("patchgrid_owner")}`,
-    )
+    await admin.query(`ALTER DATABASE ${quoteIdent(mainDb)} OWNER TO ${quoteIdent("patchgrid_owner")}`)
 
     await ensureDatabase(admin, testDb)
     // Prisma diffs migrations against a scratch database it wipes at will. The
@@ -106,12 +101,7 @@ async function ensureDatabase(client: Client, name: string): Promise<void> {
   }
 }
 
-async function ensureRole(
-  client: Client,
-  name: string,
-  password: string,
-  { bypassRls }: { bypassRls: boolean },
-): Promise<void> {
+async function ensureRole(client: Client, name: string, password: string, { bypassRls }: { bypassRls: boolean }): Promise<void> {
   const ident = quoteIdent(name)
   const existing = await client.query("SELECT 1 FROM pg_roles WHERE rolname = $1", [name])
   if (existing.rowCount === 0) {
@@ -119,9 +109,7 @@ async function ensureRole(
     console.log(`  created role ${name}`)
   }
   // Stated every run, so a role that drifted is corrected rather than trusted.
-  await client.query(
-    `ALTER ROLE ${ident} LOGIN ${bypassRls ? "BYPASSRLS" : "NOBYPASSRLS"} PASSWORD ${literal(password)}`,
-  )
+  await client.query(`ALTER ROLE ${ident} LOGIN ${bypassRls ? "BYPASSRLS" : "NOBYPASSRLS"} PASSWORD ${literal(password)}`)
   console.log(`  role ${name}: bypassrls=${bypassRls}`)
 }
 

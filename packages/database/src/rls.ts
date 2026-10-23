@@ -18,8 +18,7 @@
  */
 export const TENANT_POLICY_NAME = "tenant_isolation"
 
-export const TENANT_POLICY_EXPRESSION =
-  `"orgId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid`
+export const TENANT_POLICY_EXPRESSION = `"orgId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid`
 
 export function tenantPolicySql(table: string): string {
   if (!/^[A-Z][A-Za-z0-9]*$/.test(table)) {

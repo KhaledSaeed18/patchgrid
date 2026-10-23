@@ -4,9 +4,7 @@ import { unsafeDrops } from "../scripts/migration-safety.ts"
 
 describe("unsafeDrops", () => {
   it("flags a DROP TABLE with no annotation", () => {
-    expect(unsafeDrops(`-- DropTable\nDROP TABLE "Legacy";\n`)).toEqual([
-      { statement: `DROP TABLE "Legacy";`, line: 2 },
-    ])
+    expect(unsafeDrops(`-- DropTable\nDROP TABLE "Legacy";\n`)).toEqual([{ statement: `DROP TABLE "Legacy";`, line: 2 }])
   })
 
   it("flags a DROP COLUMN spread over several lines", () => {

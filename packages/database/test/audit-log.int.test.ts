@@ -37,11 +37,7 @@ let app: pg.Client
 const orgs = { acme: "", globex: "" }
 
 /** One statement in a transaction scoped to `orgId` — the shape the client extension produces. */
-async function asTenant<T extends pg.QueryResultRow>(
-  orgId: string | null,
-  sql: string,
-  params: unknown[] = [],
-): Promise<T[]> {
+async function asTenant<T extends pg.QueryResultRow>(orgId: string | null, sql: string, params: unknown[] = []): Promise<T[]> {
   await app.query("BEGIN")
   try {
     if (orgId !== null) await app.query("SELECT set_config('app.current_org_id', $1, true)", [orgId])
@@ -87,9 +83,7 @@ afterAll(async () => {
 describe("audit-log partitions", () => {
   it("the app role makes a month partition through the function, idempotently", async () => {
     const first = await app.query<{ name: string }>("SELECT ensure_audit_log_partition($1) AS name", [IN_PARTITION])
-    const again = await app.query<{ name: string }>("SELECT ensure_audit_log_partition($1) AS name", [
-      "2099-03-31T23:59:59Z",
-    ])
+    const again = await app.query<{ name: string }>("SELECT ensure_audit_log_partition($1) AS name", ["2099-03-31T23:59:59Z"])
     expect(first.rows[0]?.name).toBe(PARTITION)
     expect(again.rows[0]?.name).toBe(PARTITION)
   })
@@ -111,9 +105,7 @@ describe("audit-log partitions", () => {
   it("a row lands in its month and is invisible to another tenant — through the parent or the partition", async () => {
     await insert(orgs.acme, IN_PARTITION)
 
-    const own = await asTenant(orgs.acme, `SELECT tableoid::regclass::text AS part FROM "AuditLog" WHERE "orgId" = $1`, [
-      orgs.acme,
-    ])
+    const own = await asTenant(orgs.acme, `SELECT tableoid::regclass::text AS part FROM "AuditLog" WHERE "orgId" = $1`, [orgs.acme])
     expect(own).toEqual([{ part: `"${PARTITION}"` }])
 
     for (const sql of [`SELECT id FROM "AuditLog"`, `SELECT id FROM "${PARTITION}"`]) {

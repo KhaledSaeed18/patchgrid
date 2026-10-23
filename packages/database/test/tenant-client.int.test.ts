@@ -57,7 +57,13 @@ const globex = { id: "", slug: `globex-${suffix}` }
 beforeAll(async () => {
   owner = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
   base = createPrismaClient({ connectionString: requireEnv("DATABASE_URL"), maxConnections: 1 })
-  db = withTenantIsolation(base, () => store.getStore(), () => { opened += 1 })
+  db = withTenantIsolation(
+    base,
+    () => store.getStore(),
+    () => {
+      opened += 1
+    },
+  )
 
   for (const org of [acme, globex]) {
     const created = await owner.organization.create({ data: { name: org.slug, slug: org.slug } })
@@ -89,9 +95,9 @@ describe("tenant client extension", () => {
   })
 
   it("refuses to write a row into another tenant", async () => {
-    await expect(
-      asTenant(acme.id, () => db.team.create({ data: { orgId: globex.id, name: "Planted" } })),
-    ).rejects.toThrow(/row-level security/)
+    await expect(asTenant(acme.id, () => db.team.create({ data: { orgId: globex.id, name: "Planted" } }))).rejects.toThrow(
+      /row-level security/,
+    )
   })
 
   it("does not leak the tenant setting past its transaction on a pooled connection", async () => {
@@ -115,13 +121,15 @@ describe("tenant client extension", () => {
   })
 
   it("passes through inside a tenant transaction instead of nesting one", async () => {
-    const names = await store.run({ orgId: acme.id, inTransaction: true }, async () =>
-      await tenantTransaction(db, acme.id, async (tx) => {
-        const before = await tx.team.findMany()
-        await tx.team.create({ data: { orgId: acme.id, name: `Network ${suffix}` } })
-        const after = await tx.team.findMany()
-        return { before: before.length, after: after.length, orgs: new Set(after.map((t) => t.orgId)) }
-      }),
+    const names = await store.run(
+      { orgId: acme.id, inTransaction: true },
+      async () =>
+        await tenantTransaction(db, acme.id, async (tx) => {
+          const before = await tx.team.findMany()
+          await tx.team.create({ data: { orgId: acme.id, name: `Network ${suffix}` } })
+          const after = await tx.team.findMany()
+          return { before: before.length, after: after.length, orgs: new Set(after.map((t) => t.orgId)) }
+        }),
     )
     expect(names).toEqual({ before: 1, after: 2, orgs: new Set([acme.id]) })
   })
@@ -131,8 +139,9 @@ describe("tenant client extension", () => {
     await asTenant(acme.id, () => db.team.findMany())
     await asTenant(acme.id, () => db.team.count())
     await db.organization.findMany({ where: { id: acme.id } })
-    await store.run({ orgId: acme.id, inTransaction: true }, async () =>
-      await tenantTransaction(db, acme.id, async (tx) => await tx.team.findMany()),
+    await store.run(
+      { orgId: acme.id, inTransaction: true },
+      async () => await tenantTransaction(db, acme.id, async (tx) => await tx.team.findMany()),
     )
     expect(opened - before).toBe(2)
   })
