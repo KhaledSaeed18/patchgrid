@@ -7,7 +7,7 @@ import { ZipFile } from "yazl"
 
 import { PrismaService } from "../prisma/prisma.service"
 import { StorageService } from "../storage/storage.service"
-import { EXPORT_PAGE, type ExportAttachment, ExportReaderRepository } from "./repositories/export-reader.repository"
+import { EXPORT_PAGE, ExportReaderRepository } from "./repositories/export-reader.repository"
 
 /**
  * Builds one export's zip (ADR-0044), streamed into storage as it is made,
@@ -18,7 +18,8 @@ import { EXPORT_PAGE, type ExportAttachment, ExportReaderRepository } from "./re
  *
  * yazl writes the archive one entry at a time and pulls each entry's stream
  * only when it gets to it, so a page is read when the zip needs it and an
- * attachment is opened when its turn comes. It uses ZIP64 wherever the
+ * attachment is opened when its turn comes. The files themselves are listed
+ * a page at a time too, the next page once the zip has written the last. It uses ZIP64 wherever the
  * sizes or the entry count need it. The output is piped into the upload, so
  * backpressure is the stream's own, and a failed upload rejects the pipeline
  * instead of leaving a writer waiting for a drain that never comes.
@@ -62,39 +63,63 @@ export class ExportBuilder {
       )
     }
 
-    // The files' list is read up front — a row per file, not its bytes — so each gets its entry.
-    const attachments: ExportAttachment[] = []
-    let after: string | null = null
-    do {
-      const page = await this.prisma.transaction(() => this.reader.attachments(orgId, after))
-      attachments.push(...page)
-      after = page.length === EXPORT_PAGE ? (page.at(-1)?.id ?? null) : null
-    } while (after !== null)
+    // The upload runs from here on: the files below are listed a page at a time, as the zip reaches them.
+    const { stream, done } = this.storage.uploadStream(storageKey, "application/zip")
+    const upload = Promise.all([pipeline(zip.outputStream, stream), done]).then(([, sizeBytes]) => sizeBytes)
+    // Settled the moment the upload fails, so a page waiting on the zip never waits for ever.
+    const failed = upload.then(
+      () => new Promise<never>(() => undefined),
+      (error: unknown) => Promise.reject(error instanceof Error ? error : new Error(String(error))),
+    )
+    // Its rejection is seen through `upload`; this copy only ends a wait.
+    failed.catch(() => undefined)
 
     const manifest: string[] = []
-    for (const { storageKey: key, ...attachment } of attachments) {
-      const path = `attachments/${attachment.id}/${safeName(attachment.filename)}`
-      const storage = this.storage
-      zip.addReadStream(
-        Readable.from(
-          (async function* () {
-            const body = await storage.openRead(key)
-            if (body === null) {
-              manifest.push(`${JSON.stringify({ ...attachment, path: null, missing: true }, plain)}\n`)
-              return
-            }
-            const hash = createHash("sha256")
-            for await (const chunk of body) {
-              const bytes = chunk instanceof Uint8Array ? chunk : Buffer.from(String(chunk))
-              hash.update(bytes)
-              yield bytes
-            }
-            manifest.push(`${JSON.stringify({ ...attachment, path, sha256: hash.digest("hex") }, plain)}\n`)
-          })(),
-        ),
-        path,
-        { compress: false },
-      )
+    try {
+      let after: string | null = null
+      do {
+        const page = await this.prisma.transaction(() => this.reader.attachments(orgId, after))
+        let pageStreamed = (): void => undefined
+        const streamed = new Promise<void>((resolve) => (pageStreamed = resolve))
+        for (const [i, { storageKey: key, ...attachment }] of page.entries()) {
+          const path = `attachments/${attachment.id}/${safeName(attachment.filename)}`
+          const storage = this.storage
+          const last = i === page.length - 1
+          zip.addReadStream(
+            Readable.from(
+              (async function* () {
+                try {
+                  const body = await storage.openRead(key)
+                  if (body === null) {
+                    manifest.push(`${JSON.stringify({ ...attachment, path: null, missing: true }, plain)}\n`)
+                    return
+                  }
+                  const hash = createHash("sha256")
+                  for await (const chunk of body) {
+                    const bytes = chunk instanceof Uint8Array ? chunk : Buffer.from(String(chunk))
+                    hash.update(bytes)
+                    yield bytes
+                  }
+                  manifest.push(`${JSON.stringify({ ...attachment, path, sha256: hash.digest("hex") }, plain)}\n`)
+                } finally {
+                  if (last) pageStreamed()
+                }
+              })(),
+            ),
+            path,
+            { compress: false },
+          )
+        }
+        after = page.length === EXPORT_PAGE ? (page.at(-1)?.id ?? null) : null
+        // The next page is read once the zip has written this one: one page of rows in memory, never the list.
+        if (page.length > 0 && after !== null) await Promise.race([streamed, failed])
+      } while (after !== null)
+    } catch (error) {
+      zip.end()
+      stream.destroy()
+      await done.catch(() => undefined)
+      await this.storage.remove(storageKey).catch(() => undefined)
+      throw error
     }
 
     // Entries are written in order, so by the time these are read every file above has been streamed.
@@ -121,10 +146,8 @@ export class ExportBuilder {
     )
     zip.end()
 
-    const { stream, done } = this.storage.uploadStream(storageKey, "application/zip")
     try {
-      const [, sizeBytes] = await Promise.all([pipeline(zip.outputStream, stream), done])
-      return { storageKey, sizeBytes }
+      return { storageKey, sizeBytes: await upload }
     } catch (error) {
       // Ends the pipeline too, whichever side failed first.
       stream.destroy()

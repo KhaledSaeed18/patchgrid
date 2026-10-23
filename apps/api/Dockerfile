@@ -44,7 +44,15 @@ CMD ["pnpm", "run", "migrate:deploy"]
 FROM base AS runtime
 ENV NODE_ENV=production
 COPY --from=prune /repo/out/json/ .
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --prod
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --prod \
+ # @prisma/client's optional peers — the Prisma CLI, which brings Studio, an
+ # embedded Postgres, effect and Prettier, and TypeScript — come in with the
+ # production install because the lockfile resolves them for the build. The
+ # runtime needs none of them: the client is generated at build time and runs
+ # on the pg adapter. Over 200 MB of the image (HANDOFF, M13).
+ && cd node_modules/.pnpm \
+ && rm -rf prisma@* @prisma+studio-core@* @prisma+dev@* @prisma+engines@* @electric-sql+pglite@* \
+           effect@* prettier@* typescript@*
 # What dist requires at runtime: the packages' sources and the generated
 # client. Only those — the build stage's node_modules would overwrite the
 # production install's.
