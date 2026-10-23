@@ -52,7 +52,6 @@ const METRIC: Record<Usage["metrics"][number]["metric"], string> = {
   AGENT_SEATS: "Agent seats",
   TICKETS_CREATED: "Tickets this month",
   STORAGE_BYTES: "Attachment storage",
-  AUTOMATION_RULES: "Automation rules",
   KB_ARTICLES: "Knowledge articles",
   API_TOKENS: "API tokens",
 }

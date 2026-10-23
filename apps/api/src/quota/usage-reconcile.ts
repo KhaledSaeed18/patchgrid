@@ -22,9 +22,6 @@ export type Recount = { metric: UsageMetric; counted: bigint; stored: bigint; re
  * cumulative — a ticket is never uncreated — so a difference there is
  * reported, not rewritten. Every counter moves with its row in one
  * transaction, so any drift is a bug, and is logged as one.
- *
- * Automation rules have no rows to count until M7; their counter is left as
- * it is.
  */
 @Injectable()
 export class UsageReconcileService {

@@ -4,7 +4,7 @@ import { z } from "zod"
 /**
  * What happened, as the outbox carries it (ADR-0018, ADR-0049): ids only,
  * never entities, so the consumer reads the ticket as it is when it runs.
- * `actorMembershipId` is `null` for the system — a sweep, an automation.
+ * `actorMembershipId` is `null` for the system — a sweep.
  */
 const actor = idSchema.nullable()
 /**

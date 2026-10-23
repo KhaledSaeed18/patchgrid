@@ -70,7 +70,7 @@ export type TicketSource = z.infer<typeof ticketSourceSchema>
 export const commentVisibilitySchema = z.enum(["PUBLIC", "INTERNAL"])
 export type CommentVisibility = z.infer<typeof commentVisibilitySchema>
 
-export const commentAuthorKindSchema = z.enum(["MEMBER", "SERVICE", "SYSTEM", "AUTOMATION"])
+export const commentAuthorKindSchema = z.enum(["MEMBER", "SERVICE", "SYSTEM"])
 export type CommentAuthorKind = z.infer<typeof commentAuthorKindSchema>
 
 /**
