@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { FixedClock } from "../common/clock/clock"
 import { PlanLimitProblem } from "../common/problems/problem.exception"
 import { holdsSeat, QuotaService } from "./quota.service"
+import type { Outbox } from "../events/outbox"
 import type { UsageCounterRepository } from "./repositories/usage-counter.repository"
 
 /** An in-memory counter table that applies the same conditional writes the SQL does. */
@@ -37,8 +38,10 @@ function harness(plan: Plan, start: Partial<Record<string, bigint>> = {}) {
       return { metric, period, value }
     }),
   }
-  const service = new QuotaService(repo as unknown as UsageCounterRepository, new FixedClock(new Date("2026-10-09T12:00:00Z")))
-  return { service, values }
+  const appended: { type: string; payload: Record<string, unknown> }[] = []
+  const outbox = { append: async (_o: string, events: { type: string; payload: Record<string, unknown> }[]) => void appended.push(...events) }
+  const service = new QuotaService(repo as unknown as UsageCounterRepository, outbox as unknown as Outbox, new FixedClock(new Date("2026-10-09T12:00:00Z")))
+  return { service, values, appended }
 }
 
 beforeEach(() => {
@@ -51,6 +54,27 @@ describe("QuotaService", () => {
     await service.consume("o-1", "AGENT_SEATS")
     await expect(service.consume("o-1", "AGENT_SEATS")).rejects.toBeInstanceOf(PlanLimitProblem)
     expect(values.get("AGENT_SEATS@current")).toBe(3n)
+  })
+
+  it("says the limit was reached once, from the consume that crossed it", async () => {
+    const { service, appended } = harness("FREE", { "AGENT_SEATS@current": 1n })
+    await service.consume("o-1", "AGENT_SEATS")
+    expect(appended).toEqual([])
+    await service.consume("o-1", "AGENT_SEATS")
+    expect(appended).toEqual([
+      { type: "plan-limit-reached", payload: { kind: "plan-limit-reached", metric: "AGENT_SEATS", period: "current", plan: "FREE", limit: 3, message: "The FREE plan's agent seats are all in use" } },
+    ])
+    await expect(service.consume("o-1", "AGENT_SEATS")).rejects.toBeInstanceOf(PlanLimitProblem)
+    expect(appended).toHaveLength(1)
+  })
+
+  it("calls storage full once the largest file no longer fits, and an unlimited metric never", async () => {
+    const free = harness("FREE", { "STORAGE_BYTES@current": BigInt(1024 ** 3 - 11 * 1024 * 1024) })
+    await free.service.consume("o-1", "STORAGE_BYTES", 2 * 1024 * 1024)
+    expect(free.appended.map((e) => e.payload.metric)).toEqual(["STORAGE_BYTES"])
+    const pro = harness("PRO", { "KB_ARTICLES@current": 1000n })
+    await pro.service.consume("o-1", "KB_ARTICLES")
+    expect(pro.appended).toEqual([])
   })
 
   it("counts tickets per UTC month, and treats an unlimited metric as unlimited", async () => {

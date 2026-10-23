@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common"
 import {
   limitFor,
+  limitReachedAt,
   type MembershipKind,
   type MembershipStatus,
   type Role,
@@ -11,6 +12,7 @@ import {
 } from "@patchgrid/contracts"
 
 import { type Clock, InjectClock } from "../common/clock/clock"
+import { Outbox } from "../events/outbox"
 import { NotFoundProblem, PlanLimitProblem } from "../common/problems/problem.exception"
 import { recordQuotaRejection } from "../telemetry/metrics"
 import { UsageCounterRepository } from "./repositories/usage-counter.repository"
@@ -26,6 +28,11 @@ export function holdsSeat(member: { role: Role; status: MembershipStatus; kind: 
  * transaction back with the row that did not fit, and a release commits with
  * the change that freed the unit. Postgres is the source of truth; nothing
  * here reads a cache before deciding.
+ *
+ * The consume that takes usage across the line where a limit counts as
+ * reached writes a `plan-limit-reached` event in the same transaction, so the
+ * admins and owners hear of it once per crossing (DOMAIN.md §8). A refused
+ * consume cannot: its transaction rolls back, event and all.
  */
 @Injectable()
 export class QuotaService {
@@ -33,6 +40,7 @@ export class QuotaService {
 
   constructor(
     private readonly counters: UsageCounterRepository,
+    private readonly outbox: Outbox,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -40,10 +48,18 @@ export class QuotaService {
     const plan = await this.counters.planOf(orgId)
     if (plan === null) throw new NotFoundProblem()
     const period = usagePeriod(metric, this.clock.now())
+    const limit = limitFor(plan, metric)
     await this.counters.ensure(orgId, period, metric)
-    if (!(await this.counters.increment(orgId, period, metric, amount, limitFor(plan, metric)))) {
+    if (!(await this.counters.increment(orgId, period, metric, amount, limit))) {
       recordQuotaRejection(orgId, metric)
       throw new PlanLimitProblem(metric, limitMessage(metric, plan))
+    }
+    if (limit === null) return
+    // Read under the row lock the increment took: no other consume moved it in between.
+    const after = await this.counters.read(orgId, period, metric)
+    const line = BigInt(limitReachedAt(metric, limit))
+    if (after - BigInt(amount) < line && after >= line) {
+      await this.outbox.append(orgId, [{ type: PLAN_LIMIT_REACHED, payload: { kind: PLAN_LIMIT_REACHED, metric, period, plan, limit, message: limitMessage(metric, plan) } }])
     }
   }
 
@@ -81,6 +97,9 @@ export class QuotaService {
     }
   }
 }
+
+/** The outbox event a limit reached is (DOMAIN.md §8); the `notify` consumer tells the admins and owners. */
+export const PLAN_LIMIT_REACHED = "plan-limit-reached"
 
 function limitMessage(metric: UsageMetric, plan: string): string {
   switch (metric) {

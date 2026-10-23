@@ -365,7 +365,7 @@ different behaviour in each.
 | Ticket created | Requester (confirmation — email only, since they are looking at it), team (in-app only) |
 | Ticket raised on your behalf by an agent | Requester (email + in-app), named agent shown |
 | Invited to the organization | Invitee (email only) |
-| Plan limit reached (tickets, seats, storage) | Org admins and owners |
+| Plan limit reached (tickets, seats, storage, articles) — written by the create that reaches it; storage is "reached" once the largest file no longer fits | Org admins and owners |
 | Assigned | New assignee |
 | Public comment | Requester (if author ≠ requester), assignee (if author ≠ assignee), watchers |
 | Internal note | Assignee (if author ≠ assignee) |

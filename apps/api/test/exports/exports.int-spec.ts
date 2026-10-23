@@ -129,7 +129,7 @@ describe("retention", () => {
       data: { orgId: ws.orgId, userId: ws.people.agent.userId, membershipId: ws.people.agent.membershipId, type: "TICKET_ASSIGNED", ticketId, dedupeKey: "old", title: "Old", createdAt: new Date(Date.now() - 91 * 86_400_000) },
     })
     const swept = await app.get(RetentionSweepProcessor).process({ id: "retention/test", data: { orgId: ws.orgId, tick: 1 } } as unknown as Job)
-    expect(swept).toEqual({ notifications: 1, exports: 1, deliveries: 0, events: 0 })
+    expect(swept).toEqual({ notifications: 1, exports: 1, deliveries: 0, events: 0, audit: 0 })
     expect(await storage.size(key)).toBeNull()
     expect((await as("owner").get("/org/exports")).body[0]).toMatchObject({ status: "EXPIRED" })
     expect((await as("owner").get(`/org/exports/${exportId}/download`)).status).toBe(409)

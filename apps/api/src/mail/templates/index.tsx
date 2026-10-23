@@ -15,6 +15,7 @@ import { PlatformSecurity, platformSecuritySubject } from "./platform-security"
 import { SupportAccess, supportSubject } from "./support-access"
 import { TicketNotification } from "./ticket-notification"
 import { VerifyEmail } from "./verify-email"
+import { PlanLimitReached, planLimitReachedSubject } from "./plan-limit-reached"
 import { WebhookDisabled, webhookDisabledSubject } from "./webhook-disabled"
 
 /**
@@ -96,6 +97,11 @@ export const MAIL_KINDS = {
     subject: apiTokenExpiringSubject,
     component: ApiTokenExpiring,
   },
+  "plan-limit-reached": {
+    params: z.object({ orgName: z.string(), headline: z.string().max(200), usageUrl: url, preferencesUrl: url }),
+    subject: planLimitReachedSubject,
+    component: PlanLimitReached,
+  },
   "webhook-disabled": {
     params: z.object({
       orgName: z.string(),
@@ -166,6 +172,7 @@ export const mailJobSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("support-access"), ...envelope, params: MAIL_KINDS["support-access"].params }),
   z.object({ kind: z.literal("api-token-expiring"), ...envelope, params: MAIL_KINDS["api-token-expiring"].params }),
   z.object({ kind: z.literal("webhook-disabled"), ...envelope, params: MAIL_KINDS["webhook-disabled"].params }),
+  z.object({ kind: z.literal("plan-limit-reached"), ...envelope, params: MAIL_KINDS["plan-limit-reached"].params }),
   z.object({ kind: z.literal("org-deletion"), ...envelope, params: MAIL_KINDS["org-deletion"].params }),
   z.object({ kind: z.literal("export-ready"), ...envelope, params: MAIL_KINDS["export-ready"].params }),
   z.object({ kind: z.literal("account-erased"), ...envelope, params: MAIL_KINDS["account-erased"].params }),
@@ -209,6 +216,8 @@ function elementFor(job: MailJob): ReactElement {
       return <ApiTokenExpiring {...job.params} />
     case "webhook-disabled":
       return <WebhookDisabled {...job.params} />
+    case "plan-limit-reached":
+      return <PlanLimitReached {...job.params} />
     case "org-deletion":
       return <OrgDeletion {...job.params} />
     case "export-ready":
@@ -234,6 +243,8 @@ function subjectFor(job: MailJob): string {
       return MAIL_KINDS["api-token-expiring"].subject(job.params)
     case "webhook-disabled":
       return MAIL_KINDS["webhook-disabled"].subject(job.params)
+    case "plan-limit-reached":
+      return MAIL_KINDS["plan-limit-reached"].subject(job.params)
     case "org-deletion":
       return MAIL_KINDS["org-deletion"].subject(job.params)
     case "export-ready":

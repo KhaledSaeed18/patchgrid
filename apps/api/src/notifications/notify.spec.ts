@@ -34,7 +34,9 @@ const person = (id: string, role: Person["role"], teamIds: string[] = []): Perso
   active: true,
 })
 
-function harness(circle: TicketCircle | null) {
+type Stewards = { org: { name: string; slug: string; emailEnabled: boolean }; people: Person[] }
+
+function harness(circle: TicketCircle | null, stewards: Stewards | null = null) {
   vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined)
   const written: NewNotification[] = []
   const notifications = {
@@ -58,7 +60,7 @@ function harness(circle: TicketCircle | null) {
   const order: string[] = []
   const mail = { enqueueAll: vi.fn(async (mails: { job: MailJob; entityId: string }[]) => void order.push(`mail:${String(mails.length)}`)) }
   const service = new NotifyService(
-    { load: vi.fn(async () => circle) } as unknown as TicketCircleRepository,
+    { load: vi.fn(async () => circle), stewards: vi.fn(async () => stewards) } as unknown as TicketCircleRepository,
     notifications as unknown as NotificationRepository,
     new TicketAudience(new PermissionService()),
     mail as unknown as MailService,
@@ -186,6 +188,30 @@ describe("NotifyConsumer", () => {
     await h.consumer.handle(ORG, [{ id: "e-x", txn: 1n, type: "webhook-only", payload: {}, occurredAt: NOW }])
     expect(h.notifications.addMany).not.toHaveBeenCalled()
     await expect(h.consumer.handle(ORG, [{ id: "e-y", txn: 2n, type: "ticket-created", payload: { ticketId: 7 }, occurredAt: NOW }])).rejects.toThrow()
+  })
+
+  it("tells the workspace's admins and owners a plan limit was reached, folded per metric and period", async () => {
+    const admin = person(M("m-admin"), "ADMIN")
+    const owner = { ...person(M("m-owner"), "OWNER"), emailPrefs: { PLAN_LIMIT_REACHED: false } }
+    const h = harness(null, { org: { name: "Acme", slug: "acme", emailEnabled: true }, people: [admin, owner] })
+    const event: StoredEvent = {
+      id: "e-limit",
+      txn: 9n,
+      type: "plan-limit-reached",
+      payload: { kind: "plan-limit-reached", metric: "AGENT_SEATS", period: "current", plan: "FREE", limit: 3, message: "The FREE plan's agent seats are all in use" },
+      occurredAt: NOW,
+    }
+    const after = await h.consumer.handle(ORG, [event])
+    expect(h.written).toEqual([
+      { userId: `u-${M("m-admin")}`, membershipId: M("m-admin"), type: "PLAN_LIMIT_REACHED", title: "The FREE plan's agent seats are all in use", body: null, ticketId: null, dedupeKey: "plan-limit:AGENT_SEATS:current" },
+      { userId: `u-${M("m-owner")}`, membershipId: M("m-owner"), type: "PLAN_LIMIT_REACHED", title: "The FREE plan's agent seats are all in use", body: null, ticketId: null, dedupeKey: "plan-limit:AGENT_SEATS:current" },
+    ])
+    // The owner turned this email off; the admin did not.
+    expect(h.mail.enqueueAll).toHaveBeenCalledWith([
+      expect.objectContaining({ entityId: `e-limit-${M("m-admin")}`, job: expect.objectContaining({ kind: "plan-limit-reached", to: `${M("m-admin")}@example.test`, params: expect.objectContaining({ usageUrl: "http://acme.lvh.me:3001/settings" }) }) }),
+    ])
+    await after()
+    expect(h.bus.publish).toHaveBeenCalledTimes(2)
   })
 
   it("registers itself as the notify consumer", () => {

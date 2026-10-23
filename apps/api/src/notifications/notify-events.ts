@@ -1,4 +1,4 @@
-import { commentVisibilitySchema, idSchema, ticketStatusSchema } from "@patchgrid/contracts"
+import { commentVisibilitySchema, idSchema, planSchema, ticketStatusSchema, usageMetricSchema } from "@patchgrid/contracts"
 import { z } from "zod"
 
 /**
@@ -47,3 +47,16 @@ export const notifyEventSchema = z.discriminatedUnion("kind", [
 ])
 export type NotifyEvent = z.infer<typeof notifyEventSchema>
 
+/**
+ * A plan limit reached (DOMAIN.md §8), written by the consume that crossed it
+ * (`QuotaService`). About the workspace, not a ticket: its stewards hear.
+ */
+export const planLimitEventSchema = z.object({
+  kind: z.literal("plan-limit-reached"),
+  metric: usageMetricSchema,
+  period: z.string(),
+  plan: planSchema,
+  limit: z.number(),
+  message: z.string().max(200),
+})
+export type PlanLimitEvent = z.infer<typeof planLimitEventSchema>

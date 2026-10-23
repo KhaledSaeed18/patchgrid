@@ -1,4 +1,4 @@
-import type { EmailPrefs, Role } from "@patchgrid/contracts"
+import { type EmailPrefs, notificationTypeSchema, type Role } from "@patchgrid/contracts"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ActorService, TenantActor } from "../auth/actor"
@@ -85,7 +85,8 @@ describe("NotificationsService", () => {
     const read = await h.service.readPreferences()
     expect(read.emailEnabledForOrg).toBe(false)
     expect(read.email.SLA_WARNING).toBe(false)
-    expect(Object.values(read.email).filter((on) => on)).toHaveLength(12)
+    // Every type but the one turned off.
+    expect(Object.values(read.email).filter((on) => on)).toHaveLength(notificationTypeSchema.options.length - 1)
     expect(h.prefs.read).toHaveBeenCalledWith("o-1", "m-1")
   })
 
