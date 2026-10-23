@@ -15,7 +15,7 @@ import { RevocationEpochService } from "../auth/revocation/revocation-epoch.serv
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
-import { ConflictProblem, NotFoundProblem, ServiceUnavailableProblem, ValidationProblem } from "../common/problems/problem.exception"
+import { ConflictProblem, NotFoundProblem, ServiceUnavailableProblem, SsoMembersOutsideProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { PublicUrls } from "../common/urls"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
 import { RefreshTokenRepository } from "../platform/repositories/refresh-token.repository"
@@ -211,8 +211,8 @@ export class SsoSettingsService {
         // A soft block: say who would be shut out, and go ahead only when the owner confirms it.
         const outside = await this.memberships.countOffDomain(orgId, org.domain)
         if (outside > 0 && request.confirm !== true) {
-          throw new ConflictProblem(
-            `${String(outside)} ${outside === 1 ? "member below owner has an address" : "members below owner have addresses"} outside ${org.domain}. The identity provider cannot sign them in, so requiring SSO shuts them out. Send confirm to require it anyway.`,
+          throw new SsoMembersOutsideProblem(
+            `${String(outside)} ${outside === 1 ? "member below owner has an address" : "members below owner have addresses"} outside ${org.domain}. The identity provider cannot sign them in, so requiring SSO shuts them out.`,
           )
         }
       }

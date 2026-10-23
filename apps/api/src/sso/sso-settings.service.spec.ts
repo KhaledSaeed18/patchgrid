@@ -11,6 +11,7 @@ import {
   ConflictProblem,
   NotPermittedProblem,
   ServiceUnavailableProblem,
+  SsoMembersOutsideProblem,
   StepUpRequiredProblem,
   ValidationProblem,
 } from "../common/problems/problem.exception"
@@ -268,6 +269,7 @@ describe("SsoSettingsService: the requirement", () => {
 
   it("asks for confirmation when members below owner have addresses off the domain", async () => {
     const h = harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, connection: {}, offDomain: 3 })
+    await expect(h.service.setRequirement({ required: true })).rejects.toBeInstanceOf(SsoMembersOutsideProblem)
     await expect(h.service.setRequirement({ required: true })).rejects.toThrow(/3 members below owner/)
     expect(h.audit).toEqual([])
     expect((await h.service.setRequirement({ required: true, confirm: true })).required).toBe(true)

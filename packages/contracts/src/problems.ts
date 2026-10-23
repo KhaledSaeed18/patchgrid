@@ -34,6 +34,8 @@ export const PROBLEM_TYPES = {
   "invalid-transition": { status: 409, title: "Invalid transition" },
   "stale-write": { status: 409, title: "Stale write" },
   "change-window-early": { status: 409, title: "Change window has not opened" },
+  /** Requiring SSO would shut out members whose addresses the provider cannot vouch for; retry with `confirm: true` (ADR-0054). */
+  "sso-members-outside": { status: 409, title: "Members outside the domain" },
   conflict: { status: 409, title: "Conflict" },
   "rate-limited": { status: 429, title: "Rate limited" },
   "internal-error": { status: 500, title: "Internal error" },

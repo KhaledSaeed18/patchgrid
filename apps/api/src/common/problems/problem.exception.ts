@@ -86,6 +86,13 @@ export class SsoRequiredProblem extends ProblemException {
   }
 }
 
+/** A soft block: requiring SSO would shut these members out; the owner confirms or leaves it off (ADR-0054). */
+export class SsoMembersOutsideProblem extends ProblemException {
+  constructor(detail: string) {
+    super("sso-members-outside", detail)
+  }
+}
+
 /** An SSO session reached past the workspace whose identity provider started it (ADR-0054). */
 export class SsoSessionScopedProblem extends ProblemException {
   constructor(detail = "This session came from another workspace's single sign-on; sign in with your Patchgrid credentials") {

@@ -265,7 +265,7 @@ describe("SSO required", () => {
     // The seeded agent's address is not at the domain: the provider can never sign them in, so it asks first.
     const asked = await owner.put("/org/sso/requirement", { required: true })
     expect(asked.status).toBe(409)
-    expect(asked.body.detail).toMatch(/outside/)
+    expect(asked.body.type).toMatch(/sso-members-outside$/)
     const required = await owner.put("/org/sso/requirement", { required: true, confirm: true })
     expect(required.status).toBe(200)
     expect(required.body.required).toBe(true)
