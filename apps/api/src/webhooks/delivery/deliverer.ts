@@ -8,7 +8,7 @@ import { afterFailure, afterSuccess, nextDelayMs, waitForCircuit } from "../doma
 import { signatureHeaders } from "../domain/signature"
 import { WebhookRepository } from "../repositories/webhook.repository"
 import { WebhookSecrets } from "../webhook-secrets"
-import { BlockedTargetError, describeFailure, postSafely, type SafeResponse } from "./safe-request"
+import { BlockedTargetError, describeFailure, postSafely, type SafeResponse } from "../../common/http/safe-request"
 
 /** Long enough for the request's whole timeout and the bookkeeping either side of it. */
 const CLAIM_LEASE_MS = 60_000
