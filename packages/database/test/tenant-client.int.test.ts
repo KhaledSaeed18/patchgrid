@@ -48,6 +48,7 @@ function asTenant<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
 let owner: PrismaClient
 let base: PrismaClient
 let db: TenantPrismaClient
+let opened = 0
 
 const suffix = randomUUID().slice(0, 8)
 const acme = { id: "", slug: `acme-${suffix}` }
@@ -56,7 +57,7 @@ const globex = { id: "", slug: `globex-${suffix}` }
 beforeAll(async () => {
   owner = createPrismaClient({ connectionString: requireEnv("DATABASE_MIGRATION_URL") })
   base = createPrismaClient({ connectionString: requireEnv("DATABASE_URL"), maxConnections: 1 })
-  db = withTenantIsolation(base, () => store.getStore())
+  db = withTenantIsolation(base, () => store.getStore(), () => { opened += 1 })
 
   for (const org of [acme, globex]) {
     const created = await owner.organization.create({ data: { name: org.slug, slug: org.slug } })
@@ -123,6 +124,17 @@ describe("tenant client extension", () => {
       }),
     )
     expect(names).toEqual({ before: 1, after: 2, orgs: new Set([acme.id]) })
+  })
+
+  it("reports each transaction it opens, and none for platform models or inside a transaction", async () => {
+    const before = opened
+    await asTenant(acme.id, () => db.team.findMany())
+    await asTenant(acme.id, () => db.team.count())
+    await db.organization.findMany({ where: { id: acme.id } })
+    await store.run({ orgId: acme.id, inTransaction: true }, async () =>
+      await tenantTransaction(db, acme.id, async (tx) => await tx.team.findMany()),
+    )
+    expect(opened - before).toBe(2)
   })
 })
 

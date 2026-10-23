@@ -33,7 +33,7 @@ export class NotificationPreferencesRepository {
    */
   async merge(orgId: string, membershipId: string, patch: EmailPrefs): Promise<{ prefs: EmailPrefs; orgEnabled: boolean } | null> {
     return this.prisma.transaction(async () => {
-      const [row] = await this.prisma.db.$queryRaw<{ emailPrefs: unknown }[]>`
+      const [row] = await this.prisma.tx.$queryRaw<{ emailPrefs: unknown }[]>`
         UPDATE "Membership"
         SET "emailPrefs" = "emailPrefs" || ${JSON.stringify(patch)}::jsonb
         WHERE "orgId" = ${orgId}::uuid AND "id" = ${membershipId}::uuid

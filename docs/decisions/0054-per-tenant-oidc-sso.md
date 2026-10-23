@@ -38,6 +38,13 @@
 >    `max_age=0`; one that ignores it answers `stale` every time, and its members confirm by signing in
 >    with Patchgrid credentials instead.
 
+> **Erratum (2026-10-23, after the M13 boundary).** Google's `hd` is checked; item 8's "not checked" no
+> longer holds for Google. `https://accounts.google.com` is one issuer for every Google account, and an
+> unmanaged account made with an address at the domain gets `email_verified` too. For that issuer the
+> callback requires `hd` to equal the proved domain, and the authorization request sends `hd` as a hint
+> (`apps/api/src/sso/hosted-domain.ts`). Other issuers are still assumed to be the workspace's own. The
+> settings page states what a provider must do: send `email_verified`, honour `max_age=0`.
+
 - **Builds on:** [0024](0024-per-tenant-cookies-and-api-tenant-resolution.md), [0031](0031-identity-flow-hardening.md),
   [0045](0045-member-mfa-as-built.md), [0050](0050-outbound-webhooks.md) (SSRF), [0053](0053-passkeys.md); M13 in
   [0048](0048-roadmap-after-m10.md)

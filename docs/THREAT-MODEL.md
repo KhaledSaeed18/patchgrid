@@ -117,7 +117,7 @@ The boundary that matters most is not drawn as an arrow: **tenant ↔ tenant ins
 | E      | A new table ships without a policy, grant or composite key                                         | Schema-introspection assertions in CI                                                                                         | isolation #7, #10, #11 · M1           |
 | E      | `runAsPlatform` used to read tenant content                                                        | It carries no tenant context, so tenant tables return zero rows; imports restricted by module                                 | ESLint (M0) · call-site test M1       |
 | E      | A projection (`UserOrgIndex`) used to authorize                                                    | Columns named `roleForDisplay`; repository exposes only `listWorkspacesForUser()`; stale-projection test                      | authz · M1                            |
-| T      | Raw SQL skips the extension                                                                        | Raw SQL only in `packages/database`                                                                                           | ESLint (M0)                           |
+| T      | Raw SQL skips the extension                                                                        | Raw SQL only in `packages/database` and repositories, through `PrismaService.tx`                                              | ESLint (M0)                           |
 
 ### TB5 · API ↔ Redis, BullMQ, SSE
 
@@ -291,6 +291,8 @@ Checked and left as they are, with the reason:
   and a stale presign; a leak, not a bypass. Left for the sweep to learn `storageKey` when it matters.
 - **Raw SQL outside `prisma.transaction()`** runs with no GUC and so returns nothing (fail-closed).
   Every site reads inside a transaction today; a lint is the right fix when a second site appears.
+  *Closed 2026-10-23:* every raw statement on a tenant table reads `PrismaService.tx`, and every lock
+  on a platform row `lockTx`; both throw outside a transaction.
 - **R-1 stands**: a `pg_id` in the wrong hands still opens workspaces; finding 3 narrows what it can
   change, and password reset keeps the factor — email possession must not undo it.
 
@@ -383,10 +385,13 @@ and the SSO form follow the API's answers.
 Checked and left as they are, with the reason:
 
 - **The provider is trusted to be single-tenant for the workspace** (ADR-0054 erratum 8): `email_verified`
-  is believed and Google's `hd` is not checked. Configuring a social or multi-tenant issuer is the
-  workspace owner's error, and the settings page asks for the workspace's own provider.
+  is believed. Configuring a social or multi-tenant issuer is the workspace owner's error, and the
+  settings page asks for the workspace's own provider. *Since 2026-10-23* Google, the one shared issuer
+  a workspace is invited to use, must send an `hd` equal to the proved domain (ADR-0054's second
+  erratum).
 - **Step-up at the provider depends on it honouring `max_age=0`.** One that ignores it answers `stale`;
-  its members confirm with Patchgrid credentials instead.
+  its members confirm with Patchgrid credentials instead. The settings page says so where the issuer is
+  entered.
 - **A passkey assertion counts on any workspace host and `app.`.** One RP ID across the hosts is the
   design (ADR-0053), so script injected on any tenant host could run a ceremony for a visitor. This is
   no wider than the credentialed CORS those hosts already have, and no such injection is known.

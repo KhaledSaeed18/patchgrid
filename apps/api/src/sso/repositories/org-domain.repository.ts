@@ -35,7 +35,7 @@ export class OrgDomainRepository {
 
   /** Locks the row for the transaction: a claim, a proof and the requirement serialise here. */
   async lock(orgId: string): Promise<void> {
-    await this.prisma.db.$executeRaw`SELECT 1 FROM "Organization" WHERE id = ${orgId}::uuid FOR UPDATE`
+    await this.prisma.tx.$executeRaw`SELECT 1 FROM "Organization" WHERE id = ${orgId}::uuid FOR UPDATE`
   }
 
   /** A new claim, unproved; `null` removes the domain. Either way the old proof is gone. */

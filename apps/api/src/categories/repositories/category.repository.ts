@@ -38,7 +38,7 @@ export class CategoryRepository {
 
   /** Serialises changes to the tree, so a move is decided on committed data. */
   async lockTree(orgId: string): Promise<void> {
-    await this.prisma.db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`categories:${orgId}`}))`
+    await this.prisma.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`categories:${orgId}`}))`
   }
 
   async create(

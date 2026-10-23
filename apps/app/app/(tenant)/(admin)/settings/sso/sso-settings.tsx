@@ -262,6 +262,7 @@ function ConnectionSection({ settings, onSaved }: SectionProps) {
                 defaultValue={connection?.issuer ?? ""}
                 required
                 error={fieldError("issuer")}
+                description="Your organisation's own provider, not a public one. It must send email_verified, and honour max_age=0 so members can re-confirm there. With Google, only accounts your Workspace manages can sign in."
               />
               <FormField
                 id="clientId"

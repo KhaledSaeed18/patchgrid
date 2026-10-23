@@ -57,7 +57,7 @@ function harness(options: Options = {}) {
     }),
     exchange: vi.fn(async () => {
       if (options.exchange !== undefined) throw options.exchange
-      return { subject: "sub-1", email: "kim@acme.test", emailVerified: true, name: "Kim", authTime: NOW_S, ...options.identity }
+      return { subject: "sub-1", email: "kim@acme.test", emailVerified: true, name: "Kim", hostedDomain: null, authTime: NOW_S, ...options.identity }
     }),
   }
   const stored = new Map<string, SsoFlow>()
@@ -208,6 +208,23 @@ describe("SsoSignInService.callback", () => {
     expect((await failure(harness({ identity: { emailVerified: false } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
     expect((await failure(harness({ identity: { email: "kim@evil.test" } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
     expect((await failure(harness({ identity: { email: null } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
+  })
+
+  it("trusts Google's shared issuer only for accounts the domain's own Workspace manages", async () => {
+    const google = { issuer: "https://accounts.google.com" }
+    expect((await failure(harness({ connection: google }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
+    expect((await failure(harness({ connection: google, identity: { hostedDomain: "globex.test" } }).service.callback(params, callbackUrl, "s", undefined, client))).code).toBe("email")
+    const ok = await harness({ connection: google, identity: { hostedDomain: "acme.test" } }).service.callback(params, callbackUrl, "s", undefined, client)
+    expect(ok.location).toContain("acme")
+  })
+
+  it("asks Google for the domain's own accounts, and no other provider", async () => {
+    const google = harness({ connection: { issuer: "https://accounts.google.com" } })
+    await google.service.start({ email: "kim@acme.test", intent: "sign-in" })
+    expect(google.oidc.authorizationUrl).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ hostedDomain: "acme.test" }))
+    const own = harness()
+    await own.service.start({ email: "kim@acme.test", intent: "sign-in" })
+    expect(own.oidc.authorizationUrl).toHaveBeenCalledWith(expect.anything(), expect.not.objectContaining({ hostedDomain: expect.anything() }))
   })
 
   it("tells a failed check from an unreachable provider", async () => {

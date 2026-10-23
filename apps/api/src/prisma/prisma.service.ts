@@ -61,8 +61,13 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       onPool: (pool) => observePool(() => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: config.DATABASE_POOL_MAX })),
     })
     // Every tenant-owned query reads the tenant from the request context at
-    // the moment it is awaited, and throws if there is none.
-    this.tenantClient = withTenantIsolation(this.base, () => this.tenantContext.current())
+    // the moment it is awaited, and throws if there is none. A query outside
+    // `transaction()` is a transaction of its own, and counts as one.
+    this.tenantClient = withTenantIsolation(
+      this.base,
+      () => this.tenantContext.current(),
+      () => this.tenantContext.countTransaction(),
+    )
   }
 
   /**
@@ -90,6 +95,21 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     const current = this.tenantContext.current()?.orgId ?? null
     if (open === undefined || current === null || open.orgId !== current) {
       throw new Error("raw SQL on a tenant-owned table runs inside prisma.transaction() for the current tenant")
+    }
+    return open.client
+  }
+
+  /**
+   * The open transaction for the current scope, tenant or platform, or a
+   * thrown programming error. For locks on platform rows: a lock taken outside
+   * a transaction is released by the statement that took it, so it guards
+   * nothing and fails silently.
+   */
+  get lockTx(): TenantTransactionClient {
+    const open = this.cls.isActive() ? this.cls.get("prismaTransaction") : undefined
+    const current = this.tenantContext.current()?.orgId ?? null
+    if (open === undefined || open.orgId !== current) {
+      throw new Error("a lock is taken inside prisma.transaction() for the current scope")
     }
     return open.client
   }

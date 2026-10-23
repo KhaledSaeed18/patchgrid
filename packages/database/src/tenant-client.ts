@@ -52,7 +52,16 @@ function setTenant(client: Pick<PrismaClient, "$queryRaw">, orgId: string) {
   return client.$queryRaw`SELECT set_config('app.current_org_id', ${orgId}, true)`
 }
 
-export function withTenantIsolation(client: PrismaClient, readContext: TenantContextReader) {
+/**
+ * `onTransaction` is told each time the extension opens a transaction of its
+ * own — one per tenant-owned query outside an interactive one — so a caller
+ * counting transactions per request sees the batched ones too.
+ */
+export function withTenantIsolation(
+  client: PrismaClient,
+  readContext: TenantContextReader,
+  onTransaction: () => void = () => {},
+) {
   return client.$extends({
     name: "tenant-isolation",
     query: {
@@ -70,6 +79,7 @@ export function withTenantIsolation(client: PrismaClient, readContext: TenantCon
           // A single operation cannot be redirected onto a transaction client,
           // so the setting and the query go in one batched transaction — the
           // shape the isolation spike verified (ADR-0015 erratum).
+          onTransaction()
           const [, result] = await client.$transaction([setTenant(client, context.orgId), query(args)])
           return result
         },

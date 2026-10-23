@@ -15,6 +15,8 @@ export type VerifiedIdentity = {
   email: string | null
   emailVerified: boolean
   name: string | null
+  /** Google's `hd`: the Workspace domain that manages the account, when one does. */
+  hostedDomain: string | null
   /** When the person last authenticated at the provider, unix seconds; what step-up checks. */
   authTime: number | null
 }
@@ -82,7 +84,16 @@ export class OidcClient {
 
   authorizationUrl(
     config: oidc.Configuration,
-    params: { redirectUri: string; state: string; nonce: string; codeChallenge: string; loginHint?: string; reauthenticate: boolean },
+    params: {
+      redirectUri: string
+      state: string
+      nonce: string
+      codeChallenge: string
+      loginHint?: string
+      /** Google's account chooser offers only this Workspace's accounts; a hint, which the callback still checks. */
+      hostedDomain?: string
+      reauthenticate: boolean
+    },
   ): URL {
     return oidc.buildAuthorizationUrl(config, {
       redirect_uri: params.redirectUri,
@@ -93,6 +104,7 @@ export class OidcClient {
       code_challenge: params.codeChallenge,
       code_challenge_method: "S256",
       ...(params.loginHint === undefined ? {} : { login_hint: params.loginHint }),
+      ...(params.hostedDomain === undefined ? {} : { hd: params.hostedDomain }),
       // Step-up: a fresh authentication at the provider, which `auth_time` must then show (ADR-0054).
       ...(params.reauthenticate ? { prompt: "login", max_age: "0" } : {}),
     })
@@ -124,6 +136,7 @@ export class OidcClient {
       email: email.success ? email.data : null,
       emailVerified: claims.email_verified === true,
       name: typeof claims.name === "string" ? claims.name : null,
+      hostedDomain: typeof claims.hd === "string" ? claims.hd : null,
       authTime: typeof claims.auth_time === "number" ? claims.auth_time : null,
     }
   }

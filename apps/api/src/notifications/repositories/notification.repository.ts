@@ -144,7 +144,7 @@ export class NotificationRepository {
    */
   async addMany(orgId: string, notes: readonly NewNotification[], now: Date): Promise<AddedNotification[]> {
     if (notes.length === 0) return []
-    return this.prisma.db.$queryRaw<AddedNotification[]>`
+    return this.prisma.tx.$queryRaw<AddedNotification[]>`
       INSERT INTO "Notification"
         ("id", "orgId", "userId", "membershipId", "type", "title", "body", "ticketId", "dedupeKey", "createdAt", "updatedAt")
       SELECT n."id", ${orgId}::uuid, n."userId", n."membershipId", n."type"::"NotificationType", n."title", n."body",

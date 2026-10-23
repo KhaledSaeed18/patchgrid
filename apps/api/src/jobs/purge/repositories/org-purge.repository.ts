@@ -17,7 +17,7 @@ export class OrgPurgeRepository {
 
   /** The org row, locked for the transaction — a cancel or a restore waits on this. */
   async lock(orgId: string): Promise<{ status: string; deletionRequestedAt: Date | null } | null> {
-    const rows = await this.prisma.db.$queryRaw<{ status: string; deletionRequestedAt: Date | null }[]>`
+    const rows = await this.prisma.tx.$queryRaw<{ status: string; deletionRequestedAt: Date | null }[]>`
       SELECT status::text AS status, "deletionRequestedAt" FROM "Organization" WHERE id = ${orgId}::uuid FOR UPDATE`
     return rows[0] ?? null
   }

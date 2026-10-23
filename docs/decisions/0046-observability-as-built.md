@@ -4,6 +4,11 @@
 - **Date:** 2026-10-16
 - **Refines:** [0030](0030-observability-opentelemetry-per-tenant.md)
 
+> **Erratum (2026-10-23).** `db_transactions_per_request` counts every transaction a request opens: the
+> interactive `transaction()` calls, and the batched one the tenant extension opens for each
+> tenant-owned query outside them (its `onTransaction` hook). Counting only the first hid the N+1 the
+> metric exists for, since an N+1 is usually N bare queries.
+
 ## Context
 
 ADR-0030 decided OpenTelemetry with per-tenant dimensions and shipped the `Tracer` seam in M0. M9 puts
