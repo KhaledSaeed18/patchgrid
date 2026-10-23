@@ -171,7 +171,6 @@ M14 is the last planned milestone (ADR-0056).
 | Item | Needed by | Notes |
 | --- | --- | --- |
 | Passkeys need a secure context; locally that is Chrome with a flag until M14's HTTPS | M14 | ADR-0053 |
-| An external requester who later gets an account keeps two memberships | when asked for | ADR-0055: the external one keeps its tickets; merging them is not built |
 | SAML, SCIM and IdP-initiated sign-in | out of scope | ADR-0048; deprovisioning at the provider ends nothing here (R-10) |
 
 ## If it is ever deployed

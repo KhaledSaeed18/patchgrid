@@ -1,6 +1,6 @@
 # 0055 — External requesters are memberships without an account
 
-- **Status:** Accepted
+- **Status:** Accepted — its last open consequence settled by [0057](0057-an-account-takes-over-its-external-membership.md)
 - **Date:** 2026-10-23
 - **Settles:** the deferral in [0039](0039-inbound-mail-feed-and-verdict.md) of [0027](0027-email-dns-and-inbound-sender-authentication.md)'s `allowExternalRequesters`
 

@@ -61,8 +61,9 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0052](0052-saved-views-and-bulk-actions.md) | Saved views are queries; bulk actions are many single actions | Accepted |
 | [0053](0053-passkeys.md) | Passkeys: a credential that signs in alone, scoped to the workspace hosts | Accepted — erratum: the review's settlements |
 | [0054](0054-per-tenant-oidc-sso.md) | Per-tenant SSO: an identity provider vouches for its own workspace only | Accepted — erratum: the review's settlements |
-| [0055](0055-external-requesters.md) | External requesters are memberships without an account | Accepted |
+| [0055](0055-external-requesters.md) | External requesters are memberships without an account | Accepted — the account case settled by 0057 |
 | [0056](0056-m7-dropped.md) | M7 is dropped: no models, no automation rule engine | Accepted |
+| [0057](0057-an-account-takes-over-its-external-membership.md) | An account joining under an external requester's address takes that membership over | Accepted |
 
 ## Reading order for someone new
 
