@@ -10,6 +10,7 @@ const config = {
   S3_BUCKET: "patchgrid-attachments",
   S3_ACCESS_KEY_ID: "key",
   S3_SECRET_ACCESS_KEY: "secret",
+  S3_FORCE_PATH_STYLE: true,
 } as AppConfig
 
 describe("StorageService", () => {

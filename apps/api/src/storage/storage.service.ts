@@ -3,6 +3,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -34,11 +35,25 @@ export class StorageService {
   private readonly bucket: string
 
   constructor(@InjectConfig() config: AppConfig) {
-    const credentials = { accessKeyId: config.S3_ACCESS_KEY_ID, secretAccessKey: config.S3_SECRET_ACCESS_KEY }
-    const common = { region: config.S3_REGION, credentials, forcePathStyle: true }
-    this.internal = new S3Client({ ...common, endpoint: config.S3_ENDPOINT })
+    // Static keys for MinIO; otherwise the SDK's default chain, which on ECS
+    // is the task role (ADR-0058).
+    const credentials =
+      config.S3_ACCESS_KEY_ID === undefined || config.S3_SECRET_ACCESS_KEY === undefined
+        ? {}
+        : { credentials: { accessKeyId: config.S3_ACCESS_KEY_ID, secretAccessKey: config.S3_SECRET_ACCESS_KEY } }
+    const common = { region: config.S3_REGION, ...credentials, forcePathStyle: config.S3_FORCE_PATH_STYLE }
+    this.internal = new S3Client({ ...common, ...(config.S3_ENDPOINT === undefined ? {} : { endpoint: config.S3_ENDPOINT }) })
     this.signer = new S3Client({ ...common, endpoint: config.FILES_PUBLIC_ORIGIN })
     this.bucket = config.S3_BUCKET
+  }
+
+  /**
+   * Readiness (the health check): the bucket exists and these credentials may
+   * reach it. Any S3-compatible service answers it, unlike a vendor's liveness
+   * path, and it fails for every reason uploads would.
+   */
+  async reachable(timeoutMs: number): Promise<void> {
+    await this.internal.send(new HeadBucketCommand({ Bucket: this.bucket }), { abortSignal: AbortSignal.timeout(timeoutMs) })
   }
 
   /** One upload of exactly this type and length (ADR-0005 erratum: exact, not a range). */
