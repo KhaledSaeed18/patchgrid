@@ -13,12 +13,11 @@ const nextConfig: NextConfig = {
   // request, and they stream in behind it.
   cacheComponents: true,
   partialPrefetching: true,
-  experimental: {
-    // Most visitors arrive once, from a search or a link: the stylesheet in the
-    // first response saves a render-blocking round trip, and later pages are
-    // client navigations that never fetch it again.
-    inlineCss: true,
-  },
+  // `experimental.inlineCss` is off. It saved the stylesheet's round trip, but
+  // under cacheComponents the 94 KB stylesheet went out four times per page —
+  // once as <style>, three times inside the flight payload — making the home
+  // page 443 KB (82 KB gzipped) where it is now 55 KB (14 KB). Lighthouse's
+  // mobile LCP fell from ~3.4 s to ~2.9 s with it.
   // The repository's CLAUDE.md already says to read node_modules/next/dist/docs;
   // a generated copy per app would only drift from it.
   agentRules: false,
