@@ -56,7 +56,7 @@ describe("AuditService", () => {
   })
 
   it("is SYSTEM with no tenant actor, and honours an explicit actor", async () => {
-    const { service, appended } = serviceFor({ kind: "identity", userId: "u-1" })
+    const { service, appended } = serviceFor({ kind: "identity", userId: "u-1", ssoOrgId: null })
     await service.record("o-1", [entry])
     await service.record("o-1", [entry], { kind: "member", membershipId: "m-new" })
     expect(appended.map((a) => a.rows[0]?.actorKind)).toEqual(["SYSTEM", "MEMBER"])

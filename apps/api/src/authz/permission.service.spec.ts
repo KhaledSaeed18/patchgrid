@@ -169,7 +169,7 @@ describe("PermissionService.can — deny by default", () => {
   })
 
   it("denies an actor outside a tenant, and no actor at all", () => {
-    const identity: Actor = { kind: "identity", userId: "u-1" }
+    const identity: Actor = { kind: "identity", userId: "u-1", ssoOrgId: null }
     for (const permission of PERMISSIONS) {
       expect(service.can(identity, permission, EVERYTHING)).toBe(false)
       expect(service.can(undefined, permission, EVERYTHING)).toBe(false)
@@ -337,7 +337,7 @@ describe("PermissionService.scopeFor (RBAC.md §4)", () => {
   })
 
   it("nobody outside a tenant has a scope", () => {
-    expect(service.scopeFor({ kind: "identity", userId: "u-1" }, "ticket", all)).toEqual({ kind: "none" })
+    expect(service.scopeFor({ kind: "identity", userId: "u-1", ssoOrgId: null }, "ticket", all)).toEqual({ kind: "none" })
   })
 })
 

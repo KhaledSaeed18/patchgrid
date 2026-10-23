@@ -31,6 +31,17 @@ export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUB
 export const TenantOptional = (): MethodDecorator & ClassDecorator =>
   SetMetadata(IS_TENANT_OPTIONAL, true)
 
+export const ALLOWS_SSO_SESSION = Symbol("ALLOWS_SSO_SESSION")
+
+/**
+ * A tenant-less route an SSO-scoped identity may use (ADR-0054). Such a
+ * session was started by one workspace's identity provider and vouches for
+ * nothing account-wide, so every other `@TenantOptional` route refuses it
+ * with `403 sso-session-scoped`: deny by default, so the next account route is
+ * safe without anyone remembering this list.
+ */
+export const AllowsSsoSession = (): MethodDecorator => SetMetadata(ALLOWS_SSO_SESSION, true)
+
 export const IS_SIGNED_WEBHOOK = Symbol("IS_SIGNED_WEBHOOK")
 
 /**

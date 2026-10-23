@@ -5,6 +5,8 @@ import { createHash, randomBytes } from "node:crypto"
 import { type Clock, InjectClock } from "../../common/clock/clock"
 import {
   MfaRequiredProblem,
+  SsoRequiredProblem,
+  SsoSessionScopedProblem,
   NotAuthenticatedProblem,
   NotFoundProblem,
   NotPermittedProblem,
@@ -32,8 +34,16 @@ import { AccessTokenService } from "../tokens/access-token.service"
 /** Where the credential is being used from — recorded on the refresh token, never logged. */
 export type ClientInfo = { userAgent: string | null; ip: string | null }
 
-/** A pair minted after a step-up carries when it was proved (ADR-0029). */
-export type OpenOptions = { stepUpAt?: Date }
+/**
+ * A pair minted after a step-up carries when it was proved (ADR-0029). A pair
+ * minted from an SSO session carries its scope (ADR-0054): `ssoOrgId` is the
+ * workspace whose identity provider started it, `null` for Patchgrid
+ * credentials.
+ */
+export type OpenOptions = { stepUpAt?: Date; ssoOrgId?: string | null }
+
+/** What a live `pg_id` says: who, and which workspace's identity provider started it, if one did. */
+export type IdentitySession = { userId: string; ssoOrgId: string | null }
 
 export type LogoutInput = {
   slug: string | undefined
@@ -113,15 +123,16 @@ export class SessionService {
     account: AccountRecord,
     client: ClientInfo,
     slug?: string,
+    ssoOrgId: string | null = null,
   ): Promise<{ response: SignedInResponse; cookies: CookieSpec[] }> {
     const now = this.clock.now()
-    const identity = await this.issue(account.id, null, client, now)
+    const identity = await this.issue(account.id, null, client, now, undefined, ssoOrgId)
     await this.users.touchLastLogin(account.id, now)
     const cookies: CookieSpec[] = [this.cookies.identity(identity)]
 
     let session: SignedInResponse["session"] = null
     if (slug !== undefined) {
-      const pair = await this.tryOpen(account.id, slug, client, now)
+      const pair = await this.tryOpen(account.id, slug, client, now, ssoOrgId)
       if (pair !== null) {
         cookies.push(...pair)
         session = { slug }
@@ -165,13 +176,15 @@ export class SessionService {
   }
 
   /** Who a `pg_id` holder is and which workspaces the picker lists for them. */
-  async identity(userId: string): Promise<IdentityResponse> {
-    const account = await this.users.findById(userId)
+  async identity(session: IdentitySession): Promise<IdentityResponse> {
+    const account = await this.users.findById(session.userId)
     if (account === null || !isUsable(account)) throw new NotAuthenticatedProblem("A session is required")
+    const scope = session.ssoOrgId === null ? null : await this.organizations.byId(session.ssoOrgId)
     return {
       user: { id: account.id, email: account.email, name: account.name },
       workspaces: await this.workspaces.listWorkspacesForUser(account.id),
       mfa: { enrolled: (await this.mfa.methods(account.id)).length > 0 },
+      sso: scope === null ? null : { slug: scope.slug },
     }
   }
 
@@ -184,16 +197,17 @@ export class SessionService {
     if (membership === null) {
       throw new NotPermittedProblem("You are not a member of this workspace")
     }
-    await this.assertFactorPolicy(org, userId)
-    return this.mint(userId, org, membership, client, this.clock.now(), undefined, options)
+    const ssoOrgId = options.ssoOrgId ?? null
+    await this.assertSessionPolicy(org, membership, userId, ssoOrgId)
+    return this.mint(userId, org, membership, client, this.clock.now(), undefined, { ...options, ssoOrgId })
   }
 
-  /** `pg_id` → the user it identifies, or `null` for anything invalid. */
-  async identityFor(secret: string | undefined): Promise<string | null> {
+  /** `pg_id` → who it identifies and its SSO scope, or `null` for anything invalid. */
+  async identityFor(secret: string | undefined): Promise<IdentitySession | null> {
     if (secret === undefined) return null
     const row = await this.refreshTokens.findByHash(hash(secret))
     if (row === null || row.orgId !== null || !isLive(row, this.clock.now())) return null
-    return row.userId
+    return { userId: row.userId, ssoOrgId: row.ssoOrgId }
   }
 
   async refresh(slug: string, presented: string | undefined, client: ClientInfo): Promise<CookieSpec[]> {
@@ -224,9 +238,10 @@ export class SessionService {
       throw new NotAuthenticatedProblem("The membership is no longer active")
     }
     // A requirement turned on since the last mint gates this one; the refresh token itself stays good.
-    await this.assertFactorPolicy(org, row.userId)
+    await this.assertSessionPolicy(org, membership, row.userId, row.ssoOrgId)
 
-    return this.mint(row.userId, org, membership, client, now, row.id)
+    // The scope rides along: a refresh never turns an SSO session into an ordinary one (ADR-0054).
+    return this.mint(row.userId, org, membership, client, now, row.id, { ssoOrgId: row.ssoOrgId })
   }
 
   /** Idempotent: clearing what is not there is not an error. */
@@ -243,8 +258,8 @@ export class SessionService {
     }
 
     if (input.everywhere) {
-      const userId = await this.identityFor(input.identitySecret)
-      if (userId !== null) clear.push(...(await this.revokeEverywhere(userId)))
+      const identity = await this.identityFor(input.identitySecret)
+      if (identity !== null) clear.push(...(await this.revokeEverywhere(identity.userId)))
       else clear.push({ name: this.cookies.identity("").name, path: "/" })
     }
 
@@ -256,21 +271,41 @@ export class SessionService {
     slug: string,
     client: ClientInfo,
     now: Date,
+    ssoOrgId: string | null,
   ): Promise<CookieSpec[] | null> {
     const org = await this.organizations.bySlug(slug)
     if (org === null || org.status !== "ACTIVE") return null
     const membership = await this.membershipOf(org, userId, "login into workspace")
-    if (membership === null || !(await this.meetsFactorPolicy(org, userId))) return null
-    return this.mint(userId, org, membership, client, now)
+    if (membership === null || (await this.sessionRefusal(org, membership, userId, ssoOrgId)) !== null) return null
+    return this.mint(userId, org, membership, client, now, undefined, { ssoOrgId })
   }
 
-  /** ADR-0045, ADR-0053: a workspace that requires a second factor opens only for someone holding one, of either kind. */
-  private async meetsFactorPolicy(org: OrganizationSummary, userId: string): Promise<boolean> {
-    return !org.requireMfa || (await this.mfa.methods(userId)).length > 0
+  /**
+   * Who may open this workspace with this session, at open and at refresh —
+   * never mid-session (ADR-0045, ADR-0053, ADR-0054):
+   *
+   * 1. An SSO session opens only the workspace whose identity provider started it.
+   * 2. "SSO required" admits a non-owner only through that provider; owners
+   *    keep their own credentials as the way back in when it is down.
+   * 3. "Second factor required" is met by a factor of either kind, or by a
+   *    session this workspace's provider started: it delegated the strength.
+   */
+  private async sessionRefusal(
+    org: OrganizationSummary,
+    membership: MembershipRecord,
+    userId: string,
+    ssoOrgId: string | null,
+  ): Promise<Error | null> {
+    if (ssoOrgId !== null && ssoOrgId !== org.id) return new SsoSessionScopedProblem()
+    const viaSso = ssoOrgId === org.id
+    if (org.requireSso && !viaSso && membership.role !== "OWNER") return new SsoRequiredProblem()
+    if (org.requireMfa && !viaSso && (await this.mfa.methods(userId)).length === 0) return new MfaRequiredProblem()
+    return null
   }
 
-  private async assertFactorPolicy(org: OrganizationSummary, userId: string): Promise<void> {
-    if (!(await this.meetsFactorPolicy(org, userId))) throw new MfaRequiredProblem()
+  private async assertSessionPolicy(org: OrganizationSummary, membership: MembershipRecord, userId: string, ssoOrgId: string | null): Promise<void> {
+    const refusal = await this.sessionRefusal(org, membership, userId, ssoOrgId)
+    if (refusal !== null) throw refusal
   }
 
   /**
@@ -301,14 +336,16 @@ export class SessionService {
     rotating?: string,
     options: OpenOptions = {},
   ): Promise<CookieSpec[]> {
+    const ssoOrgId = options.ssoOrgId ?? null
     const { token } = await this.accessTokens.sign({
       sub: userId,
       org: org.id,
       mem: membership.id,
       role: membership.role,
       ...(options.stepUpAt === undefined ? {} : { sua: Math.floor(options.stepUpAt.getTime() / 1000) }),
+      ...(ssoOrgId === org.id ? { sso: true as const } : {}),
     })
-    const secret = await this.issue(userId, org.id, client, now, rotating)
+    const secret = await this.issue(userId, org.id, client, now, rotating, ssoOrgId)
     return [this.cookies.access(org.slug, token), this.cookies.refresh(org.slug, secret)]
   }
 
@@ -319,11 +356,13 @@ export class SessionService {
     client: ClientInfo,
     now: Date,
     rotating?: string,
+    ssoOrgId: string | null = null,
   ): Promise<string> {
     const secret = randomBytes(32).toString("base64url")
     const record = {
       userId,
       orgId,
+      ssoOrgId,
       tokenHash: hash(secret),
       expiresAt: new Date(now.getTime() + this.config.REFRESH_TOKEN_TTL_DAYS * 86_400_000),
       userAgent: client.userAgent,

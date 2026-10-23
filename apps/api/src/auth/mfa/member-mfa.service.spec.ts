@@ -186,7 +186,7 @@ describe("MemberMfaService.completeLogin", () => {
 describe("MemberMfaService self-service", () => {
   it("enrols, refuses a wrong code, then confirms with the right one and shows ten recovery codes once", async () => {
     const h = harness()
-    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: [], recoveryCodesRemaining: 0 })
+    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: [], password: true, recoveryCodesRemaining: 0 })
     // The password first: a pg_id alone does not get to set the factor.
     await expect(h.service.enrol(ada.id, { password: "wrong" })).rejects.toBeInstanceOf(ValidationProblem)
     expect(h.lockout.fail).toHaveBeenCalledWith(ada.id)
@@ -285,7 +285,7 @@ describe("MemberMfaService with passkeys (ADR-0053)", () => {
     await h.service.disable(ada.id, { passkey: passkey("good") })
     expect(h.factors).toHaveLength(0)
     expect(h.recovery).toHaveLength(1)
-    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], recoveryCodesRemaining: 1 })
+    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], password: true, recoveryCodesRemaining: 1 })
   })
 
   it("replaces the recovery codes against a passkey for someone who holds no authenticator app", async () => {

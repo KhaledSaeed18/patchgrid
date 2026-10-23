@@ -19,7 +19,7 @@ import {
 import type { Request, Response } from "express"
 import { createZodDto } from "nestjs-zod"
 
-import { Public, TenantOptional } from "../../common/decorators/route-markers"
+import { AllowsSsoSession, Public, TenantOptional } from "../../common/decorators/route-markers"
 import { ActorService } from "../actor"
 import { clientOf } from "../auth.controller"
 import { CookieService, readCookie } from "../cookies"
@@ -73,6 +73,7 @@ export class MfaController {
 
   @Get("mfa")
   @TenantOptional()
+  @AllowsSsoSession()
   status(): Promise<MfaStatus> {
     return this.factors.status(this.actors.requireIdentity().userId)
   }
@@ -109,9 +110,10 @@ export class MfaController {
   /** Re-proves the holder and re-issues the named workspace's pair with the proof on it. */
   @Post("step-up")
   @TenantOptional()
+  @AllowsSsoSession()
   @HttpCode(200)
   async prove(@Body() body: StepUpDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<StepUpResponse> {
-    const result = await this.stepUp.prove(this.actors.requireIdentity().userId, body, clientOf(request))
+    const result = await this.stepUp.prove(this.actors.requireIdentity(), body, clientOf(request))
     this.cookies.set(response, result.cookies)
     return result.response
   }

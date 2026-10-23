@@ -20,7 +20,7 @@ const acme: OrganizationSummary = {
   status: "ACTIVE",
   plan: "PRO",
   agentVisibility: "OWN_TEAM_ONLY",
-  requireMfa: false,
+  requireMfa: false, requireSso: false,
 }
 const frozen: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000f", slug: "frozen", status: "SUSPENDED" }
 const ORGS = [acme, frozen]

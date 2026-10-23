@@ -22,6 +22,8 @@ export const accessTokenClaimsSchema = z.object({
   role: roleSchema,
   /** Step-up at: when the holder last re-proved themselves (ADR-0029). Good for five minutes from then. */
   sua: z.int().optional(),
+  /** The pair came from a session this workspace's identity provider started (ADR-0054). Absent otherwise. */
+  sso: z.literal(true).optional(),
   iat: z.int(),
   exp: z.int(),
   /** Random per token, so two mints in one second are still two tokens and logs can tell them apart. */

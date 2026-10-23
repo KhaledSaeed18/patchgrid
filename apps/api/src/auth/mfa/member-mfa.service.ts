@@ -84,10 +84,12 @@ export class MemberMfaService {
   async status(userId: string): Promise<MfaStatus> {
     const methods = await this.mfa.methods(userId)
     const totp = methods.includes("totp") ? await this.mfa.confirmed(userId) : null
+    const account = await this.users.findById(userId)
     return {
       enrolled: totp !== null,
       confirmedAt: totp?.confirmedAt?.toISOString() ?? null,
       methods,
+      password: account?.passwordHash !== null && account?.passwordHash !== undefined,
       recoveryCodesRemaining: methods.length === 0 ? 0 : (await this.mfa.unusedRecoveryCodes(userId)).length,
     }
   }

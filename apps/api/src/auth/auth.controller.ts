@@ -12,7 +12,7 @@ import { Throttle } from "@nestjs/throttler"
 import { createZodDto } from "nestjs-zod"
 import { isIP } from "node:net"
 
-import { Public, TenantOptional } from "../common/decorators/route-markers"
+import { AllowsSsoSession, Public, TenantOptional } from "../common/decorators/route-markers"
 import { ActorService } from "./actor"
 import { CookieService, readCookie } from "./cookies"
 import { type ClientInfo, SessionService } from "./sessions/session.service"
@@ -59,13 +59,15 @@ export class AuthController {
   /** The picker's data: the signed-in account and its workspaces. */
   @Get("identity")
   @TenantOptional()
+  @AllowsSsoSession()
   identity(): Promise<IdentityResponse> {
-    return this.sessions.identity(this.actors.requireIdentity().userId)
+    return this.sessions.identity(this.actors.requireIdentity())
   }
 
-  /** The org switcher: mint a pair for a workspace the `pg_id` holder belongs to. */
+  /** The org switcher: mint a pair for a workspace the `pg_id` holder belongs to — an SSO session, only its own (ADR-0054). */
   @Post("sessions")
   @TenantOptional()
+  @AllowsSsoSession()
   @HttpCode(200)
   async open(
     @Body() body: OpenSessionDto,
@@ -73,7 +75,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<{ session: { slug: string } }> {
     const identity = this.actors.requireIdentity()
-    const cookies = await this.sessions.open(identity.userId, body.slug, clientOf(request))
+    const cookies = await this.sessions.open(identity.userId, body.slug, clientOf(request), { ssoOrgId: identity.ssoOrgId })
     this.cookies.set(response, cookies)
     return { session: { slug: body.slug } }
   }

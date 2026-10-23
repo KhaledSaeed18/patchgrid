@@ -55,17 +55,17 @@ describe("StepUpService.assert", () => {
 describe("StepUpService.prove", () => {
   it("proves the holder by the step-up rule and re-issues the workspace's pair stamped with now", async () => {
     const h = harness()
-    const result = await h.service.prove(ada.id, { slug: "acme", code: "123456" }, client)
+    const result = await h.service.prove({ userId: ada.id, ssoOrgId: null }, { slug: "acme", code: "123456" }, client)
     // The slug names the cookie; it is not part of the proof.
     expect(h.factors.proveHolder).toHaveBeenCalledWith(ada.id, { code: "123456" })
-    expect(h.sessions.open).toHaveBeenCalledWith(ada.id, "acme", client, { stepUpAt: NOW })
+    expect(h.sessions.open).toHaveBeenCalledWith(ada.id, "acme", client, { stepUpAt: NOW, ssoOrgId: null })
     expect(result.response.stepUpExpiresAt).toBe(new Date(NOW.getTime() + STEP_UP_TTL_SECONDS * 1000).toISOString())
     expect(result.cookies.map((c) => c.name)).toEqual(["pg_at_acme"])
   })
 
   it("opens nothing when the proof is refused", async () => {
     const h = harness()
-    await expect(h.service.prove(ada.id, { slug: "acme", password: "wrong" }, client)).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(h.service.prove({ userId: ada.id, ssoOrgId: null }, { slug: "acme", password: "wrong" }, client)).rejects.toBeInstanceOf(ValidationProblem)
     expect(h.sessions.open).not.toHaveBeenCalled()
   })
 })

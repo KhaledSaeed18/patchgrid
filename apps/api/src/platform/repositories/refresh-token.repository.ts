@@ -11,6 +11,8 @@ export type RefreshTokenRecord = {
   revokedAt: Date | null
   /** Set when this token was rotated. Presenting it again is reuse (ADR-0004). */
   replacedById: string | null
+  /** The workspace whose identity provider started the session, if one did (ADR-0054). */
+  ssoOrgId: string | null
 }
 
 export type NewRefreshToken = {
@@ -20,6 +22,7 @@ export type NewRefreshToken = {
   expiresAt: Date
   userAgent: string | null
   ip: string | null
+  ssoOrgId: string | null
 }
 
 const RECORD = {
@@ -29,6 +32,7 @@ const RECORD = {
   expiresAt: true,
   revokedAt: true,
   replacedById: true,
+  ssoOrgId: true,
 } as const
 
 /**

@@ -43,7 +43,7 @@ describe("PermissionGuard", () => {
   })
 
   it("refuses with 403 a role that never may, and an actor outside a tenant", () => {
-    for (const actor of [member("AGENT"), { kind: "identity", userId: "u-1" } as const, undefined]) {
+    for (const actor of [member("AGENT"), { kind: "identity", userId: "u-1", ssoOrgId: null } as const, undefined]) {
       expect(() => guardFor(actor).canActivate(context(Probe.prototype.invite))).toThrow(NotPermittedProblem)
     }
   })

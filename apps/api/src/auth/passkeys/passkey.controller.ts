@@ -17,7 +17,7 @@ import type { Request, Response } from "express"
 import { createZodDto } from "nestjs-zod"
 import { z } from "zod"
 
-import { Public, TenantOptional } from "../../common/decorators/route-markers"
+import { AllowsSsoSession, Public, TenantOptional } from "../../common/decorators/route-markers"
 import { ActorService } from "../actor"
 import { clientOf } from "../auth.controller"
 import { CookieService } from "../cookies"
@@ -48,6 +48,7 @@ export class PasskeyController {
 
   @Get()
   @TenantOptional()
+  @AllowsSsoSession()
   list(): Promise<Passkey[]> {
     return this.passkeys.list(this.actors.requireIdentity().userId)
   }
@@ -83,6 +84,7 @@ export class PasskeyController {
   /** A challenge for a `pg_id` holder to prove themselves with: step-up, removal, a new factor. */
   @Post("proof/options")
   @TenantOptional()
+  @AllowsSsoSession()
   @HttpCode(200)
   proofOptions(): Promise<PasskeyRequestCeremony> {
     return this.passkeys.proofOptions(this.actors.requireIdentity().userId)
