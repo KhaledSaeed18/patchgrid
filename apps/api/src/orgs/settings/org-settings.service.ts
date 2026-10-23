@@ -136,7 +136,8 @@ export class OrgSettingsService {
 
     // Both pointers: a cached "unknown" for the new slug, a cached org for the old.
     await this.lookup.invalidate({ id: orgId, slug, previousSlug })
-    const set = await this.sessions.open(actor.userId, slug, client)
+    // An SSO session stays one under the new name (ADR-0054).
+    const set = await this.sessions.open(actor.userId, slug, client, { ssoOrgId: actor.viaSso === true ? orgId : null })
     return {
       response: { slug, previousSlug, redirectUntil: redirectUntil.toISOString(), session: { slug } },
       set,
