@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { emailSchema, secretTokenSchema } from "./auth.ts"
 import { idSchema } from "./id.ts"
 
 /** The archive's own version, written into its manifest (ADR-0044). */
@@ -43,3 +44,14 @@ export const eraseAccountRequestSchema = z.strictObject({
   password: z.string().min(1).max(1024),
 })
 export type EraseAccountRequest = z.infer<typeof eraseAccountRequestSchema>
+
+/**
+ * Erasing by a link to the inbox (ADR-0044 erratum, 2026-10-23): for whoever
+ * has no password to give — an account a workspace's identity provider made —
+ * the address proves the person, as a password reset does. `202` either way.
+ */
+export const erasureLinkRequestSchema = z.strictObject({ email: emailSchema })
+export type ErasureLinkRequest = z.infer<typeof erasureLinkRequestSchema>
+
+export const erasureConfirmSchema = z.strictObject({ token: secretTokenSchema })
+export type ErasureConfirm = z.infer<typeof erasureConfirmSchema>

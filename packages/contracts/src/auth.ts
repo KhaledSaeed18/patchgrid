@@ -133,7 +133,7 @@ export const signupRequestSchema = z.object({
 export type SignupRequest = z.infer<typeof signupRequestSchema>
 
 /** Random 256-bit secrets, base64url: 43 characters, never anything else. */
-const secretTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, { error: "is not a valid token" })
+export const secretTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, { error: "is not a valid token" })
 
 /** The emailed link completes signup and starts the session (TENANCY.md §4). */
 export const verifyEmailRequestSchema = z.object({ token: secretTokenSchema })
