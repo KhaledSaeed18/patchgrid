@@ -21,6 +21,8 @@ type Options = {
   known?: string[]
   member?: boolean
   seatFull?: boolean
+  /** The id of an external requester writing from the account's address. */
+  external?: string
 }
 
 function harness(options: Options = {}) {
@@ -53,6 +55,7 @@ function harness(options: Options = {}) {
   const memberships = {
     lockOrganization: vi.fn(async () => undefined),
     findByUser: vi.fn(async () => (options.member === true ? { id: "m-old" } : null)),
+    claimExternal: vi.fn(async () => options.external ?? null),
     create: vi.fn(async (_o: string, data: unknown) => (created.push(data), "m-new")),
   }
   const quota = {
@@ -105,13 +108,30 @@ describe("DomainJoinService (TENANCY.md §5)", () => {
     expect(h.workspaces.upsert).toHaveBeenCalledWith(expect.objectContaining({ orgId: "o-1", role: "AGENT", status: "ACTIVE" }))
     expect(h.audit.record).toHaveBeenCalledWith(
       "o-1",
-      [expect.objectContaining({ action: "MEMBER_JOINED", diff: { via: "domain", role: "AGENT", domain: "acme.test" } })],
+      [
+        expect.objectContaining({
+          action: "MEMBER_JOINED",
+          diff: { via: "domain", role: "AGENT", domain: "acme.test", claimedExternal: false },
+        }),
+      ],
       expect.anything(),
     )
     // A requester holds no seat.
     const requester = harness()
     await requester.service.join(session, "acme")
     expect(requester.quota.consume).not.toHaveBeenCalled()
+  })
+
+  it("takes over the external requester writing from the address rather than making a second membership", async () => {
+    const h = harness({ external: "m-ext" })
+    await h.service.join(session, "acme")
+    expect(h.memberships.claimExternal).toHaveBeenCalledWith("o-1", "kim@acme.test", expect.objectContaining({ userId: "u-1" }))
+    expect(h.created).toEqual([])
+    expect(h.audit.record).toHaveBeenCalledWith(
+      "o-1",
+      [expect.objectContaining({ entityId: "m-ext", diff: expect.objectContaining({ claimedExternal: true }) })],
+      { kind: "member", membershipId: "m-ext" },
+    )
   })
 
   it("answers a workspace it may not join as one that is not there, and refuses an SSO session", async () => {

@@ -48,6 +48,8 @@ type Options = {
   accounts?: AccountRecord[]
   teamActive?: boolean
   consumes?: boolean
+  /** The id of an external requester writing from the invited address. */
+  external?: string
   seatsFull?: boolean
 }
 
@@ -93,6 +95,7 @@ function harness(options: Options = {}) {
             leadOfTeamIds: [],
           },
     ),
+    claimExternal: vi.fn(async () => options.external ?? null),
     create: vi.fn(async () => "m-new"),
     reactivate: vi.fn(async () => undefined),
     joinTeam: vi.fn(async () => undefined),
@@ -220,6 +223,20 @@ describe("InvitationAcceptanceService.accept", () => {
       actor: { kind: "member", membershipId: "m-new" },
     })
     expect(h.sessions.open).toHaveBeenCalledWith(alice.id, "acme", client)
+  })
+
+  it("takes over the external requester writing from the invited address, at the invited role", async () => {
+    const h = harness({ external: "m-ext" })
+    const result = await h.service.accept(alice.id, h.token, client)
+    expect(result.response.membershipId).toBe("m-ext")
+    expect(h.memberships.claimExternal).toHaveBeenCalledWith(
+      ORG,
+      "alice@acme.test",
+      expect.objectContaining({ userId: alice.id, role: "AGENT", invitedByMembershipId: "m-admin" }),
+    )
+    expect(h.memberships.create).not.toHaveBeenCalled()
+    expect(h.memberships.joinTeam).toHaveBeenCalledWith(ORG, "m-ext", "t-1")
+    expect(h.audit[0]?.entries[0]).toMatchObject({ entityId: "m-ext", diff: { claimedExternal: true } })
   })
 
   it("joins even when the workspace's policy withholds the session, and says so rather than failing after the join", async () => {

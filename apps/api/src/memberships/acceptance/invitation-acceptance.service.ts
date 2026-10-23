@@ -170,8 +170,12 @@ export class InvitationAcceptanceService {
           joinedAt: now,
         }
         let membershipId: string
+        let claimedExternal = false
         if (existing === null) {
-          membershipId = await this.memberships.create(org.id, { userId: account.id, ...joined })
+          // Someone who wrote in from this address before becomes the member, tickets and all (ADR-0057).
+          const claimed = await this.memberships.claimExternal(org.id, account.email, { userId: account.id, ...joined })
+          claimedExternal = claimed !== null
+          membershipId = claimed ?? (await this.memberships.create(org.id, { userId: account.id, ...joined }))
         } else {
           // A removed member comes back as the same row (ADR-0033).
           membershipId = existing.id
@@ -204,7 +208,7 @@ export class InvitationAcceptanceService {
               action: "MEMBER_JOINED",
               entityType: "Membership",
               entityId: membershipId,
-              diff: { invitationId: invitation.id, role: invitation.role, teamId, rejoined: existing !== null },
+              diff: { invitationId: invitation.id, role: invitation.role, teamId, rejoined: existing !== null, claimedExternal },
             },
           ],
           { kind: "member", membershipId },

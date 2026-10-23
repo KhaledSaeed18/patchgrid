@@ -261,8 +261,8 @@ team placement.
 - [x] `apps/app`: bell, inbox, live query invalidation, assignment toast — plus live updates, watchers and
       comment edit/delete on the ticket page
 - [x] Email notifications for `DOMAIN.md` §8 events; per-**membership** preferences + org kill switch
-      (invitations already email; plan-limit and change-approval notifications are deferred — see
-      `HANDOFF.md`)
+      (invitations already email; change approvals notify as `CHANGE_AWAITING_APPROVAL`, `_APPROVED` and
+      `_REJECTED`; plan-limit notices were added on 2026-10-23)
 - [x] Worker tests with fake timers; dispatcher tests covering suspended-org skipping
 - [x] Maintenance jobs: `attachment-sweep` scaffold, `audit-partition` (with retention archive),
       `projection-reconcile`
@@ -327,7 +327,8 @@ _Met 2026-10-15. Each step was walked through `inbound:send` against the dev sta
 - _A forged message and a stranger's were recorded and nothing more._
 - _The admin's inbound log showed each outcome._
 
-_External requesters are deferred by ADR-0039; until then unknown senders are always dropped._
+_External requesters, deferred by ADR-0039, were built on 2026-10-23 (ADR-0055). An account that later
+joins under the same address takes the external membership over (ADR-0057)._
 
 ## M8 — Platform layer
 
@@ -426,8 +427,9 @@ retried and parked, and replays them, and a slow or hostile endpoint harms nobod
       notifications move onto it, and their inbox rows are written in the same transaction as the
       cursor that consumed them. A worker that boots catches up at once; `test/events/` proves the
       horizon, the lock, poison parking, recovery after downtime and fairness against Postgres
-- [~] Fairness: a drain takes a bounded batch and yields, so tenants are served round-robin; a flood test
-      proves one tenant's backlog does not delay another's; per-tenant lag on the dashboard
+- [x] Fairness: a drain takes a bounded batch and yields, so tenants are served round-robin; a flood test
+      proves one tenant's backlog does not delay another's; per-tenant lag on the dashboard. The flood
+      test is `test/events/delivery.int-spec.ts`; the lag is the dashboard's event-age p95 by tenant
 - [x] Outbound webhooks (ADR-0050): `WebhookEndpoint` (owner/admin; no token, see the ADR), the Standard Webhooks
       signature with rotating secrets, a delivery log, retries with backoff and jitter, dead letters with
       replay, a circuit breaker per endpoint, SSRF protection on the target, a per-tenant concurrency cap

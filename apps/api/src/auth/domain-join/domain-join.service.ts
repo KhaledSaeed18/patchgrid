@@ -65,13 +65,10 @@ export class DomainJoinService {
         if ((await this.memberships.findByUser(org.id, account.id)) !== null) throw new ConflictProblem("You are already in this workspace")
         if (role !== "REQUESTER") await this.quota.consume(org.id, "AGENT_SEATS")
         const now = this.clock.now()
-        const id = await this.memberships.create(org.id, {
-          userId: account.id,
-          role,
-          displayName: account.name,
-          invitedByMembershipId: null,
-          joinedAt: now,
-        })
+        const joined = { userId: account.id, role, displayName: account.name, invitedByMembershipId: null, joinedAt: now }
+        // Someone who wrote in from this address before becomes the member, tickets and all (ADR-0057).
+        const claimed = await this.memberships.claimExternal(org.id, account.email, joined)
+        const id = claimed ?? (await this.memberships.create(org.id, joined))
         await this.workspaces.upsert({
           userId: account.id,
           orgId: org.id,
@@ -83,7 +80,14 @@ export class DomainJoinService {
         })
         await this.audit.record(
           org.id,
-          [{ action: "MEMBER_JOINED", entityType: "Membership", entityId: id, diff: { via: "domain", role, domain: current.domain } }],
+          [
+            {
+              action: "MEMBER_JOINED",
+              entityType: "Membership",
+              entityId: id,
+              diff: { via: "domain", role, domain: current.domain, claimedExternal: claimed !== null },
+            },
+          ],
           {
             kind: "member",
             membershipId: id,

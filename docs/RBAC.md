@@ -358,6 +358,8 @@ A membership of kind `EXTERNAL` — someone outside the workspace who wrote to i
 the workspace takes such mail — acts only through the inbound intake, as an `external` actor with role
 `REQUESTER`, narrowed to `ticket:create`, `ticket:read`, `comment:create_public`, `attachment:upload`
 and `attachment:download`; "own" still has to hold for each. It has no account, no sign-in and no inbox.
+An account that joins under its address — invited, by verified domain or through SSO — takes the
+membership over and becomes an ordinary member with the same id (ADR-0057).
 
 ## 10. Service accounts and API tokens
 

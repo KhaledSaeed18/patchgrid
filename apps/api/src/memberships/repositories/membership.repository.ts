@@ -213,6 +213,30 @@ export class MembershipRepository {
     return row.id
   }
 
+  /**
+   * An account joining under the address an external requester wrote from
+   * takes that membership over, so its tickets, comments and watches stay one
+   * person's (ADR-0057). The caller has proved the account holds the address.
+   * Conditional on the row still being external, so two joins racing for it
+   * cannot both win; `null` when there is none to take.
+   */
+  async claimExternal(
+    orgId: string,
+    email: string,
+    data: { userId: string; role: Role; displayName: string; invitedByMembershipId: string | null; joinedAt: Date },
+  ): Promise<string | null> {
+    const external = await this.prisma.db.membership.findFirst({
+      where: { orgId, kind: "EXTERNAL", contactEmail: email.toLowerCase() },
+      select: { id: true },
+    })
+    if (external === null) return null
+    const claimed = await this.prisma.db.membership.updateMany({
+      where: { orgId, id: external.id, kind: "EXTERNAL" },
+      data: { ...data, kind: "HUMAN", contactEmail: null, status: "ACTIVE" },
+    })
+    return claimed.count === 1 ? external.id : null
+  }
+
   /** A removed member comes back as the same row, so history keeps one author (ADR-0033). */
   async reactivate(
     orgId: string,

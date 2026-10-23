@@ -3,7 +3,8 @@
  * off by default; once a workspace takes outside mail, an authenticated
  * address that is no member's raises a ticket as an external requester — a
  * membership with no account — hears back by email, threads replies onto
- * their own ticket, and is stopped by an admin pausing them.
+ * their own ticket, and is stopped by an admin pausing them. Invited later,
+ * the account they make takes that membership over, tickets and all (ADR-0057).
  */
 import { requireEnv } from "../support/env"
 
@@ -62,7 +63,13 @@ afterAll(async () => {
   await db.ticket.deleteMany({ where: { orgId: ws.orgId } })
   await db.ticketCounter.deleteMany({ where: { orgId: ws.orgId } })
   await db.auditLog.deleteMany({ where: { orgId: ws.orgId } })
-  await db.membership.deleteMany({ where: { orgId: ws.orgId, kind: "EXTERNAL" } })
+  const account = await db.user.findUnique({ where: { email: carla }, select: { id: true } })
+  await db.membership.deleteMany({ where: { orgId: ws.orgId, OR: [{ kind: "EXTERNAL" }, { userId: account?.id ?? "" }] } })
+  if (account !== null) {
+    await db.userOrgIndex.deleteMany({ where: { userId: account.id } })
+    await db.refreshToken.deleteMany({ where: { userId: account.id } })
+    await db.user.delete({ where: { id: account.id } })
+  }
   await ws?.cleanup()
   await jobs?.close()
   await app?.close()
@@ -132,4 +139,32 @@ it("lists the external requester for admins, who stop their mail by pausing them
   expect((await as("admin").post(`/members/${String(membership?.id)}/disable`)).status).toBe(200)
   await deliver({ from: carla, subject: "Still broken", text: "Hello?" })
   expect(await latest()).toMatchObject({ outcome: "UNKNOWN_SENDER" })
+})
+
+it("hands the external membership to the account the address later makes, so their tickets stay theirs", async () => {
+  const before = await external()
+  const ticket = await db.ticket.findFirstOrThrow({ where: { orgId: ws.orgId, requesterMembershipId: before?.id ?? "" } })
+  const sent = recorder.sent.length
+  expect((await as("admin").post("/invitations", { email: carla, role: "REQUESTER" })).status).toBe(201)
+  await jobs.settle()
+  const mail = recorder.sent.slice(sent).find((m) => m.to === carla && /invited/.test(m.subject))
+  const token = /token=([0-9a-z]+\.[A-Za-z0-9_-]{43})/.exec(mail?.text ?? "")?.[1] ?? ""
+  const accepted = await request(app.getHttpServer())
+    .post("/api/v1/invitations/accept-new")
+    .set({ "Content-Type": "application/json", "X-Requested-With": "patchgrid" })
+    .send({ token, name: "Carla", password: "correct horse battery staple" })
+  expect(accepted.status).toBe(201)
+
+  // One membership, the same one: now an account's, no longer a contact address, and active again.
+  expect(accepted.body.membershipId).toBe(before?.id)
+  const after = await db.membership.findUniqueOrThrow({ where: { id: before?.id ?? "" } })
+  expect(after).toMatchObject({ kind: "HUMAN", role: "REQUESTER", status: "ACTIVE", contactEmail: null, displayName: "Carla" })
+  expect(after.userId).not.toBeNull()
+  expect(await external()).toBeNull()
+  expect(await db.membership.count({ where: { orgId: ws.orgId, userId: after.userId } })).toBe(1)
+  const view = await as("agent").get(`/tickets/${ticket.id}`)
+  expect(view.body.requester).toMatchObject({ membershipId: before?.id, external: false })
+  // Mail from the address is now the member's.
+  await deliver({ from: carla, subject: "Gate again", text: "It stopped working." })
+  expect(await latest()).toMatchObject({ outcome: "CREATED", senderMembershipId: before?.id })
 })
