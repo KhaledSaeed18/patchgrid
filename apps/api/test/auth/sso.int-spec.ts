@@ -76,11 +76,6 @@ const cookiesOf = (response: request.Response): Map<string, string> =>
       return [pair.slice(0, at), pair.slice(at + 1)] as [string, string]
     }),
   )
-const jar = (cookies: Map<string, string>, ...names: string[]) =>
-  names
-    .filter((n) => (cookies.get(n) ?? "") !== "")
-    .map((n) => `${n}=${cookies.get(n) ?? ""}`)
-    .join("; ")
 const ownerBrowser = async () => browser(app, ws.origin, await stepUp(app, ws.slug, ws.people.owner))
 
 /** A whole round trip: start, the person at the provider, the callback in the same browser. */

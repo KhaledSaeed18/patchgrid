@@ -101,7 +101,8 @@ function harness(options: Options = {}) {
     idsForUsers: vi.fn(async (_o: string, users: string[]) => users.map((u) => `m-${u}`)),
     countOffDomain: vi.fn(async () => options.offDomain ?? 0),
   }
-  const epochs = { bump: vi.fn(async (_membershipId: string) => undefined) }
+  const bumped: string[] = []
+  const epochs = { bump: vi.fn(async (membershipId: string) => void bumped.push(membershipId)) }
   const service = new SsoSettingsService(
     domains as unknown as OrgDomainRepository,
     connections as unknown as SsoConnectionRepository,
@@ -121,7 +122,7 @@ function harness(options: Options = {}) {
     epochs as unknown as RevocationEpochService,
     new FixedClock(NOW),
   )
-  return { service, org, domains, connections: () => connection, oidc, dns, audit, lookup, secrets, stepUp, refreshTokens, epochs, memberships }
+  return { service, org, domains, connections: () => connection, oidc, dns, audit, lookup, secrets, stepUp, refreshTokens, epochs, memberships, bumped }
 }
 
 describe("SsoSettingsService: who", () => {
@@ -247,7 +248,7 @@ describe("SsoSettingsService: the connection", () => {
     await h.service.saveConnection({ issuer: "https://idp.other.test/", clientId: "patchgrid", clientSecret: "new-one", defaultRole: "REQUESTER", enabled: true })
     expect(h.audit[0]?.diff).toMatchObject({ identitiesUnlinked: true })
     expect(h.refreshTokens.revokeSsoSessions).toHaveBeenCalledWith("o-1", NOW)
-    expect(h.epochs.bump.mock.calls.map(([id]) => id)).toEqual(["m-u-7", "m-u-8"])
+    expect(h.bumped).toEqual(["m-u-7", "m-u-8"])
   })
 
   it("ends them when the connection is switched off, and not when it is merely saved again", async () => {
