@@ -137,13 +137,10 @@ export class SsoProvisioning {
     const joiner = account ?? (await this.users.createProvisioned({ email: person.email, name: displayNameOf(person), verifiedAt: now }))
     // The seat is taken where the member appears; a 402 rolls the account back with it.
     if (connection.defaultRole !== "REQUESTER") await this.quota.consume(org.id, "AGENT_SEATS")
-    const membershipId = await this.memberships.create(org.id, {
-      userId: joiner.id,
-      role: connection.defaultRole,
-      displayName: joiner.name,
-      invitedByMembershipId: null,
-      joinedAt: now,
-    })
+    const joined = { userId: joiner.id, role: connection.defaultRole, displayName: joiner.name, invitedByMembershipId: null, joinedAt: now }
+    // The provider vouches for the address, so whoever wrote in from it becomes the member, tickets and all (ADR-0057).
+    const claimed = await this.memberships.claimExternal(org.id, joiner.email, joined)
+    const membershipId = claimed ?? (await this.memberships.create(org.id, joined))
     await this.identities.link(org.id, connection.id, person.subject, membershipId, now)
     await this.workspaces.upsert({
       userId: joiner.id,
@@ -161,7 +158,7 @@ export class SsoProvisioning {
           action: "MEMBER_JOINED",
           entityType: "Membership",
           entityId: membershipId,
-          diff: { via: "sso", role: connection.defaultRole, newAccount: account === null },
+          diff: { via: "sso", role: connection.defaultRole, newAccount: account === null, claimedExternal: claimed !== null },
         },
       ],
       { kind: "member", membershipId },
