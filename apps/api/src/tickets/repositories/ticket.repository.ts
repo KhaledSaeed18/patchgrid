@@ -14,6 +14,7 @@ import type { ScopeBranch } from "../../authz/scope-filter"
 import type { Prisma } from "@patchgrid/database"
 
 import { PrismaService } from "../../prisma/prisma.service"
+import type { ApproverCandidate } from "../domain/approvers"
 import type { SlaClock, SlaState } from "../domain/sla"
 
 /** A Problem's own row, when the ticket is one. */
@@ -305,23 +306,23 @@ export class TicketRepository {
   }
 
   /**
-   * Whether anyone could approve this Change by rules 1 or 2 (DOMAIN.md §2.3)
-   * — an active admin or owner, or an active lead of its team, who is neither
-   * its requester nor its assignee. Rule 3 applies only when this is false.
+   * Everyone who could decide a change on this team (DOMAIN.md §2.3): the
+   * active human admins and owners, and the team's leads at agent or above.
+   * Small by nature; the caller decides who of them is involved.
    */
-  async hasOtherApprover(orgId: string, change: { teamId: string | null; involved: readonly string[] }): Promise<boolean> {
-    const human = { orgId, status: "ACTIVE" as const, kind: "HUMAN" as const, id: { notIn: [...change.involved] } }
-    const admin = await this.prisma.db.membership.findFirst({
-      where: { ...human, role: { in: ["ADMIN", "OWNER"] } },
-      select: { id: true },
-    })
-    if (admin !== null || change.teamId === null) return admin !== null
-    const lead = await this.prisma.db.teamMembership.findFirst({
-      where: { orgId, teamId: change.teamId, isLead: true, membership: { ...human, role: { not: "REQUESTER" } } },
-      select: { membershipId: true },
-    })
-    return lead !== null
+  async approverCandidates(orgId: string, teamId: string | null): Promise<ApproverCandidate[]> {
+    const human = { orgId, status: "ACTIVE" as const, kind: "HUMAN" as const }
+    const admins = await this.prisma.db.membership.findMany({ where: { ...human, role: { in: ["ADMIN", "OWNER"] } }, select: { id: true, role: true } })
+    const leads =
+      teamId === null
+        ? []
+        : await this.prisma.db.teamMembership.findMany({
+            where: { orgId, teamId, isLead: true, membership: { ...human, role: { not: "REQUESTER" } } },
+            select: { membership: { select: { id: true, role: true } } },
+          })
+    return [...admins, ...leads.map((l) => l.membership)].map((m) => ({ membershipId: m.id, role: m.role }))
   }
+
 
   /**
    * Optimistic concurrency (ENGINEERING.md): the write applies only to the

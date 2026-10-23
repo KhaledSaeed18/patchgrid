@@ -95,6 +95,7 @@ function harness(
     byNumber?: TicketSummaryRow[]
     membershipId?: string
     otherApprover?: boolean
+    approvers?: { membershipId: string; role: Role }[]
     visible?: TicketRow[]
     /** The asset ids this actor can open. */
     visibleAssets?: string[]
@@ -148,7 +149,13 @@ function harness(
     search: vi.fn(async () => [row({ id: "t-text" })]),
     updateDetails: vi.fn(async () => undefined),
     addApproval: vi.fn(async () => undefined),
-    hasOtherApprover: vi.fn(async () => options.otherApprover ?? true),
+    // Rule 3's question, as the repository answers it: nobody else, or another admin besides the owner.
+    approverCandidates: vi.fn(async () =>
+      options.approvers ??
+      (options.otherApprover === false
+        ? [{ membershipId: options.membershipId ?? "m-owner", role: "OWNER" }]
+        : [{ membershipId: options.membershipId ?? "m-owner", role: "OWNER" }, { membershipId: "m-other-admin", role: "ADMIN" }]),
+    ),
   }
   const links = { createMany: vi.fn(async () => undefined) }
   const assetLinks = { linkMany: vi.fn(async () => undefined), lockMany: vi.fn(async () => undefined) }
@@ -421,6 +428,24 @@ describe("TicketsService — problems and changes", () => {
     await expect(notAlone.service.transition("t-1", { action: "approve", version: 3 })).rejects.toBeInstanceOf(NotPermittedProblem)
     // A rejection is never one's own.
     await expect(alone.service.transition("t-1", { action: "reject", version: 3, comment: { body: "x", visibility: "PUBLIC" } })).rejects.toBeInstanceOf(NotPermittedProblem)
+  })
+
+  it("never lets an owner self-approve by making the only other admin the assignee", async () => {
+    const approvers = [{ membershipId: "m-owner", role: "OWNER" as const }, { membershipId: "m-admin", role: "ADMIN" as const }]
+    const engineered = harness("OWNER", change({ requesterMembershipId: "m-owner", assigneeMembershipId: "m-admin" }), { membershipId: "m-owner", approvers })
+    await expect(engineered.service.transition("t-1", { action: "approve", version: 3 })).rejects.toBeInstanceOf(NotPermittedProblem)
+  })
+
+  it("refuses to submit a change nobody could decide, and submits one somebody could", async () => {
+    const approvers = [{ membershipId: "m-owner", role: "OWNER" as const }, { membershipId: "m-admin", role: "ADMIN" as const }]
+    const draft = (assignee: string | null) =>
+      change({ status: "DRAFT", requesterMembershipId: "m-owner", assigneeMembershipId: assignee }, { plannedStart: NOW, plannedEnd: new Date(NOW.getTime() + 3_600_000), implementationPlan: "Swap it", rollbackPlan: "Swap back", risk: "LOW" })
+    const stuck = harness("OWNER", draft("m-admin"), { membershipId: "m-owner", approvers })
+    await expect(stuck.service.transition("t-1", { action: "submit", version: 3 })).rejects.toBeInstanceOf(ConflictProblem)
+    expect(stuck.tickets.updateVersioned).not.toHaveBeenCalled()
+    const fine = harness("OWNER", draft(null), { membershipId: "m-owner", approvers })
+    await fine.service.transition("t-1", { action: "submit", version: 3 })
+    expect(fine.tickets.updateVersioned).toHaveBeenCalledWith(ORG, "t-1", 3, expect.objectContaining({ status: "AWAITING_APPROVAL" }))
   })
 
   it("asks before starting a change more than an hour early, then starts it", async () => {

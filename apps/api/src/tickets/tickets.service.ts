@@ -58,6 +58,7 @@ import {
   onResume,
   type SlaState,
 } from "./domain/sla"
+import { approvalRoute } from "./domain/approvers"
 import { type ApprovalStanding, availableActions, checkTransition, type TransitionTicket } from "./domain/transitions"
 import { CommentRepository } from "./repositories/comment.repository"
 import { LinkRepository } from "./repositories/link.repository"
@@ -420,8 +421,13 @@ export class TicketsService {
         case "cancel":
           changes.cancelledAt = now
           break
-        case "workaround":
         case "submit":
+          // A change nobody could decide would sit waiting for ever (DOMAIN.md §2.3).
+          if (approvalRoute(await this.tickets.approverCandidates(orgId, row.teamId), [row.requesterMembershipId, row.assigneeMembershipId]).kind === "nobody") {
+            throw new ConflictProblem("Nobody could approve this change: everyone who may approve changes is its requester or its assignee. Assign it to someone else first")
+          }
+          break
+        case "workaround":
         case "approve":
         case "reject":
           // Their effects are on the Problem's or Change's own rows, below.
@@ -683,9 +689,9 @@ export class TicketsService {
   /**
    * May this actor decide on this Change (DOMAIN.md §2.3)? Rules 1 and 2 are
    * the `ticket:approve_change` grant — an admin, or a lead of the change's
-   * team, never the change's own requester or assignee. Rule 3 is for an
-   * owner who is one of those, and only when nobody else could decide: the
-   * one-admin workspace still ships its changes, and the row says so.
+   * team, never the change's own requester or assignee. Rule 3 is for the
+   * owner of a one-admin workspace — the one person able to decide at all —
+   * never for an owner whose only other admin was made the assignee.
    */
   private async approvalStanding(orgId: string, actor: TenantActor, row: TicketRow): Promise<ApprovalStanding> {
     if (row.type !== "CHANGE" || row.status !== "AWAITING_APPROVAL") return "none"
@@ -694,8 +700,8 @@ export class TicketsService {
     if (this.permissions.can(actor, "ticket:approve_change", { lead, own })) return "eligible"
     // Rule 3 is a person's, never a token's: an API token is no one's last resort.
     if (!own || actor.role !== "OWNER" || actor.kind !== "member") return "none"
-    const involved = [row.requesterMembershipId, ...(row.assigneeMembershipId === null ? [] : [row.assigneeMembershipId])]
-    return (await this.tickets.hasOtherApprover(orgId, { teamId: row.teamId, involved })) ? "none" : "self"
+    const route = approvalRoute(await this.tickets.approverCandidates(orgId, row.teamId), [row.requesterMembershipId, row.assigneeMembershipId])
+    return route.kind === "self" && route.ownerMembershipId === actor.membershipId ? "self" : "none"
   }
 
   private async isPickable(categoryId: string): Promise<boolean> {

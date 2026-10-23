@@ -133,11 +133,17 @@ DRAFT ──submit──▶ AWAITING_APPROVAL ──approve──▶ APPROVED �
 
 A Change with no team simply has no route (2); admins remain eligible.
 
-3. **If (1) and (2) are both empty**, an `OWNER` may approve their own change. The `ChangeApproval` row
-   records `selfApproved: true`, the UI labels it as such, and it is audited as a distinct action. This
-   is not a loophole — it is the honest description of how a one-admin organization operates, and every
-   freshly provisioned workspace is one. Blocking submission instead would make the very first Change in
-   a new workspace fail.
+3. **If the only person in the workspace able to decide changes at all is an `OWNER`**, that owner may
+   approve their own change. The `ChangeApproval` row records `selfApproved: true`, the UI labels it as
+   such, and it is audited as a distinct action. This is not a loophole — it is the honest description of
+   how a one-admin organization operates, and every freshly provisioned workspace is one. Blocking
+   submission instead would make the very first Change in a new workspace fail.
+
+   Rule 3 is about the workspace, not about who this change happens to involve: an owner whose only other
+   admin is the change's assignee is not alone, and may not self-approve. **A change whose every possible
+   approver is its own requester or assignee is refused at `submit`** (`409`), naming the way out —
+   assign it to someone else — rather than waiting for a decision nobody can make. (Settled 2026-10-23;
+   before, the assignee's exclusion let an owner engineer rule 3.)
 
 **While a Change is `AWAITING_APPROVAL` its assignee and team hold still**: who may decide depends on
 both, so a reassignment then is a `409`. Rule 3 is a person's: an API token never self-approves.
