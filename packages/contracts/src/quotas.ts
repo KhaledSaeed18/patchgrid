@@ -28,6 +28,13 @@ export const PLAN_LIMITS = {
   PRO: { AGENT_SEATS: 25, TICKETS_CREATED: 10_000, STORAGE_BYTES: 25 * GB, AUTOMATION_RULES: 50, KB_ARTICLES: null },
 } as const satisfies Record<Plan, Record<UsageMetric, number | null>>
 
+/**
+ * How long a workspace's audit log is kept, by plan (ADR-0028). The longest is
+ * the partition archival's window (ADR-0034); a shorter one is a per-tenant
+ * delete in the retention sweep.
+ */
+export const AUDIT_RETENTION_YEARS = { FREE: 2, PRO: 7 } as const satisfies Record<Plan, number>
+
 export function limitFor(plan: Plan, metric: UsageMetric): number | null {
   return PLAN_LIMITS[plan][metric]
 }
