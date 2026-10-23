@@ -98,6 +98,8 @@ enum AuditActorKind {
 enum MembershipKind {
   HUMAN
   SERVICE_ACCOUNT
+  /// Someone outside the workspace who wrote to its inbound address (ADR-0027 §4): no account, a contact address.
+  EXTERNAL
 }
 
 // ─── Platform class ──────────────────────────────────────────────────────────
@@ -120,6 +122,8 @@ model Organization {
   /// TENANCY.md §5: a verified address at the proved domain may join on its own, at `defaultJoinRole`
   /// (REQUESTER or AGENT, by a check constraint). Off by default; never on without a proved domain.
   allowDomainJoin           Boolean            @default(false)
+  /// ADR-0027 §4: mail from an address that is no member's opens a ticket for an external requester. Off by default.
+  allowExternalRequesters   Boolean            @default(false)
   defaultJoinRole           Role               @default(REQUESTER)
   agentVisibility           AgentVisibility    @default(ALL_TICKETS)
   emailNotificationsEnabled Boolean            @default(true)
@@ -356,6 +360,9 @@ model Membership {
   /// Denormalised from User so hot lists never join the one table where a
   /// missing `where` exposes every customer's employees (ADR-0023).
   displayName           String
+  /// The address an EXTERNAL requester wrote from, lower-cased; null for everyone else (CHECK). Unique per org
+  /// among external memberships, by a partial index the migration makes.
+  contactEmail          String?
   avatarUrl             String?
   emailPrefs            Json             @default("{}")
   invitedByMembershipId String?          @db.Uuid
@@ -401,6 +408,7 @@ model Membership {
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
+  @@unique([orgId, contactEmail], where: raw("(kind = 'EXTERNAL'::\"MembershipKind\")"), map: "Membership_orgId_contactEmail_key")
   @@index([orgId, role, status])
   @@index([userId])
 }

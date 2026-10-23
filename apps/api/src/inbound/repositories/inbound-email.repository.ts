@@ -128,6 +128,12 @@ export class InboundEmailRepository {
     await this.prisma.db.inboundEmail.updateMany({ where: { orgId, id, outcome: "RECEIVED" }, data: { outcome: "FAILED", error, processedAt } })
   }
 
+  /** Whether the workspace takes mail from addresses that are no member's (ADR-0027 §4) — read now, never cached. */
+  async acceptsExternal(orgId: string): Promise<boolean> {
+    const org = await this.prisma.db.organization.findUnique({ where: { id: orgId }, select: { allowExternalRequesters: true } })
+    return org?.allowExternalRequesters === true
+  }
+
   /**
    * This sender's authenticated mail to this org since `since` — the
    * per-sender limit (ADR-0027 §6). Only PASS rows count: a forger choosing

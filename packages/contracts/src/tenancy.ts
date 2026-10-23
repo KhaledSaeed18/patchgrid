@@ -20,7 +20,8 @@ export const membershipStatusSchema = z.enum(["ACTIVE", "INVITED", "DISABLED", "
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>
 
 /** A service account is the actor behind an API token (ADR-0021). */
-export const membershipKindSchema = z.enum(["HUMAN", "SERVICE_ACCOUNT"])
+/** `EXTERNAL`: someone outside the workspace who wrote to its inbound address (ADR-0027 §4) — no account. */
+export const membershipKindSchema = z.enum(["HUMAN", "SERVICE_ACCOUNT", "EXTERNAL"])
 export type MembershipKind = z.infer<typeof membershipKindSchema>
 
 /** `SUSPENDED` is `403`, never `402` — `402` means a plan limit and nothing else. */

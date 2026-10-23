@@ -47,6 +47,7 @@ import {
 import { LiveRefresh } from "@/components/live-refresh"
 import { DueBadge } from "@/components/tickets/due-badge"
 import { RelativeTime } from "@/components/tickets/relative-time"
+import { RequesterName } from "@/components/tickets/requester-name"
 import { useTenant } from "@/components/tenant-provider"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
@@ -196,7 +197,9 @@ export function TicketDetail({
           )}
           <dl className="grid gap-4 text-sm">
             <Fact label="Type">{TICKET_TYPE_LABEL[ticket.type]}</Fact>
-            <Fact label="Requester">{ticket.requester.displayName}</Fact>
+            <Fact label="Requester">
+              <RequesterName requester={ticket.requester} />
+            </Fact>
             {assignable === null && (
               <>
                 <Fact label="Assignee">

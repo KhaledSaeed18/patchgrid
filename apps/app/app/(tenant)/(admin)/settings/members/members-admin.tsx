@@ -191,6 +191,15 @@ export function MembersAdmin({
                         (you)
                       </span>
                     )}
+                    {member.kind === "EXTERNAL" && (
+                      <Badge
+                        variant="outline"
+                        className="ml-1.5"
+                        title="Outside the workspace: writes and hears back by email only"
+                      >
+                        External
+                      </Badge>
+                    )}
                     {service && (
                       <Badge variant="outline" className="ml-1.5">
                         API token

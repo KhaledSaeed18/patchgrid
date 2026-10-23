@@ -19,8 +19,13 @@ export function memberCapabilities(
   target: { id: string; role: Role; status: MembershipStatus; kind: MembershipKind },
 ): Member["capabilities"] {
   const none = { roles: [], canDisable: false, canEnable: false, canRemove: false }
-  if (target.kind !== "HUMAN" || target.status === "REMOVED") return none
+  if (target.kind === "SERVICE_ACCOUNT" || target.status === "REMOVED") return none
   const subject = { self: target.id === actor.membershipId, targetRole: target.role }
+  // An external requester is paused or removed to stop their mail; they never hold another role (ADR-0027 §4).
+  if (target.kind === "EXTERNAL") {
+    const pauses = permissions.can(actor, "member:disable", subject)
+    return { roles: [], canDisable: pauses && target.status === "ACTIVE", canEnable: pauses && target.status === "DISABLED", canRemove: permissions.can(actor, "member:remove", subject) }
+  }
   const roles = !permissions.can(actor, "member:update_role", subject)
     ? []
     : ROLES.filter(

@@ -3,6 +3,7 @@ import type {
   AssetStatus,
   AssetType,
   Impact,
+  MembershipKind,
   Priority,
   TicketSource,
   TicketStatus,
@@ -63,7 +64,7 @@ export type TicketRow = SlaState & {
   createdAt: Date
   updatedAt: Date
   category: { id: string; name: string } | null
-  requester: { id: string; displayName: string }
+  requester: { id: string; displayName: string; kind: MembershipKind }
   assignee: { id: string; displayName: string } | null
   team: { id: string; name: string } | null
   problem: ProblemRow | null
@@ -156,7 +157,7 @@ export type ListFilter = {
 
 const PEOPLE = {
   category: { select: { id: true, name: true } },
-  requester: { select: { id: true, displayName: true } },
+  requester: { select: { id: true, displayName: true, kind: true } },
   assignee: { select: { id: true, displayName: true } },
   team: { select: { id: true, name: true } },
 } as const

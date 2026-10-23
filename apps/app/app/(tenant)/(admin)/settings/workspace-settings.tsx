@@ -73,7 +73,10 @@ export function WorkspaceSettings({
       change: Partial<
         Pick<
           OrganizationSettings,
-          "name" | "agentVisibility" | "emailNotificationsEnabled"
+          | "name"
+          | "agentVisibility"
+          | "emailNotificationsEnabled"
+          | "allowExternalRequesters"
         >
       >
     ) =>
@@ -106,6 +109,7 @@ export function WorkspaceSettings({
                 data.get("agentVisibility")
               ) as AgentVisibility,
               emailNotificationsEnabled: data.get("email") === "on",
+              allowExternalRequesters: data.get("external") === "on",
             })
           }}
         >
@@ -153,6 +157,25 @@ export function WorkspaceSettings({
                 <FieldLabel htmlFor="email" className="font-normal">
                   Send email notifications to members
                 </FieldLabel>
+              </Field>
+              <Field>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="external"
+                    name="external"
+                    type="checkbox"
+                    defaultChecked={settings.allowExternalRequesters}
+                    className="size-4 accent-primary"
+                  />
+                  <FieldLabel htmlFor="external" className="font-normal">
+                    Take mail from people outside the workspace
+                  </FieldLabel>
+                </div>
+                <FieldDescription>
+                  Mail to <span className="font-mono">{settings.inboundAddress}</span> from an address that is no
+                  member&apos;s opens a ticket for them, marked External. They hear back by email and never sign in.
+                  Pause one under Members to stop their mail.
+                </FieldDescription>
               </Field>
               {canEdit && (
                 <Button type="submit" className="w-fit">

@@ -354,6 +354,13 @@ SupportSession { id, orgId, platformAdminId, grantedByMembershipId, reason,
   expiry. Sessions auto-expire; expiry and revocation are audited.
 - Support sessions cannot be granted for `PENDING_DELETION` orgs.
 
+### External requesters (ADR-0055)
+
+A membership of kind `EXTERNAL` — someone outside the workspace who wrote to its inbound address, when
+the workspace takes such mail — acts only through the inbound intake, as an `external` actor with role
+`REQUESTER`, narrowed to `ticket:create`, `ticket:read`, `comment:create_public`, `attachment:upload`
+and `attachment:download`; "own" still has to hold for each. It has no account, no sign-in and no inbox.
+
 ## 10. Service accounts and API tokens
 
 See ADR-0021. Summary:

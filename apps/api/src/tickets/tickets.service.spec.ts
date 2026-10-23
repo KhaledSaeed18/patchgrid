@@ -60,7 +60,7 @@ function row(over: Partial<TicketRow> = {}): TicketRow {
     createdAt: NOW,
     updatedAt: NOW,
     category: null,
-    requester: { id: "m-req", displayName: "Req" },
+    requester: { id: "m-req", displayName: "Req", kind: "HUMAN" },
     assignee: { id: "m-agent", displayName: "Agent" },
     team: null,
     responseClockStartedAt: NOW,

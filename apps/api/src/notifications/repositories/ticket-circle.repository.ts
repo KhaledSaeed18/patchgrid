@@ -10,6 +10,8 @@ const PERSON = {
   status: true,
   role: true,
   emailPrefs: true,
+  kind: true,
+  contactEmail: true,
   user: { select: { email: true } },
   teams: { select: { teamId: true, isLead: true } },
 } as const
@@ -19,18 +21,28 @@ type PersonRow = {
   status: string
   role: Person["role"]
   emailPrefs: unknown
+  kind: string
+  contactEmail: string | null
   user: { email: string } | null
   teams: { teamId: string; isLead: boolean }[]
 }
 
-/** A human member, or nothing: a service account has no inbox (ADR-0021). */
-const toPerson = (row: PersonRow | null): Person | null =>
-  row === null || row.userId === null || row.user === null
+/** Where to reach them: an account's address, or an external requester's contact (ADR-0027 §4). */
+const addressOf = (row: PersonRow): { userId: string | null; email: string } | null => {
+  if (row.userId !== null && row.user !== null) return { userId: row.userId, email: row.user.email }
+  if (row.kind === "EXTERNAL" && row.contactEmail !== null) return { userId: null, email: row.contactEmail }
+  return null
+}
+
+/** A person, or nothing: a service account has no one to tell (ADR-0021). */
+const toPerson = (row: PersonRow | null): Person | null => {
+  const address = row === null ? null : addressOf(row)
+  return row === null || address === null
     ? null
     : {
         membershipId: row.id,
-        userId: row.userId,
-        email: row.user.email,
+        userId: address.userId,
+        email: address.email,
         // A stored value this code cannot read means nothing was turned off.
         emailPrefs: emailPrefsSchema.catch({}).parse(row.emailPrefs),
         active: row.status === "ACTIVE",
@@ -38,6 +50,7 @@ const toPerson = (row: PersonRow | null): Person | null =>
         teamIds: row.teams.map((t) => t.teamId),
         leadOfTeamIds: row.teams.filter((t) => t.isLead).map((t) => t.teamId),
       }
+}
 const people = (rows: PersonRow[]): Person[] => rows.flatMap((r) => toPerson(r) ?? [])
 
 /**

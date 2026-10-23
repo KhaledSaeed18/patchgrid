@@ -50,6 +50,8 @@ export class AuditService {
     const current = this.actors.current()
     if (current?.kind === "member") return { actorKind: "MEMBER", actorMembershipId: current.membershipId }
     if (current?.kind === "service") return { actorKind: "SERVICE", actorMembershipId: current.membershipId }
+    // An external requester's mail: their own membership, as a member's change names theirs (ADR-0027 §4).
+    if (current?.kind === "external") return { actorKind: "MEMBER", actorMembershipId: current.membershipId }
     // An operator reading inside a support session: named, with the session, in the tenant's own log (ADR-0041).
     if (current?.kind === "support") {
       return { actorKind: "PLATFORM", actorMembershipId: null, actorPlatformAdminId: current.platformAdminId, supportSessionId: current.sessionId }

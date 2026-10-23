@@ -25,7 +25,7 @@ function row(over: Partial<TicketSummaryRow> = {}): TicketSummaryRow {
     resolutionBreached: false,
     createdAt: at(-60),
     updatedAt: at(-60),
-    requester: { id: "m-1", displayName: "Rita" },
+    requester: { id: "m-1", displayName: "Rita", kind: "HUMAN" },
     assignee: null,
     team: null,
     ...over,

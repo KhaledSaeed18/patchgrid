@@ -41,6 +41,14 @@ export type Actor =
    * membership, so no "own", "assignee" or "watcher" relation can hold.
    */
   | { kind: "support"; orgId: string; sessionId: string; platformAdminId: string; userId: string; role: "ADMIN"; membershipId: string }
+  /**
+   * Someone outside the workspace who wrote to its inbound address (ADR-0027
+   * §4), when the workspace takes such mail: a `REQUESTER` membership of kind
+   * `EXTERNAL` with no account — a contact address, never a sign-in. Only the
+   * inbound intake builds one, from a DMARC-aligned sender; it never comes
+   * from a credential.
+   */
+  | { kind: "external"; orgId: string; membershipId: string; role: "REQUESTER" }
   /** An operator, from the platform credential only (ADR-0040). Holds no tenant permission. */
   | { kind: "platform"; platformAdminId: string; userId: string; sessionExpiresAt: number }
 
@@ -56,8 +64,9 @@ export type ServiceActor = Extract<Actor, { kind: "service" }>
 export type IdentityActor = Extract<Actor, { kind: "identity" }>
 export type PlatformActor = Extract<Actor, { kind: "platform" }>
 export type SupportActor = Extract<Actor, { kind: "support" }>
+export type ExternalActor = Extract<Actor, { kind: "external" }>
 /** Someone acting inside one organization — what authorization decides about. */
-export type TenantActor = MemberActor | ServiceActor | SupportActor
+export type TenantActor = MemberActor | ServiceActor | SupportActor | ExternalActor
 
 declare module "../tenancy/request-context" {
   interface RequestContextStore {

@@ -273,7 +273,8 @@ export const ticketSummarySchema = z.object({
   version: z.int().positive(),
   /** How it arrived — an email-raised ticket says so in the queue. */
   source: ticketSourceSchema,
-  requester: personSchema,
+  /** `external`: someone outside the workspace, by email only (ADR-0027 §4) — the queue badges them. */
+  requester: personSchema.extend({ external: z.boolean() }),
   assignee: personSchema.nullable(),
   team: z.object({ id: idSchema, name: z.string() }).nullable(),
   /** The deadline that matters now — response until answered, then resolution — or `null` without a clock. */

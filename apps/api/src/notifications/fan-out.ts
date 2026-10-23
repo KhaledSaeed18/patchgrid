@@ -203,7 +203,8 @@ export function mailingsFor(
   if (!circle.org.emailEnabled) return []
   return deliveries.flatMap((d) => {
     if (!d.channels.email || !emailWanted(d.person.emailPrefs, d.type)) return []
-    if (d.channels.inApp) {
+    // With an inbox, the email follows a new row; an external requester has none, and is emailed outright.
+    if (d.channels.inApp && d.person.userId !== null) {
       const row = written.get(d.person.membershipId)
       if (row === undefined || !row.inserted) return []
     }
