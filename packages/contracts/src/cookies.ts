@@ -40,6 +40,16 @@ export const SUPPORT_COOKIE_PREFIX = "pg_st_"
 export const supportCookieName = (slug: string): string => `${SUPPORT_COOKIE_PREFIX}${slug}`
 export const refreshCookieName = (slug: string): string => `${REFRESH_COOKIE_PREFIX}${slug}`
 
+/**
+ * The workspaces whose pairs this browser holds, most recently used first
+ * (ADR-0024 §2, "Budget"): slugs joined by `.`, which no slug contains. Every
+ * mint or refresh moves its workspace to the front, and pairs past
+ * `MAX_TENANT_PAIRS` are expired in the same response. Sent to the API only.
+ */
+export const RECENT_WORKSPACES_COOKIE = "pg_ws"
+export const RECENT_WORKSPACES_COOKIE_PATH = "/api/v1"
+export const MAX_TENANT_PAIRS = 5
+
 /** Every request a browser can send with cookies must carry this header (ADR-0024 §4). */
 export const REQUESTED_WITH = "patchgrid"
 /** The tenant a server-side caller asserts when it sends no `Origin` (ADR-0024 §1). */
