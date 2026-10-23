@@ -62,9 +62,15 @@ export async function seedWorkspace<P extends string>(
     }
   }
 
-  // The seat counter as provisioning would have left it (TENANCY.md §8).
-  const seats = Object.values<Role>(options.people).filter((role) => role !== "REQUESTER").length
-  await db.usageCounter.create({ data: { orgId: org.id, period: "current", metric: "AGENT_SEATS", value: BigInt(seats) } })
+  // The seat counter as provisioning would have left it (TENANCY.md §8). An upsert: provisioning writes
+  // the org and its counters in one transaction, this helper does not, and a worker another spec booted
+  // can run usage-reconcile for the new org in between, creating the row first.
+  const seats = BigInt(Object.values<Role>(options.people).filter((role) => role !== "REQUESTER").length)
+  await db.usageCounter.upsert({
+    where: { orgId_period_metric: { orgId: org.id, period: "current", metric: "AGENT_SEATS" } },
+    create: { orgId: org.id, period: "current", metric: "AGENT_SEATS", value: seats },
+    update: { value: seats },
+  })
 
   const cleanup = async () => {
     const userIds = Object.values<Person>(people).map((p) => p.userId)
