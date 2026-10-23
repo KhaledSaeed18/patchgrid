@@ -167,7 +167,8 @@ export class MembershipRepository {
       userId: string
       role: Role
       displayName: string
-      invitedByMembershipId: string
+      /** `null` when nobody invited them: provisioned by the workspace's identity provider (ADR-0054). */
+      invitedByMembershipId: string | null
       joinedAt: Date
     },
   ): Promise<string> {

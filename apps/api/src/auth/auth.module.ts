@@ -29,6 +29,11 @@ import { PasskeyChallengeStore } from "./passkeys/passkey-challenges"
 import { PasskeyController } from "./passkeys/passkey.controller"
 import { PasskeyService } from "./passkeys/passkey.service"
 import { PasswordService } from "./passwords/password.service"
+import { SsoCoreModule } from "../sso/sso-core.module"
+import { SsoController } from "./sso/sso.controller"
+import { SsoFlowStore } from "./sso/sso-flow-store"
+import { SsoProvisioning } from "./sso/sso-provisioning"
+import { SsoSignInService } from "./sso/sso-sign-in.service"
 import { PlatformAuthController } from "./platform/platform-auth.controller"
 import { PlatformAuthService } from "./platform/platform-auth.service"
 import { PlatformTokenService } from "./platform/platform-token.service"
@@ -55,9 +60,10 @@ import { OrgThrottlerGuard } from "../throttling/throttler.guards"
     QuotaModule,
     SupportCoreModule,
     ApiTokenCoreModule,
+    SsoCoreModule,
     BullModule.registerQueue({ name: CREDENTIAL_RETENTION_QUEUE }),
   ],
-  controllers: [AuthController, IdentityController, PlatformAuthController, MfaController, PasskeyController, AccountController],
+  controllers: [AuthController, IdentityController, PlatformAuthController, MfaController, PasskeyController, AccountController, SsoController],
   providers: [
     CookieService,
     PasswordService,
@@ -79,6 +85,9 @@ import { OrgThrottlerGuard } from "../throttling/throttler.guards"
     PasskeyChallengeStore,
     PasskeyCeremonies,
     PasskeyService,
+    SsoFlowStore,
+    SsoProvisioning,
+    SsoSignInService,
     AccountErasureRepository,
     AccountErasureService,
     CredentialRetentionService,

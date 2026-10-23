@@ -3,7 +3,7 @@ import { parseCookie } from "cookie"
 import type { Request, Response } from "express"
 
 import { InjectConfig, type AppConfig } from "../config/app-config"
-import { MFA_CHALLENGE_COOKIE } from "@patchgrid/contracts"
+import { MFA_CHALLENGE_COOKIE, SSO_FLOW_COOKIE, SSO_FLOW_COOKIE_PATH } from "@patchgrid/contracts"
 
 import {
   accessCookieName,
@@ -62,6 +62,11 @@ export class CookieService {
   /** Between the password and the factor (ADR-0045): auth routes only, five minutes. */
   mfaChallenge(token: string, ttlSeconds: number): CookieSpec {
     return { name: MFA_CHALLENGE_COOKIE, value: token, path: REFRESH_COOKIE_PATH, maxAgeSeconds: ttlSeconds }
+  }
+
+  /** One SSO round trip's `state` (ADR-0054): the SSO routes only, as long as the flow lives. */
+  ssoFlow(state: string, ttlSeconds: number): CookieSpec {
+    return { name: SSO_FLOW_COOKIE, value: state, path: SSO_FLOW_COOKIE_PATH, maxAgeSeconds: ttlSeconds }
   }
 
   /** The names a workspace's pair is cleared under. */

@@ -49,6 +49,26 @@ export class UserRepository {
     return this.prisma.db.user.create({ data: { ...rest, emailVerifiedAt: verifiedAt }, select: ACCOUNT })
   }
 
+  /**
+   * An account an identity provider vouched for (ADR-0054): verified, because
+   * the provider verified the address at a domain the workspace proved, and
+   * without a password — its credential lives at the provider.
+   */
+  createProvisioned(account: { email: string; name: string; verifiedAt: Date }): Promise<AccountRecord> {
+    return this.prisma.db.user.create({ data: { email: account.email, name: account.name, emailVerifiedAt: account.verifiedAt }, select: ACCOUNT })
+  }
+
+  /**
+   * An unverified account at that address becomes the provider's: verified,
+   * and its password dropped. Whoever signed up with someone else's address
+   * and never proved it must not keep a password to an account the real owner
+   * now uses (pre-account takeover, ADR-0054).
+   */
+  async claimUnverified(id: string, at: Date): Promise<AccountRecord | null> {
+    const { count } = await this.prisma.db.user.updateMany({ where: { id, emailVerifiedAt: null }, data: { emailVerifiedAt: at, passwordHash: null } })
+    return count === 1 ? this.findById(id) : null
+  }
+
   async markVerified(id: string, at: Date): Promise<void> {
     await this.prisma.db.user.updateMany({ where: { id, emailVerifiedAt: null }, data: { emailVerifiedAt: at } })
   }
