@@ -2,6 +2,7 @@ import { BullModule } from "@nestjs/bullmq"
 import { Module } from "@nestjs/common"
 
 import { AuthModule } from "../auth/auth.module"
+import { MailModule } from "../mail/mail.module"
 import { DeliverProcessor } from "./delivery/deliver.processor"
 import { WEBHOOK_DELIVER_QUEUE } from "./delivery/deliver-job"
 import { WebhookDeliverer } from "./delivery/deliverer"
@@ -15,7 +16,7 @@ import { WebhooksService } from "./webhooks.service"
 
 /** Outbound webhooks (ADR-0050): the endpoints, the `webhooks` consumer of the log, and the delivery workers. */
 @Module({
-  imports: [AuthModule, BullModule.registerQueue({ name: WEBHOOK_DELIVER_QUEUE }, { name: "webhook-sweep" })],
+  imports: [AuthModule, MailModule, BullModule.registerQueue({ name: WEBHOOK_DELIVER_QUEUE }, { name: "webhook-sweep" })],
   controllers: [WebhooksController],
   providers: [
     WebhookRepository,
