@@ -67,7 +67,7 @@ let recovery: string[] = []
 describe("enrolling", () => {
   it("starts from the picker, confirms with one code, and shows ten recovery codes once", async () => {
     const owner = picker("owner")
-    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: [], recoveryCodesRemaining: 0 })
+    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: [], password: true, recoveryCodesRemaining: 0 })
     expect((await owner.get("/auth/identity")).body.mfa).toEqual({ enrolled: false })
     // The password, not the cookie alone, sets the factor (M9 review).
     expect((await owner.post("/auth/mfa/enrol", { password: "nope-nope-nope" })).status).toBe(400)

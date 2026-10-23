@@ -91,7 +91,7 @@ describe("registering", () => {
     expect(added.body.passkey).toMatchObject({ label: "Laptop", synced: false, lastUsedAt: null })
 
     expect((await owner.get("/auth/passkeys")).body).toHaveLength(1)
-    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], recoveryCodesRemaining: 10 })
+    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], password: true, recoveryCodesRemaining: 10 })
     expect((await owner.get("/auth/identity")).body.mfa).toEqual({ enrolled: true })
     expect(await subjectsTo("owner")).toContainEqual(expect.stringMatching(/A passkey was added/))
   })
@@ -203,7 +203,7 @@ describe("managing", () => {
 
     // A passkey may prove its own removal; it was the last factor, so the codes go too.
     expect((await owner.post(`/auth/passkeys/${laptopKey?.id ?? ""}/remove`, { passkey: await proof(owner, laptop) })).status).toBe(204)
-    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: [], recoveryCodesRemaining: 0 })
+    expect((await owner.get("/auth/mfa")).body).toEqual({ enrolled: false, confirmedAt: null, methods: [], password: true, recoveryCodesRemaining: 0 })
     expect(await db.userMfaRecovery.count({ where: { userId: ws.people.owner.userId } })).toBe(0)
     expect((await subjectsTo("owner")).filter((s) => /passkey was removed/.test(s))).toHaveLength(2)
     // Gone: it signs no one in.
