@@ -165,6 +165,21 @@ services:
       - prometheus
       - tempo
 
+  # ─── DNS for the domain proof (ADR-0054) — `docker compose --profile dns up -d`
+  # Answers for domains nobody can publish to, from the zone files in
+  # docker/coredns/zones. Point the API at it with DNS_RESOLVERS=127.0.0.1:5354.
+  coredns:
+    image: coredns/coredns:1.12.1@sha256:e8c262566636e6bc340ece6473b0eed193cad045384401529721ddbe6463d31c
+    profiles: ["dns"]
+    restart: unless-stopped
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./docker/coredns/Corefile:/etc/coredns/Corefile:ro
+      - ./docker/coredns/zones:/zones:ro
+    ports:
+      - "${DNS_PORT:-5354}:53/udp"
+      - "${DNS_PORT:-5354}:53/tcp"
+
   # ─── Single sign-on (ADR-0054) — `docker compose --profile sso up -d` ───────
   # A Keycloak with one realm, `acme`, imported at start: the identity provider
   # the seed points Acme's SSO connection at. Browser and API both reach it as

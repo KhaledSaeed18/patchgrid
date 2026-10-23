@@ -1,0 +1,9 @@
+; globex.test — a domain to prove locally (ADR-0054). Claim it in Globex's
+; Settings → Single sign-on, then publish the record the page shows by adding
+; a line like the one below, raising the serial, and saving. CoreDNS reloads it.
+$ORIGIN globex.test.
+$TTL 60
+@   IN SOA ns.globex.test. hostmaster.globex.test. ( 2026102301 60 60 600 60 )
+@   IN NS  ns.globex.test.
+ns  IN A   127.0.0.1
+; _patchgrid-verify IN TXT "patchgrid-verify=<the challenge Settings shows>"

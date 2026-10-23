@@ -1,0 +1,11 @@
+# A nameserver for domains nobody can publish to (ADR-0054): the domain proof
+# reads its TXT records when the API's DNS_RESOLVERS points here. One zone file
+# per domain in ./zones, named db.<domain>; edited files load within seconds.
+. {
+    auto {
+        directory /zones db\.(.*) {1}
+        reload 5s
+    }
+    errors
+    log
+}
