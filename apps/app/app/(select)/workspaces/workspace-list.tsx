@@ -20,7 +20,7 @@ export function WorkspaceList({
   ssoSlug,
 }: {
   workspaces: WorkspaceSummary[]
-  /** The workspace whose single sign-on started this session; it alone opens from here (ADR-0054). */
+  /** The workspace whose single sign-on started this session, the only one listed (ADR-0054). */
   ssoSlug: string | null
 }) {
   const router = useRouter()
@@ -73,9 +73,9 @@ export function WorkspaceList({
     <ul className="flex flex-col divide-y divide-border border-y border-border">
       {workspaces.map((workspace) => {
         const blocked = unavailable(workspace)
-        // An SSO session vouches for its own workspace only: the others need Patchgrid credentials.
-        const elsewhere = ssoSlug !== null && workspace.slug !== ssoSlug
+        // Cancelling a deletion is account-wide: an SSO session cannot (ADR-0054).
         const keepable =
+          ssoSlug === null &&
           workspace.orgStatus === "PENDING_DELETION" &&
           workspace.role === "OWNER" &&
           workspace.status === "ACTIVE"
@@ -91,9 +91,7 @@ export function WorkspaceList({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              {blocked === null && elsewhere ? (
-                <Badge variant="outline">Needs your password</Badge>
-              ) : blocked === null ? (
+              {blocked === null ? (
                 <span className="text-xs text-muted-foreground">
                   {ROLE_LABEL[workspace.role]}
                 </span>
@@ -111,19 +109,6 @@ export function WorkspaceList({
                     <Spinner />
                   )}
                   Keep it
-                </Button>
-              ) : elsewhere ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  nativeButton={false}
-                  render={
-                    <a
-                      href={`/login?next=${encodeURIComponent(workspaceOrigin(workspace.slug))}`}
-                    />
-                  }
-                >
-                  Sign in
                 </Button>
               ) : (
                 <Button

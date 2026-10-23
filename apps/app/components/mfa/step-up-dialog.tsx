@@ -13,7 +13,9 @@ import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useCallback, useState } from "react"
 
+import { useTenant } from "@/components/tenant-provider"
 import { clientApi, currentSlug } from "@/lib/api/client"
+import { appOrigin } from "@/lib/config"
 import { ssoStartUrl } from "@/lib/sso"
 import { isStepUpRequired, StepUpCancelled } from "@/lib/step-up"
 
@@ -40,19 +42,22 @@ export function StepUpDialog({
   onProved: () => void
   onCancel: () => void
 }) {
-  const status = useQuery({
-    queryKey: ["mfa-status"],
-    queryFn: () => clientApi("/auth/mfa", { schema: mfaStatusSchema }),
-    enabled: open,
-  })
+  const { membership } = useTenant()
+  // Only ever open in the browser; the server render has no host to read.
+  const slug = open ? currentSlug() : null
   const identity = useQuery({
     queryKey: ["identity"],
     queryFn: () => clientApi("/auth/identity", { schema: identityResponseSchema }),
     enabled: open,
   })
-  // Only ever open in the browser; the server render has no host to read.
-  const slug = open ? currentSlug() : null
+  // An identity that cannot be read is treated as an ordinary one: the factor form, never a spinner forever.
   const viaSso = slug !== null && identity.data?.sso?.slug === slug
+  const settled = identity.data !== undefined || identity.isError
+  const status = useQuery({
+    queryKey: ["mfa-status"],
+    queryFn: () => clientApi("/auth/mfa", { schema: mfaStatusSchema }),
+    enabled: open && settled && !viaSso,
+  })
   const prove = useMutation({
     mutationFn: (proof: HolderProof) =>
       clientApi("/auth/step-up", {
@@ -62,6 +67,7 @@ export function StepUpDialog({
       }),
     onSuccess: onProved,
   })
+  const here = () => window.location.pathname + window.location.search
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
@@ -73,9 +79,50 @@ export function StepUpDialog({
             lasts five minutes.
           </DialogDescription>
         </DialogHeader>
-        {status.data === undefined || identity.data === undefined ? (
+        {!settled ? (
           <Spinner />
-        ) : viaSso && status.data.methods.length === 0 && !status.data.password ? null : (
+        ) : viaSso && slug !== null ? (
+          membership?.role === "OWNER" ? (
+            // Owners re-prove with their own credentials, never the provider's (ADR-0054, M13 review).
+            <>
+              <p className="text-sm text-pretty text-muted-foreground">
+                You signed in through your organization&apos;s sign-in. Owners
+                confirm this with their own Patchgrid sign-in.
+              </p>
+              <Button
+                size="lg"
+                nativeButton={false}
+                render={
+                  <a
+                    href={`${appOrigin()}/login?next=${encodeURIComponent(window.location.href)}`}
+                  />
+                }
+              >
+                Sign in with your password or passkey
+              </Button>
+            </>
+          ) : (
+            // An SSO session re-proves at its provider (ADR-0054): a full-page round trip back to this page.
+            <>
+              <p className="text-sm text-pretty text-muted-foreground">
+                Your organization&apos;s sign-in opens in this tab and brings
+                you back here. Then do it again.
+              </p>
+              <Button
+                size="lg"
+                onClick={() =>
+                  window.location.assign(
+                    ssoStartUrl({ slug }, { intent: "step-up", next: here() })
+                  )
+                }
+              >
+                Confirm with your organization&apos;s sign-in
+              </Button>
+            </>
+          )
+        ) : status.data === undefined ? (
+          <Spinner />
+        ) : (
           <HolderProofForm
             methods={status.data.methods}
             onSubmit={(proof) => prove.mutate(proof)}
@@ -84,28 +131,6 @@ export function StepUpDialog({
             submitLabel="Confirm"
             passwordHint="Add a passkey or an authenticator app under your account to confirm with that instead."
           />
-        )}
-        {viaSso && slug !== null && (
-          <p className="text-sm text-pretty text-muted-foreground">
-            Your organization&apos;s sign-in opens in this tab and brings you
-            back here. Then do it again.
-          </p>
-        )}
-        {viaSso && slug !== null && (
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() =>
-              window.location.assign(
-                ssoStartUrl(
-                  { slug },
-                  { intent: "step-up", next: window.location.pathname + window.location.search }
-                )
-              )
-            }
-          >
-            Confirm with your organization&apos;s sign-in
-          </Button>
         )}
       </DialogContent>
     </Dialog>

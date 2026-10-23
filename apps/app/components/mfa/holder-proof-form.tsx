@@ -30,6 +30,7 @@ export function HolderProofForm({
   error,
   submitLabel,
   passwordHint,
+  allowRecovery = true,
 }: {
   methods: readonly FactorMethod[]
   onSubmit: (proof: HolderProof) => void
@@ -37,6 +38,12 @@ export function HolderProofForm({
   error: Error | null
   submitLabel: string
   passwordHint?: string
+  /**
+   * `false` where a second request follows the proof — adding a passkey,
+   * setting up the app: a recovery code ends every session, this one too,
+   * so the API refuses it there (M13 review).
+   */
+  allowRecovery?: boolean
 }) {
   if (methods.length > 0) {
     return (
@@ -47,7 +54,15 @@ export function HolderProofForm({
         pending={pending}
         error={error}
         submitLabel={submitLabel}
-      />
+        allowRecovery={allowRecovery}
+      >
+        {!allowRecovery && (
+          <p className="text-sm text-pretty text-muted-foreground">
+            Lost your devices? Sign out and sign in again with a recovery code
+            first, then add the new one.
+          </p>
+        )}
+      </FactorForm>
     )
   }
   return (

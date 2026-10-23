@@ -5,6 +5,7 @@ import { Button } from "@patchgrid/ui/components/button"
 import { FieldGroup } from "@patchgrid/ui/components/field"
 import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation } from "@tanstack/react-query"
+import { useEffect } from "react"
 
 import { FormAlert } from "@/components/form-alert"
 import { FormField } from "@/components/form-field"
@@ -36,13 +37,24 @@ export function SsoForm({ target, onBack }: { target: NextTarget | null; onBack:
     },
   })
   const none = discover.data?.sso === null
+  // Back from the provider through the back/forward cache: a page frozen mid-redirect, made usable again.
+  const { reset } = discover
+  useEffect(() => {
+    const restored = (event: PageTransitionEvent) => {
+      if (event.persisted) reset()
+    }
+    window.addEventListener("pageshow", restored)
+    return () => window.removeEventListener("pageshow", restored)
+  }, [reset])
 
   return (
     <form
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
-        discover.mutate(String(new FormData(event.currentTarget).get("email") ?? "").trim())
+        const email = String(new FormData(event.currentTarget).get("email") ?? "").trim()
+        if (email === "") return
+        discover.mutate(email)
       }}
     >
       <FieldGroup>

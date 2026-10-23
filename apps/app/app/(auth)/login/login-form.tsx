@@ -20,7 +20,7 @@ import { FactorForm, type FactorProof } from "@/components/mfa/factor-form"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { parseNext } from "@/lib/next-url"
-import { SSO_ERROR_MESSAGE } from "@/lib/sso"
+import { SSO_ERROR_MESSAGE, ssoStartUrl } from "@/lib/sso"
 import {
   assertWithPasskey,
   PasskeyCancelled,
@@ -55,6 +55,9 @@ export function LoginForm({
   const go = (response: SignedInResponse) => {
     if (target?.kind === "workspace" && response.session !== null) {
       window.location.assign(target.url)
+    } else if (target?.kind === "workspace") {
+      // Signed in, but the workspace withheld its session: ask it why, and go where that leads.
+      void openOrExplain(target.slug, target.url)
     } else if (target?.kind === "path") {
       window.location.assign(target.path)
     } else {
@@ -213,6 +216,27 @@ export function LoginForm({
       </FieldGroup>
     </form>
   )
+}
+
+/**
+ * The login named a workspace that did not open: it requires single sign-on
+ * (to the provider, coming back to the page that was wanted — ADR-0054) or
+ * a second factor (to set one up), or the person is not a member (the picker).
+ */
+async function openOrExplain(slug: string, url: string): Promise<void> {
+  try {
+    await clientApi("/auth/sessions", { method: "POST", body: { slug }, schema: null })
+    window.location.assign(url)
+  } catch (error) {
+    if (error instanceof ApiError && error.type === "sso-required") {
+      const wanted = new URL(url)
+      window.location.assign(ssoStartUrl({ slug }, { next: wanted.pathname + wanted.search }))
+    } else if (error instanceof ApiError && error.type === "mfa-required") {
+      window.location.assign(`/account/security?required=${encodeURIComponent(slug)}`)
+    } else {
+      window.location.assign("/workspaces")
+    }
+  }
 }
 
 function messageFor(error: Error): string {

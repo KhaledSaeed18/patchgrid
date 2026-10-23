@@ -6,6 +6,16 @@ import {
   type SsoSettings,
   ssoSettingsSchema,
 } from "@patchgrid/contracts"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@patchgrid/ui/components/alert-dialog"
 import { Badge } from "@patchgrid/ui/components/badge"
 import { Button } from "@patchgrid/ui/components/button"
 import {
@@ -329,16 +339,19 @@ function RequirementSection({ settings, onSaved }: SectionProps) {
     settings.domain !== null &&
     settings.domain.verifiedAt !== null &&
     settings.connection?.enabled === true
+  // Members below owner whose addresses the provider cannot vouch for: the API says how many, and the owner decides.
+  const [outside, setOutside] = useState<string | null>(null)
   const save = useMutation({
-    mutationFn: (required: boolean) =>
+    mutationFn: (change: { required: boolean; confirm?: boolean }) =>
       stepUp.guard(() =>
         clientApi("/org/sso/requirement", {
           method: "PUT",
-          body: { required },
+          body: change,
           schema: ssoSettingsSchema,
         })
       ),
     onSuccess: (updated) => {
+      setOutside(null)
       onSaved(updated)
       toast.success(
         updated.required
@@ -348,6 +361,10 @@ function RequirementSection({ settings, onSaved }: SectionProps) {
     },
     onError: (error) => {
       if (error instanceof StepUpCancelled) return
+      if (error instanceof ApiError && error.type === "sso-members-outside") {
+        setOutside(error.message)
+        return
+      }
       toast.error(failureMessage(error, "The setting wasn't saved."))
     },
   })
@@ -362,7 +379,7 @@ function RequirementSection({ settings, onSaved }: SectionProps) {
           type="checkbox"
           checked={settings.required}
           disabled={(!ready && !settings.required) || save.isPending || stepUp.waiting}
-          onChange={(e) => save.mutate(e.target.checked)}
+          onChange={(e) => save.mutate({ required: e.target.checked })}
           className="size-4 accent-primary"
         />
         <FieldLabel htmlFor="requireSso" className="font-normal">
@@ -375,6 +392,29 @@ function RequirementSection({ settings, onSaved }: SectionProps) {
         </p>
       )}
       {stepUp.dialog}
+      <AlertDialog open={outside !== null} onOpenChange={(open) => !open && setOutside(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Shut some members out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {outside} They will not be able to open this workspace until it is
+              turned off again or their address changes. Owners are never shut
+              out.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Leave it off</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={save.isPending}
+              onClick={() => save.mutate({ required: true, confirm: true })}
+            >
+              {save.isPending && <Spinner />}
+              Require it anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Section>
   )
 }

@@ -233,6 +233,7 @@ export function Passkeys({
             <HolderProofForm
               methods={methods}
               onSubmit={(proof) => add.mutate({ label: stage.label, proof })}
+              allowRecovery={false}
               pending={add.isPending}
               error={
                 add.error instanceof PasskeyAlreadyRegistered ? null : add.error

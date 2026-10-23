@@ -38,7 +38,8 @@ export default async function WorkspacesPage() {
               <span className="font-mono text-foreground">
                 {identity.sso.slug}
               </span>
-              . Other workspaces need your Patchgrid sign-in.
+              . Any other workspaces you belong to open with your own
+              Patchgrid sign-in.
             </>
           )}
         </>

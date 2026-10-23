@@ -66,6 +66,8 @@ test("an owner requires SSO; an agent with a password is sent to the provider, t
     const confirm = owner.getByRole("dialog", { name: "Confirm it's you" })
     await confirm.locator("input[type=password]").fill("patchgrid-demo")
     await confirm.getByRole("button", { name: "Confirm" }).click()
+    // Acme's seeded people are at patchgrid.test: the provider can never vouch for them, so it asks first.
+    await owner.getByRole("alertdialog").getByRole("button", { name: "Require it anyway" }).click()
     await expect(owner.getByText("Single sign-on is now required")).toBeVisible()
 
     const agent = await (await browser.newContext()).newPage()
