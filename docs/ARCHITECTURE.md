@@ -14,7 +14,7 @@ Tenancy rules live in `TENANCY.md`, ITSM rules in `DOMAIN.md`, working conventio
 | Tenant context | `nestjs-cls` (`AsyncLocalStorage`) + a Prisma client extension | ADR-0015, ADR-0022 |
 | Queue / cache | Redis 7 + BullMQ | tenant-dispatched jobs, quota counters, tenant lookup cache, throttling |
 | Object storage | S3-compatible — MinIO locally | attachments via presigned URLs, keyed `org/<orgId>/…` (ADR-0005) |
-| Email | **Mailpit** locally; a real provider only if ever deployed | behind a `MailProvider` interface; templates are React elements rendered by `@react-email/render` (not the unsupported `@react-email/components`), compiled by the Nest SWC builder with `.tsx` in its extensions |
+| Email | **Mailpit** over SMTP locally; **SES** (v2, raw MIME) on AWS, `MAIL_TRANSPORT=ses` | behind a `MailProvider` interface; templates are React elements rendered by `@react-email/render` (not the unsupported `@react-email/components`), compiled by the Nest SWC builder with `.tsx` in its extensions |
 | Validation / contracts | Zod 4 in `packages/contracts`; `nestjs-zod` pipe on the API | one schema, three apps, no codegen |
 | Auth | JWT access (15 min, org-bound) + rotating refresh, **per-tenant** httpOnly cookies on `.patchgrid.xyz`; Argon2id; Redis revocation epoch | ADR-0004, ADR-0017, ADR-0024 |
 | Realtime | Server-Sent Events, Redis fan-out per org | ADR-0008, ADR-0018 |
@@ -446,9 +446,13 @@ Payloads are thin (ids and states), and internal notes are never in them.
 interface MailProvider    { send(m: OutboundMail): Promise<{ providerMessageId: string }>; }
 ```
 
-A Nest injection token with a real implementation (SMTP to Mailpit) and a fake one selected by env. There
-are no model boundaries: M7, which would have added a classifier, a URL scorer and an embedding
-provider, is dropped (ADR-0056).
+A Nest injection token with three implementations: SMTP (Mailpit locally), SES through the AWS SDK
+(`MAIL_TRANSPORT=ses`, ADR-0058), and a recorder in tests. Both real ones compose the MIME with
+nodemailer, so headers cannot drift between them. Nothing above the interface knows which is in use.
+
+AWS clients (S3, SES) take region, credentials and endpoint from the SDK's default chain: the ECS task
+role in a deployment, `AWS_ENDPOINT_URL` against an emulator. No line of the application names Floci.
+`S3_ENDPOINT` and the static S3 keys remain for MinIO, and are omitted on AWS.
 
 ## Local infrastructure (Docker Compose)
 
