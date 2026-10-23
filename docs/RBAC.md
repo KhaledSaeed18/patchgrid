@@ -50,9 +50,11 @@ such a session may do only what the route explicitly admits:
 
 | Route | SSO session |
 | --- | --- |
-| `GET /auth/identity`, `GET /auth/mfa`, `GET /auth/passkeys` | ✅ |
+| `GET /auth/identity` | ✅ lists its own workspace only, and no factor status |
 | `POST /auth/sessions` (open a workspace) | ✅ its own workspace only |
-| `POST /auth/step-up`, `POST /auth/passkeys/proof/options` | ✅ its own workspace only; also at the provider with `intent=step-up` |
+| `POST /auth/logout` with `everywhere` | ✅ ends that workspace's sessions only |
+| Step-up | ✅ at the provider (`GET /auth/sso/start?intent=step-up`), **never for an owner** |
+| `POST /auth/step-up`, `GET /auth/mfa`, the passkey routes | ❌ `403 sso-session-scoped`: the person's own factors are not the provider's to try |
 | Password change, factor and passkey changes, account erasure | ❌ `403 sso-session-scoped` |
 | Creating a workspace, accepting an invitation, cancelling a deletion | ❌ `403 sso-session-scoped` |
 

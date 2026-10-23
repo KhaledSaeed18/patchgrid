@@ -177,8 +177,9 @@ At open and refresh, three rules apply, in the two places ADR-0045 checks `requi
    strength to its provider.
 
 Every `@TenantOptional` route refuses a scoped `pg_id` unless it is marked `@AllowsSsoSession` (who am
-I, open a session, factor status, the passkey list, a passkey proof, step-up), so nothing account-wide
-happens on a provider's say-so.
+I, which lists only the scope's workspace, and open a session), so nothing account-wide happens on a
+provider's say-so. "Log out everywhere" from a scoped session ends that workspace's sessions only, and
+switching the connection off or replacing its issuer ends every session it started (ADR-0054 erratum).
 
 **Residual risk, recorded rather than hidden:** any tenant subdomain can set cookies for
 `.patchgrid.xyz` ("cookie tossing"). Tokens are signed, so a tossed cookie cannot forge a session — the

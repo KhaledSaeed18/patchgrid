@@ -59,8 +59,8 @@ points at the ADR or document carrying the correct rule. Copy `0000-template.md`
 | [0050](0050-outbound-webhooks.md) | Outbound webhooks: thin signed events, at least once, and nobody else's problem | Accepted |
 | [0051](0051-reporting-read-side.md) | Reporting: a fact row per ticket, refreshed from the log, checked against the source | Accepted |
 | [0052](0052-saved-views-and-bulk-actions.md) | Saved views are queries; bulk actions are many single actions | Accepted |
-| [0053](0053-passkeys.md) | Passkeys: a credential that signs in alone, scoped to the workspace hosts | Accepted |
-| [0054](0054-per-tenant-oidc-sso.md) | Per-tenant SSO: an identity provider vouches for its own workspace only | Accepted |
+| [0053](0053-passkeys.md) | Passkeys: a credential that signs in alone, scoped to the workspace hosts | Accepted — erratum: the review's settlements |
+| [0054](0054-per-tenant-oidc-sso.md) | Per-tenant SSO: an identity provider vouches for its own workspace only | Accepted — erratum: the review's settlements |
 
 ## Reading order for someone new
 

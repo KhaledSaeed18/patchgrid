@@ -2,6 +2,42 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-23
+> **Erratum (2026-10-23, the M13 review).** Settlements; the decision stands.
+>
+> 1. **The ID token's signature is checked against the provider's keys.** `openid-client` checks it only
+>    with `enableNonRepudiationChecks`, which the body took for granted. Without it, nothing but TLS stood
+>    behind the token, and a local provider has no TLS.
+> 2. **A start another site navigated to is refused** (`Sec-Fetch-Site: cross-site`, code `foreign`).
+>    The `state` cookie cannot stop a page from sending a visitor through its own workspace's provider
+>    into its own workspace. Callbacks are cross-site by nature and are not checked this way.
+> 3. **An SSO session reaches its workspace and no further, in more places than the body named.**
+>    `GET /auth/identity` lists only that workspace and no factor status. "Log out everywhere" ends
+>    only that workspace's sessions. Step-up, factor status and the passkey routes refuse it: a wrong
+>    code from a provider's admin would lock the person's factors in every workspace. Only "who am I"
+>    and "open my workspace" admit it. **Step-up for an SSO session is at the provider only, and never
+>    for an owner**: owners re-prove with their own credentials (code `owner`), so a provider's admin
+>    signed in as an owner still cannot reach `org:manage_sso`, deletion, tokens or ownership.
+> 4. **Withdrawing the provider ends what it started.** Switching the connection off, or replacing its
+>    issuer, revokes every session with that `ssoOrgId` and bumps those members' epochs. A new issuer or
+>    client id needs a new secret; the stored one is never presented to a host it was not issued for.
+> 5. **"SSO required" over members off the domain is a soft block** (`409 sso-members-outside`, retried
+>    with `confirm: true`). The provider can never vouch for them, so the owner decides knowingly.
+> 6. **A browser already signed in as the same person with Patchgrid credentials keeps that identity.**
+>    The callback adds the workspace's pair (scoped) instead of replacing `pg_id` with a scoped one.
+>    Step-up at the provider is checked against the browser's person before anything is written. The
+>    pair it mints is scoped to the workspace, whatever the identity was.
+> 7. **Small ones.** The address claim must pass the contracts' email schema. Races and policy refusals
+>    come back as codes, not error pages. A failed step-up returns to its page. A domain claimed at
+>    signup gets its challenge, and a proof must match the challenge it checked. Accepting an invitation
+>    to a workspace that withholds the session (SSO or a factor required) joins, and answers `session:
+>    null`, rather than failing after the join.
+> 8. **What is assumed of the provider.** It must be single-tenant for the workspace: `email_verified` is
+>    trusted and Google's `hd` is not checked, so a multi-tenant or social issuer would let anyone who
+>    verified an address at the domain elsewhere sign in. A provider that sends no `email_verified`
+>    (Entra ID by default) cannot sign anyone in until it does. Step-up depends on the provider honouring
+>    `max_age=0`; one that ignores it answers `stale` every time, and its members confirm by signing in
+>    with Patchgrid credentials instead.
+
 - **Builds on:** [0024](0024-per-tenant-cookies-and-api-tenant-resolution.md), [0031](0031-identity-flow-hardening.md),
   [0045](0045-member-mfa-as-built.md), [0050](0050-outbound-webhooks.md) (SSRF), [0053](0053-passkeys.md); M13 in
   [0048](0048-roadmap-after-m10.md)

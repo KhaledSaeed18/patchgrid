@@ -241,15 +241,18 @@ signs. Both are bounded (ADR-0054).
   domain. A provider can therefore vouch only for people whose mail its workspace already controls.
 - **Containment.** The session it starts is scoped to its workspace (`RefreshToken.ssoOrgId`, copied
   through every rotation and pair). It opens no other workspace. Every tenant-less route refuses it
-  unless the route admits it, so no account-wide change (password, factors, passkeys, erasure, a new
-  workspace, an invitation) can be made on a provider's say-so.
+  unless the route admits it — "who am I" and "open my workspace" only — so no account-wide change
+  (password, factors, passkeys, erasure, a new workspace, an invitation), no account-wide logout and no
+  view of the person's other workspaces is had on a provider's say-so. Withdrawing the connection ends
+  every session it started.
 - **Provisioning.** A new person joins at the connection's default role, `REQUESTER` or `AGENT`, never
   above (a CHECK), and takes a seat if an agent. A disabled or removed membership is never revived. An
   unverified account at the address loses its password before the provider's person gets it (a
   pre-registered squatter keeps nothing). A new issuer unlinks every subject.
 - **Control.** The connection and "SSO required" are owner-only and take a step-up, because whoever
   controls them can sign in as anyone at the domain, owners included. Owners are exempt from the
-  requirement, which is the way back in when the provider is down or hostile.
+  requirement, which is the way back in when the provider is down or hostile, and they never step up
+  at the provider: an owner's irreversible actions take the owner's own credentials (§10).
 
 ---
 
@@ -348,3 +351,46 @@ Checked and left as they are, with the reason:
 - **A view stays shared with a team its author left.** It runs as each reader, so it shows nothing it
   should not; the team's lead or an admin removes it.
 
+
+## 10. The M13 review (2026-10-23)
+
+Three read-only reviews: the SSO sign-in path, the scope of an SSO session with its settings and
+tenancy, and passkeys with the app side of both. Nothing crossed a tenant boundary in the database, and
+no SSO session could become an unscoped one. The findings were about **what a workspace's identity
+provider could reach beyond its workspace**, and checks the design assumed but the code did not make.
+Every confirmed finding was fixed in one change set, with a test where one can hold it.
+
+| # | Area | Finding | Resolution |
+| --- | --- | --- | --- |
+| 1 | TB12 | The ID token's signature was never checked: `openid-client` does so only when asked, and a local provider has no TLS | `enableNonRepudiationChecks`; a forged signature and a foreign audience are refused in the spec |
+| 2 | TB12 | A page could send a visitor through its own workspace's provider into its own workspace (login CSRF; the `state` cookie is the visitor's own) | A cross-site start is refused (`Sec-Fetch-Site`, code `foreign`) |
+| 3 | TB12 | "Log out everywhere" from an SSO session ended the person's sessions in every workspace | It ends that workspace's sessions only |
+| 4 | TB12 | Wrong codes at step-up from an SSO session locked the person's factors in every workspace | SSO sessions step up at their provider only; factor routes refuse them |
+| 5 | TB12 | `GET /auth/identity` told a provider's admin the person's other workspaces and roles | A scoped identity lists its workspace only, and no factor status |
+| 6 | TB12 | Disabling the connection or replacing its issuer left every session it had started alive for days | Both revoke those sessions and bump those members' epochs |
+| 7 | TB12 | A new issuer reused the stored client secret, presenting it to whatever host the new issuer named | A new issuer or client id needs a new secret |
+| 8 | TB12 | Whoever runs the provider could sign in as an owner and step up into `org:manage_sso`, deletion and tokens | Owners never step up at the provider; they re-prove with their own credentials |
+| 9 | ADR-0054 | Requiring SSO silently shut out members below owner whose addresses are off the domain; an invitation accepted then failed after the join | A soft block (`409 sso-members-outside`, retried with `confirm`); acceptance answers `session: null` |
+| 10 | ADR-0053 | A recovery code proving a new passkey or authenticator revoked the session the next request needed, burning a second code | Those two routes refuse a recovery code; recovery codes for a new factor are decided under the person's lock |
+
+Smaller ones, fixed with the above: the address claim is held to the contracts' email schema; races
+between two first sign-ins and policy refusals at step-up come back as codes, not error pages; a step-up
+that fails lands back on its page; a domain claimed at signup gets its TXT challenge; a proof must match
+the challenge it checked; the discovery cache drops old versions; a browser already signed in as the
+person keeps its identity and gains the scoped pair; the picker, the login landing, the step-up dialog
+and the SSO form follow the API's answers.
+
+Checked and left as they are, with the reason:
+
+- **The provider is trusted to be single-tenant for the workspace** (ADR-0054 erratum 8): `email_verified`
+  is believed and Google's `hd` is not checked. Configuring a social or multi-tenant issuer is the
+  workspace owner's error, and the settings page asks for the workspace's own provider.
+- **Step-up at the provider depends on it honouring `max_age=0`.** One that ignores it answers `stale`;
+  its members confirm with Patchgrid credentials instead.
+- **A passkey assertion counts on any workspace host and `app.`.** One RP ID across the hosts is the
+  design (ADR-0053), so script injected on any tenant host could run a ceremony for a visitor. This is
+  no wider than the credentialed CORS those hosts already have, and no such injection is known.
+- **API tokens keep working when SSO becomes required.** They are service accounts, not people, and
+  "SSO required" gates the next authentication of a person (ADR-0042, ADR-0054).
+- **Deprovisioning at the provider ends nothing in Patchgrid** (R-10), and **a domain's owner controls
+  password reset for addresses on it** (R-11).
