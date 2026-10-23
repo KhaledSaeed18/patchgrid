@@ -138,6 +138,38 @@ export const envSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
+    /**
+     * Seals SSO client secrets at rest (ADR-0054). We present them to the
+     * identity provider, so they cannot be hashed; base64 of exactly 32
+     * bytes, kept apart from the database like the other two keys.
+     */
+    SSO_SECRETS_KEY: z
+      .string()
+      .refine((value) => /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").length === 32, {
+        error: "SSO_SECRETS_KEY must be base64 of exactly 32 bytes",
+      }),
+    /**
+     * Lets an SSO issuer be a private or loopback address, over http — the
+     * local Keycloak only. Refused in production (ADR-0054, SSRF).
+     */
+    SSO_ALLOW_PRIVATE_ISSUERS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    /**
+     * Nameservers the domain proof asks (ADR-0054), as `ip` or `ip:port`,
+     * comma-separated. Unset: the system's. A local resolver can stand in for
+     * DNS no one can publish to.
+     */
+    DNS_RESOLVERS: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((part) => part.trim())
+          .filter((part) => part !== ""),
+      ),
     INBOUND_AUTHSERV_ID: z.string().regex(/^[A-Za-z0-9.-]+$/, { error: "INBOUND_AUTHSERV_ID must be a host name" }),
 
     /**
@@ -227,6 +259,14 @@ export const envSchema = z
         code: "custom",
         path: ["WEBHOOK_ALLOW_PRIVATE_TARGETS"],
         message: "WEBHOOK_ALLOW_PRIVATE_TARGETS must be false in production — webhooks could reach the internal network",
+      })
+    }
+
+    if (env.NODE_ENV === "production" && env.SSO_ALLOW_PRIVATE_ISSUERS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SSO_ALLOW_PRIVATE_ISSUERS"],
+        message: "SSO_ALLOW_PRIVATE_ISSUERS must be false in production — a tenant's issuer could reach the internal network",
       })
     }
 
