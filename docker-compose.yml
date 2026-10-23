@@ -8,7 +8,7 @@ name: patchgrid
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: postgres:17-bookworm
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
