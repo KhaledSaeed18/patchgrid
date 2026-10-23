@@ -81,6 +81,8 @@ export const organizationSettingsSchema = z.object({
   requireMfa: z.boolean(),
   /** Where mail becomes a ticket (ADR-0027): `<slug>@inbound.<root domain>`. */
   inboundAddress: z.string(),
+  /** Mail from an address that is no member's opens a ticket for an external requester (ADR-0027 §4). */
+  allowExternalRequesters: z.boolean(),
   slugChangeAvailableAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
 })
@@ -93,6 +95,7 @@ export const updateOrganizationSettingsRequestSchema = z
     emailNotificationsEnabled: z.boolean(),
     /** Needs `org:require_mfa` — an owner's call, where the rest of the form is an admin's. */
     requireMfa: z.boolean(),
+    allowExternalRequesters: z.boolean(),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, { error: "must change at least one field" })
