@@ -24,6 +24,17 @@ export const memberSchema = z.object({
   joinedAt: z.iso.datetime().nullable(),
   teams: z.array(z.object({ id: idSchema, name: z.string(), isLead: z.boolean() })),
   contact: z.object({ email: emailSchema.nullable(), lastLoginAt: z.iso.datetime().nullable() }).nullable(),
+  /**
+   * What the reader may do to this member, decided by the server (RBAC.md §7):
+   * an admin's grants stop short of owners and of themselves, and a role list
+   * says which roles they may set. The last owner is still the API's to refuse.
+   */
+  capabilities: z.object({
+    roles: z.array(roleSchema),
+    canDisable: z.boolean(),
+    canEnable: z.boolean(),
+    canRemove: z.boolean(),
+  }),
 })
 export type Member = z.infer<typeof memberSchema>
 
