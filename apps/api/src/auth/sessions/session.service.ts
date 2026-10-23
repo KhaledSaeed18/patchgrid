@@ -175,16 +175,31 @@ export class SessionService {
     return clear
   }
 
+  /** Every session this person holds in one workspace, and the scoped identity: what an SSO session may end. */
+  private async revokeWithinScope(userId: string, orgId: string): Promise<CookieName[]> {
+    await this.refreshTokens.revokeWithinScope(userId, orgId, this.clock.now())
+    const org = await this.organizations.byId(orgId)
+    if (org === null) return [{ name: this.cookies.identity("").name, path: "/" }]
+    const membership = await this.membershipOf(org, userId, "revoke within sso scope", false)
+    if (membership !== null) await this.epochs.bump(membership.id)
+    return [...this.cookies.pairOf(org.slug), { name: this.cookies.identity("").name, path: "/" }]
+  }
+
   /** Who a `pg_id` holder is and which workspaces the picker lists for them. */
   async identity(session: IdentitySession): Promise<IdentityResponse> {
     const account = await this.users.findById(session.userId)
     if (account === null || !isUsable(account)) throw new NotAuthenticatedProblem("A session is required")
     const scope = session.ssoOrgId === null ? null : await this.organizations.byId(session.ssoOrgId)
+    const workspaces = await this.workspaces.listWorkspacesForUser(account.id)
+    // An SSO session learns nothing of the person beyond its workspace: not the others, not their factors (M13 review).
+    if (session.ssoOrgId !== null) {
+      return { user: { id: account.id, email: account.email, name: account.name }, workspaces: workspaces.filter((w) => w.orgId === session.ssoOrgId), mfa: { enrolled: false }, sso: scope === null ? null : { slug: scope.slug } }
+    }
     return {
       user: { id: account.id, email: account.email, name: account.name },
-      workspaces: await this.workspaces.listWorkspacesForUser(account.id),
+      workspaces,
       mfa: { enrolled: (await this.mfa.methods(account.id)).length > 0 },
-      sso: scope === null ? null : { slug: scope.slug },
+      sso: null,
     }
   }
 
@@ -259,7 +274,9 @@ export class SessionService {
 
     if (input.everywhere) {
       const identity = await this.identityFor(input.identitySecret)
-      if (identity !== null) clear.push(...(await this.revokeEverywhere(identity.userId)))
+      // An SSO session's "everywhere" is the one workspace it reaches, never the person's others (M13 review).
+      if (identity?.ssoOrgId != null) clear.push(...(await this.revokeWithinScope(identity.userId, identity.ssoOrgId)))
+      else if (identity !== null) clear.push(...(await this.revokeEverywhere(identity.userId)))
       else clear.push({ name: this.cookies.identity("").name, path: "/" })
     }
 

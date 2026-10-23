@@ -2,7 +2,7 @@ import { STEP_UP_TTL_SECONDS } from "@patchgrid/contracts"
 import { describe, expect, it, vi } from "vitest"
 
 import { FixedClock } from "../../common/clock/clock"
-import { StepUpRequiredProblem, ValidationProblem } from "../../common/problems/problem.exception"
+import { SsoSessionScopedProblem, StepUpRequiredProblem, ValidationProblem } from "../../common/problems/problem.exception"
 import type { AccountRecord, UserRepository } from "../../platform/repositories/user.repository"
 import type { MemberActor, TenantActor } from "../actor"
 import type { SessionService } from "../sessions/session.service"
@@ -61,6 +61,12 @@ describe("StepUpService.prove", () => {
     expect(h.sessions.open).toHaveBeenCalledWith(ada.id, "acme", client, { stepUpAt: NOW, ssoOrgId: null })
     expect(result.response.stepUpExpiresAt).toBe(new Date(NOW.getTime() + STEP_UP_TTL_SECONDS * 1000).toISOString())
     expect(result.cookies.map((c) => c.name)).toEqual(["pg_at_acme"])
+  })
+
+  it("sends an SSO session to its provider: the person's own factors are not the provider's to try", async () => {
+    const h = harness()
+    await expect(h.service.prove({ userId: ada.id, ssoOrgId: "o-acme" }, { slug: "acme", code: "123456" }, client)).rejects.toBeInstanceOf(SsoSessionScopedProblem)
+    expect(h.factors.proveHolder).not.toHaveBeenCalled()
   })
 
   it("opens nothing when the proof is refused", async () => {

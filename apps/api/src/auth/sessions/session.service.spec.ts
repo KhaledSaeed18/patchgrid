@@ -100,6 +100,9 @@ function harness(memberships: MembershipRecord[] = [membership(acme.id)], option
       }
       return n
     }),
+    revokeWithinScope: vi.fn(async (userId: string, orgId: string, at: Date) => {
+      for (const t of tokens.values()) if (t.userId === userId && t.revokedAt === null && (t.ssoOrgId === orgId || t.orgId === orgId)) t.revokedAt = at
+    }),
     revokeAllForUser: vi.fn(async (userId: string, at: Date) => {
       let n = 0
       for (const t of tokens.values()) if (t.userId === userId && t.revokedAt === null) { t.revokedAt = at; n += 1 }
@@ -329,10 +332,26 @@ describe("SSO sessions (ADR-0054)", () => {
     await expect(h.service.open(owner.id, "strict", client, { ssoOrgId: sso.id })).rejects.toThrow(SsoSessionScopedProblem)
   })
 
-  it("tells the picker which workspace an SSO session belongs to", async () => {
-    const h = harness([membership(acme.id)])
-    expect((await h.service.identity({ userId: owner.id, ssoOrgId: acme.id })).sso).toEqual({ slug: "acme" })
-    expect((await h.service.identity({ userId: owner.id, ssoOrgId: null })).sso).toBeNull()
+  it("tells an SSO session about its own workspace and nothing else of the person's", async () => {
+    const h = harness([membership(acme.id), membership(globex.id)], { enrolled: [owner.id] })
+    const scoped = await h.service.identity({ userId: owner.id, ssoOrgId: acme.id })
+    expect(scoped.sso).toEqual({ slug: "acme" })
+    expect(scoped.workspaces.map((w) => w.slug)).toEqual(["acme"])
+    expect(scoped.mfa).toEqual({ enrolled: false })
+    const own = await h.service.identity({ userId: owner.id, ssoOrgId: null })
+    expect(own.sso).toBeNull()
+    expect(own.workspaces.map((w) => w.slug)).toEqual(["acme", "globex"])
+  })
+
+  it("logs an SSO session out of its own workspace only, however everywhere it asks", async () => {
+    const h = harness([membership(acme.id), membership(globex.id)])
+    const globexPair = await h.service.open(owner.id, "globex", client)
+    const { cookies } = await h.service.startIdentity(owner, client, "acme", acme.id)
+    const cleared = await h.service.logout({ slug: undefined, everywhere: true, refreshSecret: undefined, identitySecret: cookieNamed(cookies, "pg_id")?.value })
+    expect(cleared.map((c) => c.name)).toEqual(["pg_at_acme", "pg_rt_acme", "pg_id"])
+    expect(h.tokens.get(hash(cookieNamed(globexPair, "pg_rt_globex")?.value ?? ""))?.revokedAt).toBeNull()
+    expect(h.tokens.get(hash(cookieNamed(cookies, "pg_rt_acme")?.value ?? ""))?.revokedAt).not.toBeNull()
+    expect(h.epochs.bump).toHaveBeenCalledTimes(1)
   })
 })
 
