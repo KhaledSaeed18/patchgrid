@@ -83,6 +83,7 @@ enum UsageMetric {
   STORAGE_BYTES
   AUTOMATION_RULES
   KB_ARTICLES
+  API_TOKENS
 }
 
 /// Who performed an audited change (DOMAIN.md §7) — so a token's or a platform
