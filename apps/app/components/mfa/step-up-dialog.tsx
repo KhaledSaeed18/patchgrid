@@ -50,7 +50,8 @@ export function StepUpDialog({
     queryFn: () => clientApi("/auth/identity", { schema: identityResponseSchema }),
     enabled: open,
   })
-  const slug = currentSlug()
+  // Only ever open in the browser; the server render has no host to read.
+  const slug = open ? currentSlug() : null
   const viaSso = slug !== null && identity.data?.sso?.slug === slug
   const prove = useMutation({
     mutationFn: (proof: HolderProof) =>
