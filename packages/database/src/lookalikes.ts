@@ -394,21 +394,21 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
     // A saved view, so isolation has a row on each side (ADR-0052).
     await db.savedView.create({ data: { orgId: org.id, ownerMembershipId: owner, name: "Lookalike view", query: { view: "open", sort: "newest" } } })
 
-    // A reporting fact for the ticket, so isolation has a row on each side (ADR-0051).
-    await db.ticketFact.create({
-      data: {
-        orgId: org.id,
-        ticketId: ticket.id,
-        sourceVersion: 1,
-        type: "INCIDENT",
-        priority: "MEDIUM",
-        state: "OPEN",
-        createdAt: now,
-        response: "RUNNING",
-        resolution: "RUNNING",
-        reopenCount: 0,
-      },
-    })
+    // A reporting fact for the ticket, so isolation has a row on each side (ADR-0051). An upsert: a
+    // running app's reporting consumer may already have written this ticket's fact from the log.
+    const fact = {
+      orgId: org.id,
+      ticketId: ticket.id,
+      sourceVersion: 1,
+      type: "INCIDENT",
+      priority: "MEDIUM",
+      state: "OPEN",
+      createdAt: now,
+      response: "RUNNING",
+      resolution: "RUNNING",
+      reopenCount: 0,
+    } as const
+    await db.ticketFact.upsert({ where: { orgId_ticketId: { orgId: org.id, ticketId: ticket.id } }, create: fact, update: fact })
 
     // A disabled endpoint and a dead delivery, so isolation has a row on each side (ADR-0050). Disabled, so nothing sends.
     const endpoint = await db.webhookEndpoint.create({
