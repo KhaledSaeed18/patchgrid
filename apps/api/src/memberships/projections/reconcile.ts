@@ -1,15 +1,10 @@
 import type { MembershipStatus, OrganizationStatus, Role } from "@patchgrid/contracts"
 
+import type { TokenIndexRow } from "../../platform/repositories/api-token-index.repository"
+import type { OrgIndexRow } from "../../platform/repositories/user-org-index.repository"
+
 /** One picker row (ADR-0022), as it should be or as it is. */
-export type IndexRow = {
-  userId: string
-  roleForDisplay: Role
-  statusForDisplay: MembershipStatus
-  orgSlug: string
-  orgName: string
-  orgStatus: OrganizationStatus
-  orgDeletionRequestedAt: Date | null
-}
+export type IndexRow = OrgIndexRow
 
 /** The source the projection derives from: one org, and its human members. */
 export type ProjectionSource = {
@@ -68,8 +63,7 @@ function same(a: IndexRow, b: IndexRow): boolean {
   )
 }
 
-/** One `ApiTokenIndex` row (ADR-0022, ADR-0042), as it should be or as it is. */
-export type TokenIndexRow = { prefix: string; revokedAt: Date | null }
+export type { TokenIndexRow }
 
 export type TokenReconcilePlan = { create: TokenIndexRow[]; update: TokenIndexRow[]; remove: string[] }
 
