@@ -42,6 +42,11 @@ export class UsageSourceRepository {
     return BigInt(sum._sum.sizeBytes ?? 0)
   }
 
+  /** Tokens hold a unit until they are revoked, lapsed or not (TENANCY.md §8). */
+  async apiTokens(orgId: string): Promise<bigint> {
+    return BigInt(await this.prisma.db.apiToken.count({ where: { orgId, revokedAt: null } }))
+  }
+
   /** Tickets created in `[from, to)`: what the month's cumulative counter should have reached. */
   async ticketsCreated(orgId: string, from: Date, to: Date): Promise<bigint> {
     return BigInt(await this.prisma.db.ticket.count({ where: { orgId, createdAt: { gte: from, lt: to } } }))

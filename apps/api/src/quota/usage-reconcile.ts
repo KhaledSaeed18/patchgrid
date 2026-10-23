@@ -45,6 +45,7 @@ export class UsageReconcileService {
       ["AGENT_SEATS", () => this.sources.seats(orgId)],
       ["KB_ARTICLES", () => this.sources.articles(orgId)],
       ["STORAGE_BYTES", () => this.sources.storageBytes(orgId)],
+      ["API_TOKENS", () => this.sources.apiTokens(orgId)],
     ]
     for (const [metric, count] of recompute) {
       recounts.push(

@@ -10,7 +10,7 @@ import { UsageReconcileService } from "./usage-reconcile"
 
 const NOW = new Date("2026-10-23T12:00:00Z")
 
-function harness(stored: Partial<Record<UsageMetric, bigint>>, counted: { seats: bigint; articles: bigint; storage: bigint; tickets: bigint }) {
+function harness(stored: Partial<Record<UsageMetric, bigint>>, counted: { seats: bigint; articles: bigint; storage: bigint; tickets: bigint; tokens?: bigint }) {
   const warn = vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined)
   const order: string[] = []
   const set: Record<string, bigint> = {}
@@ -23,6 +23,7 @@ function harness(stored: Partial<Record<UsageMetric, bigint>>, counted: { seats:
     seats: vi.fn(async () => (order.push("count seats"), counted.seats)),
     articles: vi.fn(async () => counted.articles),
     storageBytes: vi.fn(async () => counted.storage),
+    apiTokens: vi.fn(async () => counted.tokens ?? 0n),
     ticketsCreated: vi.fn(async (_o: string, from: Date, to: Date) => {
       order.push(`tickets ${from.toISOString()}..${to.toISOString()}`)
       return counted.tickets
@@ -47,9 +48,9 @@ describe("UsageReconcileService", () => {
   })
 
   it("sets a drifted point-in-time counter to its count, locked before it counts", async () => {
-    const h = harness({ AGENT_SEATS: 5n, KB_ARTICLES: 0n, STORAGE_BYTES: 999n }, { seats: 3n, articles: 2n, storage: 100n, tickets: 0n })
+    const h = harness({ AGENT_SEATS: 5n, KB_ARTICLES: 0n, STORAGE_BYTES: 999n, API_TOKENS: 9n }, { seats: 3n, articles: 2n, storage: 100n, tickets: 0n, tokens: 1n })
     await h.service.reconcile()
-    expect(h.set).toEqual({ AGENT_SEATS: 3n, KB_ARTICLES: 2n, STORAGE_BYTES: 100n })
+    expect(h.set).toEqual({ AGENT_SEATS: 3n, KB_ARTICLES: 2n, STORAGE_BYTES: 100n, API_TOKENS: 1n })
     expect(h.order.slice(0, 2)).toEqual(["lock AGENT_SEATS current", "count seats"])
     expect(h.warn).toHaveBeenCalledWith(expect.objectContaining({ msg: "usage counters drifted" }))
   })

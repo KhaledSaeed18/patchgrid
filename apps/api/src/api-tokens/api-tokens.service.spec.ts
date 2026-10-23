@@ -10,6 +10,7 @@ import { FixedClock } from "../common/clock/clock"
 import { ConflictProblem, NotFoundProblem, NotPermittedProblem, StepUpRequiredProblem } from "../common/problems/problem.exception"
 import type { ApiTokenIndexRepository } from "../platform/repositories/api-token-index.repository"
 import type { PrismaService } from "../prisma/prisma.service"
+import type { QuotaService } from "../quota/quota.service"
 import type { OrganizationLookupService } from "../tenancy/organization-lookup.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
 import { ApiTokensService } from "./api-tokens.service"
@@ -64,6 +65,10 @@ function harness(role: MemberActor["role"] = "ADMIN", found: Partial<ApiTokenRow
     invalidateToken: vi.fn(async () => void steps.push("invalidate")),
   }
   const audit = { record: vi.fn(async () => void steps.push("audit")) }
+  const quota = {
+    consume: vi.fn(async () => void steps.push("consume")),
+    release: vi.fn(async () => void steps.push("release")),
+  }
   const prisma = {
     transaction: async (fn: () => Promise<unknown>) => {
       steps.push("begin")
@@ -85,9 +90,10 @@ function harness(role: MemberActor["role"] = "ADMIN", found: Partial<ApiTokenRow
     { requireTenantActor: () => actor } as unknown as ActorService,
     { requireOrgId: () => ORG } as unknown as TenantContextService,
     prisma as unknown as PrismaService,
+    quota as unknown as QuotaService,
     new FixedClock(NOW),
   )
-  return { service, tokens, index, lookup, audit, steps }
+  return { service, tokens, index, lookup, audit, quota, steps }
 }
 
 const request = {
@@ -106,7 +112,9 @@ describe("ApiTokensService", () => {
   it("creates the service account, its index row and its audit row in one transaction, and shows the secret once", async () => {
     const h = harness()
     const created = await h.service.create(request)
-    expect(h.steps).toEqual(["begin", "token", "index", "audit", "commit"])
+    // The plan's token limit is taken in the same transaction: a 402 leaves no token behind.
+    expect(h.steps).toEqual(["begin", "token", "index", "consume", "audit", "commit"])
+    expect(h.quota.consume).toHaveBeenCalledWith(ORG, "API_TOKENS")
     expect(created.secret).toMatch(API_TOKEN_PATTERN)
     const [, prefix, secret] = API_TOKEN_PATTERN.exec(created.secret) ?? []
     expect(h.tokens.create).toHaveBeenCalledWith(
@@ -145,7 +153,7 @@ describe("ApiTokensService", () => {
   it("revokes once, mirrors it into the index, and drops the cached prefix after commit", async () => {
     const h = harness()
     await h.service.revoke("tok-1")
-    expect(h.steps).toEqual(["begin", "revoke", "index-revoke", "audit", "commit", "invalidate"])
+    expect(h.steps).toEqual(["begin", "revoke", "index-revoke", "release", "audit", "commit", "invalidate"])
     expect(h.lookup.invalidateToken).toHaveBeenCalledWith("abcdefabcdef")
     await expect(harness("ADMIN", { revokedAt: NOW }).service.revoke("tok-1")).rejects.toBeInstanceOf(ConflictProblem)
     await expect(harness("ADMIN", null).service.revoke("tok-1")).rejects.toBeInstanceOf(NotFoundProblem)

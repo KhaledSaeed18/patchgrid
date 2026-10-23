@@ -10,6 +10,7 @@ import { type Clock, InjectClock } from "../common/clock/clock"
 import { ConflictProblem, NotFoundProblem } from "../common/problems/problem.exception"
 import { ApiTokenIndexRepository } from "../platform/repositories/api-token-index.repository"
 import { PrismaService } from "../prisma/prisma.service"
+import { QuotaService } from "../quota/quota.service"
 import { OrganizationLookupService } from "../tenancy/organization-lookup.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
 import { mintToken, toApiToken } from "./domain"
@@ -36,6 +37,7 @@ export class ApiTokensService {
     private readonly actors: ActorService,
     private readonly tenant: TenantContextService,
     private readonly prisma: PrismaService,
+    private readonly quota: QuotaService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -70,6 +72,8 @@ export class ApiTokensService {
         now,
       )
       await this.index.create(minted.prefix, orgId)
+      // A token's service account holds no seat; the plan bounds the tokens instead (TENANCY.md §8).
+      await this.quota.consume(orgId, "API_TOKENS")
       await this.audit.record(orgId, [
         {
           action: "TOKEN_CREATED",
@@ -100,6 +104,7 @@ export class ApiTokensService {
       if (found === null) throw new NotFoundProblem()
       if (!(await this.tokens.revoke(orgId, id, actor.membershipId, now))) throw new ConflictProblem("This token is already revoked")
       await this.index.revoke(found.prefix, orgId, now)
+      await this.quota.release(orgId, "API_TOKENS")
       await this.audit.record(orgId, [
         {
           action: "TOKEN_REVOKED",

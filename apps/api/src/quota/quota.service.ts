@@ -113,5 +113,7 @@ function limitMessage(metric: UsageMetric, plan: string): string {
       return `The ${plan} plan's automation rules are all in use`
     case "KB_ARTICLES":
       return `The ${plan} plan's knowledge articles are all in use`
+    case "API_TOKENS":
+      return `The ${plan} plan's API tokens are all in use`
   }
 }
