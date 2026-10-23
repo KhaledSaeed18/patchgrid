@@ -1,0 +1,7 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+# Floci's CA, exported by `pnpm aws:up`; it changes whenever Floci's volume does.
+.floci/
