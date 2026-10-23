@@ -3,6 +3,7 @@ import type { SsoDiscoverResponse, SsoStartQuery } from "@patchgrid/contracts"
 import * as oidc from "openid-client"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
+import { ProblemException } from "../../common/problems/problem.exception"
 import { PublicUrls } from "../../common/urls"
 import { runAsTenant } from "../../platform/run-as-tenant"
 import { OidcClient, OidcRejectedError, type OidcConnection } from "../../sso/oidc-client"
@@ -59,11 +60,16 @@ export class SsoSignInService {
   }
 
   /** The authorization request: PKCE, state and nonce kept for ten minutes, the state also in the browser's cookie. */
-  async start(query: SsoStartQuery): Promise<SsoRedirect> {
+  async start(query: SsoStartQuery, fetchSite?: string): Promise<SsoRedirect> {
     try {
+      // A navigation another site started (login CSRF into its own workspace): browsers say so (M13 review).
+      if (fetchSite === "cross-site") throw new SsoFailure("foreign")
       return await this.begin(query)
     } catch (error) {
-      if (error instanceof SsoFailure && query.intent === "step-up") error.slug = query.slug
+      if (error instanceof SsoFailure && query.intent === "step-up") {
+        error.slug = query.slug
+        error.next = query.next
+      }
       throw error
     }
   }
@@ -113,7 +119,10 @@ export class SsoSignInService {
     try {
       return await this.finish(flow, params, params.state, callbackUrl, identitySecret, client)
     } catch (error) {
-      if (error instanceof SsoFailure && flow.intent === "step-up") error.slug = (await this.organizations.byId(flow.orgId))?.slug
+      if (error instanceof SsoFailure && flow.intent === "step-up") {
+        error.slug = (await this.organizations.byId(flow.orgId))?.slug
+        error.next = flow.next ?? undefined
+      }
       throw error
     }
   }
@@ -139,27 +148,50 @@ export class SsoSignInService {
     // The workspace's control of its provider must be no more than its control of its own domain.
     if (!identity.emailVerified || identity.email === null || domainOf(identity.email) !== routed.domain) throw new SsoFailure("email")
 
+    const person = { subject: identity.subject, email: identity.email, name: identity.name }
+    const current = await this.sessions.identityFor(identitySecret)
+
     if (flow.intent === "step-up") {
       if (identity.authTime === null || identity.authTime < flow.startedAt - AUTH_TIME_SKEW_SECONDS) throw new SsoFailure("stale")
-      const current = await this.sessions.identityFor(identitySecret)
-      if (current === null) throw new SsoFailure("mismatch")
-      const { account } = await this.provisioning.resolve(routed.org, routed.connection, { subject: identity.subject, email: identity.email, name: identity.name }, false)
-      if (current.userId !== account.id) throw new SsoFailure("mismatch")
-      const cookies = await this.sessions.open(account.id, routed.org.slug, client, { stepUpAt: this.clock.now(), ssoOrgId: current.ssoOrgId })
+      // The browser's own person, signed in to this workspace or with Patchgrid credentials — never another's scope.
+      if (current === null || (current.ssoOrgId !== null && current.ssoOrgId !== routed.org.id)) throw new SsoFailure("mismatch")
+      await this.provisioning.resolve(routed.org, routed.connection, person, { mayJoin: false, expectedUserId: current.userId, refuse: ["OWNER"] })
+      // The proof came from the provider, so the pair is the provider's: scoped to this workspace.
+      const cookies = await this.policy(() => this.sessions.open(current.userId, routed.org.slug, client, { stepUpAt: this.clock.now(), ssoOrgId: routed.org.id }))
       return { location: this.urls.workspace(routed.org.slug, flow.next ?? "/"), cookies }
     }
 
-    const { account } = await this.provisioning.resolve(routed.org, routed.connection, { subject: identity.subject, email: identity.email, name: identity.name })
-    const started = await this.sessions.startIdentity(account, client, routed.org.slug, routed.org.id)
+    const { account } = await this.provisioning.resolve(routed.org, routed.connection, person)
     this.logger.log({ msg: "sso sign-in", orgId: routed.org.id, userId: account.id })
+    // Already signed in here as this person with Patchgrid credentials: keep that identity, add this workspace's pair.
+    // Replacing it would scope every other workspace away from someone who only wanted this one (M13 review).
+    if (current?.userId === account.id && current.ssoOrgId === null) {
+      const pair = await this.policy(() => this.sessions.open(account.id, routed.org.slug, client, { ssoOrgId: routed.org.id }))
+      return { location: this.urls.workspace(routed.org.slug, flow.next ?? "/"), cookies: pair }
+    }
+    const started = await this.sessions.startIdentity(account, client, routed.org.slug, routed.org.id)
     // The pair can be withheld (a suspended workspace): the picker says why.
     const location = started.response.session === null ? this.urls.app("/workspaces") : this.urls.workspace(routed.org.slug, flow.next ?? "/")
     return { location, cookies: started.cookies }
   }
 
+  /** Opening the workspace can still be refused by its policy or its state; on a redirect that is a code, not a JSON error page. */
+  private async policy<T>(open: () => Promise<T>): Promise<T> {
+    try {
+      return await open()
+    } catch (error) {
+      if (error instanceof ProblemException) throw new SsoFailure("inactive")
+      throw error
+    }
+  }
+
   /** Where a failure lands: the login page for a sign-in, back on the workspace for a step-up. */
   failureLocation(failure: SsoFailure): string {
-    return failure.slug === undefined ? this.urls.app(`/login?sso=${failure.code}`) : this.urls.workspace(failure.slug, `/?sso=${failure.code}`)
+    if (failure.slug === undefined) return this.urls.app(`/login?sso=${failure.code}`)
+    // Back where the step-up started; `next` is a validated path on the workspace.
+    const back = new URL(failure.next ?? "/", "http://workspace.invalid")
+    back.searchParams.set("sso", failure.code)
+    return this.urls.workspace(failure.slug, back.pathname + back.search)
   }
 
   /** By slug or by the address's domain: a live workspace with a proved domain and an enabled connection, or `not-configured`. */

@@ -35,4 +35,6 @@ export const SSO_ERROR_MESSAGE: Record<SsoErrorCode, string> = {
   seat: "The workspace has no seats left for a new member. Ask one of its admins.",
   mismatch: "You confirmed as someone else at your organization's sign-in service. Sign in again as yourself.",
   stale: "Your organization's sign-in service didn't ask you to sign in again. Try once more.",
+  owner: "Owners confirm this with their own Patchgrid sign-in, not the organization's. Sign in with your password or passkey, then try again.",
+  foreign: "That sign-in didn't start from Patchgrid. Start again from this page.",
 }

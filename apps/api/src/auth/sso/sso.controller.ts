@@ -43,8 +43,9 @@ export class SsoController {
 
   @Get("start")
   @Public()
-  async start(@Query() query: SsoStartDto, @Res() response: Response): Promise<void> {
-    await this.redirect(response, () => this.sso.start(query))
+  async start(@Query() query: SsoStartDto, @Req() request: Request, @Res() response: Response): Promise<void> {
+    const fetchSite = request.headers["sec-fetch-site"]
+    await this.redirect(response, () => this.sso.start(query, typeof fetchSite === "string" ? fetchSite : undefined))
   }
 
   @Get("callback")

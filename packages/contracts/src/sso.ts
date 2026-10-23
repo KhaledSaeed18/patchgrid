@@ -75,8 +75,13 @@ export const ssoConnectionRequestSchema = z.strictObject({
 })
 export type SsoConnectionRequest = z.infer<typeof ssoConnectionRequestSchema>
 
-/** `PUT /org/sso/requirement`: "SSO required", which mirrors `requireMfa` and spares owners. */
-export const ssoRequirementRequestSchema = z.strictObject({ required: z.boolean() })
+/**
+ * `PUT /org/sso/requirement`: "SSO required", which mirrors `requireMfa` and
+ * spares owners. Turning it on while members below owner have addresses off
+ * the domain — whom no provider of this workspace can vouch for — is a `409`
+ * the owner retries with `confirm: true` (M13 review).
+ */
+export const ssoRequirementRequestSchema = z.strictObject({ required: z.boolean(), confirm: z.boolean().optional() })
 export type SsoRequirementRequest = z.infer<typeof ssoRequirementRequestSchema>
 
 /** `GET /org/sso`: everything the settings page shows, the secret excepted. */
@@ -155,6 +160,10 @@ export const SSO_ERROR_CODES = [
   "mismatch",
   /** Step-up came back without a fresh authentication. */
   "stale",
+  /** An owner tried to step up at the provider: owners re-prove with their own credentials (M13 review). */
+  "owner",
+  /** The round trip was started from another site, not from Patchgrid's own pages (M13 review). */
+  "foreign",
 ] as const
 export const ssoErrorCodeSchema = z.enum(SSO_ERROR_CODES)
 export type SsoErrorCode = z.infer<typeof ssoErrorCodeSchema>
