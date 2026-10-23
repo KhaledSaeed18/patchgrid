@@ -29,6 +29,8 @@ export const SWEEPS = {
   "retention-sweep": { everyMs: 24 * 60 * 60_000 },
   /** Erase workspaces whose deletion window has passed — the one sweep for pending ones (ADR-0043). */
   "org-purge": { everyMs: 24 * 60 * 60_000 },
+  /** Recount the plan's point-in-time counters from their rows; drift is a bug (TENANCY.md §8). */
+  "usage-reconcile": { everyMs: 24 * 60 * 60_000 },
   /** Recompute the org picker's projection from source; drift is a bug (ADR-0022). */
   "projection-reconcile": { everyMs: 24 * 60 * 60_000 },
 } as const

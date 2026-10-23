@@ -39,6 +39,7 @@ import { RecordingMailProvider } from "../../src/mail/providers/recording-mail.p
 import { PrismaService } from "../../src/prisma/prisma.service"
 import { AttachmentSweepProcessor } from "../../src/jobs/maintenance/attachment-sweep"
 import { ProjectionReconcileProcessor } from "../../src/memberships/projections/projection-reconcile"
+import { UsageReconcileProcessor } from "../../src/quota/usage-reconcile"
 import { AutoCloseProcessor } from "../../src/tickets/sweeps/auto-close"
 import { SlaScanProcessor } from "../../src/tickets/sweeps/sla-scan"
 import { OUTBOX_DRAIN_QUEUE } from "../../src/events/drain-requests"
@@ -314,7 +315,7 @@ describe("8 · background jobs carry their tenant", () => {
 
   it("a sweep job without its tenant is refused, never run across tenants — every sweep", async () => {
     const job = { id: "isolation/sweep-missing-org", data: { tick: 1 } } as unknown as Job
-    for (const processor of [SlaScanProcessor, AutoCloseProcessor, AttachmentSweepProcessor, ProjectionReconcileProcessor]) {
+    for (const processor of [SlaScanProcessor, AutoCloseProcessor, AttachmentSweepProcessor, ProjectionReconcileProcessor, UsageReconcileProcessor]) {
       await expect(app.get(processor).process(job), processor.name).rejects.toBeInstanceOf(UnrecoverableError)
     }
   })
@@ -333,6 +334,20 @@ describe("8 · background jobs carry their tenant", () => {
     expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rita, orgId: seed.acme.id } } })).orgName).not.toBe("Drifted")
     expect((await owner.userOrgIndex.findUniqueOrThrow({ where: { userId_orgId: { userId: rosa, orgId: seed.globex.id } } })).orgName).toBe("Drifted")
     await app.get(ProjectionReconcileProcessor).process({ id: "isolation/reconcile-globex", data: { orgId: seed.globex.id, tick: 1 } } as unknown as Job)
+  })
+
+  it("usage-reconcile recounts one tenant's counters from its own rows and never touches the other's", async () => {
+    const seats = (orgId: string) => owner.usageCounter.findUniqueOrThrow({ where: { orgId_period_metric: { orgId, period: "current", metric: "AGENT_SEATS" } } })
+    const [acmeSeats, globexSeats] = [(await seats(seed.acme.id)).value, (await seats(seed.globex.id)).value]
+    await owner.usageCounter.updateMany({ where: { orgId: { in: [seed.acme.id, seed.globex.id] }, period: "current", metric: "AGENT_SEATS" }, data: { value: 99n } })
+    try {
+      const job = { id: "isolation/usage", data: { orgId: seed.acme.id, tick: 1 } } as unknown as Job
+      expect(await app.get(UsageReconcileProcessor).process(job)).toBeGreaterThanOrEqual(1)
+      expect((await seats(seed.acme.id)).value).toBe(acmeSeats)
+      expect((await seats(seed.globex.id)).value).toBe(99n)
+    } finally {
+      await owner.usageCounter.updateMany({ where: { orgId: seed.globex.id, period: "current", metric: "AGENT_SEATS" }, data: { value: globexSeats } })
+    }
   })
 })
 

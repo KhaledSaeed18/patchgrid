@@ -47,6 +47,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
     @InjectQueue("org-purge") orgPurge: Queue,
     @InjectQueue("retention-sweep") retentionSweep: Queue,
     @InjectQueue("projection-reconcile") projectionReconcile: Queue,
+    @InjectQueue("usage-reconcile") usageReconcile: Queue,
     @InjectQueue("outbox-sweep") outboxSweep: Queue,
     @InjectQueue("webhook-sweep") webhookSweep: Queue,
     @InjectQueue("reporting-reconcile") reportingReconcile: Queue,
@@ -64,6 +65,7 @@ export class TenantDispatchService implements OnApplicationBootstrap {
       "org-purge": orgPurge,
       "retention-sweep": retentionSweep,
       "projection-reconcile": projectionReconcile,
+      "usage-reconcile": usageReconcile,
     }
   }
 
