@@ -32,7 +32,6 @@ export const SUPPORT_READ_PERMISSIONS = [
   "team:read",
   "category:read",
   "sla:read",
-  "automation:read",
   "org:read_settings",
   "org:read_audit",
 ] as const satisfies readonly Permission[]

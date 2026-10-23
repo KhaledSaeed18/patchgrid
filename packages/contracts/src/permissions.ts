@@ -125,8 +125,6 @@ export const PERMISSION_MATRIX = {
   "category:write": admins,
   "sla:read": agents,
   "sla:write": admins,
-  "automation:read": agents,
-  "automation:write": admins,
 
   // Organization, notifications, integrations, support
   "notification:read": selfOnly,
