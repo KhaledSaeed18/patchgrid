@@ -138,6 +138,7 @@ export class TicketsController {
   @Post(":id/comments")
   @HttpCode(201)
   @RequirePermission("comment:create_public")
+  @Idempotent()
   addComment(@Param() params: TicketParams, @Body() body: CommentDto): Promise<Comment> {
     return this.comments.add(params.id, body)
   }

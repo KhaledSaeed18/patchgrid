@@ -32,8 +32,9 @@ type Stored = { state: "pending"; bodyHash: string } | { state: "done"; bodyHash
  * first request with a key claims it and, on success, stores its answer; a
  * retry with the same key and body gets that answer again instead of a second
  * entity. The same key with a different body, or while the first is still
- * running, is a 409. Keys are scoped to the workspace, the actor and the
- * route, so one client's key can never replay another's answer.
+ * running, is a 409. Keys are scoped to the workspace, the actor, the route
+ * and the path it was called on, so one client's key can never replay
+ * another's answer, nor a comment on one ticket answer for another's.
  *
  * A failed request releases its key, so it can be retried. With Redis down
  * the request proceeds un-deduplicated and says so in the log: refusing every
@@ -109,7 +110,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
             ? `platform:${actor.platformAdminId}`
             : `member:${actor.membershipId}`
     const org = this.tenant.current()?.orgId ?? "platform"
-    return `idem:${org}:${who}:${request.method}:${request.route?.path ?? request.path}:${key}`
+    // The pattern and the concrete path: `POST /tickets/:id/comments` is one route over many tickets.
+    return `idem:${org}:${who}:${request.method}:${request.route?.path ?? ""}:${request.path}:${key}`
   }
 
   private async read(slot: string): Promise<Stored | null> {
