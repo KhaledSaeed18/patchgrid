@@ -41,10 +41,10 @@ class WatcherParams extends createZodDto(z.object({ id: idSchema, membershipId: 
 class LinkParams extends createZodDto(z.object({ id: idSchema, linkId: idSchema })) {}
 class AssetParams extends createZodDto(z.object({ id: idSchema, assetId: idSchema })) {}
 class LinkDto extends createZodDto(createLinkRequestSchema) {}
-class ListDto extends createZodDto(ticketListQuerySchema) {}
-class SearchDto extends createZodDto(ticketSearchQuerySchema) {}
-class CreateDto extends createZodDto(createTicketRequestSchema) {}
-class UpdateDto extends createZodDto(updateTicketRequestSchema) {}
+class TicketListQueryDto extends createZodDto(ticketListQuerySchema) {}
+class TicketSearchQueryDto extends createZodDto(ticketSearchQuerySchema) {}
+class CreateTicketRequestDto extends createZodDto(createTicketRequestSchema) {}
+class UpdateTicketRequestDto extends createZodDto(updateTicketRequestSchema) {}
 class AssignDto extends createZodDto(assignTicketRequestSchema) {}
 class TransitionDto extends createZodDto(transitionRequestSchema) {}
 class BulkDto extends createZodDto(bulkTicketRequestSchema) {}
@@ -71,14 +71,14 @@ export class TicketsController {
 
   @Get()
   @RequirePermission("ticket:read")
-  list(@Query() query: ListDto): Promise<TicketPage> {
+  list(@Query() query: TicketListQueryDto): Promise<TicketPage> {
     return this.tickets.list(query)
   }
 
   /** Declared before `:id`, which would otherwise read `search` as an id. */
   @Get("search")
   @RequirePermission("ticket:read")
-  search(@Query() query: SearchDto): Promise<TicketSearchResult> {
+  search(@Query() query: TicketSearchQueryDto): Promise<TicketSearchResult> {
     return this.tickets.search(query)
   }
 
@@ -86,7 +86,7 @@ export class TicketsController {
   @HttpCode(201)
   @RequirePermission("ticket:create")
   @Idempotent()
-  create(@Body() body: CreateDto): Promise<Ticket> {
+  create(@Body() body: CreateTicketRequestDto): Promise<Ticket> {
     return this.tickets.create(body)
   }
 
@@ -112,7 +112,7 @@ export class TicketsController {
 
   @Patch(":id")
   @RequirePermission("ticket:update")
-  update(@Param() params: TicketParams, @Body() body: UpdateDto): Promise<Ticket> {
+  update(@Param() params: TicketParams, @Body() body: UpdateTicketRequestDto): Promise<Ticket> {
     return this.tickets.update(params.id, body)
   }
 
@@ -138,6 +138,7 @@ export class TicketsController {
   @Post(":id/comments")
   @HttpCode(201)
   @RequirePermission("comment:create_public")
+  @Idempotent()
   addComment(@Param() params: TicketParams, @Body() body: CommentDto): Promise<Comment> {
     return this.comments.add(params.id, body)
   }

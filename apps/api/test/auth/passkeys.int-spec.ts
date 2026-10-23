@@ -129,7 +129,7 @@ describe("signing in", () => {
     const { visitor, signedIn, replay } = await passwordless(laptop, ws.origin, ws.slug)
     expect(signedIn.status, JSON.stringify(signedIn.body)).toBe(200)
     expect(signedIn.body).toMatchObject({ status: "signed-in", session: { slug: ws.slug }, user: { email: ws.people.owner.email } })
-    expect([...visitor.jar.keys()].sort()).toEqual(["pg_id", `pg_at_${ws.slug}`, `pg_rt_${ws.slug}`].sort())
+    expect([...visitor.jar.keys()].sort()).toEqual(["pg_id", "pg_ws", `pg_at_${ws.slug}`, `pg_rt_${ws.slug}`].sort())
     expect((await jarred(ws.origin, visitor.jar).get("/me")).status).toBe(200)
     // The challenge is spent: the same assertion signs no one in again.
     expect((await replay()).status).toBe(401)

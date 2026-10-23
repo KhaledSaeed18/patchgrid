@@ -28,9 +28,9 @@ import {
   PLATFORM_SESSION_PATH,
 } from "./surface"
 
-class LoginDto extends createZodDto(platformLoginRequestSchema) {}
+class PlatformLoginRequestDto extends createZodDto(platformLoginRequestSchema) {}
 class VerifyDto extends createZodDto(mfaVerifyRequestSchema) {}
-class ConfirmDto extends createZodDto(mfaConfirmRequestSchema) {}
+class PlatformMfaConfirmRequestDto extends createZodDto(mfaConfirmRequestSchema) {}
 
 /**
  * `/platform/auth` (ADR-0040). The steps before a session are `@Public` —
@@ -50,7 +50,7 @@ export class PlatformAuthController {
   @Post("login")
   @Public()
   @HttpCode(200)
-  async login(@Body() body: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<PlatformLoginStep> {
+  async login(@Body() body: PlatformLoginRequestDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<PlatformLoginStep> {
     this.requireSurface(request)
     const { step, challenge } = await this.auth.login(body.email, body.password)
     this.setCookie(response, PLATFORM_CHALLENGE_COOKIE, challenge, PLATFORM_CHALLENGE_PATH, CHALLENGE_TTL_SECONDS)
@@ -68,7 +68,7 @@ export class PlatformAuthController {
   @Post("mfa/confirm")
   @Public()
   @HttpCode(200)
-  async confirm(@Body() body: ConfirmDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<RecoveryCodes> {
+  async confirm(@Body() body: PlatformMfaConfirmRequestDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<RecoveryCodes> {
     this.requireSurface(request)
     const result = await this.auth.confirm(readCookie(request, PLATFORM_CHALLENGE_COOKIE), body.code)
     this.startSession(response, result)

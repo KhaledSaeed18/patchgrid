@@ -44,7 +44,8 @@ export class TeamsService {
   async get(id: string): Promise<TeamDetail> {
     this.permissions.assertVisible(this.actors.requireTenantActor(), "team:read")
     const orgId = this.tenant.requireOrgId()
-    const [row, members] = await Promise.all([this.teams.findRow(orgId, id), this.teams.members(orgId, id)])
+    const row = await this.teams.findRow(orgId, id)
+    const members = await this.teams.members(orgId, id)
     if (row === null) throw new NotFoundProblem()
     return { ...toTeam(row), members: members.map((m) => ({ ...m, joinedAt: m.joinedAt.toISOString() })) }
   }

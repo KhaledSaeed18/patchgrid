@@ -15,7 +15,7 @@ import { MembersController } from "./members.controller"
 import { MembershipRepositoryModule } from "./membership-repository.module"
 import { MembersService } from "./members.service"
 import { ProjectionReconcileProcessor, ProjectionReconcileService } from "./projections/projection-reconcile"
-import { ProjectionRepository } from "./projections/projection.repository"
+import { ProjectionSourceRepository } from "./projections/projection-source.repository"
 import { InvitationRepository } from "./repositories/invitation.repository"
 
 /**
@@ -40,7 +40,7 @@ import { InvitationRepository } from "./repositories/invitation.repository"
     MembersService,
     InvitationsService,
     InvitationAcceptanceService,
-    ProjectionRepository,
+    ProjectionSourceRepository,
     ProjectionReconcileService,
     ProjectionReconcileProcessor,
   ],

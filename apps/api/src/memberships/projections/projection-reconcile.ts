@@ -5,9 +5,11 @@ import type { Job } from "bullmq"
 import { type AppConfig, InjectConfig } from "../../config/app-config"
 import { runJob } from "../../jobs/dispatcher/run-job"
 import { readTenantSweep } from "../../jobs/sweeps"
+import { ApiTokenIndexRepository } from "../../platform/repositories/api-token-index.repository"
+import { UserOrgIndexRepository } from "../../platform/repositories/user-org-index.repository"
 import { PrismaService } from "../../prisma/prisma.service"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
-import { ProjectionRepository } from "./projection.repository"
+import { ProjectionSourceRepository } from "./projection-source.repository"
 import { driftOf, expectedRows, planReconcile, planTokenReconcile, type ReconcilePlan, type TokenReconcilePlan } from "./reconcile"
 
 /**
@@ -23,7 +25,9 @@ export class ProjectionReconcileService {
   private readonly logger = new Logger(ProjectionReconcileService.name)
 
   constructor(
-    private readonly projections: ProjectionRepository,
+    private readonly sources: ProjectionSourceRepository,
+    private readonly orgIndex: UserOrgIndexRepository,
+    private readonly tokenIndex: ApiTokenIndexRepository,
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContextService,
   ) {}
@@ -34,16 +38,16 @@ export class ProjectionReconcileService {
       // The projection first, then its source: a membership change committing
       // between the two reads can only make the plan newer than the rows it
       // compares against — never write an older state over a newer one.
-      const rows = await this.projections.rows(orgId)
-      const tokenRows = await this.projections.tokenRows(orgId)
-      const source = await this.projections.source(orgId)
+      const rows = await this.orgIndex.rowsForOrg(orgId)
+      const tokenRows = await this.tokenIndex.rowsForOrg(orgId)
+      const source = await this.sources.people(orgId)
       if (source === null) return { people: { create: [], update: [], remove: [] }, tokens: { create: [], update: [], remove: [] } }
       const people = planReconcile(expectedRows(source), rows)
-      const tokens = planTokenReconcile(await this.projections.tokenSource(orgId), tokenRows)
-      await this.projections.create(orgId, people.create)
-      await this.projections.replace(orgId, people.update)
-      await this.projections.remove(orgId, people.remove)
-      await this.projections.writeTokens(orgId, tokens)
+      const tokens = planTokenReconcile(await this.sources.tokens(orgId), tokenRows)
+      await this.orgIndex.createForOrg(orgId, people.create)
+      await this.orgIndex.replaceForOrg(orgId, people.update)
+      await this.orgIndex.removeForOrg(orgId, people.remove)
+      await this.tokenIndex.writeForOrg(orgId, tokens)
       return { people, tokens }
     })
     if (driftOf(plan.people) + driftOf(plan.tokens) > 0) {

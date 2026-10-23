@@ -2,7 +2,8 @@
  * `Idempotency-Key` through the booted app (ADR-0012): a retried create
  * replays the first answer instead of making a second ticket; the same key
  * with another body is a conflict; a request without a key is untouched; and
- * one person's key never replays to another.
+ * one person's key never replays to another. A comment is a create too, and
+ * its key belongs to the ticket it was posted on.
  */
 import { requireEnv } from "../support/env"
 
@@ -34,6 +35,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  await db.comment.deleteMany({ where: { orgId: ws.orgId } })
   await db.ticket.deleteMany({ where: { orgId: ws.orgId } })
   await db.ticketCounter.deleteMany({ where: { orgId: ws.orgId } })
   await db.usageCounter.deleteMany({ where: { orgId: ws.orgId, metric: "TICKETS_CREATED" } })
@@ -79,5 +81,21 @@ describe("Idempotency-Key", () => {
     const [a, b] = [await post("alice", null), await post("alice", null)]
     expect(a.body.id).not.toBe(b.body.id)
     expect((await post("alice", "x")).status).toBe(400)
+  })
+
+  it("replays a retried comment, and keeps one key's comments on two tickets apart", async () => {
+    const [a, b] = [(await post("alice", null)).body.id as string, (await post("alice", null)).body.id as string]
+    const comment = (ticketId: string, key: string) =>
+      browser(app, ws.origin, ws.people.alice.access).post(`/tickets/${ticketId}/comments`, { body: "Still jammed", visibility: "PUBLIC" }).set("Idempotency-Key", key)
+    const key = randomUUID()
+    const first = await comment(a, key)
+    const retry = await comment(a, key)
+    expect(first.status).toBe(201)
+    expect(retry.headers["idempotent-replayed"]).toBe("true")
+    expect(retry.body.id).toBe(first.body.id)
+    const other = await comment(b, key)
+    expect(other.status).toBe(201)
+    expect(other.headers["idempotent-replayed"]).toBeUndefined()
+    expect(await db.comment.count({ where: { orgId: ws.orgId, ticketId: { in: [a, b] } } })).toBe(2)
   })
 })

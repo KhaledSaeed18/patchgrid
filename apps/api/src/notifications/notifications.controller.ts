@@ -15,8 +15,8 @@ import { writeEventStream } from "../common/http/sse"
 import { NotificationStreamService } from "./live/notification-stream.service"
 import { NotificationsService } from "./notifications.service"
 
-class ListDto extends createZodDto(notificationListQuerySchema) {}
-class ParamsDto extends createZodDto(z.object({ id: idSchema })) {}
+class NotificationListQueryDto extends createZodDto(notificationListQuerySchema) {}
+class NotificationParamsDto extends createZodDto(z.object({ id: idSchema })) {}
 class PreferencesDto extends createZodDto(updateNotificationPreferencesSchema) {}
 
 /** The caller's own inbox (DOMAIN.md §8), and the live stream beside it (ADR-0008). */
@@ -29,7 +29,7 @@ export class NotificationsController {
 
   @Get()
   @RequirePermission("notification:read")
-  list(@Query() query: ListDto): Promise<NotificationPage> {
+  list(@Query() query: NotificationListQueryDto): Promise<NotificationPage> {
     return this.notifications.list(query)
   }
 
@@ -62,7 +62,7 @@ export class NotificationsController {
   @Post(":id/read")
   @HttpCode(204)
   @RequirePermission("notification:update")
-  async markRead(@Param() params: ParamsDto): Promise<void> {
+  async markRead(@Param() params: NotificationParamsDto): Promise<void> {
     await this.notifications.markRead(params.id)
   }
 }

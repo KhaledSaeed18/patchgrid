@@ -9,7 +9,14 @@ const fontSerif = Source_Serif_4({
   subsets: ["latin"],
   variable: "--font-serif",
 })
-const fontMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
+// Not preloaded: code and ticket numbers are never the largest paint (the
+// hero's sans paragraph is), so it can arrive when the stylesheet asks for it
+// rather than contend with the sans and serif files at the top of the page.
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  preload: false,
+})
 
 export const fontVariables = cn(
   fontSans.variable,

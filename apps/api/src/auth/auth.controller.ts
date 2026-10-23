@@ -18,7 +18,7 @@ import { CookieService, readCookie } from "./cookies"
 import { type ClientInfo, SessionService } from "./sessions/session.service"
 import { IDENTITY_COOKIE, refreshCookieName } from "./tokens/access-token"
 
-class LoginDto extends createZodDto(loginRequestSchema) {}
+class LoginRequestDto extends createZodDto(loginRequestSchema) {}
 class OpenSessionDto extends createZodDto(openSessionRequestSchema) {}
 class RefreshDto extends createZodDto(refreshRequestSchema) {}
 class LogoutDto extends createZodDto(logoutRequestSchema) {}
@@ -47,7 +47,7 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   async login(
-    @Body() body: LoginDto,
+    @Body() body: LoginRequestDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<LoginResponse> {

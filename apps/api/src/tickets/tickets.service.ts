@@ -503,9 +503,10 @@ export class TicketsService {
     const branches = this.branchesFor(actor, query.view)
     const limit = query.limit + 1
     const direction = query.sort === "oldest" ? "asc" : "desc"
-    const results = await Promise.all(
-      branches.map((b) => this.tickets.listBranch(orgId, b, { where, after, direction, limit })),
-    )
+    // In turn, not `Promise.all`: inside one transaction the branches share a
+    // connection, which runs one statement at a time whatever is asked of it.
+    const results: TicketSummaryRow[][] = []
+    for (const b of branches) results.push(await this.tickets.listBranch(orgId, b, { where, after, direction, limit }))
 
     const merged = new Map<string, TicketSummaryRow>()
     for (const row of results.flat()) merged.set(row.id, row)

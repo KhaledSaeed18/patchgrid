@@ -28,7 +28,7 @@ import { MemberMfaService } from "./member-mfa.service"
 import { StepUpService } from "./step-up.service"
 
 class MfaLoginDto extends createZodDto(mfaLoginRequestSchema) {}
-class ConfirmDto extends createZodDto(mfaConfirmRequestSchema) {}
+class MfaConfirmRequestDto extends createZodDto(mfaConfirmRequestSchema) {}
 class DisableDto extends createZodDto(mfaDisableRequestSchema) {}
 class EnrolDto extends createZodDto(mfaEnrolRequestSchema) {}
 class RegenerateDto extends createZodDto(mfaRegenerateRecoveryRequestSchema) {}
@@ -88,7 +88,7 @@ export class MfaController {
   @Post("mfa/confirm")
   @TenantOptional()
   @HttpCode(200)
-  confirm(@Body() body: ConfirmDto): Promise<FactorAdded> {
+  confirm(@Body() body: MfaConfirmRequestDto): Promise<FactorAdded> {
     return this.factors.confirm(this.actors.requireIdentity().userId, body.code)
   }
 

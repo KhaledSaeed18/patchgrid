@@ -24,10 +24,9 @@ export class SlugRegistryRepository {
   }
 
   async isTaken(slug: string): Promise<boolean> {
-    const [current, retired] = await Promise.all([
-      this.prisma.db.organization.findUnique({ where: { slug }, select: { id: true } }),
-      this.prisma.db.organizationSlugHistory.findUnique({ where: { slug }, select: { id: true } }),
-    ])
+    // In turn: inside the lock's transaction both share one connection.
+    const current = await this.prisma.db.organization.findUnique({ where: { slug }, select: { id: true } })
+    const retired = await this.prisma.db.organizationSlugHistory.findUnique({ where: { slug }, select: { id: true } })
     return current !== null || retired !== null
   }
 }
