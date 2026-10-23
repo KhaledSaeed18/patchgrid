@@ -3,6 +3,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { AuthShell } from "@/components/auth-shell"
+import { SsoSessionNotice } from "@/components/sso-session-notice"
 import { serverIdentity } from "@/lib/api/server"
 
 import { EraseAccount } from "./erase-account"
@@ -32,8 +33,14 @@ export default async function AccountPage() {
         </Link>
       }
     >
-      <SecuritySummary enrolled={identity.mfa.enrolled} />
-      <EraseAccount />
+      {identity.sso === null ? (
+        <>
+          <SecuritySummary enrolled={identity.mfa.enrolled} />
+          <EraseAccount />
+        </>
+      ) : (
+        <SsoSessionNotice slug={identity.sso.slug} />
+      )}
     </AuthShell>
   )
 }

@@ -3,6 +3,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { AuthShell } from "@/components/auth-shell"
+import { SsoSessionNotice } from "@/components/sso-session-notice"
 import { serverIdentity } from "@/lib/api/server"
 
 import { Security } from "./security"
@@ -37,7 +38,11 @@ export default async function SecurityPage({
         </Link>
       }
     >
-      <Security requiredBy={typeof required === "string" ? required : null} />
+      {identity.sso === null ? (
+        <Security requiredBy={typeof required === "string" ? required : null} />
+      ) : (
+        <SsoSessionNotice slug={identity.sso.slug} />
+      )}
     </AuthShell>
   )
 }

@@ -2,6 +2,7 @@ import type { z } from "zod"
 
 import { adminOrigin, appOrigin, ROOT_DOMAIN } from "@/lib/config"
 import { parseHost } from "@/lib/host"
+import { ssoStartUrl } from "@/lib/sso"
 
 import { buildRequest, type Call, readResult, type Result } from "./request"
 
@@ -53,9 +54,25 @@ async function attemptRefresh(slug: string): Promise<boolean> {
       { method: "POST", body: { slug }, schema: null },
       new Headers()
     )
-    return (await fetch(url, { ...init, credentials: "include" })).ok
+    const response = await fetch(url, { ...init, credentials: "include" })
+    // The workspace now requires its identity provider (ADR-0054): there, not the login page.
+    if (response.status === 403 && (await problemType(response)) === "sso-required") {
+      window.location.assign(ssoStartUrl({ slug }, { next: window.location.pathname + window.location.search }))
+      return new Promise<never>(() => undefined)
+    }
+    return response.ok
   } catch {
     return false
+  }
+}
+
+async function problemType(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json()
+    const type = typeof body === "object" && body !== null && "type" in body ? body.type : null
+    return typeof type === "string" ? (type.split("/").at(-1) ?? null) : null
+  } catch {
+    return null
   }
 }
 

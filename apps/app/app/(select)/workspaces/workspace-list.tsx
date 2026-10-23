@@ -13,11 +13,15 @@ import { ApiError } from "@/lib/api/errors"
 import { failureMessage } from "@/lib/failure"
 import { appOrigin, ROOT_DOMAIN, workspaceOrigin } from "@/lib/config"
 import { ROLE_LABEL } from "@/lib/labels"
+import { ssoStartUrl } from "@/lib/sso"
 
 export function WorkspaceList({
   workspaces,
+  ssoSlug,
 }: {
   workspaces: WorkspaceSummary[]
+  /** The workspace whose single sign-on started this session; it alone opens from here (ADR-0054). */
+  ssoSlug: string | null
 }) {
   const router = useRouter()
   const open = useMutation({
@@ -32,6 +36,17 @@ export function WorkspaceList({
       // The workspace requires a second factor (ADR-0045): set one up, then come back.
       if (error instanceof ApiError && error.type === "mfa-required") {
         router.push(`/account/security?required=${encodeURIComponent(slug)}`)
+        return
+      }
+      // The workspace requires its identity provider (ADR-0054): go there, then come back.
+      if (error instanceof ApiError && error.type === "sso-required") {
+        window.location.assign(ssoStartUrl({ slug }))
+        return
+      }
+      if (error instanceof ApiError && error.type === "sso-session-scoped") {
+        toast.error(
+          "You signed in through another workspace's single sign-on. Sign in with your Patchgrid email and password to open this one."
+        )
         return
       }
       toast.error(
@@ -58,6 +73,8 @@ export function WorkspaceList({
     <ul className="flex flex-col divide-y divide-border border-y border-border">
       {workspaces.map((workspace) => {
         const blocked = unavailable(workspace)
+        // An SSO session vouches for its own workspace only: the others need Patchgrid credentials.
+        const elsewhere = ssoSlug !== null && workspace.slug !== ssoSlug
         const keepable =
           workspace.orgStatus === "PENDING_DELETION" &&
           workspace.role === "OWNER" &&
@@ -74,7 +91,9 @@ export function WorkspaceList({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              {blocked === null ? (
+              {blocked === null && elsewhere ? (
+                <Badge variant="outline">Needs your password</Badge>
+              ) : blocked === null ? (
                 <span className="text-xs text-muted-foreground">
                   {ROLE_LABEL[workspace.role]}
                 </span>
@@ -92,6 +111,19 @@ export function WorkspaceList({
                     <Spinner />
                   )}
                   Keep it
+                </Button>
+              ) : elsewhere ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  nativeButton={false}
+                  render={
+                    <a
+                      href={`/login?next=${encodeURIComponent(workspaceOrigin(workspace.slug))}`}
+                    />
+                  }
+                >
+                  Sign in
                 </Button>
               ) : (
                 <Button
