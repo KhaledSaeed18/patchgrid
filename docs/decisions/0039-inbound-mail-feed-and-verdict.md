@@ -5,6 +5,10 @@
 - **Refines:** [0027](0027-email-dns-and-inbound-sender-authentication.md), which requires a signed provider
   verdict but names no provider and no format
 
+> **Erratum (2026-10-23).** External requesters are no longer deferred: ADR-0055 builds them as
+> memberships of kind `EXTERNAL`, so the NOT NULL requester, the scope branch and the fan-out hold
+> unchanged. Mail from an address that maps to no member is dropped unless the workspace opts in.
+
 ## Context
 
 ADR-0027 fixes the inbound pipeline: verify the webhook, resolve the tenant from the recipient, require
