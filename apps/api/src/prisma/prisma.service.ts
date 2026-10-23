@@ -61,8 +61,13 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       onPool: (pool) => observePool(() => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: config.DATABASE_POOL_MAX })),
     })
     // Every tenant-owned query reads the tenant from the request context at
-    // the moment it is awaited, and throws if there is none.
-    this.tenantClient = withTenantIsolation(this.base, () => this.tenantContext.current())
+    // the moment it is awaited, and throws if there is none. A query outside
+    // `transaction()` is a transaction of its own, and counts as one.
+    this.tenantClient = withTenantIsolation(
+      this.base,
+      () => this.tenantContext.current(),
+      () => this.tenantContext.countTransaction(),
+    )
   }
 
   /**
