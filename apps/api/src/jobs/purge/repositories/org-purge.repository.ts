@@ -37,6 +37,9 @@ export class OrgPurgeRepository {
     this.step("ApiToken", (orgId) => this.prisma.db.apiToken.deleteMany({ where: { orgId } })),
     this.step("OrgExport", (orgId) => this.prisma.db.orgExport.deleteMany({ where: { orgId } })),
     this.step("SavedView", (orgId) => this.prisma.db.savedView.deleteMany({ where: { orgId } })),
+    // Identities before their connection; both before the memberships the identities name.
+    this.step("SsoIdentity", (orgId) => this.prisma.db.ssoIdentity.deleteMany({ where: { orgId } })),
+    this.step("SsoConnection", (orgId) => this.prisma.db.ssoConnection.deleteMany({ where: { orgId } })),
     this.step("TicketFact", (orgId) => this.prisma.db.ticketFact.deleteMany({ where: { orgId } })),
     this.step("WebhookDelivery", (orgId) => this.prisma.db.webhookDelivery.deleteMany({ where: { orgId } })),
     this.step("WebhookEndpoint", (orgId) => this.prisma.db.webhookEndpoint.deleteMany({ where: { orgId } })),
@@ -79,10 +82,21 @@ export class OrgPurgeRepository {
   async tombstone(orgId: string, at: Date): Promise<boolean> {
     await this.prisma.db.userOrgIndex.deleteMany({ where: { orgId } })
     await this.prisma.db.apiTokenIndex.deleteMany({ where: { orgId } })
-    await this.prisma.db.refreshToken.deleteMany({ where: { orgId } })
+    // The workspace's pairs, and every identity session its IdP started: the row stays, so no cascade fires (ADR-0054).
+    await this.prisma.db.refreshToken.deleteMany({ where: { OR: [{ orgId }, { ssoOrgId: orgId }] } })
     const { count } = await this.prisma.db.organization.updateMany({
       where: { id: orgId, status: "PENDING_DELETION" },
-      data: { status: "DELETED", deletedAt: at, name: "Deleted workspace", domain: null, domainVerifiedAt: null, allowDomainJoin: false, defaultJoinRole: null },
+      data: {
+        status: "DELETED",
+        deletedAt: at,
+        name: "Deleted workspace",
+        domain: null,
+        domainVerifiedAt: null,
+        domainChallenge: null,
+        allowDomainJoin: false,
+        defaultJoinRole: null,
+        requireSso: false,
+      },
     })
     return count === 1
   }
