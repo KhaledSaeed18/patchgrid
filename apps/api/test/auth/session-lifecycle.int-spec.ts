@@ -136,12 +136,15 @@ describe("session lifecycle", () => {
     const response = await http().post("/api/v1/auth/login").set(JSON_HEADERS).send({ email: email.toUpperCase(), password, slug: acme.slug })
     expect(response.status).toBe(200)
     absorb(jar, response)
-    expect(Object.keys(jar).sort()).toEqual(["pg_id", `pg_at_${acme.slug}`, `pg_rt_${acme.slug}`].sort())
+    expect(Object.keys(jar).sort()).toEqual(["pg_id", "pg_ws", `pg_at_${acme.slug}`, `pg_rt_${acme.slug}`].sort())
     expect(response.body.session).toEqual({ slug: acme.slug })
     expect(response.body.workspaces.map((w: { slug: string }) => w.slug).sort()).toEqual([acme.slug, globex.slug].sort())
     const refreshCookie = (response.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("pg_rt_"))
     expect(refreshCookie).toMatch(/Path=\/api\/v1\/auth/)
     expect(refreshCookie).toMatch(/HttpOnly/)
+    // The browser's recent workspaces, for the five-pair budget: the API's routes only.
+    const recent = (response.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("pg_ws="))
+    expect(recent).toMatch(new RegExp(`^pg_ws=${acme.slug};.*Path=/api/v1;.*HttpOnly`))
   })
 
   it("admits the session on a tenant-bound route as a member actor", async () => {

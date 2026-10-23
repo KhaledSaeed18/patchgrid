@@ -109,7 +109,7 @@ describe("signing in with a factor", () => {
     const done = await browserA.post("/auth/mfa", { code: codeAt(secret, new Date()) })
     expect(done.status).toBe(200)
     expect(done.body).toMatchObject({ status: "signed-in", session: { slug: ws.slug }, user: { email: ws.people.owner.email } })
-    expect([...browserA.jar.keys()].sort()).toEqual(["pg_id", `pg_at_${ws.slug}`, `pg_rt_${ws.slug}`].sort())
+    expect([...browserA.jar.keys()].sort()).toEqual(["pg_id", "pg_ws", `pg_at_${ws.slug}`, `pg_rt_${ws.slug}`].sort())
     expect((await browserA.get("/auth/identity")).status).toBe(200)
   })
 
