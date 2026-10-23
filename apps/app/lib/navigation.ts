@@ -82,6 +82,11 @@ const SECTIONS: NavSection[] = [
         requires: "webhook:manage",
       },
       {
+        label: "Single sign-on",
+        href: "/settings/sso",
+        requires: "org:manage_sso",
+      },
+      {
         label: "Support access",
         href: "/settings/support",
         requires: "support:read_sessions",

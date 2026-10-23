@@ -43,6 +43,26 @@ credential, never from the host (ADR-0040).
 A platform admin who is also a member of some tenant carries no platform power on that tenant's
 subdomain, and no membership power on `admin.`.
 
+**A member signed in through their workspace's single sign-on is an ordinary member there**
+(ADR-0054): same role, same matrix. Their access token says `sso`, and their session opens that
+workspace alone. Inside the workspace nothing changes. Outside it, on the tenant-less identity routes,
+such a session may do only what the route explicitly admits:
+
+| Route | SSO session |
+| --- | --- |
+| `GET /auth/identity` | ✅ lists its own workspace only, and no factor status |
+| `POST /auth/sessions` (open a workspace) | ✅ its own workspace only |
+| `POST /auth/logout` with `everywhere` | ✅ ends that workspace's sessions only |
+| Step-up | ✅ at the provider (`GET /auth/sso/start?intent=step-up`), **never for an owner** |
+| `POST /auth/step-up`, `GET /auth/mfa`, the passkey routes | ❌ `403 sso-session-scoped`: the person's own factors are not the provider's to try |
+| Password change, factor and passkey changes, account erasure | ❌ `403 sso-session-scoped` |
+| Creating a workspace, accepting an invitation, cancelling a deletion | ❌ `403 sso-session-scoped` |
+
+The refusal is deny-by-default at the guard (`@AllowsSsoSession` admits a route), so a new identity
+route is closed to provider sessions until someone decides otherwise. Someone the provider provisioned
+has no password. They can set one through the reset mail, and then sign in with Patchgrid credentials
+like anyone else; "SSO required" still binds them in that workspace unless they are an owner.
+
 ## 3. Roles
 
 Roles live on `Membership` and are strictly cumulative: `REQUESTER ⊂ AGENT ⊂ ADMIN ⊂ OWNER`.
@@ -216,6 +236,8 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `org:change_slug` | — | — | — | ✅ |
 | `org:manage_plan` | — | — | — | ✅ |
 | `org:require_mfa` | — | — | — | ✅ |
+| `org:manage_domain` | — | — | — | ✅ |
+| `org:manage_sso` | — | — | — | ✅ |
 | `org:transfer_ownership` | — | — | — | ✅ |
 | `org:delete` / `org:cancel_deletion` | — | — | — | ✅ |
 | `token:read` / `token:create` / `token:revoke` | — | — | ✅ | ✅ |
@@ -225,10 +247,11 @@ An Admin cannot change their own role or disable themselves; only an Owner can a
 | `support:grant_access` / `support:revoke_access` | — | — | — | ✅ |
 
 **Step-up (ADR-0029, ADR-0045).** `org:delete`, `org:transfer_ownership` (raising anyone to `OWNER`),
-`support:grant_access` and `token:create` are asserted together with a fresh proof: the member's access
+`org:manage_sso` (saving the SSO connection or its requirement, ADR-0054), `support:grant_access` and
+`token:create` are asserted together with a fresh proof: the member's access
 token must carry a `sua` (step-up at) claim no older than five minutes, minted by `POST /auth/step-up`
 against any factor the member holds — a code, a passkey, a recovery code — or the password only when
-they hold none (ADR-0053).
+they hold none (ADR-0053), or by a fresh sign-in at the workspace's identity provider (ADR-0054).
 The check is `StepUpService.assert`, in the service after the permission, never in a guard; a missing or
 stale proof is `403 step-up-required`. A service account or a support session has no proof to give.
 
@@ -410,6 +433,7 @@ Beyond ticket mutations (`DOMAIN.md` §7), these are audited into the tenant's `
 `ORG_SETTINGS_UPDATED`, `ORG_SLUG_CHANGED`, `ORG_PLAN_CHANGED`, `ORG_SUSPENDED/UNSUSPENDED`,
 `ORG_DELETION_REQUESTED/CANCELLED`, `ORG_EXPORTED`, `ORG_MFA_REQUIREMENT_CHANGED`, `OWNERSHIP_TRANSFERRED`,
 `AGENT_VISIBILITY_CHANGED`,
+`ORG_DOMAIN_CLAIMED/VERIFIED/REMOVED`, `SSO_CONNECTION_SAVED`, `ORG_SSO_REQUIREMENT_CHANGED`, `SSO_IDENTITY_LINKED`,
 `TOKEN_CREATED/REVOKED`, `WEBHOOK_CREATED/UPDATED/DELETED/DISABLED`, `WEBHOOK_SECRET_ROTATED`, `WEBHOOK_DELIVERIES_REPLAYED`, `SUPPORT_ACCESS_REQUESTED/GRANTED/DECLINED/REVOKED/EXPIRED`, `SUPPORT_READ`,
 `WATCHER_ADDED/REMOVED`, `SLA_POLICY_CHANGED`, `AUTOMATION_RULE_CHANGED`,
 `COMMENT_EDITED`, `COMMENT_DELETED`, `CHANGE_SELF_APPROVED`.

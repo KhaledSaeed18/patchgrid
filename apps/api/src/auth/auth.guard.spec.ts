@@ -6,7 +6,7 @@ import request from "supertest"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FixedClock } from "../common/clock/clock"
-import { PlatformRoute, Public, TenantOptional } from "../common/decorators/route-markers"
+import { AllowsSsoSession, PlatformRoute, Public, TenantOptional } from "../common/decorators/route-markers"
 import { ProblemDetailsFilter } from "../common/problems/problem-details.filter"
 import { APP_CONFIG, type AppConfig } from "../config/app-config"
 import { MembershipRepository, type MembershipRecord } from "../memberships/repositories/membership.repository"
@@ -38,7 +38,7 @@ const config = {
   ACCESS_TOKEN_TTL_SECONDS: 900,
 } as AppConfig
 
-const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false }
+const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false, requireSso: false }
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const USER = "0190b2f0-0000-7000-8000-000000000001"
 const MEM = "0190b2f0-0000-7000-8000-0000000000aa"
@@ -90,7 +90,14 @@ const apiTokens = {
       : null,
   ),
 }
-const sessions = { identityFor: vi.fn(async (secret?: string) => (secret === "good-pg-id" ? USER : null)) }
+const sessions = {
+  identityFor: vi.fn(async (secret?: string) => {
+    if (secret === "good-pg-id") return { userId: USER, ssoOrgId: null }
+    // A session Acme's identity provider started (ADR-0054).
+    if (secret === "sso-pg-id") return { userId: USER, ssoOrgId: acme.id }
+    return null
+  }),
+}
 
 @Controller("probe")
 class ProbeController {
@@ -109,6 +116,13 @@ class ProbeController {
   @Get("picker")
   @TenantOptional()
   picker() {
+    return this.actors.current() ?? null
+  }
+
+  @Get("sso-allowed")
+  @TenantOptional()
+  @AllowsSsoSession()
+  ssoAllowed() {
     return this.actors.current() ?? null
   }
 
@@ -248,7 +262,15 @@ describe("AuthGuard over HTTP", () => {
   it("authenticates tenant-optional routes by pg_id alone", async () => {
     expect((await http().get("/probe/picker")).status).toBe(401)
     const picker = await http().get("/probe/picker").set("Cookie", "pg_id=good-pg-id")
-    expect(picker.body).toEqual({ kind: "identity", userId: USER })
+    expect(picker.body).toEqual({ kind: "identity", userId: USER, ssoOrgId: null })
+  })
+
+  it("refuses an SSO session on every tenant-less route that does not admit one (ADR-0054)", async () => {
+    const refused = await http().get("/probe/picker").set("Cookie", "pg_id=sso-pg-id")
+    expect(refused.status).toBe(403)
+    expect(refused.body.type).toMatch(/sso-session-scoped$/)
+    const allowed = await http().get("/probe/sso-allowed").set("Cookie", "pg_id=sso-pg-id")
+    expect(allowed.body).toEqual({ kind: "identity", userId: USER, ssoOrgId: acme.id })
   })
 
   it("leaves public routes without an actor and lets resolution answer first", async () => {

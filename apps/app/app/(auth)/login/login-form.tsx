@@ -5,6 +5,7 @@ import {
   loginResponseSchema,
   signedInResponseSchema,
   type SignedInResponse,
+  type SsoErrorCode,
 } from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import { FieldGroup } from "@patchgrid/ui/components/field"
@@ -19,11 +20,14 @@ import { FactorForm, type FactorProof } from "@/components/mfa/factor-form"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { parseNext } from "@/lib/next-url"
+import { SSO_ERROR_MESSAGE, ssoStartUrl } from "@/lib/sso"
 import {
   assertWithPasskey,
   PasskeyCancelled,
   usePasskeysAvailable,
 } from "@/lib/passkeys"
+
+import { SsoForm } from "./sso-form"
 
 /**
  * A passkey alone, or email and password — then, for an account with a
@@ -33,16 +37,27 @@ import {
  * message for every failure: the API does not say whether the address
  * exists, and neither does this page.
  */
-export function LoginForm({ next }: { next: string | undefined }) {
+export function LoginForm({
+  next,
+  ssoError,
+}: {
+  next: string | undefined
+  ssoError: SsoErrorCode | null
+}) {
   const target = parseNext(next)
   const slug = target?.kind === "workspace" ? { slug: target.slug } : {}
   const [stage, setStage] = useState<
-    { kind: "password" } | { kind: "factor"; methods: FactorMethod[] }
-  >({ kind: "password" })
+    | { kind: "password" }
+    | { kind: "factor"; methods: FactorMethod[] }
+    | { kind: "sso" }
+  >(ssoError === null ? { kind: "password" } : { kind: "sso" })
   const canPasskey = usePasskeysAvailable()
   const go = (response: SignedInResponse) => {
     if (target?.kind === "workspace" && response.session !== null) {
       window.location.assign(target.url)
+    } else if (target?.kind === "workspace") {
+      // Signed in, but the workspace withheld its session: ask it why, and go where that leads.
+      void openOrExplain(target.slug, target.url)
     } else if (target?.kind === "path") {
       window.location.assign(target.path)
     } else {
@@ -108,6 +123,15 @@ export function LoginForm({ next }: { next: string | undefined }) {
             : "Confirm with your passkey."}
         </p>
       </FactorForm>
+    )
+  }
+
+  if (stage.kind === "sso") {
+    return (
+      <div className="grid gap-4">
+        {ssoError !== null && <FormAlert>{SSO_ERROR_MESSAGE[ssoError]}</FormAlert>}
+        <SsoForm target={target} onBack={() => setStage({ kind: "password" })} />
+      </div>
     )
   }
 
@@ -181,9 +205,38 @@ export function LoginForm({ next }: { next: string | undefined }) {
             Sign in with a passkey
           </Button>
         )}
+        <Button
+          type="button"
+          size="lg"
+          variant="ghost"
+          onClick={() => setStage({ kind: "sso" })}
+        >
+          Sign in with SSO
+        </Button>
       </FieldGroup>
     </form>
   )
+}
+
+/**
+ * The login named a workspace that did not open: it requires single sign-on
+ * (to the provider, coming back to the page that was wanted — ADR-0054) or
+ * a second factor (to set one up), or the person is not a member (the picker).
+ */
+async function openOrExplain(slug: string, url: string): Promise<void> {
+  try {
+    await clientApi("/auth/sessions", { method: "POST", body: { slug }, schema: null })
+    window.location.assign(url)
+  } catch (error) {
+    if (error instanceof ApiError && error.type === "sso-required") {
+      const wanted = new URL(url)
+      window.location.assign(ssoStartUrl({ slug }, { next: wanted.pathname + wanted.search }))
+    } else if (error instanceof ApiError && error.type === "mfa-required") {
+      window.location.assign(`/account/security?required=${encodeURIComponent(slug)}`)
+    } else {
+      window.location.assign("/workspaces")
+    }
+  }
 }
 
 function messageFor(error: Error): string {

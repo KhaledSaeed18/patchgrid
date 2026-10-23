@@ -26,10 +26,16 @@ export const PROBLEM_TYPES = {
   "mfa-required": { status: 403, title: "Second factor required" },
   /** The action needs a fresh proof — a code, or the password when no factor exists — within five minutes (ADR-0029). */
   "step-up-required": { status: 403, title: "Re-authentication required" },
+  /** The workspace requires SSO and this session did not come from its identity provider (ADR-0054). */
+  "sso-required": { status: 403, title: "Single sign-on required" },
+  /** An SSO session opens only the workspace whose identity provider started it (ADR-0054). */
+  "sso-session-scoped": { status: 403, title: "Session is scoped to another workspace" },
   "not-found": { status: 404, title: "Not found" },
   "invalid-transition": { status: 409, title: "Invalid transition" },
   "stale-write": { status: 409, title: "Stale write" },
   "change-window-early": { status: 409, title: "Change window has not opened" },
+  /** Requiring SSO would shut out members whose addresses the provider cannot vouch for; retry with `confirm: true` (ADR-0054). */
+  "sso-members-outside": { status: 409, title: "Members outside the domain" },
   conflict: { status: 409, title: "Conflict" },
   "rate-limited": { status: 429, title: "Rate limited" },
   "internal-error": { status: 500, title: "Internal error" },

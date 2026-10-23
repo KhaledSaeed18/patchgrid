@@ -111,6 +111,8 @@ jobs:
         run: |
           docker compose up -d --wait postgres redis minio mailpit
           docker compose up minio-init
+          # Acme's identity provider for the SSO spec (ADR-0054); it imports its realm while the rest builds.
+          docker compose --profile sso up -d keycloak
 
       - run: pnpm db:bootstrap
       - run: pnpm db:generate
@@ -207,6 +209,11 @@ jobs:
             sleep 2
           done
           curl -fsS http://api.lvh.me:4000/health/ready | grep -q '"status":"ok"'
+          for _ in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://localhost:8180/realms/acme/.well-known/openid-configuration; then break; fi
+            sleep 2
+          done
+          curl -fsS -o /dev/null http://localhost:8180/realms/acme/.well-known/openid-configuration
 
       - name: Run the suite
         env:

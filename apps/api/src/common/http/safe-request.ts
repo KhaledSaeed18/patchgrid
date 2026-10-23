@@ -4,10 +4,11 @@ import https from "node:https"
 import { BlockList, isIP, type LookupFunction } from "node:net"
 
 /**
- * Outbound requests to addresses a tenant chose (ADR-0050). Every address the
- * host resolves to is checked inside the connection's own `lookup`, so the
- * address that was vetted is the address that is dialled; checking a name and
- * then letting a client resolve it again is the DNS-rebinding hole.
+ * Outbound requests to addresses a tenant chose: webhook receivers (ADR-0050)
+ * and identity providers (ADR-0054). Every address the host resolves to is
+ * checked inside the connection's own `lookup`, so the address that was vetted
+ * is the address that is dialled; checking a name and then letting a client
+ * resolve it again is the DNS-rebinding hole.
  */
 
 /** Ranges no webhook may reach: this host, private networks, link-local (cloud metadata), and the reserved. */
@@ -138,7 +139,7 @@ export function guardedLookup(allowPrivate: boolean): LookupFunction {
   }
 }
 
-export type SafeResponse = { status: number; body: string; durationMs: number }
+export type SafeResponse = { status: number; body: string; durationMs: number; headers: Headers }
 
 export type SafeRequestOptions = {
   headers: Record<string, string>
@@ -170,6 +171,11 @@ export function describeFailure(error: unknown): string {
  * status; rejects for a refused target, a network error or the timeout.
  */
 export function postSafely(url: string, body: string, options: SafeRequestOptions): Promise<SafeResponse> {
+  return requestSafely("POST", url, body, { ...options, headers: { ...options.headers, "content-type": "application/json" } })
+}
+
+/** Any method, the same rules: vetted addresses, no redirects, a deadline, a bounded body. */
+export function requestSafely(method: string, url: string, body: string | Buffer | null, options: SafeRequestOptions): Promise<SafeResponse> {
   const target = checkTarget(url, options.allowPrivate)
   const transport = target.protocol === "https:" ? https : http
   const started = performance.now()
@@ -177,8 +183,8 @@ export function postSafely(url: string, body: string, options: SafeRequestOption
     const request = transport.request(
       target,
       {
-        method: "POST",
-        headers: { ...options.headers, "content-type": "application/json", "content-length": String(Buffer.byteLength(body)) },
+        method,
+        headers: { ...options.headers, ...(body === null ? {} : { "content-length": String(Buffer.byteLength(body)) }) },
         lookup: guardedLookup(options.allowPrivate),
         // No connection reuse: each attempt resolves and is vetted afresh.
         agent: false,
@@ -194,7 +200,12 @@ export function postSafely(url: string, body: string, options: SafeRequestOption
         })
         response.on("end", () => {
           clearTimeout(timer)
-          resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8"), durationMs: Math.round(performance.now() - started) })
+          const headers = new Headers()
+          for (const [name, value] of Object.entries(response.headers)) {
+            if (typeof value === "string") headers.set(name, value)
+            else if (Array.isArray(value)) for (const one of value) headers.append(name, one)
+          }
+          resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8"), durationMs: Math.round(performance.now() - started), headers })
         })
         response.on("error", (error) => {
           clearTimeout(timer)
@@ -207,6 +218,7 @@ export function postSafely(url: string, body: string, options: SafeRequestOption
       clearTimeout(timer)
       reject(error)
     })
-    request.end(body)
+    if (body === null) request.end()
+    else request.end(body)
   })
 }

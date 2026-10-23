@@ -33,6 +33,7 @@ modelled anyway, so the code written now does not foreclose the fix.
 | **Credential thief**                | A stolen cookie, leaked API token or forwarded link | To act as someone else for as long as possible                         |
 | **Forged email sender**             | A tenant's inbound address                          | Tickets or comments attributed to someone else (M6)                    |
 | **Hostile ticket text**             | Attacker-controlled title/body                      | To steer the LLM triage into acting (M7)                               |
+| **Hostile identity provider**       | A workspace's SSO connection, or its admin console  | To vouch for someone it does not own, in a workspace that is not its own (M13) |
 | **Curious or compromised operator** | A `PlatformAdmin` identity                          | Tenant content without the tenant knowing (M8)                         |
 | **Supply chain**                    | A dependency, a CI action, a DNS/ACME token         | Code execution in CI or production; control of the zone                |
 
@@ -46,6 +47,8 @@ modelled anyway, so the code written now does not foreclose the fix.
     └────────TB6 (presigned URL)──────────▶ object storage ◀─────────────┤
                                                                          ├◀─TB7── inbound mail provider (M6)
                                                                          ├──TB8──▶ Ollama / phishing-svc (M7)
+                                                                         ├──TB11─▶ webhook receivers (M11)
+ Browser ◀──── redirects ────▶ tenant identity provider ◀──TB12 (M13)─────┤
  Operator ──TB9 (admin., M8)─────────────────────────────────────────────┘
  Repo ──TB10──▶ CI ──▶ images, DNS, ACME
 ```
@@ -192,6 +195,8 @@ Stated so they are decisions, not discoveries.
 | R-7 | **Inbound trust rests on the mail provider's verdict**                                                                                                                                                                                                                                                                                                                                                            | We already depend on it to deliver the message at all                                                                              |
 | R-8 | **TOTP is phishable in real time**                                                                                                                                                                                                                                                                                                                                                                                | Passkeys are not (ADR-0053, M13); a member may hold both, and TOTP stays for those who choose it. Operators keep TOTP only         |
 | R-9 | **A support session can read internal notes**                                                                                                                                                                                                                                                                                                                                                                     | Otherwise it cannot diagnose anything; the consent screen says so in those words                                                   |
+| R-10 | **Deprovisioning at the identity provider ends nothing in Patchgrid** (ADR-0054): a person removed there keeps an open session until it expires or an admin disables their membership | No SCIM (out of scope, ADR-0048); the session is bounded by the refresh lifetime, and disabling a member is honoured on the next request |
+| R-11 | **Whoever controls a workspace's domain controls its people's Patchgrid accounts** — through its IdP (scoped to the workspace) and through password-reset mail to addresses on the domain (not scoped) | True of every email-identified product; proving the domain by DNS is what makes the first equal to the second rather than worse |
 
 ---
 
@@ -218,6 +223,36 @@ judged as that IPv4. A refusal tells the tenant the kind of failure, never the a
 ids and states only, so a leaked delivery log holds no ticket text. Secrets are sealed under a key the
 database never holds. No token manages webhooks. Per-tenant in-flight leases and a circuit per endpoint
 keep one tenant's dead receiver from becoming everyone's queue (ADR-0050, §8).
+
+### TB12 · A workspace's identity provider → sign-in (M13)
+
+A tenant admin chooses the issuer, and the issuer's answer decides who is signed in. So the boundary
+has two directions: the API fetching from a URL a tenant typed, and the API believing what that URL
+signs. Both are bounded (ADR-0054).
+
+- **Fetching.** Discovery, keys and the token endpoint go through TB11's guarded request: vetted
+  addresses at connect, no redirects, five seconds, a bounded body. `https` only, unless
+  `SSO_ALLOW_PRIVATE_ISSUERS`, which boot refuses in production. Saving a connection runs discovery, and
+  the issuer the document names must be the one configured.
+- **Believing.** The authorization code is exchanged with PKCE (S256). `openid-client` checks the ID
+  token's signature against the issuer's keys, and its issuer, audience, expiry and nonce. The callback is
+  accepted only in the browser that started it (the `pg_sso` cookie must equal `state`) and only once
+  (`GETDEL`). The address must be verified by the provider **and** be at the workspace's DNS-proved
+  domain. A provider can therefore vouch only for people whose mail its workspace already controls.
+- **Containment.** The session it starts is scoped to its workspace (`RefreshToken.ssoOrgId`, copied
+  through every rotation and pair). It opens no other workspace. Every tenant-less route refuses it
+  unless the route admits it — "who am I" and "open my workspace" only — so no account-wide change
+  (password, factors, passkeys, erasure, a new workspace, an invitation), no account-wide logout and no
+  view of the person's other workspaces is had on a provider's say-so. Withdrawing the connection ends
+  every session it started.
+- **Provisioning.** A new person joins at the connection's default role, `REQUESTER` or `AGENT`, never
+  above (a CHECK), and takes a seat if an agent. A disabled or removed membership is never revived. An
+  unverified account at the address loses its password before the provider's person gets it (a
+  pre-registered squatter keeps nothing). A new issuer unlinks every subject.
+- **Control.** The connection and "SSO required" are owner-only and take a step-up, because whoever
+  controls them can sign in as anyone at the domain, owners included. Owners are exempt from the
+  requirement, which is the way back in when the provider is down or hostile, and they never step up
+  at the provider: an owner's irreversible actions take the owner's own credentials (§10).
 
 ---
 
@@ -316,3 +351,46 @@ Checked and left as they are, with the reason:
 - **A view stays shared with a team its author left.** It runs as each reader, so it shows nothing it
   should not; the team's lead or an admin removes it.
 
+
+## 10. The M13 review (2026-10-23)
+
+Three read-only reviews: the SSO sign-in path, the scope of an SSO session with its settings and
+tenancy, and passkeys with the app side of both. Nothing crossed a tenant boundary in the database, and
+no SSO session could become an unscoped one. The findings were about **what a workspace's identity
+provider could reach beyond its workspace**, and checks the design assumed but the code did not make.
+Every confirmed finding was fixed in one change set, with a test where one can hold it.
+
+| # | Area | Finding | Resolution |
+| --- | --- | --- | --- |
+| 1 | TB12 | The ID token's signature was never checked: `openid-client` does so only when asked, and a local provider has no TLS | `enableNonRepudiationChecks`; a forged signature and a foreign audience are refused in the spec |
+| 2 | TB12 | A page could send a visitor through its own workspace's provider into its own workspace (login CSRF; the `state` cookie is the visitor's own) | A cross-site start is refused (`Sec-Fetch-Site`, code `foreign`) |
+| 3 | TB12 | "Log out everywhere" from an SSO session ended the person's sessions in every workspace | It ends that workspace's sessions only |
+| 4 | TB12 | Wrong codes at step-up from an SSO session locked the person's factors in every workspace | SSO sessions step up at their provider only; factor routes refuse them |
+| 5 | TB12 | `GET /auth/identity` told a provider's admin the person's other workspaces and roles | A scoped identity lists its workspace only, and no factor status |
+| 6 | TB12 | Disabling the connection or replacing its issuer left every session it had started alive for days | Both revoke those sessions and bump those members' epochs |
+| 7 | TB12 | A new issuer reused the stored client secret, presenting it to whatever host the new issuer named | A new issuer or client id needs a new secret |
+| 8 | TB12 | Whoever runs the provider could sign in as an owner and step up into `org:manage_sso`, deletion and tokens | Owners never step up at the provider; they re-prove with their own credentials |
+| 9 | ADR-0054 | Requiring SSO silently shut out members below owner whose addresses are off the domain; an invitation accepted then failed after the join | A soft block (`409 sso-members-outside`, retried with `confirm`); acceptance answers `session: null` |
+| 10 | ADR-0053 | A recovery code proving a new passkey or authenticator revoked the session the next request needed, burning a second code | Those two routes refuse a recovery code; recovery codes for a new factor are decided under the person's lock |
+
+Smaller ones, fixed with the above: the address claim is held to the contracts' email schema; races
+between two first sign-ins and policy refusals at step-up come back as codes, not error pages; a step-up
+that fails lands back on its page; a domain claimed at signup gets its TXT challenge; a proof must match
+the challenge it checked; the discovery cache drops old versions; a browser already signed in as the
+person keeps its identity and gains the scoped pair; the picker, the login landing, the step-up dialog
+and the SSO form follow the API's answers.
+
+Checked and left as they are, with the reason:
+
+- **The provider is trusted to be single-tenant for the workspace** (ADR-0054 erratum 8): `email_verified`
+  is believed and Google's `hd` is not checked. Configuring a social or multi-tenant issuer is the
+  workspace owner's error, and the settings page asks for the workspace's own provider.
+- **Step-up at the provider depends on it honouring `max_age=0`.** One that ignores it answers `stale`;
+  its members confirm with Patchgrid credentials instead.
+- **A passkey assertion counts on any workspace host and `app.`.** One RP ID across the hosts is the
+  design (ADR-0053), so script injected on any tenant host could run a ceremony for a visitor. This is
+  no wider than the credentialed CORS those hosts already have, and no such injection is known.
+- **API tokens keep working when SSO becomes required.** They are service accounts, not people, and
+  "SSO required" gates the next authentication of a person (ADR-0042, ADR-0054).
+- **Deprovisioning at the provider ends nothing in Patchgrid** (R-10), and **a domain's owner controls
+  password reset for addresses on it** (R-11).

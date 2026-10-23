@@ -25,9 +25,15 @@ export type Actor =
       leadOfTeamIds: string[]
       /** When the session last re-proved itself, in unix seconds (ADR-0029); absent until it has. */
       stepUpAt?: number
+      /** The session came from this workspace's identity provider (ADR-0054). */
+      viaSso?: true
     }
   | { kind: "service"; orgId: string; membershipId: string; role: Role; scopes: TokenScope[]; tokenId: string }
-  | { kind: "identity"; userId: string }
+  /**
+   * `ssoOrgId`: the workspace whose identity provider started this session
+   * (ADR-0054), which it alone may open; `null` for Patchgrid credentials.
+   */
+  | { kind: "identity"; userId: string; ssoOrgId: string | null }
   /**
    * An operator inside a granted support session, on the tenant's own routes
    * (ADR-0041): role `ADMIN` for the matrix, narrowed to the support read set,

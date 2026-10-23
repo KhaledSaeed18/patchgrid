@@ -186,7 +186,7 @@ describe("MemberMfaService.completeLogin", () => {
 describe("MemberMfaService self-service", () => {
   it("enrols, refuses a wrong code, then confirms with the right one and shows ten recovery codes once", async () => {
     const h = harness()
-    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: [], recoveryCodesRemaining: 0 })
+    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: [], password: true, recoveryCodesRemaining: 0 })
     // The password first: a pg_id alone does not get to set the factor.
     await expect(h.service.enrol(ada.id, { password: "wrong" })).rejects.toBeInstanceOf(ValidationProblem)
     expect(h.lockout.fail).toHaveBeenCalledWith(ada.id)
@@ -242,6 +242,12 @@ describe("MemberMfaService self-service", () => {
 const passkey = (challengeId: string) => ({ challengeId, credential: { id: "x", rawId: "x", type: "public-key" as const, clientExtensionResults: {}, response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" } } })
 
 describe("MemberMfaService with passkeys (ADR-0053)", () => {
+  it("will not take a recovery code where a second request must follow: it would end this very session (M13 review)", async () => {
+    const h = harness({ passkeys: 1, recovery: ["abcde-fghij"] })
+    await expect(h.service.proveHolder(ada.id, { recoveryCode: "abcde-fghij" }, { recovery: false })).rejects.toBeInstanceOf(ValidationProblem)
+    expect(h.recovery).toHaveLength(1)
+  })
+
   it("completes the second step with a passkey asserted for this person, and refuses one that is not, without counting it", async () => {
     const h = harness({ passkeys: 1 })
     const result = await h.service.completeLogin(await h.challenges.issue(ada.id, "acme"), { passkey: passkey("good") }, client)
@@ -275,7 +281,8 @@ describe("MemberMfaService with passkeys (ADR-0053)", () => {
     const enrolment = await h.service.enrol(ada.id, { passkey: passkey("good") })
     const added = await h.service.confirm(ada.id, codeAt(enrolment.secret, NOW))
     expect(added.recoveryCodes).toBeNull()
-    expect(h.mfa.confirm).toHaveBeenCalledWith(ada.id, "f-new", expect.any(Number), NOW, null, "if-first")
+    // The codes are always offered; the repository, under the person's lock, declines them (M13 review).
+    expect(h.mfa.confirm).toHaveBeenCalledWith(ada.id, "f-new", expect.any(Number), NOW, expect.any(Array), "if-first")
     expect(h.recovery).toHaveLength(1)
     expect(await h.service.status(ada.id)).toMatchObject({ enrolled: true, methods: ["totp", "passkey"], recoveryCodesRemaining: 1 })
   })
@@ -285,7 +292,7 @@ describe("MemberMfaService with passkeys (ADR-0053)", () => {
     await h.service.disable(ada.id, { passkey: passkey("good") })
     expect(h.factors).toHaveLength(0)
     expect(h.recovery).toHaveLength(1)
-    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], recoveryCodesRemaining: 1 })
+    expect(await h.service.status(ada.id)).toEqual({ enrolled: false, confirmedAt: null, methods: ["passkey"], password: true, recoveryCodesRemaining: 1 })
   })
 
   it("replaces the recovery codes against a passkey for someone who holds no authenticator app", async () => {

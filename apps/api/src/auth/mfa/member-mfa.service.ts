@@ -84,10 +84,12 @@ export class MemberMfaService {
   async status(userId: string): Promise<MfaStatus> {
     const methods = await this.mfa.methods(userId)
     const totp = methods.includes("totp") ? await this.mfa.confirmed(userId) : null
+    const account = await this.users.findById(userId)
     return {
       enrolled: totp !== null,
       confirmedAt: totp?.confirmedAt?.toISOString() ?? null,
       methods,
+      password: account?.passwordHash !== null && account?.passwordHash !== undefined,
       recoveryCodesRemaining: methods.length === 0 ? 0 : (await this.mfa.unusedRecoveryCodes(userId)).length,
     }
   }
@@ -102,7 +104,7 @@ export class MemberMfaService {
     if ((await this.mfa.confirmed(userId)) !== null) throw new ConflictProblem("An authenticator app is already set up; turn it off before setting up another")
     const account = await this.users.findById(userId)
     if (account === null) throw new NotAuthenticatedProblem()
-    await this.proveHolder(userId, proof)
+    await this.proveHolder(userId, proof, { recovery: false })
     const secret = newTotpSecret()
     await this.mfa.startEnrolment(userId, this.box.seal(secret), "Authenticator app")
     return { secret, otpauthUri: otpauthUri(secret, account.email) }
@@ -116,8 +118,9 @@ export class MemberMfaService {
     const secret = factor === null ? null : this.box.open(factor.secretEncrypted)
     const step = factor === null || secret === null ? null : acceptedStep(secret, code, now, null)
     if (factor === null || step === null) throw await this.refused(userId)
-    const fresh = (await this.mfa.methods(userId)).length === 0 ? newRecoveryCodes() : null
-    const hashes = fresh === null ? null : await this.hashAll(fresh)
+    // Always made: whether this is the first factor is decided under the person's lock, not here (M13 review).
+    const fresh = newRecoveryCodes()
+    const hashes = await this.hashAll(fresh)
     const result = await this.mfa.confirm(userId, factor.id, step, now, hashes, "if-first")
     if (!result.confirmed) throw await this.refused(userId)
     await this.lockout.clear(userId)
@@ -150,8 +153,16 @@ export class MemberMfaService {
    * proof, and the password is one only when they hold none — a password can
    * never stand in for a factor that exists, or the factor guards nothing.
    * Step-up, adding a passkey and setting up the authenticator app all take it.
+   *
+   * `recovery: false` refuses a recovery code: it ends every session, this one
+   * included, so a flow with a second request — adding a passkey, setting up
+   * the app — would lose its session halfway and burn the code (M13 review).
+   * Sign in with the code first; the new session then proves itself.
    */
-  async proveHolder(userId: string, proof: HolderProof): Promise<ProvedBy> {
+  async proveHolder(userId: string, proof: HolderProof, options: { recovery?: boolean } = {}): Promise<ProvedBy> {
+    if (options.recovery === false && proof.recoveryCode !== undefined) {
+      throw new ValidationProblem([{ path: "recoveryCode", message: "signs you out everywhere; sign in with it first, then add the new factor", code: "recovery_not_here" }])
+    }
     const held = await this.mfa.methods(userId)
     if (held.length > 0) {
       if (proof.password !== undefined) throw new ValidationProblem([{ path: "password", message: "a second factor is required", code: "factor_required" }])

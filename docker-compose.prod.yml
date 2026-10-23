@@ -57,6 +57,8 @@ x-api-env: &api-env
   MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?base64 of exactly 32 bytes}
   # Seals webhook signing secrets; kept apart from the database like the MFA key (ADR-0050).
   WEBHOOK_SECRETS_KEY: ${WEBHOOK_SECRETS_KEY:?base64 of exactly 32 bytes}
+  # Seals SSO client secrets; kept apart from the database like the other two (ADR-0054).
+  SSO_SECRETS_KEY: ${SSO_SECRETS_KEY:?base64 of exactly 32 bytes}
   # One for the platform's proxy; one more per CDN or balancer in front (THREAT-MODEL.md §7).
   TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}

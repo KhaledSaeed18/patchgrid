@@ -79,6 +79,27 @@ export class StepUpRequiredProblem extends ProblemException {
   }
 }
 
+/** The workspace requires SSO and this session came from Patchgrid credentials (ADR-0054). Owners are never refused it. */
+export class SsoRequiredProblem extends ProblemException {
+  constructor(detail = "This workspace requires single sign-on; continue with its identity provider") {
+    super("sso-required", detail)
+  }
+}
+
+/** A soft block: requiring SSO would shut these members out; the owner confirms or leaves it off (ADR-0054). */
+export class SsoMembersOutsideProblem extends ProblemException {
+  constructor(detail: string) {
+    super("sso-members-outside", detail)
+  }
+}
+
+/** An SSO session reached past the workspace whose identity provider started it (ADR-0054). */
+export class SsoSessionScopedProblem extends ProblemException {
+  constructor(detail = "This session came from another workspace's single sign-on; sign in with your Patchgrid credentials") {
+    super("sso-session-scoped", detail)
+  }
+}
+
 /** `402`, and only ever a plan limit — never a permission problem. */
 export class PlanLimitProblem extends ProblemException {
   constructor(

@@ -1,6 +1,7 @@
 "use client"
 
-import { mfaStatusSchema, stepUpResponseSchema } from "@patchgrid/contracts"
+import { identityResponseSchema, mfaStatusSchema, stepUpResponseSchema } from "@patchgrid/contracts"
+import { Button } from "@patchgrid/ui/components/button"
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,10 @@ import { Spinner } from "@patchgrid/ui/components/spinner"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useCallback, useState } from "react"
 
+import { useTenant } from "@/components/tenant-provider"
 import { clientApi, currentSlug } from "@/lib/api/client"
+import { appOrigin } from "@/lib/config"
+import { ssoStartUrl } from "@/lib/sso"
 import { isStepUpRequired, StepUpCancelled } from "@/lib/step-up"
 
 import { type HolderProof, HolderProofForm } from "./holder-proof-form"
@@ -23,6 +27,11 @@ import { type HolderProof, HolderProofForm } from "./holder-proof-form"
  * person holds — a passkey, a code — and only when they hold none, the
  * password. On success the API re-issued this workspace's cookies with the
  * proof on them, and the caller retries exactly what it was doing.
+ *
+ * A session this workspace's identity provider started can re-prove there
+ * instead (ADR-0054) — the only way for someone it provisioned, who has no
+ * password and may have no factor. That is a full-page round trip, so the
+ * browser comes back to this page and the action is done again by hand.
  */
 export function StepUpDialog({
   open,
@@ -33,10 +42,21 @@ export function StepUpDialog({
   onProved: () => void
   onCancel: () => void
 }) {
+  const { membership } = useTenant()
+  // Only ever open in the browser; the server render has no host to read.
+  const slug = open ? currentSlug() : null
+  const identity = useQuery({
+    queryKey: ["identity"],
+    queryFn: () => clientApi("/auth/identity", { schema: identityResponseSchema }),
+    enabled: open,
+  })
+  // An identity that cannot be read is treated as an ordinary one: the factor form, never a spinner forever.
+  const viaSso = slug !== null && identity.data?.sso?.slug === slug
+  const settled = identity.data !== undefined || identity.isError
   const status = useQuery({
     queryKey: ["mfa-status"],
     queryFn: () => clientApi("/auth/mfa", { schema: mfaStatusSchema }),
-    enabled: open,
+    enabled: open && settled && !viaSso,
   })
   const prove = useMutation({
     mutationFn: (proof: HolderProof) =>
@@ -47,6 +67,7 @@ export function StepUpDialog({
       }),
     onSuccess: onProved,
   })
+  const here = () => window.location.pathname + window.location.search
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
@@ -58,7 +79,48 @@ export function StepUpDialog({
             lasts five minutes.
           </DialogDescription>
         </DialogHeader>
-        {status.data === undefined ? (
+        {!settled ? (
+          <Spinner />
+        ) : viaSso && slug !== null ? (
+          membership?.role === "OWNER" ? (
+            // Owners re-prove with their own credentials, never the provider's (ADR-0054, M13 review).
+            <>
+              <p className="text-sm text-pretty text-muted-foreground">
+                You signed in through your organization&apos;s sign-in. Owners
+                confirm this with their own Patchgrid sign-in.
+              </p>
+              <Button
+                size="lg"
+                nativeButton={false}
+                render={
+                  <a
+                    href={`${appOrigin()}/login?next=${encodeURIComponent(window.location.href)}`}
+                  />
+                }
+              >
+                Sign in with your password or passkey
+              </Button>
+            </>
+          ) : (
+            // An SSO session re-proves at its provider (ADR-0054): a full-page round trip back to this page.
+            <>
+              <p className="text-sm text-pretty text-muted-foreground">
+                Your organization&apos;s sign-in opens in this tab and brings
+                you back here. Then do it again.
+              </p>
+              <Button
+                size="lg"
+                onClick={() =>
+                  window.location.assign(
+                    ssoStartUrl({ slug }, { intent: "step-up", next: here() })
+                  )
+                }
+              >
+                Confirm with your organization&apos;s sign-in
+              </Button>
+            </>
+          )
+        ) : status.data === undefined ? (
           <Spinner />
         ) : (
           <HolderProofForm

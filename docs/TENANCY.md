@@ -96,9 +96,19 @@ Provisioning is idempotent: retrying a failed job never double-seeds.
   - **The invitation is bound to its address** (ADR-0031): acceptance requires the accepting account's
     email to equal `Invitation.email`, and a mismatch is the same generic failure. An account created
     through the link is marked verified — following a link delivered to that inbox proves control of it.
-- **Verified-domain auto-join** (opt-in, off by default): if `Organization.domain` is proven by a DNS TXT
-  record and `allowDomainJoin` is on, a user whose email is verified at that domain may join directly
-  with `defaultJoinRole` (normally `REQUESTER`).
+- **Proving a domain** (ADR-0054, built in M13): an owner claims `Organization.domain`
+  (`org:manage_domain`) and publishes one TXT record, `_patchgrid-verify.<domain>` =
+  `patchgrid-verify=<challenge>`; `POST /org/domain/verification` looks it up and sets
+  `domainVerifiedAt`. A changed or removed domain loses its proof. Neither is allowed while SSO is
+  required.
+- **Single sign-on** (ADR-0054, M13): with a proved domain and an enabled OpenID Connect connection, a
+  person whose identity provider vouches for a verified address at that domain signs in through it. A
+  new person joins **just in time** at the connection's default role (`REQUESTER` or `AGENT`). An existing
+  active member is linked by address. A disabled or removed member stays out. This is the only
+  domain-based way in that is built.
+- **Verified-domain auto-join** (opt-in, off by default, **not built**): if `Organization.domain` is
+  proven and `allowDomainJoin` is on, a user whose email is verified at that domain may join directly
+  with `defaultJoinRole` (normally `REQUESTER`), without an identity provider.
   - Free and disposable mail domains are on an explicit denylist. They cannot be DNS-verified in
     practice, but the denylist documents the intent and guards against a verification bug.
   - A domain may be verified by **one** organization. First verified wins; a second org attempting the
@@ -155,6 +165,21 @@ pg_id          identity, tenant-less — used by app.patchgrid.xyz and read by w
 - The auth guard also **re-reads the `Membership` row on every tenant-bound request**, inside the tenant,
   for the team facts the `Actor` carries — so a disabled member is out on the next request even while
   Redis is down. The epoch is what catches role and team *changes* before the token expires.
+
+**An SSO session is scoped to its workspace** (ADR-0054). The `pg_id` an identity provider's callback
+mints carries `RefreshToken.ssoOrgId`, as does every pair minted from it and every rotation of either.
+At open and refresh, three rules apply, in the two places ADR-0045 checks `requireMfa`:
+
+1. A scoped session opens only its own workspace (`403 sso-session-scoped` elsewhere).
+2. `Organization.requireSso` admits a non-owner only with a session scoped to it (`403 sso-required`).
+   Owners are exempt: their own credentials are the way back in when the provider is down.
+3. `requireMfa` is satisfied by a session scoped to that workspace, which delegated authentication
+   strength to its provider.
+
+Every `@TenantOptional` route refuses a scoped `pg_id` unless it is marked `@AllowsSsoSession` (who am
+I, which lists only the scope's workspace, and open a session), so nothing account-wide happens on a
+provider's say-so. "Log out everywhere" from a scoped session ends that workspace's sessions only, and
+switching the connection off or replacing its issuer ends every session it started (ADR-0054 erratum).
 
 **Residual risk, recorded rather than hidden:** any tenant subdomain can set cookies for
 `.patchgrid.xyz` ("cookie tossing"). Tokens are signed, so a tossed cookie cannot forge a session — the

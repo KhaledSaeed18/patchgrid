@@ -15,6 +15,7 @@ const valid = {
   INBOUND_AUTHSERV_ID: "mx.inbound.lvh.me",
   MFA_ENCRYPTION_KEY: "cGF0Y2hncmlkLWxvY2FsLW1mYS1rZXktMzJieXRlcyE=",
   WEBHOOK_SECRETS_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  SSO_SECRETS_KEY: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
 }
 
 const issues = (overrides: Record<string, string>) => {
@@ -82,5 +83,12 @@ describe("the attachments origin (ADR-0037)", () => {
     expect(envSchema.parse({ ...valid, WEBHOOK_ALLOW_PRIVATE_TARGETS: "true" }).WEBHOOK_ALLOW_PRIVATE_TARGETS).toBe(true)
     expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "", WEBHOOK_ALLOW_PRIVATE_TARGETS: "true" })).toContain("WEBHOOK_ALLOW_PRIVATE_TARGETS")
     expect(issues({ WEBHOOK_SECRETS_KEY: "too-short" })).toContain("WEBHOOK_SECRETS_KEY")
+  })
+
+  it("keeps sso issuers off private networks unless told, and never in production (ADR-0054)", () => {
+    expect(envSchema.parse(valid).SSO_ALLOW_PRIVATE_ISSUERS).toBe(false)
+    expect(issues({ NODE_ENV: "production", WEB_ORIGIN_PORTS: "", SSO_ALLOW_PRIVATE_ISSUERS: "true" })).toContain("SSO_ALLOW_PRIVATE_ISSUERS")
+    expect(issues({ SSO_SECRETS_KEY: "too-short" })).toContain("SSO_SECRETS_KEY")
+    expect(envSchema.parse({ ...valid, DNS_RESOLVERS: "127.0.0.1:5354, 10.0.0.2" }).DNS_RESOLVERS).toEqual(["127.0.0.1:5354", "10.0.0.2"])
   })
 })

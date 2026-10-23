@@ -28,18 +28,34 @@ export default async function WorkspacesPage() {
       description={
         <>
           Signed in as{" "}
-          <span className="text-foreground">{identity.user.email}</span>.
+          <span className="text-foreground">{identity.user.email}</span>
+          {identity.sso === null ? (
+            "."
+          ) : (
+            <>
+              {" "}
+              through the single sign-on of{" "}
+              <span className="font-mono text-foreground">
+                {identity.sso.slug}
+              </span>
+              . Any other workspaces you belong to open with your own
+              Patchgrid sign-in.
+            </>
+          )}
         </>
       }
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
           <span className="flex gap-4">
-            <Link
-              href="/new"
-              className="text-foreground underline underline-offset-4"
-            >
-              Create a workspace
-            </Link>
+            {/* An SSO session cannot create a workspace (ADR-0054): the API would refuse it. */}
+            {identity.sso === null && (
+              <Link
+                href="/new"
+                className="text-foreground underline underline-offset-4"
+              >
+                Create a workspace
+              </Link>
+            )}
             <Link
               href="/account"
               className="text-foreground underline underline-offset-4"
@@ -57,7 +73,10 @@ export default async function WorkspacesPage() {
           Invitations arrive by email.
         </p>
       ) : (
-        <WorkspaceList workspaces={identity.workspaces} />
+        <WorkspaceList
+          workspaces={identity.workspaces}
+          ssoSlug={identity.sso?.slug ?? null}
+        />
       )}
     </AuthShell>
   )

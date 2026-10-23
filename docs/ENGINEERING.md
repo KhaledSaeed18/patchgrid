@@ -280,6 +280,7 @@ subdomains and shared cookies behave exactly as in production with no `/etc/host
 | API | `http://api.lvh.me:4000` (docs at `/api/docs`) |
 | Mailpit | `http://localhost:8025` |
 | MinIO console | `http://localhost:9001` |
+| Keycloak (`--profile sso`) | `http://localhost:8180` (admin console at `/admin`, `admin` / `patchgrid-demo`) |
 
 Cookies are issued for `Domain=.lvh.me` in development, per tenant (`pg_at_acme`, `pg_at_globex`) so two
 workspaces can be open at once (ADR-0024).
@@ -297,6 +298,16 @@ in order of preference:
    it is used rather than `.local` (which collides with mDNS).
 
 **Seeded data** (dev only, password printed by the seed script): two organizations, `acme` and `globex`, with deliberately similar teams and categories, and in each one thirty incidents, nineteen service requests, five problems, ten changes, twenty assets, fifteen articles and an inbound log, of every status and age. The people are `alice` (owner), `sam` (agent, Network lead) and `rita` (requester) at Acme; `gus`, `tina` and `rosa` at Globex; and `dana`, an admin at Acme, an agent at Globex and a platform operator, all `@patchgrid.test`. Dana is how org switching and isolation get exercised by hand.
+
+**Single sign-on locally** (ADR-0054): `docker compose --profile sso up -d` starts Keycloak with an
+`acme` realm. The seed marks Acme's `acme.test` as proved (there is no DNS zone to publish a TXT record
+into) and points Acme's connection at `http://localhost:8180/realms/acme`, so "Sign in with SSO" on the
+login page takes `kim@acme.test` or `lee@acme.test` (password `patchgrid-demo`) through Keycloak, and the
+first sign-in provisions them as requesters. `nora@acme.test` is unverified at the provider and is
+refused. The browser and the API both reach Keycloak as `localhost:8180`, so the issuer is one string on
+both sides; `SSO_ALLOW_PRIVATE_ISSUERS=true` in `.env` is what lets the API talk to a private,
+plain-http issuer, and boot refuses it in production. The integration specs never need Keycloak: they
+run their own OpenID provider in-process (`test/support/fake-idp.ts`).
 
 `pnpm db:reset` drops, re-migrates (including RLS policies) and re-seeds; run twice, it leaves the same data. `pnpm db:seed -- --reset` replaces only the two demo workspaces, and refuses when a demo person has since joined another one — that is a `db:reset`. The seed is the script that will reset the public demo nightly later.
 

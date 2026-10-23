@@ -11,6 +11,8 @@ export type RefreshTokenRecord = {
   revokedAt: Date | null
   /** Set when this token was rotated. Presenting it again is reuse (ADR-0004). */
   replacedById: string | null
+  /** The workspace whose identity provider started the session, if one did (ADR-0054). */
+  ssoOrgId: string | null
 }
 
 export type NewRefreshToken = {
@@ -20,6 +22,7 @@ export type NewRefreshToken = {
   expiresAt: Date
   userAgent: string | null
   ip: string | null
+  ssoOrgId: string | null
 }
 
 const RECORD = {
@@ -29,6 +32,7 @@ const RECORD = {
   expiresAt: true,
   revokedAt: true,
   replacedById: true,
+  ssoOrgId: true,
 } as const
 
 /**
@@ -57,6 +61,29 @@ export class RefreshTokenRepository {
         data: { replacedById: created.id, revokedAt: at },
       })
       return created
+    })
+  }
+
+  /**
+   * Ends every session a workspace's identity provider started, and every pair
+   * minted from one (ADR-0054, M13 review): what disabling or replacing the
+   * connection means. Returns whose they were, for the epoch bump.
+   */
+  async revokeSsoSessions(orgId: string, at: Date): Promise<string[]> {
+    const live = await this.prisma.db.refreshToken.findMany({ where: { ssoOrgId: orgId, revokedAt: null }, select: { userId: true }, distinct: ["userId"] })
+    await this.prisma.db.refreshToken.updateMany({ where: { ssoOrgId: orgId, revokedAt: null }, data: { revokedAt: at } })
+    return live.map((row) => row.userId)
+  }
+
+  /**
+   * "Log out everywhere" from an SSO session (M13 review): everywhere it
+   * reaches, which is its own workspace — the scoped identity and every pair
+   * for that workspace — never the person's other workspaces.
+   */
+  async revokeWithinScope(userId: string, orgId: string, at: Date): Promise<void> {
+    await this.prisma.db.refreshToken.updateMany({
+      where: { userId, revokedAt: null, OR: [{ ssoOrgId: orgId }, { orgId }] },
+      data: { revokedAt: at },
     })
   }
 

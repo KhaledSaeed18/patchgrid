@@ -27,6 +27,17 @@ export class PublicUrls {
     return this.origin(slug) + path
   }
 
+  /**
+   * `https://api.patchgrid.xyz/api/v1/auth/sso/callback` — the one redirect URI
+   * every workspace registers at its identity provider (ADR-0054). The API's
+   * own port in development.
+   */
+  ssoCallback(): string {
+    const host = `api.${this.config.ROOT_DOMAIN}`
+    const origin = this.config.isProduction ? `https://${host}` : `http://${host}:${String(this.config.PORT)}`
+    return `${origin}/api/v1/auth/sso/callback`
+  }
+
   /** `acme@inbound.patchgrid.xyz` — where a workspace's mail becomes tickets (ADR-0027). */
   inboundAddress(slug: string): string {
     return inboundAddress(slug, this.config.ROOT_DOMAIN)

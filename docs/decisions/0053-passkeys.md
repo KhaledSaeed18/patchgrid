@@ -25,6 +25,14 @@
 >    whenever the runtime can verify it, so a passkey made on one Node could fail on another, and its
 >    signatures (kilobytes) exceed the wire bounds. Registration offers, and verification accepts, only
 >    the three.
+> **Erratum (2026-10-23, the M13 review).** A recovery code is not a proof for adding a passkey or setting up
+> the authenticator app. It ends every session, including the `pg_id` the second request of those flows
+> needs, so the flow failed halfway and burnt a second code. Those two routes refuse one (`400`): sign in
+> with the recovery code first, then add the factor from the fresh session. Turning a factor off and
+> removing a passkey still take one, since nothing follows. Whether a new factor brings recovery codes is
+> decided only under the person's row lock, the codes are always prepared, and replacing them takes the
+> lock too, so a race cannot leave a factor without codes or codes without a factor.
+
 - **Refines:** [0029](0029-mfa-and-step-up-authentication.md), [0045](0045-member-mfa-as-built.md); builds on
   [0024](0024-per-tenant-cookies-and-api-tenant-resolution.md), [0040](0040-platform-credential-and-the-admin-host.md)
 

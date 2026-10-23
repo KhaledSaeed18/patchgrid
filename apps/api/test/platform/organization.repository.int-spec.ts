@@ -83,7 +83,7 @@ afterAll(async () => {
 
 describe("OrganizationRepository, with no tenant context", () => {
   it("reads the summary by id and by slug", async () => {
-    const expected = { id: orgId, slug, status: "ACTIVE", plan: "PRO", agentVisibility: "OWN_TEAM_ONLY", requireMfa: false }
+    const expected = { id: orgId, slug, status: "ACTIVE", plan: "PRO", agentVisibility: "OWN_TEAM_ONLY", requireMfa: false, requireSso: false }
     expect(await organizations.findSummaryById(orgId)).toEqual(expected)
     expect(await organizations.findSummaryBySlug(slug)).toEqual(expected)
     expect(await organizations.findSummaryBySlug(`nobody-${suffix}`)).toBeNull()

@@ -90,7 +90,11 @@ export type AcceptNewInvitationRequest = z.infer<typeof acceptNewInvitationReque
 export const acceptInvitationResponseSchema = z.object({
   organization: z.object({ id: idSchema, name: z.string(), slug: slugSchema }),
   membershipId: idSchema,
-  /** The workspace whose cookie pair the response set. */
-  session: z.object({ slug: slugSchema }),
+  /**
+   * The workspace whose cookie pair the response set; `null` when its policy
+   * withholds one — single sign-on or a second factor required (ADR-0045,
+   * ADR-0054) — and the member opens it from the picker, which says what next.
+   */
+  session: z.object({ slug: slugSchema }).nullable(),
 })
 export type AcceptInvitationResponse = z.infer<typeof acceptInvitationResponseSchema>

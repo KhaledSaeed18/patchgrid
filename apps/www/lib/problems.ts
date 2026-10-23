@@ -68,7 +68,19 @@ const PROBLEM_COPY: Record<ProblemTypeSlug, ProblemCopy> = {
     detail:
       "The action is irreversible — deleting the workspace, transferring ownership, granting support access, creating an API token — and the session has not re-proved itself within the last five minutes.",
     resolution:
-      "Call `POST /auth/step-up` with a current authenticator code (or the password, if no factor is enrolled), then retry. The proof travels on the re-issued access cookie.",
+      "Call `POST /auth/step-up` with a factor — a code, a passkey or a recovery code — or the password if no factor is held, then retry. A session a workspace's identity provider started re-proves there instead (`GET /auth/sso/start?slug=…&intent=step-up`). The proof travels on the re-issued access cookie.",
+  },
+  "sso-required": {
+    detail:
+      "The workspace requires single sign-on of every member but its owners, and this session was started with Patchgrid credentials. Returned when opening or refreshing a session for that workspace.",
+    resolution:
+      "Sign in through the workspace's identity provider (`GET /auth/sso/start?slug=…`). Sessions already open are not ended by the requirement; the next sign-in is what it gates. Owners are never refused it.",
+  },
+  "sso-session-scoped": {
+    detail:
+      "This session was started by one workspace's identity provider, which vouches for that workspace only: it cannot open another, or change anything account-wide — password, factors, passkeys, erasure.",
+    resolution:
+      "Sign in with your own Patchgrid email and password, or a passkey, for anything beyond the workspace the provider vouched for.",
   },
   "not-found": {
     detail:
@@ -93,6 +105,12 @@ const PROBLEM_COPY: Record<ProblemTypeSlug, ProblemCopy> = {
       "The change was started more than an hour before its planned start time.",
     resolution:
       "Retry with `confirm: true` to proceed anyway, or wait for the planned window.",
+  },
+  "sso-members-outside": {
+    detail:
+      "Requiring single sign-on would shut out members below owner whose addresses are outside the workspace's proved domain: its identity provider can never sign them in.",
+    resolution:
+      "Retry with `confirm: true` to require it anyway, or change those members' access first.",
   },
   conflict: {
     detail:

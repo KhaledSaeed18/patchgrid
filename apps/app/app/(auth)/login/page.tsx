@@ -3,6 +3,8 @@ import type { Metadata } from "next"
 import { AuthShell } from "@/components/auth-shell"
 import { marketingOrigin } from "@/lib/config"
 
+import { ssoErrorFrom } from "@/lib/sso"
+
 import { LoginForm } from "./login-form"
 
 export const metadata: Metadata = { title: "Sign in" }
@@ -12,7 +14,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const { next } = await searchParams
+  const { next, sso } = await searchParams
   return (
     <AuthShell
       title="Sign in to Patchgrid"
@@ -29,7 +31,10 @@ export default async function LoginPage({
         </>
       }
     >
-      <LoginForm next={typeof next === "string" ? next : undefined} />
+      <LoginForm
+        next={typeof next === "string" ? next : undefined}
+        ssoError={ssoErrorFrom(sso)}
+      />
     </AuthShell>
   )
 }

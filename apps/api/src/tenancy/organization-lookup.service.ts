@@ -158,4 +158,5 @@ const summarySchema: z.ZodType<OrganizationSummary> = z.object({
   plan: planSchema,
   agentVisibility: agentVisibilitySchema,
   requireMfa: z.boolean(),
+  requireSso: z.boolean(),
 })

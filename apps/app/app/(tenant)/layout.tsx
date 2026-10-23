@@ -1,6 +1,7 @@
 import { meSchema } from "@patchgrid/contracts"
 
 import { LiveProvider } from "@/components/live-provider"
+import { SsoNotice } from "@/components/sso-notice"
 import { TenantProvider } from "@/components/tenant-provider"
 import { WorkspaceShell } from "@/components/workspace-shell"
 import { serverApi } from "@/lib/api/server"
@@ -28,6 +29,7 @@ export default async function TenantLayout({
     <TenantProvider me={me}>
       <LiveProvider>
         <WorkspaceShell>{children}</WorkspaceShell>
+        <SsoNotice />
       </LiveProvider>
     </TenantProvider>
   )

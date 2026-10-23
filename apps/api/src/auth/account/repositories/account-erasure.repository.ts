@@ -43,6 +43,8 @@ export class AccountErasureRepository {
   async forgetPresence(orgId: string, membershipId: string, userId: string): Promise<void> {
     await this.prisma.db.ticketWatcher.deleteMany({ where: { orgId, membershipId } })
     await this.prisma.db.notification.deleteMany({ where: { orgId, userId } })
+    // The identity provider's subject names them as surely as an address does (ADR-0054).
+    await this.prisma.db.ssoIdentity.deleteMany({ where: { orgId, membershipId } })
   }
 
   /**

@@ -28,7 +28,7 @@ import type { OrganizationLookup } from "../../tenancy/organization-lookup"
 import type { RequestContextStore } from "../../tenancy/request-context"
 import { TenantContextService } from "../../tenancy/tenant-context.service"
 import { CookieService, type CookieSpec } from "../cookies"
-import { MfaRequiredProblem } from "../../common/problems/problem.exception"
+import { MfaRequiredProblem, SsoRequiredProblem, SsoSessionScopedProblem } from "../../common/problems/problem.exception"
 import type { PasswordService } from "../passwords/password.service"
 import type { RevocationEpochService } from "../revocation/revocation-epoch.service"
 import type { MfaRepository } from "../../platform/repositories/mfa.repository"
@@ -44,22 +44,24 @@ const config = {
   isProduction: false,
 } as AppConfig
 
-const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false }
+const acme: OrganizationSummary = { id: "0190b2f0-0000-7000-8000-00000000000a", slug: "acme", status: "ACTIVE", plan: "FREE", agentVisibility: "ALL_TICKETS", requireMfa: false, requireSso: false }
 const globex: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000b", slug: "globex" }
 const frozen: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000f", slug: "frozen", status: "SUSPENDED" }
 /** Requires a second factor of every member (ADR-0045). */
 const strict: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000c", slug: "strict", requireMfa: true }
-const ORGS = [acme, globex, frozen, strict]
+/** Requires SSO of every member but its owners (ADR-0054), and a second factor of password sessions. */
+const sso: OrganizationSummary = { ...acme, id: "0190b2f0-0000-7000-8000-00000000000d", slug: "sso", requireSso: true, requireMfa: true }
+const ORGS = [acme, globex, frozen, strict, sso]
 
 const owner: AccountRecord = { id: "0190b2f0-0000-7000-8000-000000000001", email: "owner@acme.test", name: "Owner", passwordHash: "$argon2id$owner", emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), anonymisedAt: null }
 const unverified: AccountRecord = { ...owner, id: "0190b2f0-0000-7000-8000-000000000002", email: "new@acme.test", passwordHash: "$argon2id$new", emailVerifiedAt: null }
 const ACCOUNTS = [owner, unverified]
 
-const membership = (orgId: string, status: MembershipRecord["status"] = "ACTIVE"): MembershipRecord => ({
+const membership = (orgId: string, status: MembershipRecord["status"] = "ACTIVE", role: MembershipRecord["role"] = "OWNER"): MembershipRecord => ({
   id: `0190b2f0-0000-7000-8000-00000000${orgId.slice(-2)}aa`,
   orgId,
   userId: owner.id,
-  role: "OWNER",
+  role,
   status,
   kind: "HUMAN",
   displayName: "Owner",
@@ -98,6 +100,9 @@ function harness(memberships: MembershipRecord[] = [membership(acme.id)], option
       }
       return n
     }),
+    revokeWithinScope: vi.fn(async (userId: string, orgId: string, at: Date) => {
+      for (const t of tokens.values()) if (t.userId === userId && t.revokedAt === null && (t.ssoOrgId === orgId || t.orgId === orgId)) t.revokedAt = at
+    }),
     revokeAllForUser: vi.fn(async (userId: string, at: Date) => {
       let n = 0
       for (const t of tokens.values()) if (t.userId === userId && t.revokedAt === null) { t.revokedAt = at; n += 1 }
@@ -106,7 +111,7 @@ function harness(memberships: MembershipRecord[] = [membership(acme.id)], option
   }
   function store(t: NewRefreshToken): RefreshTokenRecord {
     nextId += 1
-    const record: RefreshTokenRecord = { id: `tok-${nextId}`, userId: t.userId, orgId: t.orgId, expiresAt: t.expiresAt, revokedAt: null, replacedById: null }
+    const record: RefreshTokenRecord = { id: `tok-${nextId}`, userId: t.userId, orgId: t.orgId, expiresAt: t.expiresAt, revokedAt: null, replacedById: null, ssoOrgId: t.ssoOrgId }
     tokens.set(t.tokenHash, record)
     return record
   }
@@ -234,9 +239,9 @@ describe("SessionService with a second factor (ADR-0045)", () => {
 
   it("tells the picker whether a factor exists", async () => {
     const without = harness()
-    expect((await without.service.identity(owner.id)).mfa).toEqual({ enrolled: false })
+    expect((await without.service.identity({ userId: owner.id, ssoOrgId: null })).mfa).toEqual({ enrolled: false })
     const withFactor = harness([membership(acme.id)], { enrolled: [owner.id] })
-    expect((await withFactor.service.identity(owner.id)).mfa).toEqual({ enrolled: true })
+    expect((await withFactor.service.identity({ userId: owner.id, ssoOrgId: null })).mfa).toEqual({ enrolled: true })
   })
 
   it("opens a workspace that requires a factor only for someone who has one — at login, open and refresh", async () => {
@@ -265,6 +270,88 @@ describe("SessionService with a second factor (ADR-0045)", () => {
     expect((await access.verify(cookieNamed(plain, "pg_at_acme")?.value ?? ""))?.sua).toBeUndefined()
     const refreshed = await service.refresh("acme", cookieNamed(proved, "pg_rt_acme")?.value ?? "", client)
     expect((await access.verify(cookieNamed(refreshed, "pg_at_acme")?.value ?? ""))?.sua).toBeUndefined()
+  })
+})
+
+describe("SSO sessions (ADR-0054)", () => {
+  const read = async (cookies: CookieSpec[], name: string) =>
+    new AccessTokenService(config, new FixedClock(new Date("2026-10-05T12:00:00Z"))).verify(cookieNamed(cookies, name)?.value ?? "")
+
+  it("opens only the workspace whose identity provider started it", async () => {
+    const h = harness([membership(acme.id), membership(globex.id)])
+    const { cookies, response } = await h.service.startIdentity(owner, client, "acme", acme.id)
+    expect(response.session).toEqual({ slug: "acme" })
+    expect((await read(cookies, "pg_at_acme"))?.sso).toBe(true)
+    const identity = await h.service.identityFor(cookieNamed(cookies, "pg_id")?.value)
+    expect(identity).toEqual({ userId: owner.id, ssoOrgId: acme.id })
+    await expect(h.service.open(owner.id, "globex", client, { ssoOrgId: acme.id })).rejects.toThrow(SsoSessionScopedProblem)
+    expect((await h.service.open(owner.id, "acme", client, { ssoOrgId: acme.id })).map((c) => c.name)).toEqual(["pg_at_acme", "pg_rt_acme"])
+  })
+
+  it("never lets a refresh launder the scope", async () => {
+    const h = harness([membership(acme.id)])
+    const opened = await h.service.open(owner.id, "acme", client, { ssoOrgId: acme.id })
+    const refreshed = await h.service.refresh("acme", cookieNamed(opened, "pg_rt_acme")?.value ?? "", client)
+    expect((await read(refreshed, "pg_at_acme"))?.sso).toBe(true)
+    expect([...h.tokens.values()].every((t) => t.ssoOrgId === acme.id)).toBe(true)
+  })
+
+  it("an ordinary session carries no sso claim", async () => {
+    const h = harness()
+    expect((await read(await h.service.open(owner.id, "acme", client), "pg_at_acme"))?.sso).toBeUndefined()
+  })
+
+  it("requires SSO of a non-owner at open, login and refresh, and spares the owner", async () => {
+    const agent = harness([membership(sso.id, "ACTIVE", "AGENT")], { enrolled: [owner.id] })
+    await expect(agent.service.open(owner.id, "sso", client)).rejects.toThrow(SsoRequiredProblem)
+    const login = await agent.service.login("owner@acme.test", "correct horse battery staple", "sso", client)
+    expect(login.response.status).toBe("mfa-required")
+    expect((await agent.service.open(owner.id, "sso", client, { ssoOrgId: sso.id })).map((c) => c.name)).toEqual(["pg_at_sso", "pg_rt_sso"])
+
+    // The owner is the way back in when the identity provider is down: their own credentials still open it.
+    const theOwner = harness([membership(sso.id)], { enrolled: [owner.id] })
+    expect((await theOwner.service.open(owner.id, "sso", client)).map((c) => c.name)).toEqual(["pg_at_sso", "pg_rt_sso"])
+  })
+
+  it("gates a password session's next refresh once SSO is required, never the session already open", async () => {
+    const h = harness([membership(acme.id, "ACTIVE", "AGENT")])
+    const opened = await h.service.open(owner.id, "acme", client)
+    const required: OrganizationSummary = { ...acme, requireSso: true }
+    ORGS.splice(0, 1, required)
+    try {
+      await expect(h.service.refresh("acme", cookieNamed(opened, "pg_rt_acme")?.value ?? "", client)).rejects.toThrow(SsoRequiredProblem)
+    } finally {
+      ORGS.splice(0, 1, acme)
+    }
+  })
+
+  it("lets this workspace's own identity provider stand in for its factor requirement, and no other", async () => {
+    const h = harness([membership(sso.id, "ACTIVE", "AGENT"), membership(strict.id, "ACTIVE", "AGENT")])
+    expect((await h.service.open(owner.id, "sso", client, { ssoOrgId: sso.id })).map((c) => c.name)).toEqual(["pg_at_sso", "pg_rt_sso"])
+    await expect(h.service.open(owner.id, "strict", client)).rejects.toThrow(MfaRequiredProblem)
+    await expect(h.service.open(owner.id, "strict", client, { ssoOrgId: sso.id })).rejects.toThrow(SsoSessionScopedProblem)
+  })
+
+  it("tells an SSO session about its own workspace and nothing else of the person's", async () => {
+    const h = harness([membership(acme.id), membership(globex.id)], { enrolled: [owner.id] })
+    const scoped = await h.service.identity({ userId: owner.id, ssoOrgId: acme.id })
+    expect(scoped.sso).toEqual({ slug: "acme" })
+    expect(scoped.workspaces.map((w) => w.slug)).toEqual(["acme"])
+    expect(scoped.mfa).toEqual({ enrolled: false })
+    const own = await h.service.identity({ userId: owner.id, ssoOrgId: null })
+    expect(own.sso).toBeNull()
+    expect(own.workspaces.map((w) => w.slug)).toEqual(["acme", "globex"])
+  })
+
+  it("logs an SSO session out of its own workspace only, however everywhere it asks", async () => {
+    const h = harness([membership(acme.id), membership(globex.id)])
+    const globexPair = await h.service.open(owner.id, "globex", client)
+    const { cookies } = await h.service.startIdentity(owner, client, "acme", acme.id)
+    const cleared = await h.service.logout({ slug: undefined, everywhere: true, refreshSecret: undefined, identitySecret: cookieNamed(cookies, "pg_id")?.value })
+    expect(cleared.map((c) => c.name)).toEqual(["pg_at_acme", "pg_rt_acme", "pg_id"])
+    expect(h.tokens.get(hash(cookieNamed(globexPair, "pg_rt_globex")?.value ?? ""))?.revokedAt).toBeNull()
+    expect(h.tokens.get(hash(cookieNamed(cookies, "pg_rt_acme")?.value ?? ""))?.revokedAt).not.toBeNull()
+    expect(h.epochs.bump).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -340,7 +427,7 @@ describe("SessionService.logout", () => {
     expect(clear.map((c) => c.name)).toEqual(["pg_at_acme", "pg_rt_acme"])
     expect(h.tokens.get(hash(refresh))?.revokedAt).not.toBeNull()
     expect(h.tokens.get(hash(pgId))?.revokedAt).toBeNull()
-    expect(await h.service.identityFor(pgId)).toBe(owner.id)
+    expect(await h.service.identityFor(pgId)).toEqual({ userId: owner.id, ssoOrgId: null })
   })
 
   it("everywhere: revokes every token, bumps every membership's epoch, clears every pair and pg_id", async () => {

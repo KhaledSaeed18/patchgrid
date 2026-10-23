@@ -76,6 +76,12 @@ const ACTION_NAMES: Record<AuditAction, string> = {
   ORG_EXPORTED: "exported this workspace",
   ORG_MFA_REQUIREMENT_CHANGED:
     "changed whether two-factor authentication is required",
+  ORG_DOMAIN_CLAIMED: "claimed an email domain for the workspace",
+  ORG_DOMAIN_VERIFIED: "proved the workspace's email domain",
+  ORG_DOMAIN_REMOVED: "removed the workspace's email domain",
+  SSO_CONNECTION_SAVED: "changed the single sign-on connection",
+  ORG_SSO_REQUIREMENT_CHANGED: "changed whether single sign-on is required",
+  SSO_IDENTITY_LINKED: "linked a member to the identity provider",
 }
 
 export function actorName(entry: AuditEntry): string {

@@ -111,7 +111,7 @@ export class MfaController {
   @TenantOptional()
   @HttpCode(200)
   async prove(@Body() body: StepUpDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<StepUpResponse> {
-    const result = await this.stepUp.prove(this.actors.requireIdentity().userId, body, clientOf(request))
+    const result = await this.stepUp.prove(this.actors.requireIdentity(), body, clientOf(request))
     this.cookies.set(response, result.cookies)
     return result.response
   }

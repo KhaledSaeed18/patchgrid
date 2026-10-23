@@ -467,11 +467,14 @@ members to their identity provider, and a new member is provisioned on first sig
 - [x] Passkeys (WebAuthn): register, sign in without a password, step-up with a passkey (ADR-0045's
       `sua`), list and revoke. ADR-0053 and its erratum; the browser suite drives a virtual authenticator.
       Done 2026-10-22
-- [ ] Per-tenant OIDC (authorization code with PKCE) against a local Keycloak profile in Compose; the
+- [x] Per-tenant OIDC (authorization code with PKCE) against a local Keycloak profile in Compose; the
       workspace's verified email domain routes sign-in; just-in-time membership at a default role;
-      "SSO required" mirrors `requireMfa`
-- [ ] Threat model and authorization updates: which routes a SSO-only member may still use, and how an
-      owner recovers when the provider is down
+      "SSO required" mirrors `requireMfa`. ADR-0054 and its erratum: the domain proved by a TXT record,
+      the session an IdP starts scoped to its workspace, owners exempt; the browser suite signs in
+      through Keycloak. Done 2026-10-23
+- [x] Threat model and authorization updates: which routes a SSO-only member may still use, and how an
+      owner recovers when the provider is down. `THREAT-MODEL.md` TB12 and §10 (the M13 review),
+      `RBAC.md` §2, `TENANCY.md` §5–§6. Done 2026-10-23
 
 ## M14 — Production rehearsal, locally
 

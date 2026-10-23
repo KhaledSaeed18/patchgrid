@@ -110,6 +110,12 @@ members who could open that ticket — a CI test holds that decision equal to th
   with a fresh proof before deleting the workspace, making an owner, granting support access
   or minting a token; traces and metrics that say which tenant is slow; a browser suite that
   proves one workspace's session reaches nothing of another's.
+- **Passkeys and single sign-on** — a passkey signs in with nothing typed, completes a password
+  login's second step, and proves a step-up; it counts only on the workspace hosts. A workspace can
+  prove its email domain by DNS and connect its own OpenID Connect provider (PKCE, the token's
+  signature checked, every request to the provider SSRF-guarded): people at the domain sign in through
+  it and are added on first sign-in at a default role. That session opens that workspace and no other,
+  and "SSO required" always leaves the owners their own way in.
 - **Notifications** —
   - a bell and inbox, with a burst on one ticket folded into one row;
   - live updates over Server-Sent Events, including an "assigned to you" toast and
@@ -268,7 +274,8 @@ The docs are the specification, not a description written afterwards.
   at `/api/docs`, and a load check at a hundred thousand tickets;
 - shipping, locally (ADR-0047);
 - reliable delivery: the outbox, webhooks and their retention;
-- insight: reports from a read side, saved views and bulk actions.
+- insight: reports from a read side, saved views and bulk actions;
+- identity: passkeys, and per-tenant single sign-on through each workspace's own identity provider.
 
 **M10, ship, is complete**: the demo seed across every type and status, the marketing site with its
 docs and blog, production images and `docker-compose.prod.yml`, and this README. Patchgrid is not
@@ -283,8 +290,15 @@ notifications on it, outbound webhooks as its second consumer, retention, and a 
 one under 25 ms at a hundred thousand tickets; saved views; and bulk actions that are the single action
 per ticket (`docs/THREAT-MODEL.md` §9).
 
-**Next is M13**, identity: passkeys, and per-tenant OIDC single sign-on against a local Keycloak. Then
-M14 (a production rehearsal on a laptop), and M7 last, because it needs local models
-([ADR-0048](docs/decisions/0048-roadmap-after-m10.md)). `docs/HANDOFF.md` has the detail.
+**M13, identity, is complete**: passkeys that sign in alone and prove a step-up
+([ADR-0053](docs/decisions/0053-passkeys.md)), and per-tenant OpenID Connect single sign-on routed by a
+DNS-proved domain, with people provisioned on first sign-in. A session an identity provider starts
+opens that workspace and nothing else, and owners keep their own way in
+([ADR-0054](docs/decisions/0054-per-tenant-oidc-sso.md), `docs/THREAT-MODEL.md` §10).
+`docker compose --profile sso up -d` runs the Keycloak the seed points Acme at.
+
+**Next is M14**, a production rehearsal on a laptop: HTTPS through Caddy, PgBouncer, a replica. M7 comes
+last, because it needs local models ([ADR-0048](docs/decisions/0048-roadmap-after-m10.md)).
+`docs/HANDOFF.md` has the detail.
 
 MIT licensed — the value of this repository is that people read it.

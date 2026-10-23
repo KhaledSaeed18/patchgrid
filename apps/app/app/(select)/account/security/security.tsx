@@ -232,6 +232,7 @@ export function Security({ requiredBy }: { requiredBy: string | null }) {
           <HolderProofForm
             methods={methods}
             onSubmit={(proof) => enrol.mutate(proof)}
+            allowRecovery={false}
             pending={enrol.isPending}
             error={enrol.error}
             submitLabel="Continue"

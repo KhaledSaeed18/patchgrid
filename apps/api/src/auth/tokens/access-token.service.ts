@@ -33,7 +33,7 @@ export class AccessTokenService {
   async sign(session: SessionClaims): Promise<{ token: string; claims: AccessTokenClaims }> {
     const iat = Math.floor(this.clock.now().getTime() / 1000)
     const claims: AccessTokenClaims = { ...session, iat, exp: iat + this.ttlSeconds, jti: randomUUID() }
-    const token = await new SignJWT({ org: claims.org, mem: claims.mem, role: claims.role, ...(claims.sua === undefined ? {} : { sua: claims.sua }) })
+    const token = await new SignJWT({ org: claims.org, mem: claims.mem, role: claims.role, ...(claims.sua === undefined ? {} : { sua: claims.sua }), ...(claims.sso === true ? { sso: true } : {}) })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setSubject(claims.sub)
       .setJti(claims.jti ?? randomUUID())

@@ -18,7 +18,7 @@ const acme: OrganizationSummary = {
   status: "ACTIVE",
   plan: "FREE",
   agentVisibility: "ALL_TICKETS",
-  requireMfa: false,
+  requireMfa: false, requireSso: false,
 }
 const lookup: OrganizationLookup = {
   byId: async (id) => (id === acme.id ? acme : null),

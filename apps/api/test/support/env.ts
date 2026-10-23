@@ -28,6 +28,7 @@ const defaults: Record<string, string> = {
   INBOUND_AUTHSERV_ID: "mx.inbound.lvh.me",
   MFA_ENCRYPTION_KEY: "cGF0Y2hncmlkLWxvY2FsLW1mYS1rZXktMzJieXRlcyE=",
   WEBHOOK_SECRETS_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  SSO_SECRETS_KEY: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
 }
 for (const [name, value] of Object.entries(defaults)) {
   if (process.env[name] === undefined || process.env[name] === "") process.env[name] = value

@@ -97,6 +97,12 @@ export const identityResponseSchema = z.object({
   workspaces: z.array(workspaceSummarySchema),
   /** Whether any second factor exists, TOTP or passkey — the picker routes to setup when a workspace demands one. */
   mfa: z.object({ enrolled: z.boolean() }),
+  /**
+   * The workspace whose identity provider started this session (ADR-0054), or
+   * `null` for a session started with Patchgrid credentials. An SSO session
+   * opens that workspace and no other.
+   */
+  sso: z.object({ slug: slugSchema }).nullable(),
 })
 export type IdentityResponse = z.infer<typeof identityResponseSchema>
 

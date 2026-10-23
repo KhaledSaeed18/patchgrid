@@ -2,9 +2,9 @@ import { Injectable } from "@nestjs/common"
 import { STEP_UP_TTL_SECONDS, type StepUpRequest, type StepUpResponse } from "@patchgrid/contracts"
 
 import { type Clock, InjectClock } from "../../common/clock/clock"
-import { NotAuthenticatedProblem, StepUpRequiredProblem } from "../../common/problems/problem.exception"
+import { NotAuthenticatedProblem, SsoSessionScopedProblem, StepUpRequiredProblem } from "../../common/problems/problem.exception"
 import { UserRepository } from "../../platform/repositories/user.repository"
-import type { TenantActor } from "../actor"
+import type { IdentityActor, TenantActor } from "../actor"
 import type { CookieSpec } from "../cookies"
 import { type ClientInfo, SessionService } from "../sessions/session.service"
 import { MemberMfaService } from "./member-mfa.service"
@@ -37,13 +37,18 @@ export class StepUpService {
   }
 
   /** A `pg_id` holder re-proves themselves and gets that workspace's pair back with the claim on it. */
-  async prove(userId: string, request: StepUpRequest, client: ClientInfo): Promise<{ response: StepUpResponse; cookies: CookieSpec[] }> {
+  async prove(identity: Pick<IdentityActor, "userId" | "ssoOrgId">, request: StepUpRequest, client: ClientInfo): Promise<{ response: StepUpResponse; cookies: CookieSpec[] }> {
+    const { userId } = identity
+    // An SSO session re-proves at its provider (`/auth/sso/start?intent=step-up`), never with the person's own
+    // factors: a wrong code here would lock those factors for every workspace (M13 review).
+    if (identity.ssoOrgId !== null) throw new SsoSessionScopedProblem("Confirm with your organization's sign-in")
     const account = await this.users.findById(userId)
     if (account === null || account.anonymisedAt !== null) throw new NotAuthenticatedProblem()
     const { slug, ...proof } = request
     await this.factors.proveHolder(userId, proof)
     const now = this.clock.now()
-    const cookies = await this.sessions.open(userId, slug, client, { stepUpAt: now })
+    // The scope rides along: an SSO session steps up into its own workspace and no other (ADR-0054).
+    const cookies = await this.sessions.open(userId, slug, client, { stepUpAt: now, ssoOrgId: identity.ssoOrgId })
     return { response: { stepUpExpiresAt: new Date(now.getTime() + STEP_UP_TTL_SECONDS * 1000).toISOString() }, cookies }
   }
 }

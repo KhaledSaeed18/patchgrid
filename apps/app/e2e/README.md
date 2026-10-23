@@ -18,6 +18,8 @@ pnpm --filter @patchgrid/app test:e2e
 
 | `passkeys` | A fresh owner adds a passkey from the account page against the password and is shown recovery codes once; signs back in with nothing typed, straight into the workspace the login was for; mints an API token behind a step-up the passkey proves (no password field offered); and removes the passkey, proved by itself. Chromium's virtual authenticator answers the prompts, and the two development hosts are treated as secure for WebAuthn (ADR-0053) |
 
+| `sso` | Against the Keycloak in `docker compose --profile sso`: `kim@acme.test` signs in through it from the login page and is provisioned into Acme, the picker says the session is Acme's alone and the account page says why it can change nothing account-wide; `nora@acme.test`, unverified at the provider, is turned away with the reason; an owner requires SSO behind a step-up, an agent with only a password is sent to the provider, and the owner's own password still opens Acme (ADR-0054) |
+
 The negatives are the point. The happy paths are the easy part.
 
 Every run makes its own rows — a workspace `e2e-<run>` and tickets titled with the run id — so a

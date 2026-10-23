@@ -12,6 +12,7 @@ import {
   NotFoundProblem,
   OrganizationSuspendedProblem,
   PlanLimitProblem,
+  SsoRequiredProblem,
 } from "../../common/problems/problem.exception"
 import type { OrganizationRepository } from "../../platform/repositories/organization.repository"
 import type { UserOrgIndexRepository } from "../../platform/repositories/user-org-index.repository"
@@ -104,7 +105,7 @@ function harness(options: Options = {}) {
   const sessions = {
     open: vi.fn(async (_u: string, slug: string) => [{ name: `pg_at_${slug}`, value: "t", path: "/", maxAgeSeconds: 1 }]),
     startIdentity: vi.fn(async (_a: AccountRecord, _c: unknown, slug?: string) => ({
-      response: {},
+      response: { session: slug === undefined ? null : { slug } },
       cookies: [{ name: "pg_id", value: "i", path: "/", maxAgeSeconds: 1 }, { name: `pg_at_${slug ?? ""}`, value: "t", path: "/", maxAgeSeconds: 1 }],
     })),
   }
@@ -180,6 +181,15 @@ describe("InvitationAcceptanceService.accept", () => {
     expect(h.workspaces.upsert).toHaveBeenCalledWith(expect.objectContaining({ userId: alice.id, orgId: ORG, role: "AGENT", status: "ACTIVE" }))
     expect(h.audit[0]).toMatchObject({ entries: [{ action: "MEMBER_JOINED", entityId: "m-new" }], actor: { kind: "member", membershipId: "m-new" } })
     expect(h.sessions.open).toHaveBeenCalledWith(alice.id, "acme", client)
+  })
+
+  it("joins even when the workspace's policy withholds the session, and says so rather than failing after the join", async () => {
+    const h = harness()
+    h.sessions.open.mockRejectedValueOnce(new SsoRequiredProblem())
+    const result = await h.service.accept(alice.id, h.token, client)
+    expect(result.response.session).toBeNull()
+    expect(result.cookies).toEqual([])
+    expect(h.memberships.create).toHaveBeenCalled()
   })
 
   it("tells a different signed-in account the link was not theirs — and nothing more", async () => {

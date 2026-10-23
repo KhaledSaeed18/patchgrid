@@ -114,6 +114,8 @@ model Organization {
   /// Claimed email domain. Many orgs may claim one; only one may verify it.
   domain                    String?
   domainVerifiedAt          DateTime?          @db.Timestamptz(3)
+  /// The random value the `_patchgrid-verify` TXT record must carry; null once proved or with no domain (ADR-0054).
+  domainChallenge           String?
   allowDomainJoin           Boolean            @default(false)
   defaultJoinRole           Role?
   agentVisibility           AgentVisibility    @default(ALL_TICKETS)
@@ -121,6 +123,9 @@ model Organization {
   /// Members without a confirmed second factor cannot open this workspace (ADR-0029, ADR-0045).
   /// Gates the next authentication, never a session already open.
   requireMfa                Boolean            @default(false)
+  /// Non-owners open this workspace only with a session its identity provider started (ADR-0054).
+  /// Like `requireMfa`, gates the next authentication, never a session already open.
+  requireSso                Boolean            @default(false)
   deletionRequestedAt       DateTime?          @db.Timestamptz(3)
   /// When the purge made this row a tombstone (ADR-0043).
   deletedAt                 DateTime?          @db.Timestamptz(3)
@@ -128,7 +133,8 @@ model Organization {
   updatedAt                 DateTime           @updatedAt @db.Timestamptz(3)
 
   slugHistory   OrganizationSlugHistory[]
-  refreshTokens RefreshToken[]
+  refreshTokens RefreshToken[]            @relation("RefreshTokenOrg")
+  ssoSessions   RefreshToken[]            @relation("RefreshTokenSso")
   userOrgIndex  UserOrgIndex[]
   apiTokenIndex ApiTokenIndex[]
   memberships   Membership[]
@@ -164,6 +170,8 @@ model Organization {
   webhookDeliveries WebhookDelivery[]
   ticketFacts       TicketFact[]
   savedViews        SavedView[]
+  ssoConnection     SsoConnection?
+  ssoIdentities     SsoIdentity[]
 
   /// "First verified wins" (TENANCY.md §5), as a constraint rather than a check.
   @@unique([domain], where: raw("\"domainVerifiedAt\" IS NOT NULL"), map: "Organization_verified_domain_key")
@@ -244,15 +252,20 @@ model RefreshToken {
   replacedById String?   @unique @db.Uuid
   userAgent    String?
   ip           String?   @db.Inet
+  /// The workspace whose identity provider started this session (ADR-0054): it opens that workspace
+  /// and no other. Copied on rotation and onto every pair minted from a `pg_id`, so nothing launders it.
+  ssoOrgId     String?   @db.Uuid
   createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
 
-  user         User          @relation(fields: [userId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
   /// CASCADE, not the default SET NULL: nulling `orgId` would turn a tenant
   /// refresh token into an org-less one — which is what a `pg_id` is (ADR-0031).
-  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  replacedBy   RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id])
-  replaces     RefreshToken? @relation("RefreshTokenChain")
+  organization    Organization? @relation("RefreshTokenOrg", fields: [orgId], references: [id], onDelete: Cascade)
+  /// CASCADE for the same reason: a scoped session must never outlive its scope as an unscoped one.
+  ssoOrganization Organization? @relation("RefreshTokenSso", fields: [ssoOrgId], references: [id], onDelete: Cascade)
+  replacedBy      RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id])
+  replaces        RefreshToken? @relation("RefreshTokenChain")
 
   @@index([userId])
   @@index([orgId])
@@ -381,6 +394,7 @@ model Membership {
   supportRevocations       SupportSession[]   @relation("SupportRevokedBy")
   webhooksCreated          WebhookEndpoint[]  @relation("WebhookEndpointCreatedBy")
   savedViews               SavedView[]
+  ssoIdentity              SsoIdentity?
 
   @@unique([orgId, id])
   @@unique([orgId, userId])
@@ -1500,4 +1514,48 @@ model SupportSession {
   @@index([orgId, requestedAt(sort: Desc), id(sort: Desc)])
   /// Sessions still running, for the expiry sweep and the banner.
   @@index([orgId, endedAt, expiresAt])
+}
+
+/// A workspace's one OpenID Connect connection (ADR-0054). The secret is sealed under SSO_SECRETS_KEY,
+/// like a webhook's: we present it to the identity provider, so it cannot be hashed.
+model SsoConnection {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  orgId              String   @db.Uuid
+  issuer             String
+  clientId           String
+  clientSecretSealed String
+  /// REQUESTER or AGENT, never above (CHECK constraint): what a person provisioned on first sign-in becomes.
+  defaultRole        Role
+  enabled            Boolean  @default(false)
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  identities   SsoIdentity[]
+
+  @@unique([orgId, id])
+  /// One connection per workspace.
+  @@unique([orgId])
+}
+
+/// Which membership an identity provider's subject is (ADR-0054). A subject is unique per issuer only,
+/// so changing the issuer deletes these. A person, by membership, never by user (ADR-0023).
+model SsoIdentity {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  orgId        String    @db.Uuid
+  connectionId String    @db.Uuid
+  /// The ID token's `sub`.
+  subject      String
+  membershipId String    @db.Uuid
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  lastSignInAt DateTime? @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  connection   SsoConnection @relation(fields: [orgId, connectionId], references: [orgId, id], onDelete: Cascade)
+  membership   Membership    @relation(fields: [orgId, membershipId], references: [orgId, id])
+
+  @@unique([orgId, id])
+  @@unique([orgId, connectionId, subject])
+  /// One identity per member: a second subject for the same person is a second person at the IdP.
+  @@unique([orgId, membershipId])
 }

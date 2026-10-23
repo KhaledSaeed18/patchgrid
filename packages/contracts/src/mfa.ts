@@ -37,6 +37,8 @@ export const mfaStatusSchema = z.object({
   confirmedAt: z.iso.datetime().nullable(),
   /** Every kind held; empty means the password is the only proof. */
   methods: z.array(factorMethodSchema),
+  /** Whether the account has a password at all: one provisioned by SSO has none (ADR-0054). */
+  password: z.boolean(),
   recoveryCodesRemaining: z.int().nonnegative(),
 })
 export type MfaStatus = z.infer<typeof mfaStatusSchema>
@@ -79,5 +81,5 @@ export const stepUpResponseSchema = z.object({ stepUpExpiresAt: z.iso.datetime()
 export type StepUpResponse = z.infer<typeof stepUpResponseSchema>
 
 /** The actions that demand a step-up, whatever the member's factor policy (ADR-0029). */
-export const STEP_UP_ACTIONS = ["org:delete", "org:transfer_ownership", "support:grant_access", "token:create"] as const
+export const STEP_UP_ACTIONS = ["org:delete", "org:transfer_ownership", "org:manage_sso", "support:grant_access", "token:create"] as const
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number]

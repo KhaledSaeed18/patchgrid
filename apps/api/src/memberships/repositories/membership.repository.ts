@@ -83,6 +83,24 @@ export class MembershipRepository {
     return row === null ? null : toRecord(row)
   }
 
+  /** The memberships these people hold here — one query, for revoking a batch of sessions (ADR-0054). */
+  async idsForUsers(orgId: string, userIds: readonly string[]): Promise<string[]> {
+    if (userIds.length === 0) return []
+    const rows = await this.prisma.db.membership.findMany({ where: { orgId, userId: { in: [...userIds] } }, select: { id: true } })
+    return rows.map((row) => row.id)
+  }
+
+  /**
+   * Active people below owner whose address is not at `domain`: who "SSO
+   * required" would shut out, since a provider vouches only for its own
+   * domain (M13 review).
+   */
+  async countOffDomain(orgId: string, domain: string): Promise<number> {
+    return this.prisma.db.membership.count({
+      where: { orgId, kind: "HUMAN", status: "ACTIVE", role: { not: "OWNER" }, user: { email: { not: { endsWith: `@${domain}` } } } },
+    })
+  }
+
   async findById(orgId: string, id: string): Promise<MembershipRecord | null> {
     const row = await this.prisma.db.membership.findUnique({
       where: { orgId_id: { orgId, id } },
@@ -167,7 +185,8 @@ export class MembershipRepository {
       userId: string
       role: Role
       displayName: string
-      invitedByMembershipId: string
+      /** `null` when nobody invited them: provisioned by the workspace's identity provider (ADR-0054). */
+      invitedByMembershipId: string | null
       joinedAt: Date
     },
   ): Promise<string> {

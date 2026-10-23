@@ -15,6 +15,8 @@ export type OrganizationSummary = {
   agentVisibility: AgentVisibility
   /** Every member needs a confirmed second factor to open a session (ADR-0045). */
   requireMfa: boolean
+  /** Non-owners open a session only through the workspace's identity provider (ADR-0054). */
+  requireSso: boolean
 }
 
 /** Name and address, for mail and the acceptance page. Uncached: a rename must show at once. */
@@ -26,7 +28,7 @@ export type RetiredSlug = {
   redirectUntil: Date
 }
 
-const SUMMARY = { id: true, slug: true, status: true, plan: true, agentVisibility: true, requireMfa: true } as const
+const SUMMARY = { id: true, slug: true, status: true, plan: true, agentVisibility: true, requireMfa: true, requireSso: true } as const
 
 /**
  * `Organization` is platform class (ADR-0022): no policy, reachable before a

@@ -6,7 +6,7 @@ import { ClsService } from "nestjs-cls"
 
 import { ApiTokenVerifier } from "../api-tokens/api-token-verifier"
 import { type Clock, InjectClock } from "../common/clock/clock"
-import { IS_PLATFORM, IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
+import { ALLOWS_SSO_SESSION, IS_PLATFORM, IS_PUBLIC, IS_TENANT_OPTIONAL } from "../common/decorators/route-markers"
 import { originPolicyFrom } from "../common/http/origin-policy"
 import { InjectConfig, type AppConfig } from "../config/app-config"
 import { PlatformAdminRepository } from "../platform/repositories/platform-admin.repository"
@@ -17,6 +17,7 @@ import {
   NotAuthenticatedProblem,
   NotPermittedProblem,
   ServiceUnavailableProblem,
+  SsoSessionScopedProblem,
   TenantMismatchProblem,
 } from "../common/problems/problem.exception"
 import { MembershipRepository } from "../memberships/repositories/membership.repository"
@@ -84,9 +85,13 @@ export class AuthGuard implements CanActivate {
     if (this.reflector.getAllAndOverride<boolean>(IS_PLATFORM, targets) === true) return this.platform(request)
 
     if (this.reflector.getAllAndOverride<boolean>(IS_TENANT_OPTIONAL, targets) === true) {
-      const userId = await this.sessions.identityFor(readCookie(request, IDENTITY_COOKIE))
-      if (userId === null) throw new NotAuthenticatedProblem("A session is required")
-      this.setActor({ kind: "identity", userId })
+      const identity = await this.sessions.identityFor(readCookie(request, IDENTITY_COOKIE))
+      if (identity === null) throw new NotAuthenticatedProblem("A session is required")
+      // An identity provider vouched for one workspace, not for the account (ADR-0054): deny by default.
+      if (identity.ssoOrgId !== null && this.reflector.getAllAndOverride<boolean>(ALLOWS_SSO_SESSION, targets) !== true) {
+        throw new SsoSessionScopedProblem("This session came from a workspace's single sign-on; sign in with your Patchgrid credentials for account changes")
+      }
+      this.setActor({ kind: "identity", userId: identity.userId, ssoOrgId: identity.ssoOrgId })
       return true
     }
 
@@ -136,6 +141,7 @@ export class AuthGuard implements CanActivate {
       teamIds: membership.teamIds,
       leadOfTeamIds: membership.leadOfTeamIds,
       ...(claims.sua === undefined ? {} : { stepUpAt: claims.sua }),
+      ...(claims.sso === true ? { viaSso: true as const } : {}),
     })
     return true
   }
