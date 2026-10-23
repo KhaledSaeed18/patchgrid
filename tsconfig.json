@@ -1,4 +1,3 @@
 {
   "extends": "@patchgrid/typescript-config/base.json"
 }
-

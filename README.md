@@ -53,10 +53,10 @@ The application connects as `patchgrid_app`, a role with no `BYPASSRLS`, and set
 transaction-local `set_config` before every query. Jobs carry their `orgId` and run inside that tenant.
 Images and the production topology: [`ARCHITECTURE.md`](docs/ARCHITECTURE.md#production-images-and-the-deployment-shape).
 
-| | |
-| --- | --- |
-| ![The marketing site](docs/images/www.png) | ![An agent's queue, with deadlines counting down and the overdue ones marked](docs/images/queue.png) |
-| ![A change awaiting the team lead's approval, with its plan and rollback](docs/images/change.png) | ![The knowledge base: published answers, internal runbooks and drafts](docs/images/knowledge.png) |
+|                                                                                                   |                                                                                                      |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| ![The marketing site](docs/images/www.png)                                                        | ![An agent's queue, with deadlines counting down and the overdue ones marked](docs/images/queue.png) |
+| ![A change awaiting the team lead's approval, with its plan and rollback](docs/images/change.png) | ![The knowledge base: published answers, internal runbooks and drafts](docs/images/knowledge.png)    |
 
 ## Isolation, in five layers
 
@@ -225,11 +225,11 @@ tenant, and a 5xx's `correlationId` is the trace id.
 
 Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
 
-| Account | Who they are |
-| --- | --- |
+| Account               | Who they are                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dana@patchgrid.test` | Admin at Acme and agent at Globex — sees the workspace picker; also the platform operator at `admin.lvh.me:3001`, who enrols a TOTP factor on first sign-in |
-| `sam@patchgrid.test` | Agent at Acme |
-| `rita@patchgrid.test` | Requester at Acme |
+| `sam@patchgrid.test`  | Agent at Acme                                                                                                                                               |
+| `rita@patchgrid.test` | Requester at Acme                                                                                                                                           |
 
 ### Tests
 
@@ -261,6 +261,7 @@ The docs are the specification, not a description written afterwards.
 ## Status
 
 **M0 (foundation) through M6, and M8 to M11, are complete:**
+
 - tenancy and identity;
 - the incident lifecycle;
 - SLA sweeps and notifications;

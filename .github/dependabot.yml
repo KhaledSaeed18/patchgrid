@@ -15,12 +15,29 @@ updates:
       prisma:
         patterns: ["prisma", "@prisma/*"]
       next:
-        patterns: ["next", "react", "react-dom", "@types/react", "@types/react-dom"]
+        patterns:
+          ["next", "react", "react-dom", "@types/react", "@types/react-dom"]
       testing:
-        patterns: ["vitest", "@vitest/*", "unplugin-swc", "supertest", "@types/supertest"]
+        patterns:
+          [
+            "vitest",
+            "@vitest/*",
+            "unplugin-swc",
+            "supertest",
+            "@types/supertest",
+          ]
       linting:
         patterns:
-          ["eslint", "eslint-*", "@eslint/*", "@next/eslint-plugin-next", "typescript-eslint", "@typescript-eslint/*", "prettier", "prettier-*"]
+          [
+            "eslint",
+            "eslint-*",
+            "@eslint/*",
+            "@next/eslint-plugin-next",
+            "typescript-eslint",
+            "@typescript-eslint/*",
+            "prettier",
+            "prettier-*",
+          ]
       types:
         patterns: ["@types/*"]
       # Everything the groups above don't claim, in one weekly PR. A package
