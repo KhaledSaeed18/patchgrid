@@ -11,11 +11,14 @@ import { randomBytes } from "node:crypto"
 
 import { ActorService } from "../auth/actor"
 import { StepUpService } from "../auth/mfa/step-up.service"
+import { RevocationEpochService } from "../auth/revocation/revocation-epoch.service"
 import { AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { type Clock, InjectClock } from "../common/clock/clock"
 import { ConflictProblem, NotFoundProblem, ServiceUnavailableProblem, ValidationProblem } from "../common/problems/problem.exception"
 import { PublicUrls } from "../common/urls"
+import { MembershipRepository } from "../memberships/repositories/membership.repository"
+import { RefreshTokenRepository } from "../platform/repositories/refresh-token.repository"
 import { PrismaService } from "../prisma/prisma.service"
 import { OrganizationLookupService } from "../tenancy/organization-lookup.service"
 import { TenantContextService } from "../tenancy/tenant-context.service"
@@ -50,6 +53,9 @@ export class SsoSettingsService {
     private readonly audit: AuditService,
     private readonly lookup: OrganizationLookupService,
     private readonly urls: PublicUrls,
+    private readonly refreshTokens: RefreshTokenRepository,
+    private readonly memberships: MembershipRepository,
+    private readonly epochs: RevocationEpochService,
     @InjectClock() private readonly clock: Clock,
   ) {}
 
@@ -66,6 +72,11 @@ export class SsoSettingsService {
       await this.domains.lock(orgId)
       const current = await this.domains.find(orgId)
       if (current === null) throw new NotFoundProblem()
+      // The same domain, still unproved and with no challenge (claimed at signup): issue the challenge it never got.
+      if (request.domain !== null && request.domain === current.domain && current.domainVerifiedAt === null && current.domainChallenge === null) {
+        await this.domains.claim(orgId, request.domain, randomBytes(32).toString("base64url"))
+        return
+      }
       if (request.domain === current.domain) return
       // Sign-in is routed by the proved domain; changing it under a requirement would strand every member.
       if (current.requireSso) throw new ConflictProblem("Turn off the SSO requirement before changing the domain")
@@ -108,10 +119,11 @@ export class SsoSettingsService {
       throw new ConflictProblem(`No TXT record at ${domainProofRecordName(current.domain)} carries this workspace's value yet; DNS can take a while`)
     }
     const domain = current.domain
+    const challenge = current.domainChallenge
     await this.prisma.transaction(async () => {
       let verified: boolean
       try {
-        verified = await this.domains.markVerified(orgId, domain, this.clock.now())
+        verified = await this.domains.markVerified(orgId, domain, challenge, this.clock.now())
       } catch (error) {
         if (isUniqueViolation(error)) throw new ConflictProblem("Another workspace has already proved this domain")
         throw error
@@ -134,9 +146,12 @@ export class SsoSettingsService {
     const orgId = this.tenant.requireOrgId()
     const [existing, org] = await Promise.all([this.connections.find(orgId), this.domains.find(orgId)])
     if (org === null) throw new NotFoundProblem()
-    const clientSecret = request.clientSecret ?? (existing === null ? null : this.secrets.open(existing.clientSecretSealed))
+    // The stored secret is for the provider it was given to: a new issuer or client gets a new one, or it
+    // would be presented to whatever host the new issuer names (M13 review).
+    const sameClient = existing !== null && existing.issuer === request.issuer && existing.clientId === request.clientId
+    const clientSecret = request.clientSecret ?? (sameClient ? this.secrets.open(existing.clientSecretSealed) : null)
     if (clientSecret === null) {
-      throw new ValidationProblem([{ path: "clientSecret", message: "is required", code: "required" }])
+      throw new ValidationProblem([{ path: "clientSecret", message: existing === null ? "is required" : "is required for a new issuer or client", code: "required" }])
     }
     if (!request.enabled && org.requireSso) throw new ConflictProblem("Turn off the SSO requirement before disabling the connection")
 
@@ -147,7 +162,7 @@ export class SsoSettingsService {
       throw new ValidationProblem([{ path: "issuer", message, code: "issuer_unusable" }])
     }
 
-    await this.prisma.transaction(async () => {
+    const ended = await this.prisma.transaction(async () => {
       await this.domains.lock(orgId)
       if (!request.enabled && (await this.domains.find(orgId))?.requireSso === true) {
         throw new ConflictProblem("Turn off the SSO requirement before disabling the connection")
@@ -167,7 +182,14 @@ export class SsoSettingsService {
           diff: connectionDiff(existing, request, issuerChanged),
         },
       ])
+      // A provider switched off or replaced vouches for nobody any more: its sessions end with it (M13 review).
+      const withdrawn = existing !== null && ((existing.enabled && !request.enabled) || issuerChanged)
+      if (!withdrawn) return []
+      const people = await this.refreshTokens.revokeSsoSessions(orgId, this.clock.now())
+      return this.memberships.idsForUsers(orgId, people)
     })
+    // The access tokens those sessions minted die now, not in fifteen minutes; after commit, as every epoch bump is.
+    for (const membershipId of ended) await this.epochs.bump(membershipId)
     return this.read(orgId)
   }
 
@@ -184,8 +206,15 @@ export class SsoSettingsService {
       if (org.requireSso === request.required) return org.slug
       if (request.required) {
         const connection = await this.connections.find(orgId)
-        if (org.domainVerifiedAt === null) throw new ConflictProblem("Prove the workspace's domain before requiring SSO")
+        if (org.domainVerifiedAt === null || org.domain === null) throw new ConflictProblem("Prove the workspace's domain before requiring SSO")
         if (connection?.enabled !== true) throw new ConflictProblem("Enable the SSO connection before requiring it")
+        // A soft block: say who would be shut out, and go ahead only when the owner confirms it.
+        const outside = await this.memberships.countOffDomain(orgId, org.domain)
+        if (outside > 0 && request.confirm !== true) {
+          throw new ConflictProblem(
+            `${String(outside)} ${outside === 1 ? "member below owner has an address" : "members below owner have addresses"} outside ${org.domain}. The identity provider cannot sign them in, so requiring SSO shuts them out. Send confirm to require it anyway.`,
+          )
+        }
       }
       await this.domains.setRequireSso(orgId, request.required)
       await this.audit.record(orgId, [

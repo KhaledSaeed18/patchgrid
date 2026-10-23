@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { ActorService, MemberActor } from "../auth/actor"
 import type { StepUpService } from "../auth/mfa/step-up.service"
+import type { RevocationEpochService } from "../auth/revocation/revocation-epoch.service"
 import type { AuditEntry, AuditService } from "../audit/audit.service"
 import { PermissionService } from "../authz/permission.service"
 import { FixedClock } from "../common/clock/clock"
@@ -15,6 +16,8 @@ import {
 } from "../common/problems/problem.exception"
 import { PublicUrls } from "../common/urls"
 import type { AppConfig } from "../config/app-config"
+import type { MembershipRepository } from "../memberships/repositories/membership.repository"
+import type { RefreshTokenRepository } from "../platform/repositories/refresh-token.repository"
 import type { PrismaService } from "../prisma/prisma.service"
 import type { OrganizationLookupService } from "../tenancy/organization-lookup.service"
 import type { TenantContextService } from "../tenancy/tenant-context.service"
@@ -29,7 +32,7 @@ const NOW = new Date("2026-10-23T12:00:00Z")
 const KEY = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
 const ISSUER = "https://idp.acme.test/realms/acme"
 
-type Options = { role?: Role; stepped?: boolean; org?: Partial<OrgDomainRecord>; connection?: Partial<SsoConnectionRecord> | null; txt?: string[] | Error; oidc?: Error }
+type Options = { role?: Role; stepped?: boolean; org?: Partial<OrgDomainRecord>; connection?: Partial<SsoConnectionRecord> | null; txt?: string[] | Error; oidc?: Error; offDomain?: number }
 
 function harness(options: Options = {}) {
   const secrets = new SsoSecrets({ SSO_SECRETS_KEY: KEY } as AppConfig)
@@ -63,8 +66,8 @@ function harness(options: Options = {}) {
     find: vi.fn(async () => ({ ...org })),
     lock: vi.fn(async () => undefined),
     claim: vi.fn(async (_o: string, domain: string | null, challenge: string | null) => void Object.assign(org, { domain, domainChallenge: challenge, domainVerifiedAt: null })),
-    markVerified: vi.fn(async (_o: string, domain: string, at: Date) => {
-      if (org.domain !== domain || org.domainVerifiedAt !== null) return false
+    markVerified: vi.fn(async (_o: string, domain: string, challenge: string, at: Date) => {
+      if (org.domain !== domain || org.domainChallenge !== challenge || org.domainVerifiedAt !== null) return false
       Object.assign(org, { domainVerifiedAt: at, domainChallenge: null })
       return true
     }),
@@ -92,6 +95,12 @@ function harness(options: Options = {}) {
     }),
   }
   const lookup = { invalidate: vi.fn(async () => undefined) }
+  const refreshTokens = { revokeSsoSessions: vi.fn(async () => ["u-7", "u-8"]) }
+  const memberships = {
+    idsForUsers: vi.fn(async (_o: string, users: string[]) => users.map((u) => `m-${u}`)),
+    countOffDomain: vi.fn(async () => options.offDomain ?? 0),
+  }
+  const epochs = { bump: vi.fn(async (_membershipId: string) => undefined) }
   const service = new SsoSettingsService(
     domains as unknown as OrgDomainRepository,
     connections as unknown as SsoConnectionRepository,
@@ -106,9 +115,12 @@ function harness(options: Options = {}) {
     { record: async (_o: string, e: AuditEntry[]) => void audit.push(...e) } as unknown as AuditService,
     lookup as unknown as OrganizationLookupService,
     new PublicUrls({ ROOT_DOMAIN: "lvh.me", WEB_ORIGIN_PORTS: [3000, 3001], WEB_APP_PORT: 3001, PORT: 4000, isProduction: false } as AppConfig),
+    refreshTokens as unknown as RefreshTokenRepository,
+    memberships as unknown as MembershipRepository,
+    epochs as unknown as RevocationEpochService,
     new FixedClock(NOW),
   )
-  return { service, org, domains, connections: () => connection, oidc, dns, audit, lookup, secrets, stepUp }
+  return { service, org, domains, connections: () => connection, oidc, dns, audit, lookup, secrets, stepUp, refreshTokens, epochs, memberships }
 }
 
 describe("SsoSettingsService: who", () => {
@@ -140,6 +152,12 @@ describe("SsoSettingsService: the domain", () => {
     expect(settings.domain?.record?.name).toBe("_patchgrid-verify.acme.test")
     expect(settings.domain?.record?.value).toMatch(/^patchgrid-verify=[A-Za-z0-9_-]{43}$/)
     expect(h.audit.map((e) => e.action)).toEqual(["ORG_DOMAIN_CLAIMED"])
+  })
+
+  it("issues the challenge a domain claimed at signup never got", async () => {
+    const h = harness({ org: { domain: "acme.test", domainChallenge: null } })
+    const settings = await h.service.claimDomain({ domain: "acme.test" })
+    expect(settings.domain?.record?.value).toMatch(/^patchgrid-verify=/)
   })
 
   it("does nothing for the domain already claimed, and removes one with null", async () => {
@@ -216,10 +234,29 @@ describe("SsoSettingsService: the connection", () => {
     await expect(h.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", defaultRole: "REQUESTER", enabled: false })).rejects.toBeInstanceOf(ConflictProblem)
   })
 
-  it("records that a new issuer unlinked every identity", async () => {
+  it("will not hand the stored secret to a new issuer or client", async () => {
     const h = harness({ connection: {} })
-    await h.service.saveConnection({ issuer: "https://idp.other.test/", clientId: "patchgrid", defaultRole: "REQUESTER", enabled: true })
+    await expect(h.service.saveConnection({ issuer: "https://idp.other.test/", clientId: "patchgrid", defaultRole: "REQUESTER", enabled: true })).rejects.toBeInstanceOf(ValidationProblem)
+    await expect(h.service.saveConnection({ issuer: ISSUER, clientId: "another", defaultRole: "REQUESTER", enabled: true })).rejects.toBeInstanceOf(ValidationProblem)
+    expect(h.oidc.check).not.toHaveBeenCalled()
+  })
+
+  it("ends every session a replaced issuer started, and records that its identities were unlinked", async () => {
+    const h = harness({ connection: {} })
+    await h.service.saveConnection({ issuer: "https://idp.other.test/", clientId: "patchgrid", clientSecret: "new-one", defaultRole: "REQUESTER", enabled: true })
     expect(h.audit[0]?.diff).toMatchObject({ identitiesUnlinked: true })
+    expect(h.refreshTokens.revokeSsoSessions).toHaveBeenCalledWith("o-1", NOW)
+    expect(h.epochs.bump.mock.calls.map(([id]) => id)).toEqual(["m-u-7", "m-u-8"])
+  })
+
+  it("ends them when the connection is switched off, and not when it is merely saved again", async () => {
+    const off = harness({ connection: {} })
+    await off.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", defaultRole: "REQUESTER", enabled: false })
+    expect(off.refreshTokens.revokeSsoSessions).toHaveBeenCalled()
+    const same = harness({ connection: {} })
+    await same.service.saveConnection({ issuer: ISSUER, clientId: "patchgrid", defaultRole: "AGENT", enabled: true })
+    expect(same.refreshTokens.revokeSsoSessions).not.toHaveBeenCalled()
+    expect(same.epochs.bump).not.toHaveBeenCalled()
   })
 })
 
@@ -227,6 +264,13 @@ describe("SsoSettingsService: the requirement", () => {
   it("needs a proved domain and an enabled connection first", async () => {
     await expect(harness({ connection: {} }).service.setRequirement({ required: true })).rejects.toThrow(/Prove/)
     await expect(harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, connection: { enabled: false } }).service.setRequirement({ required: true })).rejects.toThrow(/Enable/)
+  })
+
+  it("asks for confirmation when members below owner have addresses off the domain", async () => {
+    const h = harness({ org: { domain: "acme.test", domainVerifiedAt: NOW }, connection: {}, offDomain: 3 })
+    await expect(h.service.setRequirement({ required: true })).rejects.toThrow(/3 members below owner/)
+    expect(h.audit).toEqual([])
+    expect((await h.service.setRequirement({ required: true, confirm: true })).required).toBe(true)
   })
 
   it("turns on, is audited, and drops the cached summary open and refresh read it from", async () => {

@@ -48,9 +48,10 @@ export class OrgDomainRepository {
    * `false` when the domain changed meanwhile; the partial unique index throws
    * when another workspace proved it first.
    */
-  async markVerified(orgId: string, domain: string, at: Date): Promise<boolean> {
+  async markVerified(orgId: string, domain: string, challenge: string, at: Date): Promise<boolean> {
     const { count } = await this.prisma.db.organization.updateMany({
-      where: { id: orgId, domain, domainVerifiedAt: null },
+      // The challenge that was checked, not one a reclaim issued meanwhile (M13 review).
+      where: { id: orgId, domain, domainChallenge: challenge, domainVerifiedAt: null },
       data: { domainVerifiedAt: at, domainChallenge: null },
     })
     return count === 1
