@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { AuthShell } from "@/components/auth-shell"
 import { serverIdentity } from "@/lib/api/server"
 
+import { JoinWorkspace } from "./join-workspace"
 import { SignOutEverywhere, WorkspaceList } from "./workspace-list"
 
 export const metadata: Metadata = { title: "Your workspaces" }
@@ -67,11 +68,16 @@ export default async function WorkspacesPage() {
         </div>
       }
     >
+      {identity.joinable !== null && (
+        <JoinWorkspace joinable={identity.joinable} />
+      )}
       {identity.workspaces.length === 0 ? (
+        identity.joinable !== null ? null : (
         <p className="text-sm leading-relaxed text-muted-foreground">
           Create one for your team, or ask a colleague to invite you to theirs.
           Invitations arrive by email.
         </p>
+        )
       ) : (
         <WorkspaceList
           workspaces={identity.workspaces}

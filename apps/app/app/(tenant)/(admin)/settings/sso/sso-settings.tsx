@@ -55,6 +55,7 @@ export function SsoSettingsForm({ initial }: { initial: SsoSettings }) {
   return (
     <>
       <DomainSection settings={settings} onSaved={setSettings} />
+      <DomainJoinSection settings={settings} onSaved={setSettings} />
       <ConnectionSection settings={settings} onSaved={setSettings} />
       <RequirementSection settings={settings} onSaved={setSettings} />
     </>
@@ -328,6 +329,89 @@ function ConnectionSection({ settings, onSaved }: SectionProps) {
             </FieldGroup>
           </fieldset>
         </form>
+      </div>
+      {stepUp.dialog}
+    </Section>
+  )
+}
+
+/**
+ * Letting the proved domain's people join on their own (TENANCY.md §5): off
+ * by default, never above agent, and not with single sign-on required — the
+ * identity provider is their way in then. A step-up action: it opens the
+ * workspace to a whole domain.
+ */
+function DomainJoinSection({ settings, onSaved }: SectionProps) {
+  const stepUp = useStepUp()
+  const join = settings.domain?.join ?? { enabled: false, role: "REQUESTER" as const }
+  const proved = settings.domain !== null && settings.domain.verifiedAt !== null
+  const save = useMutation({
+    mutationFn: (next: { enabled: boolean; role: SsoDefaultRole }) =>
+      stepUp.guard(() =>
+        clientApi("/org/domain/join", {
+          method: "PUT",
+          body: next,
+          schema: ssoSettingsSchema,
+        })
+      ),
+    onSuccess: (updated) => {
+      onSaved(updated)
+      toast.success(
+        updated.domain?.join.enabled === true
+          ? "People at the domain can now join on their own."
+          : "Joining by domain is off."
+      )
+    },
+    onError: (error) => {
+      if (error instanceof StepUpCancelled) return
+      toast.error(failureMessage(error, "The setting wasn't saved."))
+    },
+  })
+  const blocked = !proved || settings.required
+  return (
+    <Section
+      title="Join by email domain"
+      description="Anyone with a verified address at the proved domain sees this workspace when they sign in to Patchgrid, and can join it themselves — no invitation and no identity provider. Nobody who was removed gets back in this way."
+    >
+      <div className="grid gap-3">
+        <Field orientation="horizontal">
+          <input
+            id="domainJoin"
+            type="checkbox"
+            checked={join.enabled}
+            disabled={(blocked && !join.enabled) || save.isPending || stepUp.waiting}
+            onChange={(e) => save.mutate({ enabled: e.target.checked, role: join.role })}
+            className="size-4 accent-primary"
+          />
+          <FieldLabel htmlFor="domainJoin" className="font-normal">
+            Let people at {settings.domain?.name ?? "the domain"} join on their own
+          </FieldLabel>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="domainJoinRole">They join as</FieldLabel>
+          <NativeSelect
+            id="domainJoinRole"
+            value={join.role}
+            className="w-fit"
+            disabled={save.isPending || stepUp.waiting}
+            onChange={(e) =>
+              save.mutate({ enabled: join.enabled, role: e.target.value === "AGENT" ? "AGENT" : "REQUESTER" })
+            }
+          >
+            {(Object.entries(ROLE_LABEL) as [SsoDefaultRole, string][]).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        {blocked && !join.enabled && (
+          <p className="text-xs text-muted-foreground">
+            {settings.required
+              ? "With single sign-on required, people join through the identity provider."
+              : "Prove the domain first."}
+          </p>
+        )}
       </div>
       {stepUp.dialog}
     </Section>
