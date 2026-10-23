@@ -54,11 +54,7 @@ const TESTS = ["**/*.spec.ts", "test/**"]
 const layering = {
   files: ["src/**/*.ts"],
   except: ["src/prisma/**", "src/**/repositories/**", ...TESTS],
-  imports: [
-    { name: "@prisma/client" },
-    { name: "@patchgrid/database" },
-    { regex: "/generated/client" },
-  ],
+  imports: [{ name: "@prisma/client" }, { name: "@patchgrid/database" }, { regex: "/generated/client" }],
   message:
     "Repositories are the only Prisma importers. A service that imports Prisma has started " +
     "doing data access, and the layering that keeps business rules testable without a " +
@@ -132,13 +128,9 @@ const contextWriters = {
 const authzPurity = {
   files: ["src/authz/**/*.ts"],
   except: [...TESTS],
-  imports: [
-    { regex: "(^|/)(repositories|prisma|redis)(/|$)" },
-    { name: "ioredis" },
-  ],
+  imports: [{ regex: "(^|/)(repositories|prisma|redis)(/|$)" }, { name: "ioredis" }],
   message:
-    "The authz module does no I/O (RBAC.md §11). Load what the decision needs into a Subject " +
-    "in the calling service and pass it in.",
+    "The authz module does no I/O (RBAC.md §11). Load what the decision needs into a Subject " + "in the calling service and pass it in.",
 }
 
 export const API_ZONES = [layering, platformCrossing, tenantCrossing, contextWriters, authzPurity]
@@ -163,8 +155,7 @@ export const noRawSql = {
     "no-restricted-syntax": [
       "error",
       {
-        selector:
-          "MemberExpression[property.name=/^\\$(queryRaw|queryRawUnsafe|executeRaw|executeRawUnsafe)$/]",
+        selector: "MemberExpression[property.name=/^\\$(queryRaw|queryRawUnsafe|executeRaw|executeRawUnsafe)$/]",
         message:
           "Raw SQL bypasses the tenant client extension and is protected by RLS alone. It belongs " +
           "in packages/database or a repository, never in application code (ENGINEERING.md " +

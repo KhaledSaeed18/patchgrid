@@ -2,12 +2,12 @@
 
 Shared ESLint configuration for the workspace.
 
-| Export            | What it is                                                                   |
-| ----------------- | ---------------------------------------------------------------------------- |
-| `./base`          | Recommended JS + TypeScript rules, Prettier compatibility, turbo env checks   |
-| `./next-js`       | `base` plus React and Next.js rules                                          |
-| `./react-internal`| `base` plus React rules for component packages                               |
-| `./boundaries`    | The architectural boundaries from `CLAUDE.md`, as lint rules                 |
+| Export             | What it is                                                                  |
+| ------------------ | --------------------------------------------------------------------------- |
+| `./base`           | Recommended JS + TypeScript rules, Prettier compatibility, turbo env checks |
+| `./next-js`        | `base` plus React and Next.js rules                                         |
+| `./react-internal` | `base` plus React rules for component packages                              |
+| `./boundaries`     | The architectural boundaries from `CLAUDE.md`, as lint rules                |
 
 ## Boundaries
 
