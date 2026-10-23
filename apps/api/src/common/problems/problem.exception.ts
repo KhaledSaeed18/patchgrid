@@ -93,6 +93,13 @@ export class SsoMembersOutsideProblem extends ProblemException {
   }
 }
 
+/** A parked event failed again in its consumer; the dead letter keeps the new error (ADR-0049). */
+export class ReplayFailedProblem extends ProblemException {
+  constructor(detail: string) {
+    super("replay-failed", detail)
+  }
+}
+
 /** An SSO session reached past the workspace whose identity provider started it (ADR-0054). */
 export class SsoSessionScopedProblem extends ProblemException {
   constructor(detail = "This session came from another workspace's single sign-on; sign in with your Patchgrid credentials") {
