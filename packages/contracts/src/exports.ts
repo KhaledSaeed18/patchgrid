@@ -9,13 +9,7 @@ export const EXPORT_FORMAT_VERSION = 1
 export const EXPORT_LINK_HOURS = 24
 export const EXPORT_COOLDOWN_HOURS = 24
 
-export const orgExportStatusSchema = z.enum([
-  "QUEUED",
-  "RUNNING",
-  "READY",
-  "FAILED",
-  "EXPIRED",
-])
+export const orgExportStatusSchema = z.enum(["QUEUED", "RUNNING", "READY", "FAILED", "EXPIRED"])
 export type OrgExportStatus = z.infer<typeof orgExportStatusSchema>
 
 /** One export of the workspace, as Settings lists it. */

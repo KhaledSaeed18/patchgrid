@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
-  decodeCursor,
-  encodeCursor,
-  paginationQuerySchema,
-  parseSort,
-} from "./pagination.ts"
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, decodeCursor, encodeCursor, paginationQuerySchema, parseSort } from "./pagination.ts"
 
 describe("cursors", () => {
   it("round-trips", () => {

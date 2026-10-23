@@ -350,15 +350,7 @@ export type Ticket = z.infer<typeof ticketSchema>
 export const linkRelationSchema = z.enum(["CAUSED_BY", "RELATES_TO", "RESOLVED_BY", "DUPLICATE_OF"])
 export type LinkRelation = z.infer<typeof linkRelationSchema>
 
-export const linkKindSchema = z.enum([
-  "CAUSED_BY",
-  "CAUSES",
-  "RESOLVED_BY",
-  "RESOLVES",
-  "DUPLICATE_OF",
-  "HAS_DUPLICATE",
-  "RELATES_TO",
-])
+export const linkKindSchema = z.enum(["CAUSED_BY", "CAUSES", "RESOLVED_BY", "RESOLVES", "DUPLICATE_OF", "HAS_DUPLICATE", "RELATES_TO"])
 export type LinkKind = z.infer<typeof linkKindSchema>
 
 /**

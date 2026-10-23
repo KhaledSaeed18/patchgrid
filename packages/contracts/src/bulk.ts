@@ -16,19 +16,29 @@ const bulkTicketsSchema = z
  * One action, many tickets, each with the version its row showed. The action is
  * exactly the single route's: an assignment, or a transition with its comment.
  */
-export const bulkTicketRequestSchema = z.strictObject({
-  /** Names this run's progress frames on the live stream; the client chooses it. */
-  operationId: idSchema,
-  tickets: bulkTicketsSchema,
-  action: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("assign"), assigneeMembershipId: idSchema.nullable().optional(), teamId: idSchema.nullable().optional() }),
-    // Approving or rejecting a change is a decision about that change, made one at a time (ADR-0052).
-    z.strictObject({ kind: z.literal("transition"), action: ticketActionSchema.exclude(["assign", "approve", "reject"]), comment: commentInputSchema.optional() }),
-  ]),
-}).refine((r) => r.action.kind !== "assign" || r.action.assigneeMembershipId !== undefined || r.action.teamId !== undefined, {
-  error: "an assignment sets an assignee, a team, or both",
-  path: ["action"],
-})
+export const bulkTicketRequestSchema = z
+  .strictObject({
+    /** Names this run's progress frames on the live stream; the client chooses it. */
+    operationId: idSchema,
+    tickets: bulkTicketsSchema,
+    action: z.discriminatedUnion("kind", [
+      z.strictObject({
+        kind: z.literal("assign"),
+        assigneeMembershipId: idSchema.nullable().optional(),
+        teamId: idSchema.nullable().optional(),
+      }),
+      // Approving or rejecting a change is a decision about that change, made one at a time (ADR-0052).
+      z.strictObject({
+        kind: z.literal("transition"),
+        action: ticketActionSchema.exclude(["assign", "approve", "reject"]),
+        comment: commentInputSchema.optional(),
+      }),
+    ]),
+  })
+  .refine((r) => r.action.kind !== "assign" || r.action.assigneeMembershipId !== undefined || r.action.teamId !== undefined, {
+    error: "an assignment sets an assignee, a team, or both",
+    path: ["action"],
+  })
 export type BulkTicketRequest = z.infer<typeof bulkTicketRequestSchema>
 
 /**

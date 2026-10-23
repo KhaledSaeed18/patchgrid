@@ -8,7 +8,12 @@ const here = dirname(fileURLToPath(import.meta.url))
 /** Each module's sibling imports, by file name. */
 function graph(): Map<string, string[]> {
   const files = readdirSync(here).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-  return new Map(files.map((f) => [f, [...readFileSync(join(here, f), "utf8").matchAll(/from "\.\/([\w-]+\.ts)"/g)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]))]))
+  return new Map(
+    files.map((f) => [
+      f,
+      [...readFileSync(join(here, f), "utf8").matchAll(/from "\.\/([\w-]+\.ts)"/g)].flatMap((m) => (m[1] === undefined ? [] : [m[1]])),
+    ]),
+  )
 }
 
 describe("the contracts' imports", () => {

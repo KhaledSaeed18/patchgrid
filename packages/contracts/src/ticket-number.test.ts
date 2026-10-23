@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  findTicketNumberInSubject,
-  formatTicketNumber,
-  parseTicketNumber,
-  TICKET_TYPE_PREFIX,
-  ticketTypeSchema,
-} from "./ticket-number.ts"
+import { findTicketNumberInSubject, formatTicketNumber, parseTicketNumber, TICKET_TYPE_PREFIX, ticketTypeSchema } from "./ticket-number.ts"
 
 describe("formatTicketNumber", () => {
   it.each([
@@ -46,12 +40,9 @@ describe("parseTicketNumber", () => {
     expect(parseTicketNumber("#42")).toEqual({ type: null, number: 42 })
   })
 
-  it.each(["", "INC-", "-42", "XYZ-1", "INC-abc", "not a ticket"])(
-    "rejects %s",
-    (value) => {
-      expect(parseTicketNumber(value)).toBeNull()
-    },
-  )
+  it.each(["", "INC-", "-42", "XYZ-1", "INC-abc", "not a ticket"])("rejects %s", (value) => {
+    expect(parseTicketNumber(value)).toBeNull()
+  })
 })
 
 describe("findTicketNumberInSubject", () => {

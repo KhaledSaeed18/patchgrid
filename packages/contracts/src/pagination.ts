@@ -66,7 +66,5 @@ export const sortParamSchema = z.string().regex(/^-?[a-zA-Z][a-zA-Z0-9]*$/, {
 })
 
 export function parseSort(value: string): { field: string; direction: "asc" | "desc" } {
-  return value.startsWith("-")
-    ? { field: value.slice(1), direction: "desc" }
-    : { field: value, direction: "asc" }
+  return value.startsWith("-") ? { field: value.slice(1), direction: "desc" } : { field: value, direction: "asc" }
 }

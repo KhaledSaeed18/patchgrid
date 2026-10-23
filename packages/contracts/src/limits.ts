@@ -37,12 +37,7 @@ export type AttachmentMimeType = (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]
  * The subset safe to render inline. Everything else is served with
  * `Content-Disposition: attachment`, from its own registrable domain (ADR-0037).
  */
-export const INLINE_RENDERABLE_MIME_TYPES: readonly AttachmentMimeType[] = [
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-]
+export const INLINE_RENDERABLE_MIME_TYPES: readonly AttachmentMimeType[] = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 
 /** How long a user may edit or delete their own comment (`RBAC.md` §6). */
 export const COMMENT_EDIT_WINDOW_MINUTES = 15

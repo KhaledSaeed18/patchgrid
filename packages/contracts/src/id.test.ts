@@ -12,12 +12,9 @@ describe("idSchema", () => {
     expect(idSchema.safeParse(V4).success).toBe(true)
   })
 
-  it.each(["", "not-a-uuid", "0195f0a0-1b2c-7d3e-8f01", "0195f0a01b2c7d3e8f01234567890abc"])(
-    "rejects %s",
-    (value) => {
-      expect(idSchema.safeParse(value).success).toBe(false)
-    },
-  )
+  it.each(["", "not-a-uuid", "0195f0a0-1b2c-7d3e-8f01", "0195f0a01b2c7d3e8f01234567890abc"])("rejects %s", (value) => {
+    expect(idSchema.safeParse(value).success).toBe(false)
+  })
 })
 
 describe("uuidV7Schema", () => {

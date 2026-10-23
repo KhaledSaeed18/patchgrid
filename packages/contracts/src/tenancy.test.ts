@@ -9,9 +9,11 @@ describe("tenantLookupSchema", () => {
       slug: "acme",
     })
     expect(tenantLookupSchema.parse({ status: "suspended", slug: "acme" }).status).toBe("suspended")
-    expect(
-      tenantLookupSchema.parse({ status: "moved", slug: "acme", currentSlug: "acme-corp" }),
-    ).toEqual({ status: "moved", slug: "acme", currentSlug: "acme-corp" })
+    expect(tenantLookupSchema.parse({ status: "moved", slug: "acme", currentSlug: "acme-corp" })).toEqual({
+      status: "moved",
+      slug: "acme",
+      currentSlug: "acme-corp",
+    })
   })
 
   it("requires the destination of a move", () => {

@@ -12,7 +12,10 @@ describe("plan limits", () => {
     const section = TENANCY.slice(TENANCY.indexOf("## 8."), TENANCY.indexOf("## 9."))
     const row = (label: string) => {
       const line = section.split("\n").find((l) => l.startsWith(`| ${label}`)) ?? ""
-      return line.split("|").slice(2, 4).map((c) => c.trim())
+      return line
+        .split("|")
+        .slice(2, 4)
+        .map((c) => c.trim())
     }
     const parse = (cell: string): number | null => {
       if (cell === "unlimited") return null

@@ -31,7 +31,10 @@ export type PlatformLoginStep = z.infer<typeof platformLoginStepSchema>
 export const mfaEnrolmentSchema = z.object({ secret: z.string(), otpauthUri: z.string() })
 export type MfaEnrolment = z.infer<typeof mfaEnrolmentSchema>
 
-export const totpCodeSchema = z.string().trim().regex(/^\d{6}$/, { error: "must be the 6-digit code" })
+export const totpCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, { error: "must be the 6-digit code" })
 
 /** A code from the authenticator, or one unused recovery code — exactly one of them. */
 export const mfaVerifyRequestSchema = z

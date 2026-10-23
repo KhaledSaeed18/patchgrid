@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  acceptNewInvitationRequestSchema,
-  createInvitationRequestSchema,
-  memberListQuerySchema,
-} from "./memberships.ts"
+import { acceptNewInvitationRequestSchema, createInvitationRequestSchema, memberListQuerySchema } from "./memberships.ts"
 
 describe("membership shapes", () => {
   it("hides removed members unless asked, and pages by default", () => {

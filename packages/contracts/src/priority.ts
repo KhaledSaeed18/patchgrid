@@ -34,7 +34,4 @@ export const DEFAULT_SLA_TARGETS = {
   HIGH: { response: 30, responseWarning: 10, resolution: 480, resolutionWarning: 60 },
   MEDIUM: { response: 60, responseWarning: 15, resolution: 1440, resolutionWarning: 120 },
   LOW: { response: 240, responseWarning: 60, resolution: 4320, resolutionWarning: 240 },
-} as const satisfies Record<
-  Priority,
-  { response: number; responseWarning: number; resolution: number; resolutionWarning: number }
->
+} as const satisfies Record<Priority, { response: number; responseWarning: number; resolution: number; resolutionWarning: number }>

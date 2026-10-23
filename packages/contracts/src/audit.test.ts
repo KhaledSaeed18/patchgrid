@@ -10,8 +10,7 @@ const DOMAIN = readFileSync(new URL("../../../docs/DOMAIN.md", import.meta.url),
 describe("the audit catalogue", () => {
   it("names only actions RBAC.md §12 or DOMAIN.md §7 lists", () => {
     const section =
-      RBAC.slice(RBAC.indexOf("## 12."), RBAC.indexOf("## 13.")) +
-      DOMAIN.slice(DOMAIN.indexOf("## 7."), DOMAIN.indexOf("## 8."))
+      RBAC.slice(RBAC.indexOf("## 12."), RBAC.indexOf("## 13.")) + DOMAIN.slice(DOMAIN.indexOf("## 7."), DOMAIN.indexOf("## 8."))
     // `TEAM_CREATED/UPDATED/DELETED` abbreviates three actions.
     const listed = new Set(
       [...section.matchAll(/`([A-Z_]+(?:\/[A-Z_]+)*)`/g)].flatMap((m) => {

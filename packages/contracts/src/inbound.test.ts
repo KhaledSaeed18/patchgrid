@@ -21,6 +21,8 @@ describe("the webhook body", () => {
   it("refuses another event, no recipient, and text that is not base64", () => {
     expect(inboundWebhookSchema.safeParse({ type: "email.sent", data: { recipients: ["a@b"], raw } }).success).toBe(false)
     expect(inboundWebhookSchema.safeParse({ type: "email.received", data: { recipients: [], raw } }).success).toBe(false)
-    expect(inboundWebhookSchema.safeParse({ type: "email.received", data: { recipients: ["a@b"], raw: "not base64!" } }).success).toBe(false)
+    expect(inboundWebhookSchema.safeParse({ type: "email.received", data: { recipients: ["a@b"], raw: "not base64!" } }).success).toBe(
+      false,
+    )
   })
 })

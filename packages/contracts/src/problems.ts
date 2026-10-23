@@ -64,15 +64,24 @@ export function problemTitle(slug: ProblemTypeSlug): string {
  */
 export function problemTypeForStatus(status: number): ProblemTypeSlug {
   switch (status) {
-    case 400: return "validation-failed"
-    case 401: return "not-authenticated"
-    case 402: return "plan-limit-reached"
-    case 403: return "not-permitted"
-    case 404: return "not-found"
-    case 409: return "conflict"
-    case 429: return "rate-limited"
-    case 503: return "service-unavailable"
-    default: return "internal-error"
+    case 400:
+      return "validation-failed"
+    case 401:
+      return "not-authenticated"
+    case 402:
+      return "plan-limit-reached"
+    case 403:
+      return "not-permitted"
+    case 404:
+      return "not-found"
+    case 409:
+      return "conflict"
+    case 429:
+      return "rate-limited"
+    case 503:
+      return "service-unavailable"
+    default:
+      return "internal-error"
   }
 }
 
