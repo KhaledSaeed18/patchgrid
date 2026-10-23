@@ -5,6 +5,7 @@ import {
   loginResponseSchema,
   signedInResponseSchema,
   type SignedInResponse,
+  type SsoErrorCode,
 } from "@patchgrid/contracts"
 import { Button } from "@patchgrid/ui/components/button"
 import { FieldGroup } from "@patchgrid/ui/components/field"
@@ -19,11 +20,14 @@ import { FactorForm, type FactorProof } from "@/components/mfa/factor-form"
 import { clientApi } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { parseNext } from "@/lib/next-url"
+import { SSO_ERROR_MESSAGE } from "@/lib/sso"
 import {
   assertWithPasskey,
   PasskeyCancelled,
   usePasskeysAvailable,
 } from "@/lib/passkeys"
+
+import { SsoForm } from "./sso-form"
 
 /**
  * A passkey alone, or email and password — then, for an account with a
@@ -33,12 +37,20 @@ import {
  * message for every failure: the API does not say whether the address
  * exists, and neither does this page.
  */
-export function LoginForm({ next }: { next: string | undefined }) {
+export function LoginForm({
+  next,
+  ssoError,
+}: {
+  next: string | undefined
+  ssoError: SsoErrorCode | null
+}) {
   const target = parseNext(next)
   const slug = target?.kind === "workspace" ? { slug: target.slug } : {}
   const [stage, setStage] = useState<
-    { kind: "password" } | { kind: "factor"; methods: FactorMethod[] }
-  >({ kind: "password" })
+    | { kind: "password" }
+    | { kind: "factor"; methods: FactorMethod[] }
+    | { kind: "sso" }
+  >(ssoError === null ? { kind: "password" } : { kind: "sso" })
   const canPasskey = usePasskeysAvailable()
   const go = (response: SignedInResponse) => {
     if (target?.kind === "workspace" && response.session !== null) {
@@ -108,6 +120,15 @@ export function LoginForm({ next }: { next: string | undefined }) {
             : "Confirm with your passkey."}
         </p>
       </FactorForm>
+    )
+  }
+
+  if (stage.kind === "sso") {
+    return (
+      <div className="grid gap-4">
+        {ssoError !== null && <FormAlert>{SSO_ERROR_MESSAGE[ssoError]}</FormAlert>}
+        <SsoForm target={target} onBack={() => setStage({ kind: "password" })} />
+      </div>
     )
   }
 
@@ -181,6 +202,14 @@ export function LoginForm({ next }: { next: string | undefined }) {
             Sign in with a passkey
           </Button>
         )}
+        <Button
+          type="button"
+          size="lg"
+          variant="ghost"
+          onClick={() => setStage({ kind: "sso" })}
+        >
+          Sign in with SSO
+        </Button>
       </FieldGroup>
     </form>
   )
