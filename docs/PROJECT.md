@@ -70,23 +70,24 @@ The resulting Priority (Low / Medium / High / Critical) selects the SLA policy. 
 
 - Not a general project/task management tool (no arbitrary boards, no non-IT work items)
 - Not a customer-facing support suite (no live chat widget, no multi-brand customer inboxes)
-- Not ServiceNow-scale configurability (no custom form builder, no workflow DSL) — automation is condition/action pairs, not a general rules engine
+- Not ServiceNow-scale configurability (no custom form builder, no workflow DSL, no automation rule engine)
 - No payment processing or self-serve billing in v1; plans exist, a platform admin sets them
-- No SSO/SAML, SCIM, or per-tenant custom domains in v1 (all are designed _for_, deferred by ADR)
+- No SAML, SCIM, or per-tenant custom domains in v1 (per-tenant OIDC sign-in is built, ADR-0054; the rest are designed _for_, deferred by ADR)
+- No machine learning or local models: no LLM triage, embeddings or phishing scoring (ADR-0056)
 - No platform-operator impersonation, ever: support access is owner-granted, read-only, time-boxed and audited into the customer's own log (ADR-0020)
 - No business-hours SLA calendars in v1 — clocks run 24×7 (ADR-0003)
 - No internationalisation: English only, no locale routing, no `next-intl`. Search is `english`-configured Postgres full-text
 - No mobile apps
 
-## Differentiators worth calling out
+## What separates this from a CRUD tutorial
 
-Beyond the architecture itself, two features separate this from a CRUD tutorial, both grounded in work already done outside this project:
-
-1. **Local LLM ticket triage.** Auto-classification (category, suggested impact/urgency, one-line summary) runs against a locally hosted Ollama instance rather than an external API — a defensible decision for IT tickets, which routinely contain sensitive internal information that should not leave the infrastructure. Doubly so for a multi-tenant system holding other companies' data.
-2. **ML-driven phishing/URL triage.** A "Report Phishing / Suspicious Link" ticket subtype scores the submitted URL with a phishing-detection model (the MS thesis pipeline: PhiUSIIL-trained detector with adversarial-robustness work), auto-tagging the ticket with a risk score and routing it to the Security queue.
-
-Both are **late-milestone** features. The tenancy model and the core ITSM lifecycle come first; a triage model on top of a broken ticket flow impresses nobody.
+The architecture itself, every part of it exercised and tested locally: isolation that holds at three
+layers and in the schema's shape (ADR-0015, ADR-0023), authorization decided by a pure function over a
+resolved subject (ADR-0019), a transactional outbox read as a per-tenant log with webhooks on top
+(ADR-0049, ADR-0050), a reporting read side checked against its source (ADR-0051), and per-tenant SSO
+and passkeys (ADR-0053, ADR-0054). There is no machine learning: the models once planned as M7 were
+dropped (ADR-0056).
 
 ## Current stage
 
-Local development only. Everything — Postgres, Redis, MinIO, Mailpit, later Ollama — runs via Docker Compose on the developer machine, with wildcard-subdomain tenancy working locally through `lvh.me`. There is no public deployment (ADR-0047): the production shape — wildcard DNS and TLS, the images, `docker-compose.prod.yml` — is designed and the images build in CI, but nothing is hosted. The effort goes to the implementation and the architecture.
+Local development only. Everything — Postgres, Redis, MinIO, Mailpit, and Keycloak for SSO — runs via Docker Compose on the developer machine, with wildcard-subdomain tenancy working locally through `lvh.me`. There is no public deployment (ADR-0047): the production shape — wildcard DNS and TLS, the images, `docker-compose.prod.yml` — is designed and the images build in CI, but nothing is hosted. The effort goes to the implementation and the architecture.

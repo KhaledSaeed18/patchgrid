@@ -161,7 +161,7 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
   and monthly ticket counts take `SELECT … FROM "Organization" WHERE id = :orgId FOR UPDATE` inside the
   mutating transaction, or use a conditional `UPDATE … WHERE value < :limit RETURNING`. Two concurrent
   requests that each observe "not the last owner" are how an org ends up with zero owners.
-- Anything with an external side effect (email, SSE push, triage, automation) is emitted as a **domain
+- Anything with an external side effect (email, SSE push, webhooks) is emitted as a **domain
   event after commit**. Events are typed objects in `apps/api/src/common/events`. Handlers that may fail
   or be slow enqueue BullMQ jobs; handlers that must be immediate and cheap (SSE push) run in-process.
 - Jobs are idempotent and carry the ids they need, never full payloads that could go stale. Every job on
@@ -267,8 +267,8 @@ pnpm dev                        # www :3000, app :3001, api :4000
 ```
 
 `db:doctor` is not decoration: it asserts that the app role holds neither `BYPASSRLS` nor `CREATE` on
-the schema, that `ALTER DEFAULT PRIVILEGES` is in place, that pgvector is installed and that the session
-is UTC. Each is a way the isolation model fails *silently* if it drifts, and each is far cheaper to
+the schema, that `ALTER DEFAULT PRIVILEGES` is in place and that the session is
+UTC. Each is a way the isolation model fails *silently* if it drifts, and each is far cheaper to
 learn about at setup time than from a confusing error three hours later.
 
 `db:reset` runs `prisma migrate reset` **then** `db:bootstrap` — in that order, because resetting drops

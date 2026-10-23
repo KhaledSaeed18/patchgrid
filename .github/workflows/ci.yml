@@ -52,7 +52,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: pgvector/pgvector:pg17
+        image: postgres:17-bookworm
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -279,7 +279,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: pgvector/pgvector:pg17
+        image: postgres:17-bookworm
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

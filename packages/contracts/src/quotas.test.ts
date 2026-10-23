@@ -26,7 +26,6 @@ describe("plan limits", () => {
       AGENT_SEATS: row("Agent seats"),
       TICKETS_CREATED: row("Tickets per calendar month"),
       STORAGE_BYTES: row("Attachment storage"),
-      AUTOMATION_RULES: row("Automation rules"),
       KB_ARTICLES: row("Knowledge articles"),
       API_TOKENS: row("API tokens"),
     }

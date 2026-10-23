@@ -71,7 +71,7 @@ Roles live on `Membership` and are strictly cumulative: `REQUESTER ⊂ AGENT ⊂
 | --- | --- |
 | `REQUESTER` | An employee who raises and follows their own tickets |
 | `AGENT` | IT staff who work the queues |
-| `ADMIN` | Configures the workspace: members, teams, categories, SLA policies, automation |
+| `ADMIN` | Configures the workspace: members, teams, categories, SLA policies |
 | `OWNER` | `ADMIN` plus the organization itself: plan, slug, ownership transfer, deletion |
 
 **Team lead is not a role.** It is `TeamMembership.isLead` (ADR-0025), granting three capabilities
@@ -217,8 +217,6 @@ separate permissions so `scopeFor("asset")` has something to branch on.
 | `category:write` | — | — | ✅ | ✅ |
 | `sla:read` | — | ✅ | ✅ | ✅ |
 | `sla:write` | — | — | ✅ | ✅ |
-| `automation:read` | — | ✅ | ✅ | ✅ |
-| `automation:write` | — | — | ✅ | ✅ |
 
 `category:read` exists because a Requester must see the tree to file a ticket — the previous draft had no
 such permission, which the route-coverage test would have failed on the portal's first endpoint.
@@ -442,7 +440,7 @@ Beyond ticket mutations (`DOMAIN.md` §7), these are audited into the tenant's `
 `AGENT_VISIBILITY_CHANGED`,
 `ORG_DOMAIN_CLAIMED/VERIFIED/REMOVED`, `ORG_DOMAIN_JOIN_CHANGED`, `SSO_CONNECTION_SAVED`, `ORG_SSO_REQUIREMENT_CHANGED`, `SSO_IDENTITY_LINKED`,
 `TOKEN_CREATED/REVOKED`, `WEBHOOK_CREATED/UPDATED/DELETED/DISABLED`, `WEBHOOK_SECRET_ROTATED`, `WEBHOOK_DELIVERIES_REPLAYED`, `EVENT_REPLAYED`, `SUPPORT_ACCESS_REQUESTED/GRANTED/DECLINED/REVOKED/EXPIRED`, `SUPPORT_READ`,
-`WATCHER_ADDED/REMOVED`, `SLA_POLICY_CHANGED`, `AUTOMATION_RULE_CHANGED`,
+`WATCHER_ADDED/REMOVED`, `SLA_POLICY_CHANGED`,
 `COMMENT_EDITED`, `COMMENT_DELETED`, `CHANGE_SELF_APPROVED`.
 
 Admins and owners read this at `GET /org/audit` (`org:read_audit`), filterable by actor, action and date

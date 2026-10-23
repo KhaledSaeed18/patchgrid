@@ -114,8 +114,6 @@ function limitMessage(metric: UsageMetric, plan: string): string {
       return `The ${plan} plan's tickets for this month are used up`
     case "STORAGE_BYTES":
       return `The ${plan} plan's attachment storage is full`
-    case "AUTOMATION_RULES":
-      return `The ${plan} plan's automation rules are all in use`
     case "KB_ARTICLES":
       return `The ${plan} plan's knowledge articles are all in use`
     case "API_TOKENS":

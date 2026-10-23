@@ -34,8 +34,8 @@ datasource db {
 
 // Extensions are NOT declared here. Prisma's `extensions` property (a preview
 // feature) emits `CREATE EXTENSION` into migrations, which run as patchgrid_owner
-// — not a superuser, so it would fail. pgvector is created by the bootstrap,
-// which runs as the superuser and is the only thing that can (sql/bootstrap.sql).
+// — not a superuser, so it would fail. Anything that needs one belongs in the
+// bootstrap, which runs as the superuser (sql/bootstrap.sql).
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 // Mirrored as Zod enums in @patchgrid/contracts; a type-level test in apps/api
@@ -81,7 +81,6 @@ enum UsageMetric {
   AGENT_SEATS
   TICKETS_CREATED
   STORAGE_BYTES
-  AUTOMATION_RULES
   KB_ARTICLES
   API_TOKENS
 }
@@ -692,7 +691,6 @@ enum CommentAuthorKind {
   MEMBER
   SERVICE
   SYSTEM
-  AUTOMATION
 }
 
 /// Per-type ticket numbers (ADR-0009). The row lock on (org, type) serialises

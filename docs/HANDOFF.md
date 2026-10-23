@@ -32,8 +32,8 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6 and M8–M13 are complete. M14 (production rehearsal, locally) is next**, then M7 last
-(ADR-0048). Milestone numbers did not change.
+**M0–M6 and M8–M13 are complete. M14 (production rehearsal, locally) is next, and last**: M7, the
+models and the automation rule engine, is dropped (ADR-0056). Milestone numbers did not change.
 
 **M13 (Identity): complete 2026-10-23.** Its exit holds: a member signs in with a passkey and uses it
 for step-up; a workspace with SSO configured sends its members to their identity provider, and a new
@@ -164,7 +164,7 @@ served by a replica, and the tenancy suite passes through all of it. In order:
    and RLS checked on the replica too.
 4. **A short runbook**: what a real deployment would still need (ADR-0047's list below).
 
-Then M7, per `FEATURES.md`.
+M14 is the last planned milestone (ADR-0056).
 
 ## Still open
 
@@ -173,12 +173,10 @@ Then M7, per `FEATURES.md`.
 | Passkeys need a secure context; locally that is Chrome with a flag until M14's HTTPS | M14 | ADR-0053 |
 | An external requester who later gets an account keeps two memberships | when asked for | ADR-0055: the external one keeps its tickets; merging them is not built |
 | SAML, SCIM and IdP-initiated sign-in | out of scope | ADR-0048; deprovisioning at the provider ends nothing here (R-10) |
-| Automation rules have a plan limit and no rows | M7 | `usage-reconcile` leaves their counter alone until M7 gives them rows |
 
 ## If it is ever deployed
 
-Dropped by ADR-0047, kept so that reversing it starts from a list rather than from memory. None of it
-blocks M7.
+Dropped by ADR-0047, kept so that reversing it starts from a list rather than from memory.
 
 | Item | Notes |
 | --- | --- |
@@ -192,9 +190,8 @@ blocks M7.
 | `TRUST_PROXY_HOPS` set to the real hop count | Default 1; with a CDN in front it is 2, and a wrong value makes every per-IP limit attacker-chosen (THREAT-MODEL §7) |
 | Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | Local MinIO sets the rule in `docker/minio/init.sh` |
 | A public demo needs a demo mode first (an ADR) | The seed shares one password: anyone could sign in as an owner, enrol a factor, request deletion or send invitations |
-| Postgres that allows a `BYPASSRLS` migration role and `pgvector` | Many managed services refuse the first; self-hosted needs backups |
+| Postgres that allows a `BYPASSRLS` migration role | Many managed services refuse the first; self-hosted needs backups |
 | HSTS with a short max-age first, `preload` last | `DNS.md` §3 |
-| Ollama and `phishing-svc` sized for a server | M7 sizes them for a laptop |
 
 
 ## Running it

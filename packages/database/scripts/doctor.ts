@@ -81,14 +81,6 @@ const checks: Check[] = [
     },
   },
   {
-    name: "pgvector is installed",
-    run: async () => {
-      const [row] = await app.$queryRawUnsafe<{ extversion: string }[]>("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
-      if (row === undefined) throw new Error("pgvector is not installed. Run: pnpm db:bootstrap")
-      return `vector ${row.extversion}`
-    },
-  },
-  {
     name: "session time zone is UTC",
     run: async () => {
       // `SHOW TimeZone` returns a column literally named "TimeZone"; aliasing it
