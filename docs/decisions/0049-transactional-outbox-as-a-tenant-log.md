@@ -13,6 +13,14 @@
 > failure or timeout is retried as the job's own failure without counting against the event
 > (THREAT-MODEL §8).
 
+> **Erratum (2026-10-23).** Notification email is at least once now, without a separate `mail`
+> consumer. The `notify` consumer queues its emails **inside** the transaction that moves its cursor:
+> a queue that refuses throws a `TransientFailure`, the batch (inbox rows included) rolls back, and the
+> drain is retried as the job's failure, never counted against the event. A commit that fails after the
+> queue accepted can send an email twice; each job's id is the event and the person, so a duplicate is
+> refused while the first is still queued. A separate consumer would have had to recompute who gets
+> an email from rows the `notify` consumer may or may not have written yet.
+
 ## Context
 
 Since M3 a service commits its change and *then* queues what should follow: a `notify` job on BullMQ,

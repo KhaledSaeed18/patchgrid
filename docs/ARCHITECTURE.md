@@ -428,8 +428,9 @@ outbox_wake() trigger ── pg_notify(orgId) ──► OutboxListener (worker) 
   reporting read side next. A new consumer starts at the beginning.
 - **Order is the writing transaction's id, read only below `pg_snapshot_xmin`**, so a reader never moves
   past an event that commits after a later one.
-- **A consumer's database writes commit with its cursor**: exactly once. Email and the stream follow the
-  commit, best effort.
+- **A consumer's database writes commit with its cursor**: exactly once. Notification email is queued
+  in the same transaction, before the cursor commits: at least once, idempotent on the event and the
+  person. The live stream follows the commit, best effort.
 - **Fairness**: one waiting drain per tenant and consumer, a bounded batch, then the back of the queue.
 - **Poison events** are narrowed to one, retried, then parked in `EventDeadLetter`.
 - **Retention**: `retention-sweep` deletes events past 30 days that every consumer has read and no
