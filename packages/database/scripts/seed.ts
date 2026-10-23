@@ -19,6 +19,7 @@ import { createPrismaClient, lookalikeEmails, removeLookalikes, seedLookalikes }
 import { seedDemoArticles } from "./demo-articles.ts"
 import { seedDemoAssets } from "./demo-assets.ts"
 import { seedDemoInbound } from "./demo-inbound.ts"
+import { DEMO_SSO, seedDemoSso } from "./demo-sso.ts"
 import { seedDemoProblemsAndChanges, seedDemoTickets } from "./demo-tickets.ts"
 
 try {
@@ -82,6 +83,7 @@ async function main(): Promise<void> {
     await seedDemoInbound(db, seeded.globex, { membershipId: seeded.globex.members.rosa ?? "", email: seeded.people.rosa.email })
     // Dana is also an operator: the back-office at admin.lvh.me, with a factor to enrol on first sign-in (ADR-0040).
     await db.platformAdmin.create({ data: { userId: seeded.people.dana.userId } })
+    const sso = await seedDemoSso(db, { acme: seeded.acme.id, globex: seeded.globex.id })
     const problems = records.reduce((n, r) => n + r.problems, 0)
     const changes = records.reduce((n, r) => n + r.changes, 0)
     console.log(
@@ -92,6 +94,11 @@ async function main(): Promise<void> {
     console.log("  dana is an admin at http://acme.lvh.me:3001 and an agent at http://globex.lvh.me:3001")
     console.log("  dana is also an operator at http://admin.lvh.me:3001 — the first sign-in enrols an authenticator")
     console.log("  sam leads Network at Acme: changes awaiting approval are in his queues")
+    if (sso) {
+      console.log(`  acme signs in through Keycloak (${DEMO_SSO.issuer}): docker compose --profile sso up -d, then "Sign in with SSO" as kim@${DEMO_SSO.domain}`)
+    } else {
+      console.log("  set SSO_SECRETS_KEY to seed Acme's SSO connection")
+    }
     console.log("  mail a ticket in: pnpm --filter @patchgrid/api run inbound:send -- --from rita@patchgrid.test --to acme")
   } finally {
     await db.$disconnect()
