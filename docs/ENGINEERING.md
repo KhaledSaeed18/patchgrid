@@ -144,8 +144,12 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
   ADR-0015. The fail-closed property is deliberate: outside a transaction the setting applies only to the
   current statement, so if the extension ever failed to open one, RLS would return zero rows rather than
   everything.
-- **Raw SQL is banned outside `packages/database` and the hand-written policy migrations**, enforced by
-  ESLint. Confirmed by spike: a raw query reaches the extension with `model === undefined`, so the
+- **Raw SQL is banned outside `packages/database`, the hand-written policy migrations and `apps/api`
+  repositories**, enforced by ESLint (`noRawSql`, which exempts `src/prisma/**` and
+  `src/**/repositories/**`). In a repository it goes through `PrismaService.tx` for tenant-owned tables
+  and `PrismaService.lockTx` for locks on platform rows: both throw outside `prisma.transaction()`,
+  where a raw query would see no tenant and match nothing, and a lock would be released by the
+  statement that took it. Confirmed by spike: a raw query reaches the extension with `model === undefined`, so the
   tenant-model guard cannot fire and **layer 3 is genuinely skipped**. RLS still returns zero rows, so
   the failure is safe — but raw SQL is protected by one layer instead of two, which is the whole reason
   for the ban. The isolation suite asserts the zero-row result.
@@ -163,8 +167,9 @@ How the code is written, tested, and shipped. `ARCHITECTURE.md` says what the pi
 - Jobs are idempotent and carry the ids they need, never full payloads that could go stale. Every job on
   a tenant-owned queue carries `orgId` and runs inside `runAsTenant(orgId)`; job ids are
   `<queue>/<orgId>/<entityId>/<discriminator>` (ADR-0018).
-- `runAsTenant(orgId, fn)` and `runAsPlatform(fn)` are the only cross-tenant helpers (ADR-0022), and
-  their import paths are restricted by ESLint to named modules rather than by a count of call sites.
+- `runAsTenant(orgId, crossing, fn)` and `runAsPlatform(crossing, fn)` are the only cross-tenant helpers
+  (ADR-0022); `crossing` is `{ actor, reason }`, logged on every call. Their
+  import paths are restricted by ESLint to named modules rather than by a count of call sites.
 
 ## Schema changes
 

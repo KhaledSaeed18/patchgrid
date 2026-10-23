@@ -117,7 +117,7 @@ The boundary that matters most is not drawn as an arrow: **tenant ↔ tenant ins
 | E      | A new table ships without a policy, grant or composite key                                         | Schema-introspection assertions in CI                                                                                         | isolation #7, #10, #11 · M1           |
 | E      | `runAsPlatform` used to read tenant content                                                        | It carries no tenant context, so tenant tables return zero rows; imports restricted by module                                 | ESLint (M0) · call-site test M1       |
 | E      | A projection (`UserOrgIndex`) used to authorize                                                    | Columns named `roleForDisplay`; repository exposes only `listWorkspacesForUser()`; stale-projection test                      | authz · M1                            |
-| T      | Raw SQL skips the extension                                                                        | Raw SQL only in `packages/database`                                                                                           | ESLint (M0)                           |
+| T      | Raw SQL skips the extension                                                                        | Raw SQL only in `packages/database` and repositories, through `PrismaService.tx`                                              | ESLint (M0)                           |
 
 ### TB5 · API ↔ Redis, BullMQ, SSE
 
@@ -291,6 +291,8 @@ Checked and left as they are, with the reason:
   and a stale presign; a leak, not a bypass. Left for the sweep to learn `storageKey` when it matters.
 - **Raw SQL outside `prisma.transaction()`** runs with no GUC and so returns nothing (fail-closed).
   Every site reads inside a transaction today; a lint is the right fix when a second site appears.
+  *Closed 2026-10-23:* every raw statement on a tenant table reads `PrismaService.tx`, and every lock
+  on a platform row `lockTx`; both throw outside a transaction.
 - **R-1 stands**: a `pg_id` in the wrong hands still opens workspaces; finding 3 narrows what it can
   change, and password reset keeps the factor — email possession must not undo it.
 

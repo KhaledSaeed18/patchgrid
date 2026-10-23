@@ -4,6 +4,11 @@
 - **Date:** 2026-09-22
 - **Refines:** [0015](0015-tenant-isolation-rls.md) — the `runAsPlatform` escape hatch, which as written could not work
 
+> **Erratum (2026-10-23).** Both helpers take a `crossing` too: `runAsTenant(orgId, crossing, fn)` and
+> `runAsPlatform(crossing, fn)`, where `crossing` is `{ actor, reason }`. The log line below is that
+> argument, so a crossing cannot be made without naming who and why. `TENANCY.md` §7 and
+> `apps/api/src/platform/crossing.ts` are the signature.
+
 ## Context
 
 ADR-0015 established that the application connects as `patchgrid_app`, a role with **no `BYPASSRLS`**,

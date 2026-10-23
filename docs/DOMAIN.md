@@ -239,7 +239,8 @@ Incidents and Service Requests with an active clock and:
 
 1. **Warning**: `now ≥ target − warningMinutes` and not yet warned → set `responseWarningSentAt` /
    `resolutionWarningSentAt`, notify assignee + the lead of the ticket's team (in-app + email),
-   audit-log `SLA_WARNING`. Never fires when `target − warningMinutes ≤ createdAt`.
+   audit-log `SLA_WARNING`. Never fires when `target − warningMinutes ≤ origin`, the clock's stored
+   start (§4.2) — `createdAt` until a reopen moves the resolution clock's forward.
 2. **Breach**: `now ≥ target` and not yet breached → set `responseBreached` / `resolutionBreached`,
    notify assignee + team lead + all Admins, audit-log `SLA_BREACHED`.
 

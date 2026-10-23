@@ -226,11 +226,13 @@ written directly on them.
 
 **Crossing tenants** uses two helpers, deliberately named apart (ADR-0022):
 
-- `runAsTenant(orgId, fn)` — establishes context for a *known* org the request is not bound to. Not a
-  bypass; the ordinary mechanism pointed elsewhere. Used by per-tenant jobs, provisioning, support
-  sessions, org purge, and platform admin actions on tenant content.
-- `runAsPlatform(fn)` — no tenant context at all, so it can only reach platform-class tables. Used by the
-  job dispatcher, login/org-picker, and API-token authentication.
+- `runAsTenant(orgId, crossing, fn)` — establishes context for a *known* org the request is not bound
+  to. Not a bypass; the ordinary mechanism pointed elsewhere. Used by per-tenant jobs, provisioning,
+  support sessions, org purge, and platform admin actions on tenant content.
+- `runAsPlatform(crossing, fn)` — no tenant context at all, so it can only reach platform-class tables.
+  Used by the job dispatcher, login/org-picker, and API-token authentication.
+
+`crossing` is `{ actor, reason }` — who is crossing and why, ids only — and both helpers log it.
 
 Import paths are restricted by ESLint: `runAsPlatform` to `src/platform/**`, `src/auth/**` and
 `src/jobs/dispatcher/**`; `runAsTenant` additionally to `src/jobs/**`, `src/orgs/provisioning/**` and
