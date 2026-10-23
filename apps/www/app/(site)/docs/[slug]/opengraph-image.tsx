@@ -11,8 +11,15 @@ export function generateStaticParams() {
   return DOCS.map(({ slug }) => ({ slug }))
 }
 
-export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Image({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) {
   const doc = findDoc((await params).slug)
   if (!doc) notFound()
-  return ogImage({ eyebrow: `Documentation · ${doc.section}`, title: doc.title })
+  return ogImage({
+    eyebrow: `Documentation · ${doc.section}`,
+    title: doc.title,
+  })
 }

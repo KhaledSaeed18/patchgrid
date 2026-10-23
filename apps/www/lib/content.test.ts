@@ -27,7 +27,8 @@ describe("content registry", () => {
   })
 
   it("keeps descriptions short enough for a search result", () => {
-    for (const entry of [...DOCS, ...POSTS]) expect(entry.description.length).toBeLessThanOrEqual(155)
+    for (const entry of [...DOCS, ...POSTS])
+      expect(entry.description.length).toBeLessThanOrEqual(155)
   })
 
   it("lists docs section by section, so the sidebar and previous/next agree", () => {

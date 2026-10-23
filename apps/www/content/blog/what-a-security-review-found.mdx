@@ -2,7 +2,7 @@ Before closing M9, the hardening milestone, we ran three independent, read-only 
 
 ## How the review was run
 
-Patchgrid's threat model was written on 2026-09-23, at the start of M1 and before the schema existed. It was meant to shape the design, not to certify it afterwards. It lists the assets, the actors and ten trust boundaries, from the open internet to the CI pipeline, and applies STRIDE to each boundary. Every threat names its mitigation and *where that mitigation is proven*, whether a test, a lint rule or a boot assertion, because a mitigation nothing checks is just a hope.
+Patchgrid's threat model was written on 2026-09-23, at the start of M1 and before the schema existed. It was meant to shape the design, not to certify it afterwards. It lists the assets, the actors and ten trust boundaries, from the open internet to the CI pipeline, and applies STRIDE to each boundary. Every threat names its mitigation and _where that mitigation is proven_, whether a test, a lint rule or a boot assertion, because a mitigation nothing checks is just a hope.
 
 The M9 review worked through those boundaries against the real code. Each reviewer worked independently. Where a reviewer only suspected a problem, we checked it and either fixed it or recorded it in the threat model with a reason. The sixteen confirmed findings are listed in full in §7 of `THREAT-MODEL.md`. They grouped into three themes: budgets that strangers could spend, bearer capabilities sent through the wrong channel, and gaps in the step-up rule.
 
@@ -10,13 +10,17 @@ The M9 review worked through those boundaries against the real code. Each review
 
 Rate limits protect shared resources, but a limit counted on something an attacker can name gives that attacker a way to use it up for someone else. Two of the most significant findings were this kind of mistake.
 
-**Finding 1: the per-org throttle counted unverified requests.** Patchgrid resolves the tenant from the credential (ADR-0024). At the resolution step, the access cookie's claim has been read but not yet verified; verification happens once, later in the pipeline. That ordering is safe for choosing *which* tenant a request runs as, because a forged claim gets no further than an anonymous slug probe would. But the org-wide throttle was counted at resolution. Anyone who knew an org's id could therefore make requests carrying a forged claim, use up the org's budget, and lock its real members out.
+**Finding 1: the per-org throttle counted unverified requests.** Patchgrid resolves the tenant from the credential (ADR-0024). At the resolution step, the access cookie's claim has been read but not yet verified; verification happens once, later in the pipeline. That ordering is safe for choosing _which_ tenant a request runs as, because a forged claim gets no further than an anonymous slug probe would. But the org-wide throttle was counted at resolution. Anyone who knew an org's id could therefore make requests carrying a forged claim, use up the org's budget, and lock its real members out.
 
 The fix moves the org throttler to run after the auth guard, so it counts verified requests only. The per-IP limit still runs before resolution:
 
 ```ts
 /** Counted before the tenant is known: by address, by address named, by token prefix and address. */
-export const BEFORE_RESOLUTION: ReadonlySet<string> = new Set([IP_THROTTLER, EMAIL_THROTTLER, TOKEN_THROTTLER])
+export const BEFORE_RESOLUTION: ReadonlySet<string> = new Set([
+  IP_THROTTLER,
+  EMAIL_THROTTLER,
+  TOKEN_THROTTLER,
+])
 /**
  * Counted only once the credential is VERIFIED. Resolution admits an org on an
  * unverified cookie claim; counting there would let anyone who knows an org's
@@ -25,7 +29,7 @@ export const BEFORE_RESOLUTION: ReadonlySet<string> = new Set([IP_THROTTLER, EMA
 export const AFTER_RESOLUTION: ReadonlySet<string> = new Set([ORG_THROTTLER])
 ```
 
-**Finding 2: an API-token prefix was a budget handle.** API tokens have a public prefix and a secret. The token throttle was keyed on the prefix alone, so anyone who knew a prefix could spend that integration's 300 requests a minute from anywhere. Every wrong secret also cost a full Argon2id verification. This was already listed as an open item from M8, and the review closed it. The throttle is now keyed on prefix *and* address. The verifier also remembers rejected secrets for each prefix, so replaying a wrong guess costs a hash lookup instead of a key-derivation run.
+**Finding 2: an API-token prefix was a budget handle.** API tokens have a public prefix and a secret. The token throttle was keyed on the prefix alone, so anyone who knew a prefix could spend that integration's 300 requests a minute from anywhere. Every wrong secret also cost a full Argon2id verification. This was already listed as an open item from M8, and the review closed it. The throttle is now keyed on prefix _and_ address. The verifier also remembers rejected secrets for each prefix, so replaying a wrong guess costs a hash lookup instead of a key-derivation run.
 
 ```ts
 getTracker: (req, context) => `token:${tokenPrefixIn(context) ?? ""}:${req.ip ?? ""}`,
@@ -51,18 +55,18 @@ ADR-0029 and ADR-0045 require a fresh proof of identity, called step-up, before 
 
 **Finding 3: a bare `pg_id` could enrol a second factor.** `pg_id` is the long-lived identity cookie that lists your workspaces. Managing your own second factor was originally allowed on `pg_id` alone. Whoever held that cookie could therefore enrol an authenticator of their own and lock the real person out of every workspace that requires one. Enrolment now takes the password, counted against the same lockout as a wrong code. ADR-0045 carries a dated erratum recording the change.
 
-**Finding 4: inviting an owner skipped the proof.** Promoting a member to `OWNER` required step-up and the `org:transfer_ownership` permission. Inviting someone directly as an owner reached the same end state with neither. The invitation path now asserts both for `OWNER`. We recorded the principle as a decision: inviting an owner *is* a transfer of ownership, and it is checked like one. Whenever two paths lead to the same state, each path needs its own check.
+**Finding 4: inviting an owner skipped the proof.** Promoting a member to `OWNER` required step-up and the `org:transfer_ownership` permission. Inviting someone directly as an owner reached the same end state with neither. The invitation path now asserts both for `OWNER`. We recorded the principle as a decision: inviting an owner _is_ a transfer of ownership, and it is checked like one. Whenever two paths lead to the same state, each path needs its own check.
 
 ## The rest
 
-| # | Finding | Fix |
-| --- | --- | --- |
-| 6 | A support session's attachment download was audited without the attachment id | `SUPPORT_READ` records route parameters as well as the query |
-| 8 | Erasing a person left their address on inbound mail rows | `InboundEmail.fromAddress` is tombstoned with the rest |
-| 9 | A verified email sender could attach a `RELATES_TO` link to a ticket they could not see | The link is made only if the sender could have made it through the API |
-| 12 | After a deletion request, a cached `ACTIVE` summary could keep a token working for up to 60 s | Invalidation leaves a marker that blocks re-caching for one TTL; API tokens are refused on an org-level epoch until a restore |
-| 14 | gitleaks and three compose images ran from `latest`; CI actions were pinned by tag | Images pinned by digest, actions by commit, Dependabot moves both |
-| 16 | The browser suite resolved `*.lvh.me` through public DNS | Pinned in the CI runner's hosts file |
+| #   | Finding                                                                                       | Fix                                                                                                                           |
+| --- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 6   | A support session's attachment download was audited without the attachment id                 | `SUPPORT_READ` records route parameters as well as the query                                                                  |
+| 8   | Erasing a person left their address on inbound mail rows                                      | `InboundEmail.fromAddress` is tombstoned with the rest                                                                        |
+| 9   | A verified email sender could attach a `RELATES_TO` link to a ticket they could not see       | The link is made only if the sender could have made it through the API                                                        |
+| 12  | After a deletion request, a cached `ACTIVE` summary could keep a token working for up to 60 s | Invalidation leaves a marker that blocks re-caching for one TTL; API tokens are refused on an org-level epoch until a restore |
+| 14  | gitleaks and three compose images ran from `latest`; CI actions were pinned by tag            | Images pinned by digest, actions by commit, Dependabot moves both                                                             |
+| 16  | The browser suite resolved `*.lvh.me` through public DNS                                      | Pinned in the CI runner's hosts file                                                                                          |
 
 Finding 12 was the second open item carried over from M8. Finding 9, the closest to the tenancy model, stayed inside one tenant, but it shows that every write path must apply the same visibility check the API does.
 

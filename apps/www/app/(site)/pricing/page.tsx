@@ -78,9 +78,7 @@ export default function PricingPage() {
               </th>
               {PLANS.map((plan) => (
                 <th key={plan.id} className="w-1/3 py-3 pr-6 font-normal">
-                  <span className="block font-serif text-2xl">
-                    {plan.name}
-                  </span>
+                  <span className="block font-serif text-2xl">{plan.name}</span>
                   <span className="mt-1 block text-muted-foreground">
                     {plan.blurb}
                   </span>
@@ -111,8 +109,8 @@ export default function PricingPage() {
         </table>
       </div>
       <p className="mt-6 text-sm text-muted-foreground">
-        Every workspace starts on Free. Pro is switched on by us for now;
-        going over a limit never deletes anything, it only pauses adding more.
+        Every workspace starts on Free. Pro is switched on by us for now; going
+        over a limit never deletes anything, it only pauses adding more.
       </p>
       <Link
         href="/signup"

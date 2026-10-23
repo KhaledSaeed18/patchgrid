@@ -10,10 +10,15 @@ export function DocsNav() {
   const pathname = usePathname()
   const current = DOCS.find((d) => pathname === `/docs/${d.slug}`)
   return (
-    <nav aria-label="Documentation" className="text-sm lg:sticky lg:top-8 lg:self-start">
+    <nav
+      aria-label="Documentation"
+      className="text-sm lg:sticky lg:top-8 lg:self-start"
+    >
       {/* Folded on narrow screens, where the full list would push the page below the fold. */}
       <details className="rounded-lg border border-border px-4 py-3 lg:hidden">
-        <summary className="cursor-pointer font-medium">{current?.title ?? "All documentation"}</summary>
+        <summary className="cursor-pointer font-medium">
+          {current?.title ?? "All documentation"}
+        </summary>
         <div className="mt-4">
           <Sections pathname={pathname} />
         </div>

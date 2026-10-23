@@ -10,7 +10,10 @@ import { PROBLEM_TYPES } from "@/lib/problems"
  * on this host, so nothing tenant-shaped can appear (ADR-0014).
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const page = (path: string, extra: Partial<MetadataRoute.Sitemap[number]> = {}) => ({
+  const page = (
+    path: string,
+    extra: Partial<MetadataRoute.Sitemap[number]> = {}
+  ) => ({
     url: new URL(path, SITE_URL).toString(),
     ...extra,
   })
@@ -21,8 +24,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page("/docs", { priority: 0.7 }),
     ...DOCS.map((doc) => page(`/docs/${doc.slug}`, { priority: 0.6 })),
     page("/blog", { priority: 0.6 }),
-    ...POSTS.map((post) => page(`/blog/${post.slug}`, { lastModified: post.date, priority: 0.5 })),
+    ...POSTS.map((post) =>
+      page(`/blog/${post.slug}`, { lastModified: post.date, priority: 0.5 })
+    ),
     page("/problems", { priority: 0.3 }),
-    ...PROBLEM_TYPES.map((problem) => page(`/problems/${problem.slug}`, { priority: 0.2 })),
+    ...PROBLEM_TYPES.map((problem) =>
+      page(`/problems/${problem.slug}`, { priority: 0.2 })
+    ),
   ]
 }

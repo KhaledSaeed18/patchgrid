@@ -26,9 +26,16 @@ export function SiteHeader() {
         Patchgrid
       </Link>
       {/* A row of its own on a phone, beside the account links from sm up. */}
-      <nav aria-label="Main" className="order-last flex w-full gap-5 text-sm sm:order-none sm:ml-auto sm:w-auto">
+      <nav
+        aria-label="Main"
+        className="order-last flex w-full gap-5 text-sm sm:order-none sm:ml-auto sm:w-auto"
+      >
         {NAV.map((item) => (
-          <Link key={item.href} href={item.href} className="text-muted-foreground hover:text-foreground">
+          <Link
+            key={item.href}
+            href={item.href}
+            className="text-muted-foreground hover:text-foreground"
+          >
             {item.label}
           </Link>
         ))}

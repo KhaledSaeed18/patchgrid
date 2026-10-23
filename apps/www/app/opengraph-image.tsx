@@ -5,5 +5,8 @@ export const size = OG_SIZE
 export const contentType = OG_TYPE
 
 export default function Image() {
-  return ogImage({ eyebrow: "IT service management", title: "The help desk that works out what matters first." })
+  return ogImage({
+    eyebrow: "IT service management",
+    title: "The help desk that works out what matters first.",
+  })
 }

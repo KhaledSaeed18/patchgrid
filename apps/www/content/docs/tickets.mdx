@@ -2,12 +2,12 @@ Patchgrid keeps four kinds of record, because restoring a broken service, fulfil
 
 ## The four record types
 
-| Type | Number | What it is for | Who raises it | SLA |
-| --- | --- | --- | --- | --- |
-| Incident | `INC-000042` | Something is broken or degraded now. Restore service fast | Anyone | Yes |
-| Service Request | `SR-000007` | A standard request: a laptop, a licence, an account, access | Anyone | Yes |
-| Problem | `PRB-000003` | The root cause behind one or more incidents | Agents and above | No |
-| Change | `CHG-000011` | A planned modification, approved before it is carried out | Agents and above | No |
+| Type            | Number       | What it is for                                              | Who raises it    | SLA |
+| --------------- | ------------ | ----------------------------------------------------------- | ---------------- | --- |
+| Incident        | `INC-000042` | Something is broken or degraded now. Restore service fast   | Anyone           | Yes |
+| Service Request | `SR-000007`  | A standard request: a laptop, a licence, an account, access | Anyone           | Yes |
+| Problem         | `PRB-000003` | The root cause behind one or more incidents                 | Agents and above | No  |
+| Change          | `CHG-000011` | A planned modification, approved before it is carried out   | Agents and above | No  |
 
 Agents can also raise a ticket on someone else's behalf. That person is the requester and is told it was raised for them.
 
@@ -21,50 +21,50 @@ Search accepts a number in several forms: `INC-000042`, `inc-42`, `#42` or `42`.
 
 ## Lifecycles
 
-Status only changes through a named action, such as *resolve* or *reopen*. Patchgrid offers only the actions that are valid for the ticket's current status and for you; any other move is refused. "Agents" below means agents who can see the ticket (see [roles and permissions](/docs/roles-and-permissions)), plus admins and owners.
+Status only changes through a named action, such as _resolve_ or _reopen_. Patchgrid offers only the actions that are valid for the ticket's current status and for you; any other move is refused. "Agents" below means agents who can see the ticket (see [roles and permissions](/docs/roles-and-permissions)), plus admins and owners.
 
 ### Incidents and Service Requests
 
-| From | Action | To | Who | Requires |
-| --- | --- | --- | --- | --- |
-| `NEW` | assign | `ASSIGNED` | Agents | — |
-| `NEW`, `ASSIGNED` | start | `IN_PROGRESS` | The assignee, any agent if it is unassigned, admins | Starting an unassigned ticket makes you its assignee |
-| `IN_PROGRESS` | wait | `PENDING` | The assignee, admins | A public comment saying what the requester must do |
-| `PENDING` | resume | `IN_PROGRESS` | The assignee, admins, or automatically when the requester replies publicly | — |
-| `IN_PROGRESS` | resolve | `RESOLVED` | The assignee, admins | A public resolution note |
-| `RESOLVED` | close | `CLOSED` | The requester, agents, or automatically after 7 days | — |
-| `RESOLVED` | reopen | `IN_PROGRESS` | The requester, agents | — |
-| `CLOSED` | reopen | `IN_PROGRESS` | The requester, agents | Within 30 days of closing |
-| `NEW` | cancel | `CANCELLED` | The requester, agents | — |
-| `ASSIGNED`, `IN_PROGRESS`, `PENDING` | cancel | `CANCELLED` | Agents | A reason |
+| From                                 | Action  | To            | Who                                                                        | Requires                                             |
+| ------------------------------------ | ------- | ------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `NEW`                                | assign  | `ASSIGNED`    | Agents                                                                     | —                                                    |
+| `NEW`, `ASSIGNED`                    | start   | `IN_PROGRESS` | The assignee, any agent if it is unassigned, admins                        | Starting an unassigned ticket makes you its assignee |
+| `IN_PROGRESS`                        | wait    | `PENDING`     | The assignee, admins                                                       | A public comment saying what the requester must do   |
+| `PENDING`                            | resume  | `IN_PROGRESS` | The assignee, admins, or automatically when the requester replies publicly | —                                                    |
+| `IN_PROGRESS`                        | resolve | `RESOLVED`    | The assignee, admins                                                       | A public resolution note                             |
+| `RESOLVED`                           | close   | `CLOSED`      | The requester, agents, or automatically after 7 days                       | —                                                    |
+| `RESOLVED`                           | reopen  | `IN_PROGRESS` | The requester, agents                                                      | —                                                    |
+| `CLOSED`                             | reopen  | `IN_PROGRESS` | The requester, agents                                                      | Within 30 days of closing                            |
+| `NEW`                                | cancel  | `CANCELLED`   | The requester, agents                                                      | —                                                    |
+| `ASSIGNED`, `IN_PROGRESS`, `PENDING` | cancel  | `CANCELLED`   | Agents                                                                     | A reason                                             |
 
 Some moves are refused on purpose. A pending ticket must be resumed before it is resolved. A resolved or closed ticket cannot be cancelled. Nothing leaves `CANCELLED`: if a ticket was cancelled by mistake, open a new one and link it to the old one.
 
 ### Problems
 
-| From | Action | To | Who | Requires |
-| --- | --- | --- | --- | --- |
-| `NEW` | assign | `ASSIGNED` | Agents | — |
-| `NEW`, `ASSIGNED` | start | `IN_PROGRESS` | The assignee, any agent if it is unassigned, admins | Starting an unassigned problem makes you its assignee |
-| `IN_PROGRESS` | workaround | `KNOWN_ERROR` | The assignee, admins | A documented workaround |
-| `IN_PROGRESS`, `KNOWN_ERROR` | resolve | `RESOLVED` | The assignee, admins | A root cause |
-| `RESOLVED` | close | `CLOSED` | Agents, or automatically after 7 days | — |
-| Any open status | cancel | `CANCELLED` | Agents | A reason |
+| From                         | Action     | To            | Who                                                 | Requires                                              |
+| ---------------------------- | ---------- | ------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| `NEW`                        | assign     | `ASSIGNED`    | Agents                                              | —                                                     |
+| `NEW`, `ASSIGNED`            | start      | `IN_PROGRESS` | The assignee, any agent if it is unassigned, admins | Starting an unassigned problem makes you its assignee |
+| `IN_PROGRESS`                | workaround | `KNOWN_ERROR` | The assignee, admins                                | A documented workaround                               |
+| `IN_PROGRESS`, `KNOWN_ERROR` | resolve    | `RESOLVED`    | The assignee, admins                                | A root cause                                          |
+| `RESOLVED`                   | close      | `CLOSED`      | Agents, or automatically after 7 days               | —                                                     |
+| Any open status              | cancel     | `CANCELLED`   | Agents                                              | A reason                                              |
 
 Problems have no pending state and no SLA clocks.
 
 ### Changes
 
-| From | Action | To | Who | Requires |
-| --- | --- | --- | --- | --- |
-| `DRAFT` | submit | `AWAITING_APPROVAL` | The change's requester, admins | Planned start and end, risk, implementation plan, rollback plan |
-| `AWAITING_APPROVAL` | approve | `APPROVED` | An eligible approver | — |
-| `AWAITING_APPROVAL` | reject | `DRAFT` | An eligible approver | A reason |
-| `APPROVED` | start | `IN_PROGRESS` | The assignee, admins | Confirmation if it is over an hour before the planned start |
-| `IN_PROGRESS` | complete | `IMPLEMENTED` | The assignee, admins | Outcome notes |
-| `IN_PROGRESS` | rollback | `ROLLED_BACK` | The assignee, admins | Outcome notes |
-| `IMPLEMENTED`, `ROLLED_BACK` | close | `CLOSED` | Agents, or automatically after 7 days | — |
-| `DRAFT`, `AWAITING_APPROVAL`, `APPROVED` | cancel | `CANCELLED` | The change's requester, admins | — |
+| From                                     | Action   | To                  | Who                                   | Requires                                                        |
+| ---------------------------------------- | -------- | ------------------- | ------------------------------------- | --------------------------------------------------------------- |
+| `DRAFT`                                  | submit   | `AWAITING_APPROVAL` | The change's requester, admins        | Planned start and end, risk, implementation plan, rollback plan |
+| `AWAITING_APPROVAL`                      | approve  | `APPROVED`          | An eligible approver                  | —                                                               |
+| `AWAITING_APPROVAL`                      | reject   | `DRAFT`             | An eligible approver                  | A reason                                                        |
+| `APPROVED`                               | start    | `IN_PROGRESS`       | The assignee, admins                  | Confirmation if it is over an hour before the planned start     |
+| `IN_PROGRESS`                            | complete | `IMPLEMENTED`       | The assignee, admins                  | Outcome notes                                                   |
+| `IN_PROGRESS`                            | rollback | `ROLLED_BACK`       | The assignee, admins                  | Outcome notes                                                   |
+| `IMPLEMENTED`, `ROLLED_BACK`             | close    | `CLOSED`            | Agents, or automatically after 7 days | —                                                               |
+| `DRAFT`, `AWAITING_APPROVAL`, `APPROVED` | cancel   | `CANCELLED`         | The change's requester, admins        | —                                                               |
 
 A rejected change goes back to draft to be edited and resubmitted. Its earlier decisions stay on the record.
 
@@ -91,11 +91,11 @@ The requester and the current assignee always receive a ticket's updates. Anyone
 
 ## Links
 
-| Link | Between | Read from the other end |
-| --- | --- | --- |
-| Caused by | an incident → a problem | "causes" |
-| Resolved by | a problem → a change | "resolves" |
-| Duplicate of | an incident or service request → one of the same type | "has duplicates" |
-| Relates to | any two tickets | "relates to" |
+| Link         | Between                                               | Read from the other end |
+| ------------ | ----------------------------------------------------- | ----------------------- |
+| Caused by    | an incident → a problem                               | "causes"                |
+| Resolved by  | a problem → a change                                  | "resolves"              |
+| Duplicate of | an incident or service request → one of the same type | "has duplicates"        |
+| Relates to   | any two tickets                                       | "relates to"            |
 
 You can raise a problem directly from a set of incidents, which links each of them to it, and raise a change from a problem. Marking a ticket as a duplicate of a duplicate links it to the original instead, so chains never form.

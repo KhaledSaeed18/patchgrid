@@ -14,16 +14,22 @@ export function generateStaticParams() {
   return DOCS.map(({ slug }) => ({ slug }))
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
   const doc = findDoc((await params).slug)
   if (!doc) return {}
-  return pageMetadata({ title: doc.title, description: doc.description, path: `/docs/${doc.slug}` })
+  return pageMetadata({
+    title: doc.title,
+    description: doc.description,
+    path: `/docs/${doc.slug}`,
+  })
 }
 
 /** Behind a boundary for the same reason as a blog post: the slug is URL data. */
 export default function DocPage({ params }: PageProps) {
   return (
-    <Suspense fallback={<main className="min-h-svh min-w-0 max-w-3xl" />}>
+    <Suspense fallback={<main className="min-h-svh max-w-3xl min-w-0" />}>
       <Doc params={params} />
     </Suspense>
   )
@@ -38,23 +44,36 @@ async function Doc({ params }: PageProps) {
   const { previous, next } = neighbours(doc.slug)
 
   return (
-    <main className="min-w-0 max-w-3xl">
+    <main className="max-w-3xl min-w-0">
       <JsonLd data={techArticle(doc)} />
       <p className="text-sm text-muted-foreground">{doc.section}</p>
-      <h1 className="mt-2 font-serif text-4xl tracking-tight text-balance">{doc.title}</h1>
+      <h1 className="mt-2 font-serif text-4xl tracking-tight text-balance">
+        {doc.title}
+      </h1>
       <article className="mt-2">
         <Content />
       </article>
-      <nav aria-label="More documentation" className="mt-16 flex justify-between gap-6 border-t border-border pt-6 text-sm">
+      <nav
+        aria-label="More documentation"
+        className="mt-16 flex justify-between gap-6 border-t border-border pt-6 text-sm"
+      >
         {previous ? (
-          <Link href={`/docs/${previous.slug}`} prefetch className="text-muted-foreground hover:text-foreground">
+          <Link
+            href={`/docs/${previous.slug}`}
+            prefetch
+            className="text-muted-foreground hover:text-foreground"
+          >
             ← {previous.title}
           </Link>
         ) : (
           <span />
         )}
         {next && (
-          <Link href={`/docs/${next.slug}`} prefetch className="text-right text-muted-foreground hover:text-foreground">
+          <Link
+            href={`/docs/${next.slug}`}
+            prefetch
+            className="text-right text-muted-foreground hover:text-foreground"
+          >
             {next.title} →
           </Link>
         )}

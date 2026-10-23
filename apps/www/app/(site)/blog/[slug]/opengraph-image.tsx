@@ -11,8 +11,15 @@ export function generateStaticParams() {
   return POSTS.map(({ slug }) => ({ slug }))
 }
 
-export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Image({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) {
   const post = findPost((await params).slug)
   if (!post) notFound()
-  return ogImage({ eyebrow: `Blog · ${formatDate(post.date)}`, title: post.title })
+  return ogImage({
+    eyebrow: `Blog · ${formatDate(post.date)}`,
+    title: post.title,
+  })
 }

@@ -12,7 +12,8 @@ describe("sitemap", () => {
   it("lists every doc, post and problem type", () => {
     for (const doc of DOCS) expect(urls).toContain(`/docs/${doc.slug}`)
     for (const post of POSTS) expect(urls).toContain(`/blog/${post.slug}`)
-    for (const problem of PROBLEM_TYPES) expect(urls).toContain(`/problems/${problem.slug}`)
+    for (const problem of PROBLEM_TYPES)
+      expect(urls).toContain(`/problems/${problem.slug}`)
   })
 
   it("lists each address once", () => {

@@ -28,7 +28,9 @@ export async function generateMetadata({
 /** Behind a boundary like the docs and the blog: the slug is URL data. */
 export default function ProblemTypePage({ params }: PageProps) {
   return (
-    <Suspense fallback={<main className="mx-auto min-h-svh max-w-2xl px-6 py-24" />}>
+    <Suspense
+      fallback={<main className="mx-auto min-h-svh max-w-2xl px-6 py-24" />}
+    >
       <ProblemType params={params} />
     </Suspense>
   )

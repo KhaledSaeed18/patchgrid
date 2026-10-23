@@ -24,56 +24,60 @@ export type Post = {
   readonly date: string
 }
 
-export const DOC_SECTIONS: readonly DocSection[] = ["Start", "Using Patchgrid", "Building on it"]
+export const DOC_SECTIONS: readonly DocSection[] = [
+  "Start",
+  "Using Patchgrid",
+  "Building on it",
+]
 
 /** In reading order: the sidebar, the index and previous/next follow it. */
 export const DOCS: readonly Doc[] = [
   {
     slug: "getting-started",
     title: "Getting started",
-    description: 
+    description:
       "Create a Patchgrid workspace, choose its address, invite your team, sign in, and work across several workspaces from one account.",
     section: "Start",
   },
   {
     slug: "tickets",
     title: "Tickets and their lifecycles",
-    description: 
+    description:
       "Incidents, service requests, problems and changes: their numbers, lifecycles, approvals, comments, watchers, links and the reopening window.",
     section: "Using Patchgrid",
   },
   {
     slug: "priority-and-slas",
     title: "Priority and SLAs",
-    description: 
+    description:
       "How Patchgrid computes priority from impact and urgency, the default SLA targets, 24x7 clocks, the pending pause, and warnings and breaches.",
     section: "Using Patchgrid",
   },
   {
     slug: "roles-and-permissions",
     title: "Roles and permissions",
-    description: 
+    description:
       "Requester, Agent, Admin and Owner, team leads, agent visibility, not found versus not permitted, two-factor authentication and step-up checks.",
     section: "Using Patchgrid",
   },
   {
     slug: "knowledge-base-and-assets",
     title: "Knowledge base and assets",
-    description: 
+    description:
       "Write and publish knowledge-base articles in three visibility tiers, keep an asset register, and link assets to the tickets about them.",
     section: "Using Patchgrid",
   },
   {
     slug: "email",
     title: "Email",
-    description: 
+    description:
       "Raise and reply to tickets by email: your inbound address, DMARC sender checks, threading by ticket number, the inbound log and notification email.",
     section: "Using Patchgrid",
   },
   {
     slug: "api",
     title: "The API",
-    description: 
+    description:
       "The Patchgrid REST API: scoped API tokens, Problem Details errors, cursor pagination, versioned writes, Idempotency-Key, transitions and OpenAPI.",
     section: "Building on it",
   },
@@ -87,7 +91,7 @@ export const DOCS: readonly Doc[] = [
   {
     slug: "security-and-data",
     title: "Security and your data",
-    description: 
+    description:
       "How Patchgrid isolates workspaces, consent-based support access, the audit log, data export, account erasure and workspace deletion.",
     section: "Building on it",
   },
@@ -125,8 +129,10 @@ export const POSTS: readonly Post[] = [
   },
 ]
 
-export const findDoc = (slug: string): Doc | undefined => DOCS.find((d) => d.slug === slug)
-export const findPost = (slug: string): Post | undefined => POSTS.find((p) => p.slug === slug)
+export const findDoc = (slug: string): Doc | undefined =>
+  DOCS.find((d) => d.slug === slug)
+export const findPost = (slug: string): Post | undefined =>
+  POSTS.find((p) => p.slug === slug)
 
 /** The pages either side of a doc, in reading order. */
 export function neighbours(slug: string): { previous?: Doc; next?: Doc } {

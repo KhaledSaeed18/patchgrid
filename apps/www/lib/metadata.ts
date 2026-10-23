@@ -31,7 +31,9 @@ export function pageMetadata({
       url: path,
       title: title ?? SITE_NAME,
       description,
-      ...(article ? { type: "article", publishedTime: article.publishedTime } : { type: "website" }),
+      ...(article
+        ? { type: "article", publishedTime: article.publishedTime }
+        : { type: "website" }),
     },
   }
 }

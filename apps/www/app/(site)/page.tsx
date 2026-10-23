@@ -11,7 +11,10 @@ import { softwareApplication } from "@/lib/structured-data"
 const DESCRIPTION =
   "A multi-tenant ITSM platform: incidents, service requests, problems and changes, with SLAs that mean something."
 
-export const metadata: Metadata = pageMetadata({ description: DESCRIPTION, path: "/" })
+export const metadata: Metadata = pageMetadata({
+  description: DESCRIPTION,
+  path: "/",
+})
 
 /** The four kinds of work: a set, each with its own lifecycle — not a sequence. */
 const WORK = [
@@ -45,8 +48,7 @@ export default function Home() {
           <p className="mt-6 text-lg leading-relaxed text-pretty text-muted-foreground">
             Patchgrid is IT service management for teams who run the systems
             everyone else depends on. Priority comes from impact and urgency,
-            not from whoever shouts loudest, and every deadline follows from
-            it.
+            not from whoever shouts loudest, and every deadline follows from it.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link
@@ -95,8 +97,8 @@ export default function Home() {
               Your company gets its own workspace.
             </h2>
             <p className="mt-3 max-w-lg leading-relaxed text-muted-foreground">
-              Each workspace has its own address, its own members and roles,
-              and its data sealed off from every other company&rsquo;s by the
+              Each workspace has its own address, its own members and roles, and
+              its data sealed off from every other company&rsquo;s by the
               database itself — not just by the application in front of it.
               Belong to more than one? Keep both open in two tabs.
             </p>
@@ -116,12 +118,14 @@ export default function Home() {
               Built in the open.
             </h2>
             <p className="mt-3 max-w-md leading-relaxed text-muted-foreground">
-              The code is public, and so is the reasoning: every decision
-              that shaped Patchgrid is written down, with the alternatives it
-              beat.
+              The code is public, and so is the reasoning: every decision that
+              shaped Patchgrid is written down, with the alternatives it beat.
             </p>
             <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              <a href={`${REPO_URL}/tree/main/docs/decisions`} className="underline underline-offset-4">
+              <a
+                href={`${REPO_URL}/tree/main/docs/decisions`}
+                className="underline underline-offset-4"
+              >
                 Read the decision records
               </a>
               <Link href="/docs" className="underline underline-offset-4">
@@ -132,8 +136,15 @@ export default function Home() {
           <ol className="divide-y divide-border border-y border-border">
             {POSTS.slice(0, 3).map((post) => (
               <li key={post.slug}>
-                <Link href={`/blog/${post.slug}`} prefetch className="group block py-5">
-                  <time dateTime={post.date} className="text-sm text-muted-foreground">
+                <Link
+                  href={`/blog/${post.slug}`}
+                  prefetch
+                  className="group block py-5"
+                >
+                  <time
+                    dateTime={post.date}
+                    className="text-sm text-muted-foreground"
+                  >
                     {formatDate(post.date)}
                   </time>
                   <h3 className="mt-1 font-serif text-xl tracking-tight group-hover:underline group-hover:underline-offset-4">

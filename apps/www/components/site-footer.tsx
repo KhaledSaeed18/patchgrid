@@ -22,8 +22,14 @@ const COLUMNS = [
     heading: "Source",
     links: [
       { href: REPO_URL, label: "GitHub" },
-      { href: `${REPO_URL}/tree/main/docs/decisions`, label: "Decision records" },
-      { href: `${REPO_URL}/blob/main/docs/THREAT-MODEL.md`, label: "Threat model" },
+      {
+        href: `${REPO_URL}/tree/main/docs/decisions`,
+        label: "Decision records",
+      },
+      {
+        href: `${REPO_URL}/blob/main/docs/THREAT-MODEL.md`,
+        label: "Threat model",
+      },
     ],
   },
 ]
@@ -42,11 +48,17 @@ export function SiteFooter() {
               {column.links.map((link) => (
                 <li key={link.href}>
                   {link.href.startsWith("/") ? (
-                    <Link href={link.href} className="text-muted-foreground hover:text-foreground">
+                    <Link
+                      href={link.href}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
                       {link.label}
                     </Link>
                   ) : (
-                    <a href={link.href} className="text-muted-foreground hover:text-foreground">
+                    <a
+                      href={link.href}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
                       {link.label}
                     </a>
                   )}
