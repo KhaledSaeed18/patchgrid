@@ -1,6 +1,7 @@
 "use client"
 
-import { mfaStatusSchema, stepUpResponseSchema } from "@patchgrid/contracts"
+import { identityResponseSchema, mfaStatusSchema, stepUpResponseSchema } from "@patchgrid/contracts"
+import { Button } from "@patchgrid/ui/components/button"
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { useCallback, useState } from "react"
 
 import { clientApi, currentSlug } from "@/lib/api/client"
+import { ssoStartUrl } from "@/lib/sso"
 import { isStepUpRequired, StepUpCancelled } from "@/lib/step-up"
 
 import { type HolderProof, HolderProofForm } from "./holder-proof-form"
@@ -23,6 +25,11 @@ import { type HolderProof, HolderProofForm } from "./holder-proof-form"
  * person holds — a passkey, a code — and only when they hold none, the
  * password. On success the API re-issued this workspace's cookies with the
  * proof on them, and the caller retries exactly what it was doing.
+ *
+ * A session this workspace's identity provider started can re-prove there
+ * instead (ADR-0054) — the only way for someone it provisioned, who has no
+ * password and may have no factor. That is a full-page round trip, so the
+ * browser comes back to this page and the action is done again by hand.
  */
 export function StepUpDialog({
   open,
@@ -38,6 +45,13 @@ export function StepUpDialog({
     queryFn: () => clientApi("/auth/mfa", { schema: mfaStatusSchema }),
     enabled: open,
   })
+  const identity = useQuery({
+    queryKey: ["identity"],
+    queryFn: () => clientApi("/auth/identity", { schema: identityResponseSchema }),
+    enabled: open,
+  })
+  const slug = currentSlug()
+  const viaSso = slug !== null && identity.data?.sso?.slug === slug
   const prove = useMutation({
     mutationFn: (proof: HolderProof) =>
       clientApi("/auth/step-up", {
@@ -58,9 +72,9 @@ export function StepUpDialog({
             lasts five minutes.
           </DialogDescription>
         </DialogHeader>
-        {status.data === undefined ? (
+        {status.data === undefined || identity.data === undefined ? (
           <Spinner />
-        ) : (
+        ) : viaSso && status.data.methods.length === 0 && !status.data.password ? null : (
           <HolderProofForm
             methods={status.data.methods}
             onSubmit={(proof) => prove.mutate(proof)}
@@ -69,6 +83,22 @@ export function StepUpDialog({
             submitLabel="Confirm"
             passwordHint="Add a passkey or an authenticator app under your account to confirm with that instead."
           />
+        )}
+        {viaSso && slug !== null && (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() =>
+              window.location.assign(
+                ssoStartUrl(
+                  { slug },
+                  { intent: "step-up", next: window.location.pathname + window.location.search }
+                )
+              )
+            }
+          >
+            Confirm with your organization&apos;s sign-in
+          </Button>
         )}
       </DialogContent>
     </Dialog>
