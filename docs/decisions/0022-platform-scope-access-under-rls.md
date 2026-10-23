@@ -4,6 +4,10 @@
 - **Date:** 2026-09-22
 - **Refines:** [0015](0015-tenant-isolation-rls.md) — the `runAsPlatform` escape hatch, which as written could not work
 
+> **Erratum (2026-10-24).** The boot assertion now also refuses an app role that is a member of the role
+> owning the tenant tables, because ownership, not `BYPASSRLS`, is what exempts a role from the policies
+> ([0059](0059-rds-compatible-database-roles.md)).
+
 > **Erratum (2026-10-23).** Both helpers take a `crossing` too: `runAsTenant(orgId, crossing, fn)` and
 > `runAsPlatform(crossing, fn)`, where `crossing` is `{ actor, reason }`. The log line below is that
 > argument, so a crossing cannot be made without naming who and why. `TENANCY.md` §7 and

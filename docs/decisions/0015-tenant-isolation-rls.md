@@ -3,6 +3,10 @@
 - **Status:** Accepted — refined by [0022](0022-platform-scope-access-under-rls.md) (the escape hatch) and [0023](0023-identity-keys-and-tenant-safe-foreign-keys.md) (the schema layer below this one)
 - **Date:** 2026-09-22
 
+> **Erratum (2026-10-24).** `FORCE ROW LEVEL SECURITY` and the owner's `BYPASSRLS` (the erratum below)
+> are replaced by [0059](0059-rds-compatible-database-roles.md): tables are not forced, the owner is exempt
+> by ownership, no role holds `BYPASSRLS`, and the app role is asserted to be no member of the owner.
+
 > **Erratum (2026-09-22).** Consequences, bullet 3 states that migrations and seeds run as the owner role
 > "which bypasses RLS by ownership". That is wrong: `FORCE ROW LEVEL SECURITY` — specified in the
 > Decision above — exists precisely to subject the table owner to policies. Only superusers and roles

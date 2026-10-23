@@ -32,7 +32,7 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6 and M8–M13 are complete. M14 (production rehearsal, locally) is next, and last**: M7, the
+**M0–M6 and M8–M13 are complete. M14 (production rehearsal on emulated AWS, ADR-0058) is next, and last**: M7, the
 models and the automation rule engine, is dropped (ADR-0056). Milestone numbers did not change.
 
 **M13 (Identity): complete 2026-10-23.** Its exit holds: a member signs in with a passkey and uses it
@@ -149,20 +149,12 @@ The detail is in the git history of this file, at those boundaries.
 
 ## Recommended next steps — M14
 
-`FEATURES.md` §M14, production rehearsal, locally. Its exit: `pnpm local:prod` serves the production
-images over HTTPS on `*.patchgrid.test`, through PgBouncer in transaction mode, with reads optionally
-served by a replica, and the tenancy suite passes through all of it. In order:
-
-1. **An ADR for the shape**: Caddy in front of `docker-compose.prod.yml` with a locally trusted
-   wildcard (mkcert) for `*.patchgrid.test`; what HTTPS changes (`Secure` cookies, HSTS short first,
-   passkeys without the Chrome flag, `SSO_ALLOW_PRIVATE_ISSUERS` off against a Keycloak behind Caddy).
-2. **PgBouncer in transaction mode** between the API and Postgres. ADR-0015's transaction-local
-   `set_config` is exactly what makes this safe; prove it by running `pnpm test:tenancy` through the
-   pooler, and look for anything session-scoped (advisory locks are transaction-scoped already; `LISTEN`
-   for the outbox is session-scoped and must bypass the pooler).
-3. **A streaming replica**, with only reads that tolerate lag routed to it (reports are the candidate),
-   and RLS checked on the replica too.
-4. **A short runbook**: what a real deployment would still need (ADR-0047's list below).
+M14 was re-planned on 2026-10-24 as a **production rehearsal on emulated AWS** (ADR-0058): Floci
+emulates ECR, ECS, the ALB, ACM, Route 53, RDS, ElastiCache, S3, SES, Secrets Manager, KMS and
+CloudWatch, and OpenTofu provisions them. HashiCorp's downloads are geo-blocked here, so the CLI is
+OpenTofu and the code is plain HCL. The spike, the gaps it found in Floci and the decision taken for
+each are in ADR-0058. The first build item is ADR-0059: database roles RDS could create. The full list
+is in `FEATURES.md` §M14.
 
 M14 is the last planned milestone (ADR-0056).
 
