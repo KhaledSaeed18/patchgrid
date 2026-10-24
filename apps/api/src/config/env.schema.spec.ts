@@ -31,6 +31,36 @@ describe("envSchema", () => {
     expect(parsed.COOKIE_DOMAIN).toBe(".lvh.me")
   })
 
+  it("takes object storage from the default credential chain and endpoint when told nothing, but never half a key pair", () => {
+    const aws: Record<string, string> = { ...valid }
+    for (const name of ["S3_ENDPOINT", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"]) delete aws[name]
+    const parsed = envSchema.parse(aws)
+    expect([parsed.S3_ENDPOINT, parsed.S3_ACCESS_KEY_ID, parsed.S3_FORCE_PATH_STYLE]).toEqual([undefined, undefined, true])
+    expect(envSchema.parse({ ...aws, S3_FORCE_PATH_STYLE: "false" }).S3_FORCE_PATH_STYLE).toBe(false)
+    expect(envSchema.safeParse({ ...aws, S3_ACCESS_KEY_ID: "only-half" }).error?.issues.map((i) => i.path.join("."))).toContain(
+      "S3_ACCESS_KEY_ID",
+    )
+  })
+
+  it("starts without the owner's credentials, and refuses the owner's URL as its own", () => {
+    const deployed: Record<string, string> = { ...valid }
+    delete deployed.DATABASE_MIGRATION_URL
+    expect(envSchema.safeParse(deployed).success).toBe(true)
+    expect(issues({ DATABASE_URL: valid.DATABASE_MIGRATION_URL })).toContain("DATABASE_URL")
+  })
+
+  it("sends by SMTP unless SES is named, and nothing else", () => {
+    expect(envSchema.parse(valid).MAIL_TRANSPORT).toBe("smtp")
+    expect(envSchema.parse({ ...valid, MAIL_TRANSPORT: "ses" }).MAIL_TRANSPORT).toBe("ses")
+    expect(issues({ MAIL_TRANSPORT: "sendmail" })).toContain("MAIL_TRANSPORT")
+  })
+
+  it("listens for the outbox wake as the application role, past any pooler", () => {
+    expect(envSchema.parse(valid).DATABASE_LISTEN_URL).toBeUndefined()
+    expect(issues({ DATABASE_LISTEN_URL: "postgresql://patchgrid_app:app@db:5432/patchgrid" })).toEqual([])
+    expect(issues({ DATABASE_LISTEN_URL: "postgresql://patchgrid_owner:owner@db:5432/patchgrid" })).toContain("DATABASE_LISTEN_URL")
+  })
+
   it("trusts one proxy hop unless told otherwise, and never an unbounded chain", () => {
     expect(envSchema.parse(valid).TRUST_PROXY_HOPS).toBe(1)
     expect(envSchema.parse({ ...valid, TRUST_PROXY_HOPS: "2" }).TRUST_PROXY_HOPS).toBe(2)
