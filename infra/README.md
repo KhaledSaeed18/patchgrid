@@ -20,6 +20,7 @@ separate, explicit rehearsal: `pnpm dev` and Compose remain the way to work.
 | `pnpm aws:deploy`    | build → push to ECR → jobs → `provision` → `migrate` → services → every target healthy → smoke |
 | `pnpm aws:run <job>` | One job and its logs: `provision`, `migrate`, `seed` (the demo workspaces) or `verify`         |
 | `pnpm aws:status`    | Every service's running count and every target's health; exits non-zero unless all are healthy |
+| `pnpm aws:e2e`       | Seeds, then the browser suite through the load balancer, passkeys included (below)             |
 | `pnpm aws:down`      | Destroys services, jobs and the platform. `docker compose --profile aws down` then stops Floci |
 
 Images are tagged by commit, so a deploy of the same commit pushes nothing. With
@@ -30,6 +31,18 @@ inside the VPC, as the app role through PgBouncer. The worker service is taken
 out of service while it runs and restored however it ends. The suite must be the
 only consumer of the outbox it writes, and the outbox keeps what the live
 workspaces emit meanwhile.
+
+`pnpm aws:e2e` is the browser suite against the deployed stack, every spec but
+SSO (its Keycloak runs on this machine, which a task cannot reach, and
+production refuses a private issuer). Chromium and the suite's own requests send
+the root domain and every subdomain to 127.0.0.1 and trust Floci's CA by its key
+hash, so nothing on the machine changes, and passkeys work as on any https site.
+The API's rate limits are rolled off for the run and back on however it ends,
+as CI's development-stack suite runs them off: with no `X-Forwarded-For`, every
+client shares one address and one per-IP budget.
+
+CI runs `aws:up`, `aws:run verify` and `aws:e2e` from nothing on every change to
+`main` and on pull requests that touch the infrastructure (`.github/workflows/aws.yml`).
 
 ## Layout
 
@@ -83,14 +96,17 @@ AWS's documentation is the reference, not the emulator. The gaps from the spike
 are closed in the design (ADR-0058). These are the ones running the deploy found:
 
 - **Targets of a stopped task stay registered.** ECS deregisters a task's
-  target when it stops. Floci keeps it, so after a task fails its health check, its
-  target stays `unhealthy` for good and `aws:status` reports the group
-  unhealthy. Deregister it by hand:
-  `aws elbv2 deregister-targets --target-group-arn <arn> --targets Id=<ip>,Port=<port>`
-  (with `AWS_ENDPOINT_URL=http://localhost:4566`).
+  target when it stops; Floci keeps it, unhealthy for good, after every rollout
+  and every crash. Each rollout in the script deregisters every target that is
+  not a running task of its service, which is what ECS would have done.
+- **The private zone's wildcard is matched only as a literal `*`.** The AWS
+  provider sends `\052`, as Route 53 itself writes it, and Floci then answers
+  nothing for `api.` inside the VPC. The fixed hosts (`api.`, `app.`, `admin.`)
+  have their own records, which change nothing on AWS.
 - **The master user is a superuser.** The `provision` job never relies on it (ADR-0059).
-- **The ALB sends no `X-Forwarded-For`.** Every client is the loopback here, so
-  per-address limits are not exercised.
+- **The ALB sends no `X-Forwarded-For` or `X-Forwarded-Proto`.** Every client
+  shares one address here, so per-address limits are not exercised. The app
+  builds its links with the configured protocol when no proxy names one.
 
 ## What a real account still needs
 

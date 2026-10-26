@@ -1,0 +1,82 @@
+name: AWS rehearsal
+
+# The production rehearsal on emulated AWS (ADR-0058), from nothing, on every
+# change to main and on any pull request that touches the infrastructure:
+# Floci, the state backend, the platform, the images built and pushed, the
+# migrations as ECS tasks, the services rolled, then the tenancy suite inside
+# the VPC and the browser suite through the load balancer. It takes most of
+# an hour, so ordinary pull requests are left to CI.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "infra/**"
+      - "scripts/aws.mjs"
+      - "docker-compose.yml"
+      - "apps/api/Dockerfile"
+      - "docker/next.Dockerfile"
+      - ".github/workflows/aws.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: aws-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  rehearsal:
+    name: Deploy to Floci, verify, browser suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Five images, their build cache, and the database, cache and tasks Floci
+      # starts: more than a runner has free. Toolchains this job never uses go.
+      - name: Make room
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: ./.github/actions/setup
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_wrapper: false
+
+      - run: pnpm --filter @patchgrid/app exec playwright install --with-deps chromium
+
+      - name: Up and deploy
+        run: pnpm aws:up
+
+      - name: The tenancy suite, inside the VPC, through PgBouncer
+        run: pnpm aws:run verify
+
+      - name: The browser suite, through the load balancer
+        env:
+          CI: "true"
+        run: pnpm aws:e2e
+
+      - name: Report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-aws
+          path: apps/app/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: State of the stack
+        if: failure()
+        run: |
+          pnpm aws:status || true
+          docker ps -a --format '{{.Names}}\t{{.Status}}'
+          docker compose --profile aws logs --no-color --tail 300 floci || true

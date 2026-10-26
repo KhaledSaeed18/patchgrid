@@ -22,6 +22,11 @@ pnpm --filter @patchgrid/app test:e2e
 
 The negatives are the point. The happy paths are the easy part.
 
+Against the production rehearsal on emulated AWS (ADR-0058), `pnpm aws:e2e` runs every spec but `sso`
+through the load balancer on `https://*.patchgrid.test`. It sets `E2E_PROTOCOL=https`, empty ports,
+`E2E_RESOLVE_TO` (where the root domain and its subdomains resolve, for Chromium and for the suite's
+own requests) and `E2E_CA_FILE` (the private CA Chromium trusts by its key hash); see `infra/README.md`.
+
 Every run makes its own rows — a workspace `e2e-<run>` and tickets titled with the run id — so a
 re-run never trips over the last one. The SLA spec moves its ticket's deadline instead of waiting for
 it, so it waits only for the next minute's sweep — the one write the suite makes to the database, as its

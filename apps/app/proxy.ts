@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import { appOrigin, ROOT_DOMAIN } from "@/lib/config"
+import { appOrigin, PROTOCOL, ROOT_DOMAIN } from "@/lib/config"
 import { decideRoute, PATH_HEADER, SLUG_HEADER } from "@/lib/routing"
 
 /**
@@ -16,7 +16,9 @@ export function proxy(request: NextRequest): NextResponse {
   const decision = decideRoute({
     host: request.headers.get("host"),
     // The Host the browser used, not nextUrl's: in development that is normalised to localhost.
-    origin: `${request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "")}://${request.headers.get("host") ?? request.nextUrl.host}`,
+    // The protocol is the configured one unless a proxy says otherwise: TLS ends
+    // before this server, which sees plain http (ADR-0058).
+    origin: `${request.headers.get("x-forwarded-proto") ?? PROTOCOL}://${request.headers.get("host") ?? request.nextUrl.host}`,
     pathname: request.nextUrl.pathname,
     search: request.nextUrl.search,
     cookies: (name) => request.cookies.get(name)?.value,

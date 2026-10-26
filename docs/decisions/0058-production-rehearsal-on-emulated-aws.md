@@ -8,6 +8,12 @@
 > per environment, split by lifetime, in `infra/live/local`: `bootstrap` (the state backend), `platform`,
 > `jobs` and `services`. A deploy applies only the last two with the new image tag. See `infra/README.md`.
 
+> **Erratum (2026-10-26).** "`X-Forwarded-Proto` decides nothing" (decision 2) holds for the API, not
+> for the app: its proxy built the way back after login from the request's own protocol, which is
+> plain http behind TLS that ends at the load balancer. It now falls back to the configured protocol.
+> The same gap means every client shares one address, so the browser suite runs with the rate limits
+> off, as it does in CI's development-stack job. See `infra/README.md`.
+
 ## Context
 
 ADR-0047 keeps Patchgrid off the internet: no domain, no server, no bill. ADR-0048 planned M14 as a

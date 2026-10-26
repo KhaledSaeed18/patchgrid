@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test"
 
+import { chromiumArgs, workspaceOrigin } from "./e2e/support/stack"
+
 /**
  * End-to-end tests, against the seeded two-tenant stack (`pnpm db:seed`) with
  * the API, the app and Mailpit running. `e2e/README.md` says what each spec
@@ -28,10 +30,18 @@ export default defineConfig({
   use: {
     // Tenants are addressed by subdomain, so the base URL is a tenant host and
     // cross-tenant navigation is part of what the suite exercises.
-    baseURL: process.env.E2E_BASE_URL ?? "http://acme.lvh.me:3001",
+    baseURL: process.env.E2E_BASE_URL ?? workspaceOrigin("acme"),
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
 
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: { args: chromiumArgs },
+      },
+    },
+  ],
 })

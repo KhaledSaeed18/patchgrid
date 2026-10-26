@@ -4,6 +4,7 @@ import { linkInMailTo } from "./support/mailpit"
 import { signUp } from "./support/session"
 import {
   appOrigin,
+  chromiumArgs,
   escapeRegExp,
   runId,
   workspaceOrigin,
@@ -33,6 +34,7 @@ test.use({
   channel: "chromium",
   launchOptions: {
     args: [
+      ...chromiumArgs,
       `--unsafely-treat-insecure-origin-as-secure=${appOrigin},${workspaceOrigin(slug)}`,
     ],
   },

@@ -12,7 +12,8 @@ export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "lvh.me"
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://api.lvh.me:4000/api/v1"
 
-const PROTOCOL = process.env.NEXT_PUBLIC_PROTOCOL ?? "http"
+/** How browsers reach every host: `https` in production, behind TLS that ends before this server. */
+export const PROTOCOL = process.env.NEXT_PUBLIC_PROTOCOL ?? "http"
 /** Empty in production, where everything is on 443. */
 const APP_PORT = process.env.NEXT_PUBLIC_APP_PORT ?? "3001"
 const MARKETING_PORT = process.env.NEXT_PUBLIC_MARKETING_PORT ?? "3000"

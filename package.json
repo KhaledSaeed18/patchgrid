@@ -25,6 +25,7 @@
     "aws:run": "node scripts/aws.mjs run",
     "aws:status": "node scripts/aws.mjs status",
     "aws:down": "node scripts/aws.mjs down",
+    "aws:e2e": "node scripts/aws.mjs e2e",
     "platform:grant": "pnpm --filter @patchgrid/database run platform grant",
     "platform:revoke": "pnpm --filter @patchgrid/database run platform revoke"
   },
@@ -33,6 +34,7 @@
     "@aws-sdk/client-ecr": "^3.1156.0",
     "@aws-sdk/client-ecs": "^3.1156.0",
     "@aws-sdk/client-elastic-load-balancing-v2": "^3.1156.0",
+    "@aws-sdk/client-secrets-manager": "^3.1156.0",
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
     "@patchgrid/eslint-config": "workspace:*",

@@ -5,6 +5,7 @@
  *   pnpm aws:deploy          build → push → jobs → provision → migrate → services → healthy
  *   pnpm aws:run <job>       one job (provision, migrate, seed, verify), its logs, its exit code
  *   pnpm aws:status          every service's tasks and every target's health
+ *   pnpm aws:e2e             the browser suite, through the load balancer
  *   pnpm aws:down            destroy services, jobs and the platform; Floci keeps running
  *
  * Every step is idempotent: a second `aws:up` changes nothing that is already
@@ -14,7 +15,7 @@
  * the SDK, so no AWS CLI is required.
  */
 import { execFileSync, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import process from "node:process"
@@ -29,7 +30,12 @@ import {
   RunTaskCommand,
   UpdateServiceCommand,
 } from "@aws-sdk/client-ecs"
-import { DescribeTargetHealthCommand, ElasticLoadBalancingV2Client } from "@aws-sdk/client-elastic-load-balancing-v2"
+import {
+  DeregisterTargetsCommand,
+  DescribeTargetHealthCommand,
+  ElasticLoadBalancingV2Client,
+} from "@aws-sdk/client-elastic-load-balancing-v2"
+import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager"
 
 const root = path.join(import.meta.dirname, "..")
 const live = path.join(root, "infra/live/local")
@@ -282,26 +288,97 @@ async function runTask(name) {
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
+/**
+ * Settled, not merely healthy: every service on one deployment with all its
+ * tasks running, and every target group holding exactly that many targets, all
+ * healthy. Mid-rollout the old tasks are healthy too, and still serving.
+ */
 async function status() {
   const platform = outputs("platform")
   const cluster = value(platform, "cluster").name
   const services = value(outputs("services"), "services")
   const described = await ecs.send(new DescribeServicesCommand({ cluster, services }))
+  let settled = true
+  const desired = {}
   title("services")
   for (const service of described.services ?? []) {
-    console.log(
-      `  ${service.serviceName.padEnd(10)} ${service.runningCount}/${service.desiredCount} running, ${service.deployments?.length ?? 0} deployment(s)`,
-    )
+    const deployments = service.deployments?.length ?? 0
+    desired[service.serviceName] = service.desiredCount
+    if (deployments !== 1 || service.runningCount !== service.desiredCount) settled = false
+    console.log(`  ${service.serviceName.padEnd(10)} ${service.runningCount}/${service.desiredCount} running, ${deployments} deployment(s)`)
   }
   title("targets")
-  let healthy = true
   for (const [name, arn] of Object.entries(value(platform, "target_groups"))) {
     const health = await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))
     const states = (health.TargetHealthDescriptions ?? []).map((target) => target.TargetHealth?.State ?? "unknown")
-    if (states.length === 0 || states.some((state) => state !== "healthy")) healthy = false
+    if (states.length !== desired[name] || states.some((state) => state !== "healthy")) settled = false
     console.log(`  ${name.padEnd(10)} ${states.join(", ") || "no targets"}`)
   }
-  return healthy
+  return settled
+}
+
+/** A running task's address on the Docker network, which is what Floci registers as its target. */
+function taskAddresses(taskId, service) {
+  try {
+    return capture("docker", [
+      "inspect",
+      "--format",
+      "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
+      `floci-aws-ecs-${taskId}-${service}`,
+    ]).split(" ")
+  } catch {
+    return []
+  }
+}
+
+/**
+ * ECS deregisters a task's target when the task stops; Floci leaves it, so
+ * after any rollout the old task's target stays behind, unhealthy for good.
+ * This does what ECS would: every target that is not a running task of its
+ * service goes. A group whose tasks cannot be seen is left alone.
+ */
+async function deregisterStaleTargets(platform) {
+  const cluster = value(platform, "cluster").name
+  for (const [service, arn] of Object.entries(value(platform, "target_groups"))) {
+    const tasks = (await ecs.send(new ListTasksCommand({ cluster, serviceName: service, desiredStatus: "RUNNING" }))).taskArns ?? []
+    const live = new Set(tasks.flatMap((task) => taskAddresses(task.split("/").pop(), service)).filter((ip) => ip !== ""))
+    if (live.size === 0) continue
+    const health = await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))
+    const stale = (health.TargetHealthDescriptions ?? []).map((d) => d.Target).filter((t) => t?.Id !== undefined && !live.has(t.Id))
+    if (stale.length === 0) continue
+    await elb.send(new DeregisterTargetsCommand({ TargetGroupArn: arn, Targets: stale }))
+    console.log(`  ${service}: deregistered ${stale.map((t) => `${t.Id}:${t.Port}`).join(", ")}, left by stopped tasks`)
+  }
+}
+
+/** Applies the services and waits until every target is healthy, or fails. */
+async function rollOut(vars) {
+  apply("services", vars)
+  const platform = outputs("platform")
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    await deregisterStaleTargets(platform)
+    if (await status()) return
+    await sleep(5_000)
+  }
+  throw new Error("the services did not all turn healthy within five minutes")
+}
+
+/**
+ * The API's rate limits off for the length of a browser suite run, and back on
+ * however it ends: one rollout of api and worker each way. Floci's load
+ * balancer sends no X-Forwarded-For, so every client shares one address, and
+ * the suite would spend the per-IP budget in seconds (ADR-0058).
+ */
+async function withoutThrottles(fn) {
+  const release = value(outputs("services"), "release")
+  title("services: rate limits off for the browser suite")
+  await rollOut({ ...release, throttle_enabled: false })
+  try {
+    await fn()
+  } finally {
+    title("services: rate limits back on")
+    await rollOut(release)
+  }
 }
 
 /** Through the load balancer, the way a browser comes in: TLS, the host, readiness. */
@@ -330,6 +407,55 @@ async function smoke(rootDomain) {
   }
 }
 
+// ─── The browser suite ─────────────────────────────────────────────────────────
+
+/**
+ * The browser suite against the deployed stack (ADR-0058): https on the root
+ * domain, every host sent to the load balancer and Floci's CA trusted, by
+ * Chromium and by the suite's own requests, with nothing changed on this
+ * machine. The SLA spec moves one deadline as the owner, through Floci's RDS
+ * proxy. The SSO spec is left out: its Keycloak is on this machine, which a
+ * task cannot reach, and production refuses a private issuer.
+ */
+async function e2e() {
+  const platform = outputs("platform")
+  const rootDomain = value(platform, "root_domain")
+  const secrets = new SecretsManagerClient(aws)
+  const { SecretString } = await secrets.send(new GetSecretValueCommand({ SecretId: value(platform, "secrets").migration }))
+  // The task's URL names the database by its in-network name and verifies it; here it is a forwarded port.
+  const owner = new URL(JSON.parse(SecretString ?? "{}").DATABASE_MIGRATION_URL)
+  owner.hostname = "localhost"
+  owner.searchParams.set("sslmode", "no-verify")
+
+  await exportCa()
+  await runJob("seed")
+
+  const specs = readdirSync(path.join(root, "apps/app/e2e")).filter((file) => file.endsWith(".spec.ts") && file !== "sso.spec.ts")
+  await withoutThrottles(async () => {
+    title(`browser suite: ${specs.join(", ")}`)
+    runSuite(specs, rootDomain, owner)
+  })
+}
+
+function runSuite(specs, rootDomain, owner) {
+  const result = spawnSync("pnpm", ["--filter", "@patchgrid/app", "exec", "playwright", "test", ...specs.map((spec) => `e2e/${spec}`)], {
+    cwd: root,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      E2E_ROOT_DOMAIN: rootDomain,
+      E2E_PROTOCOL: "https",
+      E2E_APP_PORT: "",
+      E2E_API_PORT: "",
+      E2E_RESOLVE_TO: "127.0.0.1",
+      E2E_CA_FILE: caFile,
+      NODE_EXTRA_CA_CERTS: caFile,
+      DATABASE_MIGRATION_URL: owner.toString(),
+    },
+  })
+  if (result.status !== 0) throw new Error(`the browser suite failed (exit ${result.status ?? "by signal"})`)
+}
+
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 async function deploy() {
@@ -352,12 +478,7 @@ async function deploy() {
   await runJob("migrate")
 
   title("services: rolling forward, waiting for steady state")
-  apply("services", vars)
-
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await status()) break
-    await sleep(5_000)
-  }
+  await rollOut(vars)
   await smoke(rootDomain)
 }
 
@@ -396,6 +517,7 @@ const commands = {
     if (!(await status())) process.exitCode = 1
   },
   run: () => runJob(argument),
+  e2e,
 }
 
 if (!(command in commands)) {
