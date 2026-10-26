@@ -23,6 +23,11 @@ variable "secret_arns" {
   type        = list(string)
 }
 
+variable "repository_arns" {
+  description = "The ECR repositories tasks pull from."
+  type        = list(string)
+}
+
 variable "files_bucket_arn" {
   type = string
 }
@@ -89,10 +94,16 @@ resource "aws_iam_role" "execution" {
 }
 
 data "aws_iam_policy_document" "execution" {
+  # The token is account-wide by AWS's design; the layers are this product's.
+  statement {
+    sid       = "RegistryToken"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
   statement {
     sid       = "PullImages"
-    actions   = ["ecr:GetAuthorizationToken", "ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"]
-    resources = ["*"]
+    actions   = ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"]
+    resources = var.repository_arns
   }
   statement {
     sid       = "WriteLogs"

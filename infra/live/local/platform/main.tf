@@ -67,6 +67,7 @@ module "cluster" {
   kms_key_arn = module.secrets.kms_key_arn
   secret_arns = concat([module.secrets.app_secret_arn, module.data.cache_secret_arn], values(module.data.database_secret_arns))
 
+  repository_arns   = module.registry.repository_arns
   files_bucket_arn  = module.data.files_bucket.arn
   mail_identity_arn = module.mail.identity_arn
   log_groups        = ["api", "worker", "app", "www", "pgbouncer", "jobs"]
