@@ -16,12 +16,18 @@ on:
       - "docker-compose.yml"
       - "apps/api/Dockerfile"
       - "docker/next.Dockerfile"
+      - "apps/app/e2e/**"
+      - "apps/app/playwright.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/actions/setup/**"
       - ".github/workflows/aws.yml"
   workflow_dispatch:
 
+# A superseded pull request run tells nothing; every commit to main is rehearsed.
 concurrency:
   group: aws-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -74,8 +80,9 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # A hang ends in the job's timeout, which is a cancellation, not a failure.
       - name: State of the stack
-        if: failure()
+        if: failure() || cancelled()
         run: |
           pnpm aws:status || true
           docker ps -a --format '{{.Names}}\t{{.Status}}'
