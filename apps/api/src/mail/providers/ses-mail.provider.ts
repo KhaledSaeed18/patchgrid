@@ -18,12 +18,22 @@ import type { MailProvider, OutboundMail } from "../mail-provider"
  * which the intake reads, and the subject carries the ticket number
  * (ADR-0039).
  */
+/**
+ * As the SMTP provider's: an SES endpoint that hangs must not hang the mail
+ * worker, and the SDK does not retry, because the mail job does (five
+ * attempts with backoff); both retrying would be fifteen sends.
+ */
+export const SES_CLIENT_OPTIONS = {
+  maxAttempts: 1,
+  requestHandler: { connectionTimeout: 5_000, requestTimeout: 10_000 },
+} as const
+
 @Injectable()
 export class SesMailProvider implements MailProvider {
   private readonly transport: Transporter
 
   constructor() {
-    this.transport = createTransport({ SES: { sesClient: new SESv2Client({}), SendEmailCommand } })
+    this.transport = createTransport({ SES: { sesClient: new SESv2Client(SES_CLIENT_OPTIONS), SendEmailCommand } })
   }
 
   async send(mail: OutboundMail): Promise<{ providerMessageId: string }> {
