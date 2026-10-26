@@ -103,6 +103,10 @@ are closed in the design (ADR-0058). These are the ones running the deploy found
   provider sends `\052`, as Route 53 itself writes it, and Floci then answers
   nothing for `api.` inside the VPC. The fixed hosts (`api.`, `app.`, `admin.`)
   have their own records, which change nothing on AWS.
+- **RDS parameters are stored, not applied.** `idle_in_transaction_session_timeout` and the slow-query
+  log are not in force locally, and every `platform` plan shows the parameter group as changing.
+- **The cache proxy speaks AUTH but not TLS.** AWS takes an AUTH token only with TLS, so the local root
+  turns both off (`cache_transit_encryption = false`); they are on by default.
 - **The master user is a superuser.** The `provision` job never relies on it (ADR-0059).
 - **The ALB sends no `X-Forwarded-For` or `X-Forwarded-Proto`.** Every client
   shares one address here, so per-address limits are not exercised. The app
