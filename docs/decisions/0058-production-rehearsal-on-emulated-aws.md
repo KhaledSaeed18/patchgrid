@@ -4,6 +4,10 @@
 - **Date:** 2026-10-24
 - **Amends:** [0047](0047-no-public-deployment.md), [0048](0048-roadmap-after-m10.md) (M14's content)
 
+> **Erratum (2026-10-26).** "One root module per environment" in `infra/envs/local` became four roots
+> per environment, split by lifetime, in `infra/live/local`: `bootstrap` (the state backend), `platform`,
+> `jobs` and `services`. A deploy applies only the last two with the new image tag. See `infra/README.md`.
+
 ## Context
 
 ADR-0047 keeps Patchgrid off the internet: no domain, no server, no bill. ADR-0048 planned M14 as a

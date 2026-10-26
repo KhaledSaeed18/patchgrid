@@ -23,6 +23,8 @@ export default {
         "ui",
         "ts",
         "lint",
+        // infrastructure as code (infra/, ADR-0058)
+        "infra",
         // cross-cutting
         "config",
         "deps",

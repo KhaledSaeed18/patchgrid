@@ -201,9 +201,54 @@ services:
     ports:
       - "${KEYCLOAK_PORT:-8180}:8180"
 
+  # Emulated AWS for the production rehearsal (ADR-0058): ECR, ECS, the ALB,
+  # ACM, Route 53, RDS, ElastiCache, S3, SES, Secrets Manager, KMS, CloudWatch,
+  # all on :4566, provisioned by OpenTofu from infra/. Pinned by digest to a
+  # nightly: ALB TLS termination (floci#5959) shipped after 2.3.0. Move to the
+  # first release that carries it.
+  #
+  # It starts real containers for tasks, databases and caches, so it holds the
+  # Docker socket, which is root on this machine (THREAT-MODEL.md TB13). They
+  # join this project's network, which is how tasks reach Mailpit and Keycloak
+  # by name, and the task-role credentials proxy needs a user-defined network.
+  #
+  #   docker compose --profile aws up -d floci      # then: pnpm aws:up
+  floci:
+    image: floci/floci:nightly-10222026@sha256:ec21f4619d0ead9467d444b7d6cdd0ea95a9fd541313a0259a51fa6081d8c50f
+    profiles: ["aws"]
+    restart: unless-stopped
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      # HTTPS beside HTTP on :4566, chained to Floci's CA, which `pnpm aws:up`
+      # exports. Its own extra listener on 443 is off: the ALB owns 80 and 443.
+      FLOCI_TLS_ENABLED: "true"
+      FLOCI_TLS_AWS_HTTPS_PORT: "0"
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      FLOCI_SERVICES_DOCKER_NETWORK: patchgrid_default
+      FLOCI_SERVICES_ECS_DOCKER_NETWORK: patchgrid_default
+      FLOCI_SERVICES_ECS_TASK_ROLE_CREDENTIALS_ENABLED: "true"
+      # Database and cache endpoints by name, so TLS to them verifies.
+      FLOCI_SERVICES_RDS_ENDPOINT_HOST: floci
+      # What SES accepts is relayed to Mailpit, as SMTP is in development.
+      FLOCI_SERVICES_SES_SMTP_HOST: mailpit
+      FLOCI_SERVICES_SES_SMTP_PORT: "1025"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - floci-data:/app/data
+    ports:
+      - "${FLOCI_PORT:-4566}:4566"
+      # The ALB's listeners.
+      - "80:80"
+      - "443:443"
+      # RDS proxies, for tooling on this machine.
+      - "7001-7010:7001-7010"
+
 volumes:
   postgres-data:
   redis-data:
   object-data:
   tempo-data:
   prometheus-data:
+  floci-data:

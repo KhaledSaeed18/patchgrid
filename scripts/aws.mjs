@@ -1,0 +1,412 @@
+/**
+ * The production rehearsal on emulated AWS (ADR-0058), as commands:
+ *
+ *   pnpm aws:up              Floci, the state backend and the platform, then a deploy
+ *   pnpm aws:deploy          build → push → jobs → provision → migrate → services → healthy
+ *   pnpm aws:run <job>       one job (provision, migrate, seed, verify), its logs, its exit code
+ *   pnpm aws:status          every service's tasks and every target's health
+ *   pnpm aws:down            destroy services, jobs and the platform; Floci keeps running
+ *
+ * Every step is idempotent: a second `aws:up` changes nothing that is already
+ * in place, and a deploy of the same commit pushes nothing new.
+ *
+ * Needs Docker and OpenTofu (`brew install opentofu`). The AWS calls go through
+ * the SDK, so no AWS CLI is required.
+ */
+import { execFileSync, spawnSync } from "node:child_process"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import process from "node:process"
+
+import { CloudWatchLogsClient, GetLogEventsCommand } from "@aws-sdk/client-cloudwatch-logs"
+import { ECRClient, GetAuthorizationTokenCommand } from "@aws-sdk/client-ecr"
+import {
+  DescribeServicesCommand,
+  DescribeTasksCommand,
+  ECSClient,
+  ListTasksCommand,
+  RunTaskCommand,
+  UpdateServiceCommand,
+} from "@aws-sdk/client-ecs"
+import { DescribeTargetHealthCommand, ElasticLoadBalancingV2Client } from "@aws-sdk/client-elastic-load-balancing-v2"
+
+const root = path.join(import.meta.dirname, "..")
+const live = path.join(root, "infra/live/local")
+const floci = process.env.FLOCI_ENDPOINT ?? "http://localhost:4566"
+const caDir = path.join(root, "infra/.floci")
+const caFile = path.join(caDir, "ca.pem")
+
+// Floci accepts any credentials; real AWS would take them from the default chain.
+const aws = { region: "us-east-1", endpoint: floci, credentials: { accessKeyId: "test", secretAccessKey: "test" } }
+const ecs = new ECSClient(aws)
+const logs = new CloudWatchLogsClient(aws)
+const elb = new ElasticLoadBalancingV2Client(aws)
+
+const JOBS = ["provision", "migrate", "seed", "verify"]
+
+function title(text) {
+  console.log(`\n▸ ${text}`)
+}
+
+function run(command, args, options = {}) {
+  execFileSync(command, args, { cwd: root, stdio: "inherit", ...options })
+}
+
+function capture(command, args, options = {}) {
+  return execFileSync(command, args, { cwd: root, encoding: "utf8", ...options }).trim()
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// ─── OpenTofu ──────────────────────────────────────────────────────────────────
+
+function tofu(stack, args) {
+  run("tofu", [`-chdir=${path.join(live, stack)}`, ...args])
+}
+
+function tofuInit(stack) {
+  const backend = stack === "bootstrap" ? [] : ["-backend-config=../backend.hcl"]
+  tofu(stack, ["init", "-input=false", "-upgrade=false", ...backend])
+}
+
+function apply(stack, vars = {}) {
+  tofuInit(stack)
+  const flags = Object.entries(vars).flatMap(([name, value]) => ["-var", `${name}=${value}`])
+  tofu(stack, ["apply", "-input=false", "-auto-approve", ...flags])
+}
+
+function outputs(stack) {
+  return JSON.parse(capture("tofu", [`-chdir=${path.join(live, stack)}`, "output", "-json"]))
+}
+
+const value = (out, name) => out[name].value
+
+// ─── The build ─────────────────────────────────────────────────────────────────
+
+/** A commit, or a commit and the moment, when the tree has uncommitted changes: tags are immutable. */
+function imageTag() {
+  const sha = capture("git", ["rev-parse", "--short=12", "HEAD"])
+  const dirty = capture("git", ["status", "--porcelain"]) !== ""
+  return dirty ? `${sha}-dirty-${Date.now().toString(36)}` : sha
+}
+
+/** The build machine's architecture, which the task definitions must name. */
+function cpuArchitecture() {
+  return os.arch() === "arm64" ? "ARM64" : "X86_64"
+}
+
+async function ensureFloci() {
+  title("Floci and Mailpit (docker compose --profile aws)")
+  run("docker", ["compose", "--profile", "aws", "up", "-d", "--wait", "mailpit"])
+  run("docker", ["compose", "--profile", "aws", "up", "-d", "floci"])
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const response = await fetch(`${floci}/_floci/health`)
+      if (response.ok) {
+        const { version } = await response.json()
+        console.log(`  Floci ${version} is up`)
+        return
+      }
+    } catch {
+      // not yet
+    }
+    await sleep(2_000)
+  }
+  throw new Error("Floci did not become healthy on :4566")
+}
+
+/** Floci's CA, which the overlays bake in and the browser must trust. */
+async function exportCa() {
+  const response = await fetch(`${floci}/_floci/ca.pem`)
+  if (!response.ok) throw new Error(`Could not read Floci's CA: HTTP ${response.status}`)
+  mkdirSync(caDir, { recursive: true })
+  writeFileSync(caFile, await response.text())
+  console.log(`  CA at ${path.relative(root, caFile)}`)
+}
+
+async function dockerLogin(registry) {
+  const ecr = new ECRClient(aws)
+  const { authorizationData } = await ecr.send(new GetAuthorizationTokenCommand({}))
+  const token = authorizationData?.[0]?.authorizationToken
+  if (token === undefined) throw new Error("ECR returned no authorization token")
+  const [user, password] = Buffer.from(token, "base64").toString("utf8").split(":")
+  execFileSync("docker", ["login", "--username", user, "--password-stdin", registry], {
+    input: password,
+    stdio: ["pipe", "ignore", "inherit"],
+  })
+}
+
+function imageExists(reference) {
+  return spawnSync("docker", ["manifest", "inspect", "--insecure", reference], { stdio: "ignore" }).status === 0
+}
+
+/**
+ * The production images, unchanged, and over each the one layer this
+ * environment adds: its private CA. Built once per commit.
+ */
+function buildAndPush(repositories, tag, rootDomain) {
+  const local = (name) => `patchgrid/${name}:${tag}`
+  const remote = (name) => `${repositories[name]}:${tag}`
+  const todo = Object.keys(repositories).filter((name) => !imageExists(remote(name)))
+  if (todo.length === 0) {
+    console.log(`  every image for ${tag} is already in ECR`)
+    return
+  }
+
+  const next = [
+    `NEXT_PUBLIC_ROOT_DOMAIN=${rootDomain}`,
+    "NEXT_PUBLIC_PROTOCOL=https",
+    `NEXT_PUBLIC_API_URL=https://api.${rootDomain}/api/v1`,
+    "NEXT_PUBLIC_APP_PORT=",
+    "NEXT_PUBLIC_MARKETING_PORT=",
+  ].flatMap((arg) => ["--build-arg", arg])
+
+  const builds = {
+    api: ["-f", "apps/api/Dockerfile", "--target", "runtime"],
+    tools: ["-f", "apps/api/Dockerfile", "--target", "tools"],
+    app: ["-f", "docker/next.Dockerfile", "--build-arg", "APP=app", ...next],
+    www: ["-f", "docker/next.Dockerfile", "--build-arg", "APP=www", ...next],
+  }
+
+  for (const name of todo) {
+    if (name === "pgbouncer") {
+      title(`pgbouncer: mirrored, trusting the environment's CA`)
+      run("docker", ["build", "-q", "-f", "infra/images/pgbouncer.Dockerfile", "-t", remote(name), caDir])
+    } else {
+      title(`${name}: the production image`)
+      run("docker", ["build", ...builds[name], "-t", local(name), "."])
+      title(`${name}: with the environment's CA`)
+      run("docker", [
+        "build",
+        "-q",
+        "-f",
+        "infra/images/private-ca.Dockerfile",
+        "--build-arg",
+        `BASE=${local(name)}`,
+        "-t",
+        remote(name),
+        caDir,
+      ])
+    }
+    run("docker", ["push", "-q", remote(name)])
+  }
+}
+
+// ─── Jobs ──────────────────────────────────────────────────────────────────────
+
+async function printLogs(group, stream) {
+  let token
+  for (;;) {
+    const page = await logs.send(
+      new GetLogEventsCommand({ logGroupName: group, logStreamName: stream, startFromHead: true, nextToken: token }),
+    )
+    for (const event of page.events ?? []) console.log(`  │ ${event.message}`)
+    if (page.nextForwardToken === undefined || page.nextForwardToken === token) return
+    token = page.nextForwardToken
+  }
+}
+
+/** Scales one service and waits until that many of its tasks run; returns the count it had. */
+async function scale(cluster, service, desiredCount) {
+  const before = (await ecs.send(new DescribeServicesCommand({ cluster, services: [service] }))).services?.[0]
+  if (before === undefined) throw new Error(`No service ${service}`)
+  await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount }))
+  for (let waited = 0; ; waited += 3) {
+    const now = (await ecs.send(new DescribeServicesCommand({ cluster, services: [service] }))).services?.[0]
+    if (now?.runningCount === desiredCount) return before.desiredCount
+    if (waited > 300) throw new Error(`${service} did not reach ${desiredCount} running tasks`)
+    await sleep(3_000)
+  }
+}
+
+/**
+ * The tenancy suite must be the only consumer of the outbox it writes: a live
+ * worker on the same database hears its NOTIFY, drains its events and
+ * publishes them on its own Redis, where the suite's streams never hear them.
+ * So the worker steps out for the run, and comes back however it ends. Nothing
+ * is lost meanwhile: the outbox is durable, and the worker drains what waited.
+ */
+async function withoutWorker(fn) {
+  const cluster = value(outputs("platform"), "cluster").name
+  title("worker: out of service while the suite runs")
+  const previous = await scale(cluster, "worker", 0)
+  try {
+    await fn()
+  } finally {
+    title(`worker: back to ${previous}`)
+    await scale(cluster, "worker", previous)
+  }
+}
+
+/** RunTask, wait for it to stop, print its logs, and fail on a non-zero exit. */
+async function runJob(name) {
+  if (!JOBS.includes(name)) throw new Error(`No job ${JSON.stringify(name)}. Jobs: ${JOBS.join(", ")}`)
+  if (name === "verify") return withoutWorker(() => runTask(name))
+  return runTask(name)
+}
+
+async function runTask(name) {
+  const jobs = outputs("jobs")
+  const { cluster, subnets, security_groups: securityGroups } = value(jobs, "run")
+  const definition = value(jobs, "task_definitions")[name]
+  const platform = outputs("platform")
+  const group = value(platform, "cluster").log_groups.jobs
+
+  title(`job ${name}`)
+  const started = await ecs.send(
+    new RunTaskCommand({
+      cluster,
+      taskDefinition: definition,
+      launchType: "FARGATE",
+      networkConfiguration: { awsvpcConfiguration: { subnets, securityGroups, assignPublicIp: "DISABLED" } },
+    }),
+  )
+  const task = started.tasks?.[0]
+  if (task?.taskArn === undefined) throw new Error(`RunTask started nothing: ${JSON.stringify(started.failures)}`)
+
+  let described
+  for (let waited = 0; ; waited += 3) {
+    described = (await ecs.send(new DescribeTasksCommand({ cluster, tasks: [task.taskArn] }))).tasks?.[0]
+    if (described?.lastStatus === "STOPPED") break
+    if (waited > 1_800) throw new Error(`job ${name} is still running after 30 minutes`)
+    await sleep(3_000)
+  }
+  const container = described.containers?.[0]
+  await printLogs(group, `${name}/${name}/${task.taskArn.split("/").pop()}`).catch(() => console.log("  (no logs)"))
+  if (container?.exitCode !== 0) {
+    throw new Error(`job ${name} exited ${container?.exitCode ?? "without a code"}: ${described.stoppedReason ?? container?.reason ?? ""}`)
+  }
+  console.log(`  ${name} succeeded`)
+}
+
+// ─── Health ───────────────────────────────────────────────────────────────────
+
+async function status() {
+  const platform = outputs("platform")
+  const cluster = value(platform, "cluster").name
+  const services = value(outputs("services"), "services")
+  const described = await ecs.send(new DescribeServicesCommand({ cluster, services }))
+  title("services")
+  for (const service of described.services ?? []) {
+    console.log(
+      `  ${service.serviceName.padEnd(10)} ${service.runningCount}/${service.desiredCount} running, ${service.deployments?.length ?? 0} deployment(s)`,
+    )
+  }
+  title("targets")
+  let healthy = true
+  for (const [name, arn] of Object.entries(value(platform, "target_groups"))) {
+    const health = await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))
+    const states = (health.TargetHealthDescriptions ?? []).map((target) => target.TargetHealth?.State ?? "unknown")
+    if (states.length === 0 || states.some((state) => state !== "healthy")) healthy = false
+    console.log(`  ${name.padEnd(10)} ${states.join(", ") || "no targets"}`)
+  }
+  return healthy
+}
+
+/** Through the load balancer, the way a browser comes in: TLS, the host, readiness. */
+async function smoke(rootDomain) {
+  title("through the load balancer")
+  for (const [host, pathname] of [
+    [`api.${rootDomain}`, "/health/ready"],
+    [`app.${rootDomain}`, "/api/health"],
+    [rootDomain, "/api/health"],
+  ]) {
+    const out = capture("curl", [
+      "-fsS",
+      "--cacert",
+      caFile,
+      "--resolve",
+      `${host}:443:127.0.0.1`,
+      "-o",
+      "/dev/null",
+      "-w",
+      "%{http_code} %{ssl_verify_result}",
+      `https://${host}${pathname}`,
+    ])
+    console.log(
+      `  https://${host}${pathname} → ${out.split(" ")[0]}, certificate ${out.split(" ")[1] === "0" ? "verified" : "NOT verified"}`,
+    )
+  }
+}
+
+// ─── Commands ─────────────────────────────────────────────────────────────────
+
+async function deploy() {
+  const platform = outputs("platform")
+  const repositories = value(platform, "repositories")
+  const rootDomain = value(platform, "root_domain")
+  const tag = imageTag()
+  const vars = { image_tag: tag, cpu_architecture: cpuArchitecture() }
+  title(`deploying ${tag} (${vars.cpu_architecture})`)
+
+  await exportCa()
+  await dockerLogin(repositories.api.split("/")[0])
+  buildAndPush(repositories, tag, rootDomain)
+
+  title("jobs: the task definitions for this build")
+  apply("jobs", vars)
+  // Before any task of the new release starts: the schema it needs exists, and
+  // every migration is additive, so the old release keeps working meanwhile.
+  await runJob("provision")
+  await runJob("migrate")
+
+  title("services: rolling forward, waiting for steady state")
+  apply("services", vars)
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await status()) break
+    await sleep(5_000)
+  }
+  await smoke(rootDomain)
+}
+
+async function up() {
+  await ensureFloci()
+  await exportCa()
+  title("state backend")
+  apply("bootstrap")
+  title("platform")
+  apply("platform")
+  await deploy()
+  const rootDomain = value(outputs("platform"), "root_domain")
+  console.log(`
+Up. In a browser, once (see infra/README.md):
+  · trust ${path.relative(root, caFile)} (Floci's CA, which signed the ACM certificate)
+  · resolve *.${rootDomain} to 127.0.0.1
+then https://app.${rootDomain}. \`pnpm aws:run seed\` adds the demo workspaces.`)
+}
+
+async function down() {
+  for (const stack of ["services", "jobs", "platform"]) {
+    title(`destroying ${stack}`)
+    tofuInit(stack)
+    const vars = stack === "platform" ? [] : ["-var", "image_tag=unused"]
+    tofu(stack, ["destroy", "-input=false", "-auto-approve", ...vars])
+  }
+  console.log("\nDestroyed. Floci and the state backend are left running: `docker compose --profile aws down` stops them.")
+}
+
+const [command, argument] = process.argv.slice(2)
+const commands = {
+  up,
+  deploy,
+  down,
+  status: async () => {
+    if (!(await status())) process.exitCode = 1
+  },
+  run: () => runJob(argument),
+}
+
+if (!(command in commands)) {
+  console.error(`Usage: node scripts/aws.mjs <${Object.keys(commands).join("|")}> [job]`)
+  process.exit(2)
+}
+if (!existsSync(path.join(live, "backend.hcl"))) throw new Error("infra/live/local is missing")
+
+try {
+  await commands[command]()
+} catch (error) {
+  console.error(`\n✗ ${error instanceof Error ? error.message : String(error)}`)
+  process.exit(1)
+}
