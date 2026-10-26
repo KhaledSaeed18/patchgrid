@@ -120,4 +120,8 @@ Beyond pointing the provider at AWS instead of Floci:
 - SES production access, out of the sandbox, and the DKIM records published
 - the forwarded-header check: confirm the ALB's `X-Forwarded-For` reaches the API with `TRUST_PROXY_HOPS=1`
 - RDS backups, Multi-AZ and deletion protection (`deletion_protection = true`, which the local roots turn off)
-- a Terraform/OpenTofu state bucket created once, by hand or by a bootstrap account
+- a Terraform/OpenTofu state bucket created once, by hand or by a bootstrap account, read only by the
+  deploying role under its own KMS key; CI credentials by OIDC federation, never static keys
+- the hardening a single machine cannot show: load balancer access logs and a WAF, VPC flow logs, RDS
+  log exports to CloudWatch, ElastiCache snapshots and a replica, DMARC moved past `p=none` once DKIM
+  verifies, per-tier execution roles, and read-only, non-root containers

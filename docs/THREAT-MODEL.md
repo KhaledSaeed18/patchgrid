@@ -422,10 +422,11 @@ Checked and left as they are, with the reason:
 
 ## 11. The M14 review (2026-10-26)
 
-A read of `infra/` against TB13 and the tiers it deploys: security groups, IAM, encryption, TLS and what
-the state holds, then everything that running the deploy, the tenancy suite and the browser suite on
-Floci turned up. No path from one tenant to another's data was found. The findings were about **the
-infrastructure being weaker than the application it carries**, and about what the emulator hides.
+A read of `infra/` against TB13, then three read-only reviews: the modules, the deploy script with its
+CI job and browser harness, and the application's AWS changes (#80, #81). Running the deploy, the tenancy
+suite and the browser suite on Floci found more. No path from one tenant to another's data was found.
+The findings were about **the infrastructure being weaker than the application it carries**, about
+**teardowns that keep nothing**, and about what the emulator hides.
 
 | # | Area | Finding | Resolution |
 | --- | --- | --- | --- |
@@ -434,6 +435,13 @@ infrastructure being weaker than the application it carries**, and about what th
 | 3 | TB13 | The platform's `secrets` output named the API's keys and the app role's database secret both `app`, and the second won | The keys are `keys`; api and worker could not start until then, so nothing ran with the wrong secret |
 | 4 | ADR-0058 | Behind TLS that ends at the load balancer the app built an `http` way back after login, because Floci sends no `X-Forwarded-Proto` | The app falls back to its configured protocol (ADR-0058 erratum) |
 | 5 | ADR-0058 | Every client reaches the API from one address on Floci, so the per-IP limits ration the whole stack | The browser suite rolls the limits off for its run and back on however it ends. They stay on by default; per-IP limits are not tested here, and the runbook names the `X-Forwarded-For` check a real account needs |
+| 6 | TB4 | The pooled `DATABASE_URL` crossed the VPC in the clear: every tenant's rows between the API and PgBouncer | PgBouncer requires TLS from its clients, with a certificate OpenTofu generates and hands it as a secret. Clients encrypt without verifying; a VPC has no ARP to spoof, so this closes the passive read |
+| 7 | TB13 | The modules deleted everything a destroy touched: a 7-day key window (and with the key, the final snapshot), secrets with no recovery, no final snapshot once deletion protection was lifted, repositories with images in them | The modules keep everything by default: 30 days for the key and the secrets, a final snapshot and the backups, no forced repository deletion. Only a root that declares itself `disposable` (the local one) opts out |
+| 8 | TB13 | Provisioning, migrations and the seed ran with the backend role: the files bucket and SES, from the image that holds the owner's credentials | They run with the role that has no policy; only `verify`, which runs the API, keeps the backend role |
+| 9 | TB13 | An interrupted `verify` left the worker at zero, a second run "restored" it to zero, and `status` called that settled; a circuit-breaker rollback also looked settled | Ctrl-C restores before exiting, the worker comes back as configured, and a service at zero, a failed rollout or the wrong revision is not settled |
+| 10 | TB2 | `x-forwarded-proto` was trusted whole: an appended chain made `https,http://host` the origin | The first value, and only `http` or `https` |
+| 11 | ADR-0058 | `DATABASE_LISTEN_URL`'s same-role check read the URL's user, which a `?user=` parameter overrides | The check reads the user the driver will use |
+| 12 | M11 | The SES provider had no timeouts, unlike SMTP's, and the SDK's retries multiplied BullMQ's | Connection and request timeouts as SMTP's; BullMQ owns the retries |
 
 Checked and left as they are, with the reason:
 
@@ -449,3 +457,10 @@ Checked and left as they are, with the reason:
   never run on a real account (ADR-0047's demo mode).
 - **The CI rehearsal deploys with fixed emulator credentials** (`test`/`test`) to a runner that is gone
   when the job ends. A real account would take credentials from OIDC federation, with no static keys.
+- **One execution role injects every secret into any task definition.** Which secrets a task gets is
+  decided by its definition, and registering one with this role takes the deployer's rights, which
+  already read the state and every secret in it (TB13). Per-tier execution roles are a real account's
+  hardening, not a boundary this one lacks.
+- **The rest of a real account's hardening** is in the runbook's list: load balancer access logs and a
+  WAF, VPC flow logs, RDS log exports, cache snapshots, DMARC past `p=none`, and read-only, non-root
+  containers.
