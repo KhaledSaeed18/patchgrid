@@ -18,7 +18,10 @@ locals {
     S3_BUCKET           = local.platform.files_bucket
     S3_FORCE_PATH_STYLE = "true"
     # Where browsers PUT and GET: S3's own origin, another registrable domain
-    # than the product's (ADR-0037). On AWS: https://<bucket>.s3.<region>.amazonaws.com.
+    # than the product's (ADR-0037). The signer adds the bucket itself, so on
+    # AWS this is https://s3.<region>.amazonaws.com with S3_FORCE_PATH_STYLE
+    # false, and the URLs come out as https://<bucket>.s3.<region>.amazonaws.com,
+    # a site of its own (the bucket host is under a public suffix).
     FILES_PUBLIC_ORIGIN = "https://localhost:4566"
 
     MAIL_TRANSPORT      = "ses"
