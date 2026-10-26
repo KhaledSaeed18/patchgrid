@@ -105,7 +105,10 @@ resource "aws_secretsmanager_secret_version" "app" {
     # Pooled: transaction mode is safe because the tenant setting is
     # transaction-local (ADR-0015). PgBouncer verifies the database's
     # certificate on its side of the hop.
-    DATABASE_URL = "postgresql://patchgrid_app:${random_password.db["app"].result}@${var.pooler_host}:${var.pooler_port}/patchgrid"
+    # The hop to the pooler is TLS too, with PgBouncer's own certificate:
+    # encrypted, not verified, which in a VPC (no ARP to spoof) is what keeps a
+    # tenant's rows off the wire in the clear.
+    DATABASE_URL = "postgresql://patchgrid_app:${random_password.db["app"].result}@${var.pooler_host}:${var.pooler_port}/patchgrid?sslmode=no-verify"
     # LISTEN is session-scoped, so the outbox wake goes to the database itself (ADR-0049).
     DATABASE_LISTEN_URL = "${local.direct["app"]}/patchgrid?${local.tls}"
   })
@@ -133,6 +136,26 @@ resource "aws_secretsmanager_secret_version" "provision" {
   ))
 }
 
+# PgBouncer's certificate for its clients, generated here and handed to it
+# with its other secrets. It names the pooler's host; a year, renewed by the
+# first apply in its last month.
+resource "tls_private_key" "pooler" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+resource "tls_self_signed_cert" "pooler" {
+  private_key_pem       = tls_private_key.pooler.private_key_pem
+  dns_names             = [var.pooler_host]
+  validity_period_hours = 24 * 365
+  early_renewal_hours   = 24 * 30
+  allowed_uses          = ["digital_signature", "key_agreement", "server_auth"]
+
+  subject {
+    common_name = var.pooler_host
+  }
+}
+
 # PgBouncer authenticates its clients as the app role, and the app role alone.
 resource "aws_secretsmanager_secret" "pooler" {
   name                    = "${var.name}/database/pooler"
@@ -147,5 +170,7 @@ resource "aws_secretsmanager_secret_version" "pooler" {
     DB_PORT     = tostring(local.db_port)
     DB_USER     = "patchgrid_app"
     DB_PASSWORD = random_password.db["app"].result
+    TLS_KEY     = tls_private_key.pooler.private_key_pem
+    TLS_CERT    = tls_self_signed_cert.pooler.cert_pem
   })
 }

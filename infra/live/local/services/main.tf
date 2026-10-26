@@ -43,9 +43,11 @@ module "pgbouncer" {
     # Protocol-level prepared statements, tracked per client (PgBouncer 1.21+).
     MAX_PREPARED_STATEMENTS   = "200"
     IGNORE_STARTUP_PARAMETERS = "extra_float_digits"
+    # Clients must use TLS; the image writes the certificate out at start.
+    CLIENT_TLS_SSLMODE = "require"
   }
   secrets = {
-    for name in ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD"] :
+    for name in ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "TLS_KEY", "TLS_CERT"] :
     name => "${local.platform.secrets.pooler}:${name}::"
   }
   execution_role_arn = local.cluster.execution_role_arn

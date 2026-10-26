@@ -178,7 +178,17 @@ function buildAndPush(repositories, tag, rootDomain) {
   for (const name of todo) {
     if (name === "pgbouncer") {
       title(`pgbouncer: mirrored, trusting the environment's CA`)
-      run("docker", ["build", "-q", "-f", "infra/images/pgbouncer.Dockerfile", "-t", remote(name), caDir])
+      run("docker", [
+        "build",
+        "-q",
+        "-f",
+        "infra/images/pgbouncer.Dockerfile",
+        "--build-context",
+        "images=infra/images",
+        "-t",
+        remote(name),
+        caDir,
+      ])
     } else {
       title(`${name}: the production image`)
       run("docker", ["build", ...builds[name], "-t", local(name), "."])
