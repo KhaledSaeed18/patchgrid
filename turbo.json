@@ -50,7 +50,10 @@
     "E2E_ROOT_DOMAIN",
     "E2E_APP_PORT",
     "E2E_API_PORT",
-    "E2E_MAILPIT_URL"
+    "E2E_MAILPIT_URL",
+    "E2E_PROTOCOL",
+    "E2E_RESOLVE_TO",
+    "E2E_CA_FILE"
   ],
   "globalDependencies": [".env", ".nvmrc"],
   "tasks": {
