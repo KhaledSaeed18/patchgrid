@@ -9,7 +9,6 @@ locals {
     # Origins carry no port behind TLS; the schema insists.
     WEB_ORIGIN_PORTS = ""
     COOKIE_DOMAIN    = ".${local.platform.root_domain}"
-    REDIS_URL        = local.platform.redis_url
 
     AWS_REGION = local.platform.region
     # Floci, for every AWS client in the application. Unset on AWS, where the
@@ -30,10 +29,14 @@ locals {
   }
 
   app_secret = local.platform.secrets.keys
-  backend_secrets = {
-    for name in ["JWT_SECRET", "MFA_ENCRYPTION_KEY", "WEBHOOK_SECRETS_KEY", "SSO_SECRETS_KEY", "INBOUND_WEBHOOK_SECRET"] :
-    name => "${local.app_secret}:${name}::"
-  }
+  backend_secrets = merge(
+    {
+      for name in ["JWT_SECRET", "MFA_ENCRYPTION_KEY", "WEBHOOK_SECRETS_KEY", "SSO_SECRETS_KEY", "INBOUND_WEBHOOK_SECRET"] :
+      name => "${local.app_secret}:${name}::"
+    },
+    # The cache's URL carries its AUTH token.
+    { REDIS_URL = "${local.platform.secrets.cache}:REDIS_URL::" },
+  )
 
   image = { for name, url in local.platform.repositories : name => "${url}:${var.image_tag}" }
 }

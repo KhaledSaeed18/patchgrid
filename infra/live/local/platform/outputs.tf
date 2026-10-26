@@ -34,11 +34,7 @@ output "cluster" {
 # The API's keys under `keys`, never `app`: the database secrets are keyed by
 # role, `app` is one of them, and merge() keeps the last.
 output "secrets" {
-  value = merge({ keys = module.secrets.app_secret_arn }, module.data.database_secret_arns)
-}
-
-output "redis_url" {
-  value = module.data.redis_url
+  value = merge({ keys = module.secrets.app_secret_arn, cache = module.data.cache_secret_arn }, module.data.database_secret_arns)
 }
 
 output "files_bucket" {

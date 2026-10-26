@@ -73,3 +73,9 @@ variable "web_origins" {
   description = "Origins a browser may upload from and download to (CORS)."
   type        = list(string)
 }
+
+variable "cache_transit_encryption" {
+  description = "TLS to ElastiCache, and with it the AUTH token; off only where the emulator cannot terminate TLS"
+  type        = bool
+  default     = true
+}

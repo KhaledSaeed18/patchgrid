@@ -31,6 +31,9 @@ module "data" {
   master_is_superuser = true
   deletion_protection = false
   web_origins         = ["https://${local.root_domain}", "https://*.${local.root_domain}"]
+  # Floci's cache proxy speaks AUTH but not TLS, and AWS takes a token only
+  # with TLS, so the local cache has neither. True everywhere else.
+  cache_transit_encryption = false
 }
 
 module "registry" {
@@ -62,7 +65,7 @@ module "cluster" {
   name        = local.name
   vpc_id      = module.network.vpc_id
   kms_key_arn = module.secrets.kms_key_arn
-  secret_arns = concat([module.secrets.app_secret_arn], values(module.data.database_secret_arns))
+  secret_arns = concat([module.secrets.app_secret_arn, module.data.cache_secret_arn], values(module.data.database_secret_arns))
 
   files_bucket_arn  = module.data.files_bucket.arn
   mail_identity_arn = module.mail.identity_arn
