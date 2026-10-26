@@ -21,7 +21,14 @@ import process from "node:process"
 
 import { CloudWatchLogsClient, GetLogEventsCommand } from "@aws-sdk/client-cloudwatch-logs"
 import { ECRClient, GetAuthorizationTokenCommand } from "@aws-sdk/client-ecr"
-import { DescribeServicesCommand, DescribeTasksCommand, ECSClient, ListTasksCommand, RunTaskCommand } from "@aws-sdk/client-ecs"
+import {
+  DescribeServicesCommand,
+  DescribeTasksCommand,
+  ECSClient,
+  ListTasksCommand,
+  RunTaskCommand,
+  UpdateServiceCommand,
+} from "@aws-sdk/client-ecs"
 import { DescribeTargetHealthCommand, ElasticLoadBalancingV2Client } from "@aws-sdk/client-elastic-load-balancing-v2"
 
 const root = path.join(import.meta.dirname, "..")
@@ -200,9 +207,46 @@ async function printLogs(group, stream) {
   }
 }
 
+/** Scales one service and waits until that many of its tasks run; returns the count it had. */
+async function scale(cluster, service, desiredCount) {
+  const before = (await ecs.send(new DescribeServicesCommand({ cluster, services: [service] }))).services?.[0]
+  if (before === undefined) throw new Error(`No service ${service}`)
+  await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount }))
+  for (let waited = 0; ; waited += 3) {
+    const now = (await ecs.send(new DescribeServicesCommand({ cluster, services: [service] }))).services?.[0]
+    if (now?.runningCount === desiredCount) return before.desiredCount
+    if (waited > 300) throw new Error(`${service} did not reach ${desiredCount} running tasks`)
+    await sleep(3_000)
+  }
+}
+
+/**
+ * The tenancy suite must be the only consumer of the outbox it writes: a live
+ * worker on the same database hears its NOTIFY, drains its events and
+ * publishes them on its own Redis, where the suite's streams never hear them.
+ * So the worker steps out for the run, and comes back however it ends. Nothing
+ * is lost meanwhile: the outbox is durable, and the worker drains what waited.
+ */
+async function withoutWorker(fn) {
+  const cluster = value(outputs("platform"), "cluster").name
+  title("worker: out of service while the suite runs")
+  const previous = await scale(cluster, "worker", 0)
+  try {
+    await fn()
+  } finally {
+    title(`worker: back to ${previous}`)
+    await scale(cluster, "worker", previous)
+  }
+}
+
 /** RunTask, wait for it to stop, print its logs, and fail on a non-zero exit. */
 async function runJob(name) {
   if (!JOBS.includes(name)) throw new Error(`No job ${JSON.stringify(name)}. Jobs: ${JOBS.join(", ")}`)
+  if (name === "verify") return withoutWorker(() => runTask(name))
+  return runTask(name)
+}
+
+async function runTask(name) {
   const jobs = outputs("jobs")
   const { cluster, subnets, security_groups: securityGroups } = value(jobs, "run")
   const definition = value(jobs, "task_definitions")[name]
