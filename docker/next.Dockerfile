@@ -8,7 +8,7 @@
 #
 # Both read only NEXT_PUBLIC_* settings, and Next inlines those at build time:
 # an image is built for one environment. The defaults are production's; a local
-# image overrides them (docker-compose.prod.yml shows how).
+# image overrides them (scripts/aws.mjs shows how).
 
 ARG NODE_IMAGE=node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d
 
