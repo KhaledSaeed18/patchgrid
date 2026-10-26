@@ -5,6 +5,7 @@
  *   pnpm aws:deploy          build → push → jobs → provision → migrate → services → healthy
  *   pnpm aws:run <job>       one job (provision, migrate, seed, verify), its logs, its exit code
  *   pnpm aws:status          every service's tasks and every target's health
+ *   pnpm aws:e2e             the browser suite, through the load balancer
  *   pnpm aws:down            destroy services, jobs and the platform; Floci keeps running
  *
  * Every step is idempotent: a second `aws:up` changes nothing that is already
@@ -14,7 +15,7 @@
  * the SDK, so no AWS CLI is required.
  */
 import { execFileSync, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import process from "node:process"
@@ -30,6 +31,7 @@ import {
   UpdateServiceCommand,
 } from "@aws-sdk/client-ecs"
 import { DescribeTargetHealthCommand, ElasticLoadBalancingV2Client } from "@aws-sdk/client-elastic-load-balancing-v2"
+import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager"
 
 const root = path.join(import.meta.dirname, "..")
 const live = path.join(root, "infra/live/local")
@@ -330,6 +332,49 @@ async function smoke(rootDomain) {
   }
 }
 
+// ─── The browser suite ─────────────────────────────────────────────────────────
+
+/**
+ * The browser suite against the deployed stack (ADR-0058): https on the root
+ * domain, every host sent to the load balancer and Floci's CA trusted, by
+ * Chromium and by the suite's own requests, with nothing changed on this
+ * machine. The SLA spec moves one deadline as the owner, through Floci's RDS
+ * proxy. The SSO spec is left out: its Keycloak is on this machine, which a
+ * task cannot reach, and production refuses a private issuer.
+ */
+async function e2e() {
+  const platform = outputs("platform")
+  const rootDomain = value(platform, "root_domain")
+  const secrets = new SecretsManagerClient(aws)
+  const { SecretString } = await secrets.send(new GetSecretValueCommand({ SecretId: value(platform, "secrets").migration }))
+  // The task's URL names the database by its in-network name and verifies it; here it is a forwarded port.
+  const owner = new URL(JSON.parse(SecretString ?? "{}").DATABASE_MIGRATION_URL)
+  owner.hostname = "localhost"
+  owner.searchParams.set("sslmode", "no-verify")
+
+  await exportCa()
+  await runJob("seed")
+
+  const specs = readdirSync(path.join(root, "apps/app/e2e")).filter((file) => file.endsWith(".spec.ts") && file !== "sso.spec.ts")
+  title(`browser suite: ${specs.join(", ")}`)
+  const result = spawnSync("pnpm", ["--filter", "@patchgrid/app", "exec", "playwright", "test", ...specs.map((spec) => `e2e/${spec}`)], {
+    cwd: root,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      E2E_ROOT_DOMAIN: rootDomain,
+      E2E_PROTOCOL: "https",
+      E2E_APP_PORT: "",
+      E2E_API_PORT: "",
+      E2E_RESOLVE_TO: "127.0.0.1",
+      E2E_CA_FILE: caFile,
+      NODE_EXTRA_CA_CERTS: caFile,
+      DATABASE_MIGRATION_URL: owner.toString(),
+    },
+  })
+  if (result.status !== 0) throw new Error(`the browser suite failed (exit ${result.status ?? "by signal"})`)
+}
+
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 async function deploy() {
@@ -396,6 +441,7 @@ const commands = {
     if (!(await status())) process.exitCode = 1
   },
   run: () => runJob(argument),
+  e2e,
 }
 
 if (!(command in commands)) {
