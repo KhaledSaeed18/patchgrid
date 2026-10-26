@@ -59,6 +59,9 @@ describe("envSchema", () => {
     expect(envSchema.parse(valid).DATABASE_LISTEN_URL).toBeUndefined()
     expect(issues({ DATABASE_LISTEN_URL: "postgresql://patchgrid_app:app@db:5432/patchgrid" })).toEqual([])
     expect(issues({ DATABASE_LISTEN_URL: "postgresql://patchgrid_owner:owner@db:5432/patchgrid" })).toContain("DATABASE_LISTEN_URL")
+    expect(issues({ DATABASE_LISTEN_URL: "postgresql://patchgrid_app:app@db:5432/patchgrid?user=patchgrid_owner" })).toContain(
+      "DATABASE_LISTEN_URL",
+    )
   })
 
   it("trusts one proxy hop unless told otherwise, and never an unbounded chain", () => {
