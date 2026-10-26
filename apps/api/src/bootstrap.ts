@@ -2,6 +2,7 @@ import "reflect-metadata"
 
 import { NestFactory } from "@nestjs/core"
 import type { NestExpressApplication } from "@nestjs/platform-express"
+import { HSTS_MAX_AGE_SECONDS } from "@patchgrid/contracts"
 import helmet from "helmet"
 import { Logger } from "nestjs-pino"
 
@@ -39,6 +40,9 @@ export async function bootstrap(): Promise<void> {
       // CORP would block the cross-origin reads that the tenant subdomains make
       // on purpose; CORS is the mechanism that governs those (below).
       crossOriginResourcePolicy: false,
+      // The first stage of DNS.md §HSTS, the same value the frontends send.
+      // Browsers ignore it over plain HTTP, so development is unaffected.
+      strictTransportSecurity: { maxAge: HSTS_MAX_AGE_SECONDS, includeSubDomains: true, preload: false },
     }),
   )
 
