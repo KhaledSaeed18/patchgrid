@@ -490,24 +490,28 @@ create, with ElastiCache, S3, SES, Secrets Manager under KMS and CloudWatch Logs
 passes through PgBouncer and the browser suite passes through the ALB, passkeys included, with no
 Chrome flag._
 
-- [ ] Database roles a managed Postgres can create (ADR-0059): no `FORCE`, no `BYPASSRLS` anywhere, the
+- [x] Database roles a managed Postgres can create (ADR-0059): no `FORCE`, no `BYPASSRLS` anywhere, the
       bootstrap run as a `CREATEROLE`-only admin, the app role asserted to be no member of the owner
-- [ ] The application ready for AWS: S3 credentials from the default provider chain (task role), an SES
+- [x] The application ready for AWS: S3 credentials from the default provider chain (task role), an SES
       `MailProvider`, a direct `LISTEN` URL beside a pooled one, graceful drain on `SIGTERM`
-- [ ] Floci pinned by digest, its CA exported and trusted; OpenTofu state in S3 with DynamoDB locking
-- [ ] Network, data and secrets: VPC, two subnets, security groups by tier; RDS PostgreSQL 17 with
+- [x] Floci pinned by digest, its CA exported and trusted; OpenTofu state in S3 with DynamoDB locking
+- [x] Network, data and secrets: VPC, two subnets, security groups by tier; RDS PostgreSQL 17 with
       parameter group and TLS; ElastiCache; S3 buckets with CORS, versioning, encryption and the
       `staging/` lifecycle rule; KMS key and Secrets Manager secrets; least-privilege task roles
-- [ ] Compute and edge: ECR repositories with lifecycle policies; one ECS cluster running api, worker,
+- [x] Compute and edge: ECR repositories with lifecycle policies; one ECS cluster running api, worker,
       app, www and PgBouncer; ALB with ACM certificate, host rules, 80 → 443, HSTS, health checks and
       deregistration delay; Route 53 private zone for the workspace hosts, public zones for domain
       proof
-- [ ] Deploy as one command: build → push → `tofu apply` → migrations task → rolling update → healthy
+- [x] Deploy as one command: build → push → `tofu apply` → migrations task → rolling update → healthy
       targets; `aws:down` and `aws:deploy` beside it
-- [ ] Verification: the tenancy suite through PgBouncer, the browser suite (passkeys included) through
+- [x] Verification: the tenancy suite through PgBouncer, the browser suite (passkeys included) through
       the ALB, a CI job that deploys to Floci; `docker-compose.prod.yml` retired
-- [ ] Runbook: what a real AWS account still needs beyond this code, and each place Floci differs from
+- [x] Runbook: what a real AWS account still needs beyond this code, and each place Floci differs from
       AWS with the decision that covers it
+
+Done 2026-10-26 (#79–#88): the exit holds locally and in CI (`.github/workflows/aws.yml`), from
+nothing. The browser suite runs every spec but SSO, whose Keycloak a task cannot reach. The review is
+`THREAT-MODEL.md` §11.
 
 ---
 

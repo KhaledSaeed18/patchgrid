@@ -237,6 +237,19 @@ Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
 | `sam@patchgrid.test`  | Agent at Acme                                                                                                                                               |
 | `rita@patchgrid.test` | Requester at Acme                                                                                                                                           |
 
+### On emulated AWS
+
+The production rehearsal (ADR-0058) needs OpenTofu (`brew install opentofu`) and about 20 GB free:
+
+```bash
+pnpm aws:up            # Floci, the platform, then build → push → migrate → roll → healthy
+pnpm aws:run verify    # the tenancy suite inside the VPC, through PgBouncer
+pnpm aws:e2e           # the browser suite through the load balancer on https://*.patchgrid.test
+pnpm aws:down
+```
+
+`infra/README.md` says how to open it in a browser, and where Floci differs from AWS.
+
 ### Tests
 
 ```bash
@@ -304,8 +317,14 @@ opens that workspace and nothing else, and owners keep their own way in
 ([ADR-0054](docs/decisions/0054-per-tenant-oidc-sso.md), `docs/THREAT-MODEL.md` §10).
 `docker compose --profile sso up -d` runs the Keycloak the seed points Acme at.
 
-**Next is M14**, a production rehearsal on a laptop: HTTPS through Caddy, PgBouncer, a replica. It is
-the last planned milestone: M7, the models and the automation rule engine, is dropped
+**M14, the production rehearsal, is complete**: the production images on ECS behind an HTTPS load
+balancer on emulated AWS ([Floci](https://floci.io/floci/)), provisioned by OpenTofu from `infra/`, with
+RDS through PgBouncer, ElastiCache, S3, SES, and Secrets Manager under KMS
+([ADR-0058](docs/decisions/0058-production-rehearsal-on-emulated-aws.md)). The tenancy suite passes
+inside the VPC and the browser suite through the load balancer, passkeys included; CI deploys it from
+nothing (`infra/README.md`, `docs/THREAT-MODEL.md` §11).
+
+Every planned milestone is done. M7, the models and the automation rule engine, was dropped
 ([ADR-0056](docs/decisions/0056-m7-dropped.md)).
 `docs/HANDOFF.md` has the detail.
 
