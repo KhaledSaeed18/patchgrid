@@ -40,8 +40,17 @@ locals {
     verify = {
       # The suite that gates every release, against this environment: the app
       # role through the pooler, so transaction-mode pooling is what is tested.
-      command     = ["sh", "-c", "cd /repo && pnpm --filter @patchgrid/api run test:tenancy"]
-      environment = merge(local.backend_environment, { NODE_ENV = "test", S3_ENDPOINT = "https://floci:4566" })
+      command = ["sh", "-c", "cd /repo && pnpm --filter @patchgrid/api run test:tenancy"]
+      # The suite runs the API in-process and calls it as its own browser at
+      # http://<slug>.lvh.me:3001, so the origins are the test harness's; the
+      # database, the pooler, Redis and the AWS clients are this environment's.
+      environment = merge(local.backend_environment, {
+        NODE_ENV         = "test"
+        S3_ENDPOINT      = "https://floci:4566"
+        ROOT_DOMAIN      = "lvh.me"
+        COOKIE_DOMAIN    = ".lvh.me"
+        WEB_ORIGIN_PORTS = "3000,3001"
+      })
       secrets = merge(local.backend_secrets, {
         DATABASE_URL           = "${local.platform.secrets.app}:DATABASE_URL::"
         DATABASE_LISTEN_URL    = "${local.platform.secrets.app}:DATABASE_LISTEN_URL::"
