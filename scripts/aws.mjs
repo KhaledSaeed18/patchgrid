@@ -28,6 +28,7 @@ import {
   ECSClient,
   ListTasksCommand,
   RunTaskCommand,
+  StopTaskCommand,
   UpdateServiceCommand,
 } from "@aws-sdk/client-ecs"
 import {
@@ -64,6 +65,17 @@ function capture(command, args, options = {}) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Ctrl-C asks, it does not kill: a step that took the worker out or turned the
+ * rate limits off puts them back first. A second Ctrl-C exits at once.
+ */
+let interrupted = false
+process.on("SIGINT", () => {
+  if (interrupted) process.exit(130)
+  interrupted = true
+  console.error("\n  interrupted: restoring the services once this step ends (Ctrl-C again to exit now)")
+})
 
 // ─── OpenTofu ──────────────────────────────────────────────────────────────────
 
@@ -245,14 +257,35 @@ async function scale(cluster, service, desiredCount) {
  */
 async function withoutWorker(fn) {
   const cluster = value(outputs("platform"), "cluster").name
-  title("worker: out of service while the suite runs")
-  const previous = await scale(cluster, "worker", 0)
+  await thenRestore(
+    async () => {
+      title("worker: out of service while the suite runs")
+      await scale(cluster, "worker", 0)
+      await fn()
+    },
+    async () => {
+      // As configured, not as found: a run cut short last time may have left it at zero.
+      title("worker: back as configured")
+      await rollOut(value(outputs("services"), "release"))
+    },
+  )
+}
+
+/** Runs `fn`, then `restore` however `fn` ended; when both fail, both are reported. */
+async function thenRestore(fn, restore) {
+  let failure
   try {
     await fn()
-  } finally {
-    title(`worker: back to ${previous}`)
-    await scale(cluster, "worker", previous)
+  } catch (error) {
+    failure = error
   }
+  try {
+    await restore()
+  } catch (error) {
+    if (failure === undefined) throw error
+    console.error(`\n✗ restoring failed too: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (failure !== undefined) throw failure
 }
 
 /** RunTask, wait for it to stop, print its logs, and fail on a non-zero exit. */
@@ -285,6 +318,10 @@ async function runTask(name) {
   for (let waited = 0; ; waited += 3) {
     described = (await ecs.send(new DescribeTasksCommand({ cluster, tasks: [task.taskArn] }))).tasks?.[0]
     if (described?.lastStatus === "STOPPED") break
+    if (interrupted) {
+      await ecs.send(new StopTaskCommand({ cluster, task: task.taskArn, reason: "interrupted" }))
+      throw new Error(`job ${name} interrupted and stopped`)
+    }
     if (waited > 1_800) throw new Error(`job ${name} is still running after 30 minutes`)
     await sleep(3_000)
   }
@@ -306,16 +343,29 @@ async function runTask(name) {
 async function status() {
   const platform = outputs("platform")
   const cluster = value(platform, "cluster").name
-  const services = value(outputs("services"), "services")
+  const applied = outputs("services")
+  const services = value(applied, "services")
+  const expected = applied.task_definitions?.value ?? {}
   const described = await ecs.send(new DescribeServicesCommand({ cluster, services }))
+  if ((described.failures ?? []).length > 0) {
+    throw new Error(`services not found: ${described.failures.map((f) => `${f.arn} (${f.reason})`).join(", ")}`)
+  }
   let settled = true
   const desired = {}
   title("services")
   for (const service of described.services ?? []) {
     const deployments = service.deployments?.length ?? 0
+    const primary = service.deployments?.find((d) => d.status === "PRIMARY")
+    if (primary?.rolloutState === "FAILED") {
+      throw new Error(`${service.serviceName}: the rollout failed (${primary.rolloutStateReason ?? "no reason given"})`)
+    }
+    // A circuit-breaker rollback settles on the previous revision: running, healthy, and wrong.
+    const current = expected[service.serviceName] === undefined || primary?.taskDefinition === expected[service.serviceName]
     desired[service.serviceName] = service.desiredCount
-    if (deployments !== 1 || service.runningCount !== service.desiredCount) settled = false
-    console.log(`  ${service.serviceName.padEnd(10)} ${service.runningCount}/${service.desiredCount} running, ${deployments} deployment(s)`)
+    if (deployments !== 1 || !current || service.desiredCount === 0 || service.runningCount !== service.desiredCount) settled = false
+    console.log(
+      `  ${service.serviceName.padEnd(10)} ${service.runningCount}/${service.desiredCount} running, ${deployments} deployment(s)${current ? "" : ", not the applied revision"}`,
+    )
   }
   title("targets")
   for (const [name, arn] of Object.entries(value(platform, "target_groups"))) {
@@ -350,10 +400,12 @@ function taskAddresses(taskId, service) {
 async function deregisterStaleTargets(platform) {
   const cluster = value(platform, "cluster").name
   for (const [service, arn] of Object.entries(value(platform, "target_groups"))) {
+    // Targets before tasks: a task that starts between the two reads is then
+    // listed as live, never mistaken for one that stopped.
+    const health = await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))
     const tasks = (await ecs.send(new ListTasksCommand({ cluster, serviceName: service, desiredStatus: "RUNNING" }))).taskArns ?? []
     const live = new Set(tasks.flatMap((task) => taskAddresses(task.split("/").pop(), service)).filter((ip) => ip !== ""))
     if (live.size === 0) continue
-    const health = await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))
     const stale = (health.TargetHealthDescriptions ?? []).map((d) => d.Target).filter((t) => t?.Id !== undefined && !live.has(t.Id))
     if (stale.length === 0) continue
     await elb.send(new DeregisterTargetsCommand({ TargetGroupArn: arn, Targets: stale }))
@@ -381,14 +433,17 @@ async function rollOut(vars) {
  */
 async function withoutThrottles(fn) {
   const release = value(outputs("services"), "release")
-  title("services: rate limits off for the browser suite")
-  await rollOut({ ...release, throttle_enabled: false })
-  try {
-    await fn()
-  } finally {
-    title("services: rate limits back on")
-    await rollOut(release)
-  }
+  await thenRestore(
+    async () => {
+      title("services: rate limits off for the browser suite")
+      await rollOut({ ...release, throttle_enabled: false })
+      await fn()
+    },
+    async () => {
+      title("services: rate limits back on")
+      await rollOut(release)
+    },
+  )
 }
 
 /** Through the load balancer, the way a browser comes in: TLS, the host, readiness. */
@@ -538,7 +593,8 @@ if (!existsSync(path.join(live, "backend.hcl"))) throw new Error("infra/live/loc
 
 try {
   await commands[command]()
+  if (interrupted) process.exit(130)
 } catch (error) {
   console.error(`\n✗ ${error instanceof Error ? error.message : String(error)}`)
-  process.exit(1)
+  process.exit(interrupted ? 130 : 1)
 }

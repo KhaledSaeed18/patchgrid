@@ -143,6 +143,15 @@ output "release" {
   value = { image_tag = var.image_tag, cpu_architecture = var.cpu_architecture }
 }
 
+# What each service should be running once a rollout settles: a rollback by
+# the circuit breaker leaves it on the previous revision instead.
+output "task_definitions" {
+  value = merge(
+    { pgbouncer = module.pgbouncer.task_definition_arn, api = module.api.task_definition_arn, worker = module.worker.task_definition_arn },
+    { for name, frontend in module.frontend : name => frontend.task_definition_arn },
+  )
+}
+
 output "services" {
   value = concat(["pgbouncer", "api", "worker"], [for name, _ in module.frontend : name])
 }
