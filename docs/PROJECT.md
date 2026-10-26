@@ -90,4 +90,4 @@ dropped (ADR-0056).
 
 ## Current stage
 
-Local development only. Everything — Postgres, Redis, MinIO, Mailpit, and Keycloak for SSO — runs via Docker Compose on the developer machine, with wildcard-subdomain tenancy working locally through `lvh.me`. There is no public deployment (ADR-0047): the production shape — wildcard DNS and TLS, the images, `docker-compose.prod.yml` — is designed and the images build in CI, but nothing is hosted. The effort goes to the implementation and the architecture.
+Local development only. Everything — Postgres, Redis, MinIO, Mailpit, and Keycloak for SSO — runs via Docker Compose on the developer machine, with wildcard-subdomain tenancy working locally through `lvh.me`. There is no public deployment (ADR-0047). The production shape is rehearsed instead of hosted (ADR-0058): the production images run on ECS behind an HTTPS load balancer on Floci, an AWS emulator, provisioned by OpenTofu and deployed from nothing in CI. The effort goes to the implementation and the architecture.
