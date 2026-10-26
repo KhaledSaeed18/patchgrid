@@ -29,7 +29,7 @@ locals {
     TRUST_PROXY_HOPS = "1"
   }
 
-  app_secret = local.platform.secrets.app
+  app_secret = local.platform.secrets.keys
   backend_secrets = {
     for name in ["JWT_SECRET", "MFA_ENCRYPTION_KEY", "WEBHOOK_SECRETS_KEY", "SSO_SECRETS_KEY", "INBOUND_WEBHOOK_SECRET"] :
     name => "${local.app_secret}:${name}::"
