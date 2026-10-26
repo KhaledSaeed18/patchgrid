@@ -75,10 +75,12 @@ module "job" {
   secrets       = each.value.secrets
 
   execution_role_arn = local.platform.cluster.execution_role_arn
-  task_role_arn      = local.platform.cluster.task_role_arns.backend
-  log_group          = local.platform.cluster.log_groups.jobs
-  region             = local.platform.region
-  cpu_architecture   = var.cpu_architecture
+  # Only the suite runs the API, which needs the bucket and SES; provisioning,
+  # migrations and the seed reach nothing in AWS but their secrets.
+  task_role_arn    = each.key == "verify" ? local.platform.cluster.task_role_arns.backend : local.platform.cluster.task_role_arns.none
+  log_group        = local.platform.cluster.log_groups.jobs
+  region           = local.platform.region
+  cpu_architecture = var.cpu_architecture
 }
 
 output "task_definitions" {
