@@ -480,8 +480,9 @@ edits (ADR-0014).
 
 ## Production images and the deployment shape
 
-Nothing is deployed (ADR-0047). The images and the compose file are kept and built in CI so the
-production shape stays honest, and can be run locally against the development stack's state.
+Nothing is deployed publicly (ADR-0047). The images are built in CI on every change, and run as a
+production rehearsal on emulated AWS (ADR-0058): ECS behind an HTTPS load balancer on Floci,
+provisioned by OpenTofu from `infra/`, with `pnpm aws:up` (`infra/README.md`).
 
 Three images, built from the repository root and pruned with `turbo prune --docker`, so the dependency
 layer is cached on the lockfile alone:
@@ -499,10 +500,12 @@ layer is cached on the lockfile alone:
   telemetry before it requires the application (ADR-0046).
 - **The frontends are built per environment.** They read only `NEXT_PUBLIC_*`, which Next inlines at
   build time; the Dockerfile's defaults are production's.
-- **`docker-compose.prod.yml`** is the single-host topology: `migrate` runs to completion, then `api`,
-  `worker`, `app` and `www`. Postgres, Redis and object storage are managed services named by variables,
-  each required (`${VAR:?}`); the platform's proxy terminates TLS and routes by host. Its project name is
-  `patchgrid-prod`, apart from the development stack's.
+- **The deployment is ECS** (ADR-0058): `pgbouncer`, `api`, `worker`, `app` and `www` as services, `api`
+  on `WORKER_MODE=api` and `worker` on `worker`, behind an ALB that ends TLS with an ACM wildcard and
+  routes by host. Before a release's services roll, `provision` and `migrate` run to completion as
+  one-off tasks, and every migration is additive, so the old release keeps working meanwhile. RDS,
+  ElastiCache, S3, SES, KMS and Secrets Manager are the managed services; nothing stateful runs in a
+  task. The single-host Compose file this replaced is retired.
 - **`TRUST_PROXY_HOPS`** is the number of proxies in front of the API — one for the platform's ingress,
   one more per CDN or balancer. Too low and every client shares an address; too high and each chooses
   its own (THREAT-MODEL.md §7).
