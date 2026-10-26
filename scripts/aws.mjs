@@ -30,7 +30,11 @@ import {
   RunTaskCommand,
   UpdateServiceCommand,
 } from "@aws-sdk/client-ecs"
-import { DescribeTargetHealthCommand, ElasticLoadBalancingV2Client } from "@aws-sdk/client-elastic-load-balancing-v2"
+import {
+  DeregisterTargetsCommand,
+  DescribeTargetHealthCommand,
+  ElasticLoadBalancingV2Client,
+} from "@aws-sdk/client-elastic-load-balancing-v2"
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager"
 
 const root = path.join(import.meta.dirname, "..")
@@ -284,26 +288,97 @@ async function runTask(name) {
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
+/**
+ * Settled, not merely healthy: every service on one deployment with all its
+ * tasks running, and every target group holding exactly that many targets, all
+ * healthy. Mid-rollout the old tasks are healthy too, and still serving.
+ */
 async function status() {
   const platform = outputs("platform")
   const cluster = value(platform, "cluster").name
   const services = value(outputs("services"), "services")
   const described = await ecs.send(new DescribeServicesCommand({ cluster, services }))
+  let settled = true
+  const desired = {}
   title("services")
   for (const service of described.services ?? []) {
-    console.log(
-      `  ${service.serviceName.padEnd(10)} ${service.runningCount}/${service.desiredCount} running, ${service.deployments?.length ?? 0} deployment(s)`,
-    )
+    const deployments = service.deployments?.length ?? 0
+    desired[service.serviceName] = service.desiredCount
+    if (deployments !== 1 || service.runningCount !== service.desiredCount) settled = false
+    console.log(`  ${service.serviceName.padEnd(10)} ${service.runningCount}/${service.desiredCount} running, ${deployments} deployment(s)`)
   }
   title("targets")
-  let healthy = true
   for (const [name, arn] of Object.entries(value(platform, "target_groups"))) {
     const health = await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))
     const states = (health.TargetHealthDescriptions ?? []).map((target) => target.TargetHealth?.State ?? "unknown")
-    if (states.length === 0 || states.some((state) => state !== "healthy")) healthy = false
+    if (states.length !== desired[name] || states.some((state) => state !== "healthy")) settled = false
     console.log(`  ${name.padEnd(10)} ${states.join(", ") || "no targets"}`)
   }
-  return healthy
+  return settled
+}
+
+/** A running task's address on the Docker network, which is what Floci registers as its target. */
+function taskAddresses(taskId, service) {
+  try {
+    return capture("docker", [
+      "inspect",
+      "--format",
+      "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
+      `floci-aws-ecs-${taskId}-${service}`,
+    ]).split(" ")
+  } catch {
+    return []
+  }
+}
+
+/**
+ * ECS deregisters a task's target when the task stops; Floci leaves it, so
+ * after any rollout the old task's target stays behind, unhealthy for good.
+ * This does what ECS would: every target that is not a running task of its
+ * service goes. A group whose tasks cannot be seen is left alone.
+ */
+async function deregisterStaleTargets(platform) {
+  const cluster = value(platform, "cluster").name
+  for (const [service, arn] of Object.entries(value(platform, "target_groups"))) {
+    const tasks = (await ecs.send(new ListTasksCommand({ cluster, serviceName: service, desiredStatus: "RUNNING" }))).taskArns ?? []
+    const live = new Set(tasks.flatMap((task) => taskAddresses(task.split("/").pop(), service)).filter((ip) => ip !== ""))
+    if (live.size === 0) continue
+    const health = await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))
+    const stale = (health.TargetHealthDescriptions ?? []).map((d) => d.Target).filter((t) => t?.Id !== undefined && !live.has(t.Id))
+    if (stale.length === 0) continue
+    await elb.send(new DeregisterTargetsCommand({ TargetGroupArn: arn, Targets: stale }))
+    console.log(`  ${service}: deregistered ${stale.map((t) => `${t.Id}:${t.Port}`).join(", ")}, left by stopped tasks`)
+  }
+}
+
+/** Applies the services and waits until every target is healthy, or fails. */
+async function rollOut(vars) {
+  apply("services", vars)
+  const platform = outputs("platform")
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    await deregisterStaleTargets(platform)
+    if (await status()) return
+    await sleep(5_000)
+  }
+  throw new Error("the services did not all turn healthy within five minutes")
+}
+
+/**
+ * The API's rate limits off for the length of a browser suite run, and back on
+ * however it ends: one rollout of api and worker each way. Floci's load
+ * balancer sends no X-Forwarded-For, so every client shares one address, and
+ * the suite would spend the per-IP budget in seconds (ADR-0058).
+ */
+async function withoutThrottles(fn) {
+  const release = value(outputs("services"), "release")
+  title("services: rate limits off for the browser suite")
+  await rollOut({ ...release, throttle_enabled: false })
+  try {
+    await fn()
+  } finally {
+    title("services: rate limits back on")
+    await rollOut(release)
+  }
 }
 
 /** Through the load balancer, the way a browser comes in: TLS, the host, readiness. */
@@ -356,7 +431,13 @@ async function e2e() {
   await runJob("seed")
 
   const specs = readdirSync(path.join(root, "apps/app/e2e")).filter((file) => file.endsWith(".spec.ts") && file !== "sso.spec.ts")
-  title(`browser suite: ${specs.join(", ")}`)
+  await withoutThrottles(async () => {
+    title(`browser suite: ${specs.join(", ")}`)
+    runSuite(specs, rootDomain, owner)
+  })
+}
+
+function runSuite(specs, rootDomain, owner) {
   const result = spawnSync("pnpm", ["--filter", "@patchgrid/app", "exec", "playwright", "test", ...specs.map((spec) => `e2e/${spec}`)], {
     cwd: root,
     stdio: "inherit",
@@ -397,12 +478,7 @@ async function deploy() {
   await runJob("migrate")
 
   title("services: rolling forward, waiting for steady state")
-  apply("services", vars)
-
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await status()) break
-    await sleep(5_000)
-  }
+  await rollOut(vars)
   await smoke(rootDomain)
 }
 
