@@ -8,6 +8,9 @@
 #   docker build -f infra/images/private-ca.Dockerfile --build-arg BASE=<image> infra/.floci
 ARG BASE
 FROM ${BASE}
-COPY --chmod=0444 ca.pem /etc/ssl/certs/patchgrid-private-ca.pem
+# Straight under /etc, which every base has: COPY --chmod also applies to the
+# parents it creates, and a 0444 /etc/ssl that the frontends' base lacks leaves
+# Node unable to open openssl.cnf, a fatal error at startup.
+COPY --chmod=0444 ca.pem /etc/patchgrid-private-ca.pem
 # Node's TLS (fetch, pg, the AWS SDK) adds it to its built-in roots.
-ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/patchgrid-private-ca.pem
+ENV NODE_EXTRA_CA_CERTS=/etc/patchgrid-private-ca.pem
