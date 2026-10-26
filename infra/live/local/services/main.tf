@@ -19,7 +19,9 @@ locals {
     DATABASE_URL        = "${local.database}:DATABASE_URL::"
     DATABASE_LISTEN_URL = "${local.database}:DATABASE_LISTEN_URL::"
   }
-  node_health = ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+  # api and worker: the shared environment, and the rate limits' switch.
+  service_environment = merge(local.backend_environment, { THROTTLE_ENABLED = tostring(var.throttle_enabled) })
+  node_health         = ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 }
 
 module "pgbouncer" {
@@ -67,7 +69,7 @@ module "api" {
   cpu           = 512
   memory        = 1024
   port          = 4000
-  environment   = merge(local.backend_environment, { WORKER_MODE = "api", OTEL_SERVICE_NAME = "patchgrid-api" })
+  environment   = merge(local.service_environment, { WORKER_MODE = "api", OTEL_SERVICE_NAME = "patchgrid-api" })
   secrets       = merge(local.backend_secrets, local.backend_database)
   health_check  = local.node_health
 
@@ -92,7 +94,7 @@ module "worker" {
   image         = local.image["api"]
   cpu           = 512
   memory        = 1024
-  environment   = merge(local.backend_environment, { WORKER_MODE = "worker", OTEL_SERVICE_NAME = "patchgrid-worker" })
+  environment   = merge(local.service_environment, { WORKER_MODE = "worker", OTEL_SERVICE_NAME = "patchgrid-worker" })
   secrets       = merge(local.backend_secrets, local.backend_database)
   health_check  = local.node_health
   # A job in flight finishes before the process exits (BullMQ's graceful close).
@@ -132,6 +134,11 @@ module "frontend" {
     security_group_id = local.groups.web
     target_group_arn  = local.platform.target_groups[each.key]
   })
+}
+
+# What is running, so a later apply can change one setting and keep the release.
+output "release" {
+  value = { image_tag = var.image_tag, cpu_architecture = var.cpu_architecture }
 }
 
 output "services" {
