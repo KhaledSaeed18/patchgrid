@@ -160,8 +160,12 @@ resource "aws_lb_listener_rule" "this" {
   }
 }
 
+# The wildcard covers every workspace. The fixed hosts are named as well:
+# the app's server components call api. from inside the VPC, and Floci matches
+# the wildcard only as `*`, never as the `\052` the provider sends (AWS treats
+# the two alike). On AWS the exact names change nothing; they share the target.
 resource "aws_route53_record" "private" {
-  for_each = toset([var.root_domain, "*.${var.root_domain}"])
+  for_each = toset(concat([var.root_domain, "*.${var.root_domain}"], [for host in ["api", "app", "admin"] : "${host}.${var.root_domain}"]))
   zone_id  = aws_route53_zone.private.zone_id
   name     = each.key
   type     = "A"
