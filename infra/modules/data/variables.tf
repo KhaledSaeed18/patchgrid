@@ -2,6 +2,12 @@ variable "name" {
   type = string
 }
 
+variable "disposable" {
+  description = "An environment thrown away whole (Floci): deletions are immediate and keep nothing. Off by default, which keeps everything."
+  type        = bool
+  default     = false
+}
+
 variable "kms_key_arn" {
   type = string
 }

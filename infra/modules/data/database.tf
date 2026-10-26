@@ -68,11 +68,14 @@ resource "aws_db_instance" "this" {
   publicly_accessible    = false
   multi_az               = var.multi_az
 
-  backup_retention_period    = var.backup_retention_days
-  copy_tags_to_snapshot      = true
-  deletion_protection        = var.deletion_protection
-  skip_final_snapshot        = !var.deletion_protection
-  final_snapshot_identifier  = var.deletion_protection ? "${var.name}-final" : null
+  backup_retention_period = var.backup_retention_days
+  copy_tags_to_snapshot   = true
+  deletion_protection     = var.deletion_protection
+  # Apart from deletion protection, which is lifted to tear down on purpose:
+  # a deliberate teardown still leaves a final snapshot and the backups.
+  skip_final_snapshot        = var.disposable
+  final_snapshot_identifier  = var.disposable ? null : "${var.name}-final"
+  delete_automated_backups   = var.disposable
   auto_minor_version_upgrade = true
   apply_immediately          = true
 }
@@ -93,7 +96,7 @@ resource "aws_secretsmanager_secret" "database" {
   for_each                = toset(["app", "migration", "provision"])
   name                    = "${var.name}/database/${each.key}"
   kms_key_id              = var.kms_key_arn
-  recovery_window_in_days = 0
+  recovery_window_in_days = var.disposable ? 0 : 30
 }
 
 resource "aws_secretsmanager_secret_version" "app" {
@@ -134,7 +137,7 @@ resource "aws_secretsmanager_secret_version" "provision" {
 resource "aws_secretsmanager_secret" "pooler" {
   name                    = "${var.name}/database/pooler"
   kms_key_id              = var.kms_key_arn
-  recovery_window_in_days = 0
+  recovery_window_in_days = var.disposable ? 0 : 30
 }
 
 resource "aws_secretsmanager_secret_version" "pooler" {

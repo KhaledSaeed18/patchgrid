@@ -6,6 +6,9 @@ locals {
   name        = "patchgrid-local"
   root_domain = "patchgrid.test"
   pooler_host = "pgbouncer.${replace(local.name, "-", ".")}.internal"
+  # Thrown away whole by `pnpm aws:down`: nothing is kept after a destroy. The
+  # modules keep everything unless told otherwise.
+  disposable = true
 }
 
 module "network" {
@@ -15,8 +18,9 @@ module "network" {
 }
 
 module "secrets" {
-  source = "../../../modules/secrets"
-  name   = local.name
+  source     = "../../../modules/secrets"
+  name       = local.name
+  disposable = local.disposable
 }
 
 module "data" {
@@ -29,6 +33,7 @@ module "data" {
   pooler_host                = local.pooler_host
   # Floci's master is a superuser; RDS's is not (ADR-0059).
   master_is_superuser = true
+  disposable          = local.disposable
   deletion_protection = false
   web_origins         = ["https://${local.root_domain}", "https://*.${local.root_domain}"]
   # Floci's cache proxy speaks AUTH but not TLS, and AWS takes a token only
@@ -41,6 +46,7 @@ module "registry" {
   name         = local.name
   repositories = ["api", "tools", "app", "www", "pgbouncer"]
   kms_key_arn  = module.secrets.kms_key_arn
+  disposable   = local.disposable
 }
 
 module "edge" {

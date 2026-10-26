@@ -11,10 +11,10 @@ variable "name" {
   type = string
 }
 
-variable "deletion_window_days" {
-  description = "How long a scheduled key deletion can still be cancelled."
-  type        = number
-  default     = 7
+variable "disposable" {
+  description = "An environment thrown away whole (Floci): deletions are immediate and keep nothing. Off by default, which keeps everything."
+  type        = bool
+  default     = false
 }
 
 data "aws_caller_identity" "this" {}
@@ -50,9 +50,11 @@ data "aws_iam_policy_document" "key" {
 }
 
 resource "aws_kms_key" "this" {
-  description             = "${var.name}: secrets, the database, the cache, object storage, images and logs"
-  enable_key_rotation     = true
-  deletion_window_in_days = var.deletion_window_days
+  description         = "${var.name}: secrets, the database, the cache, object storage, images and logs"
+  enable_key_rotation = true
+  # Thirty days, AWS's longest: everything encrypted under this key, the
+  # final snapshot included, is unreadable once it is gone.
+  deletion_window_in_days = var.disposable ? 7 : 30
   policy                  = data.aws_iam_policy_document.key.json
 }
 
@@ -77,10 +79,12 @@ resource "random_bytes" "inbound" {
 }
 
 resource "aws_secretsmanager_secret" "app" {
-  name                    = "${var.name}/app"
-  description             = "The API's signing and sealing keys"
-  kms_key_id              = aws_kms_key.this.arn
-  recovery_window_in_days = 0
+  name        = "${var.name}/app"
+  description = "The API's signing and sealing keys"
+  kms_key_id  = aws_kms_key.this.arn
+  # These keys open every tenant's sealed secrets; a deleted one stays
+  # recoverable for thirty days.
+  recovery_window_in_days = var.disposable ? 0 : 30
 }
 
 resource "aws_secretsmanager_secret_version" "app" {

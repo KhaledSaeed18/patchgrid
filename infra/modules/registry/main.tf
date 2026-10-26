@@ -12,6 +12,12 @@ variable "repositories" {
   type = list(string)
 }
 
+variable "disposable" {
+  description = "An environment thrown away whole (Floci): deletions are immediate and keep nothing. Off by default, which keeps everything."
+  type        = bool
+  default     = false
+}
+
 variable "kms_key_arn" {
   type = string
 }
@@ -26,7 +32,9 @@ resource "aws_ecr_repository" "this" {
   for_each             = toset(var.repositories)
   name                 = "${var.name}/${each.key}"
   image_tag_mutability = "IMMUTABLE"
-  force_delete         = true
+  # A repository with images in it is never deleted by accident: they are
+  # what a rollback deploys.
+  force_delete = var.disposable
 
   image_scanning_configuration {
     scan_on_push = true
