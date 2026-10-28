@@ -10,7 +10,7 @@ Tenancy rules live in `TENANCY.md`, ITSM rules in `DOMAIN.md`, working conventio
 | Runtime / tooling | Node 24, pnpm 10, Turborepo 2 | pnpm only — never npm/yarn |
 | Frontends | Next.js 16 (App Router), React 19, Tailwind 4, shadcn/ui (base-nova, hugeicons) | `apps/www` + `apps/app`. **Next 16 differs from training data** — read `node_modules/next/dist/docs/` before writing routing/caching code (`proxy.ts` replaces `middleware.ts`) |
 | Backend | NestJS **11**, deliberately | `apps/api` — the only process that talks to the database. Nest 12 exists, but `nestjs-zod` peers `@nestjs/common ^10 \|\| ^11` and does not support it; staying on 11 is a decision, not neglect. Built with SWC, CommonJS output |
-| Database | PostgreSQL 17 + Prisma **7.10.0, pinned exactly**, **Row-Level Security** + composite tenant keys | `packages/database`. **Prisma 7 removed `url` from the datasource block**: connection strings live in `prisma.config.ts` and the client takes a `@prisma/adapter-pg` driver adapter. Two adapters = two pools = the two roles. No extensions (pgvector went with M7, ADR-0056); UUIDv7 + `timestamptz` (ADR-0023) |
+| Database | PostgreSQL 17 + Prisma **7.10.1, pinned exactly**, **Row-Level Security** + composite tenant keys | `packages/database`. **Prisma 7 removed `url` from the datasource block**: connection strings live in `prisma.config.ts` and the client takes a `@prisma/adapter-pg` driver adapter. Two adapters = two pools = the two roles. No extensions (pgvector went with M7, ADR-0056); UUIDv7 + `timestamptz` (ADR-0023) |
 | Tenant context | `nestjs-cls` (`AsyncLocalStorage`) + a Prisma client extension | ADR-0015, ADR-0022 |
 | Queue / cache | Redis 7 + BullMQ | tenant-dispatched jobs, quota counters, tenant lookup cache, throttling |
 | Object storage | S3-compatible — MinIO locally | attachments via presigned URLs, keyed `org/<orgId>/…` (ADR-0005) |
@@ -19,7 +19,7 @@ Tenancy rules live in `TENANCY.md`, ITSM rules in `DOMAIN.md`, working conventio
 | Auth | JWT access (15 min, org-bound) + rotating refresh, **per-tenant** httpOnly cookies on `.patchgrid.xyz`; Argon2id; Redis revocation epoch | ADR-0004, ADR-0017, ADR-0024 |
 | Realtime | Server-Sent Events, Redis fan-out per org | ADR-0008, ADR-0018 |
 | Logging | `pino` via `nestjs-pino`; every line carries `reqId`, `orgId`, `membershipId` | |
-| Deployment | none — local only (ADR-0047); wildcard DNS + TLS designed in `DNS.md` | images build in CI; nothing is hosted |
+| Deployment | not hosted publicly (ADR-0047); rehearsed on emulated AWS (ADR-0058): ECS behind an HTTPS ALB, RDS, ElastiCache, S3, SES, provisioned by OpenTofu | images build in CI; `.github/workflows/aws.yml` deploys from nothing to Floci; wildcard DNS + TLS designed in `DNS.md` |
 
 ## Monorepo layout
 

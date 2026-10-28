@@ -18,7 +18,7 @@ Three deployables across five hostnames, one monorepo (ADR-0014, ADR-0016):
 | `<slug>.patchgrid.xyz` | `apps/app`   | A single tenant's workspace — the product                             |
 | `app.patchgrid.xyz`    | `apps/app`   | Tenant-less entry: login, org picker, accept invite, create workspace |
 | `api.patchgrid.xyz`    | `apps/api`   | NestJS — all business logic and data access                           |
-| `admin.patchgrid.xyz`  | _(reserved)_ | Platform back-office, later                                           |
+| `admin.patchgrid.xyz`  | `apps/app`   | The operators' back-office: workspace metadata, never content (ADR-0040) |
 
 A company signs up on the marketing site, picks a slug, and lands in its own workspace at `acme.patchgrid.xyz` with teams, a category tree, SLA policies and starter knowledge-base articles already provisioned.
 
@@ -53,6 +53,7 @@ The resulting Priority (Low / Medium / High / Critical) selects the SLA policy. 
 
 | File                     | Purpose                                                                                       |
 | ------------------------ | --------------------------------------------------------------------------------------------- |
+| `README.md`              | The documentation hub: every document by the question it answers, and reading paths           |
 | `PROJECT.md` (this file) | What we are building, for whom, and what we are _not_ building                                |
 | `TENANCY.md`             | The multi-tenant model: identity, membership, isolation, provisioning, limits                 |
 | `RBAC.md`                | Authorization: actors, permission catalog, matrix, platform admin, support access, API tokens |
@@ -61,8 +62,9 @@ The resulting Priority (Low / Medium / High / Critical) selects the SLA policy. 
 | `ENGINEERING.md`         | Conventions, API rules, testing, CI, local development                                        |
 | `FEATURES.md`            | Scope as milestones — the working backlog                                                     |
 | `DNS.md`                 | Hostnames, wildcard TLS, mail DNS, and the custom-domain path                                 |
+| `THREAT-MODEL.md`        | Assets, actors, trust boundaries, STRIDE, accepted risks, and each security review's findings |
 | `decisions/`             | One ADR per non-obvious decision                                                              |
-| `SPEC-REVIEW.md`         | Working review log — findings burn down into the docs above, then the file is deleted         |
+| `SPEC-REVIEW.md`         | The review of these documents before and during M0, and where each finding landed; a record  |
 | `HANDOFF.md`             | State of play at the current milestone boundary — read first when picking the work back up    |
 | `../CLAUDE.md`           | Rules for AI coding agents working in this repo                                               |
 
