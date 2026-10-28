@@ -15,8 +15,6 @@ try {
 const defaults: Record<string, string> = {
   NODE_ENV: "test",
   LOG_LEVEL: "silent",
-  // The lifecycle specs drive one endpoint dozens of times from one address.
-  THROTTLE_ENABLED: "false",
   JWT_SECRET: "integration-test-secret-that-is-at-least-32-chars",
   REDIS_URL: "redis://localhost:6379",
   // docker-compose.yml's MinIO, as CI starts it with no .env: the attachment specs PUT real bytes.
@@ -33,6 +31,11 @@ const defaults: Record<string, string> = {
 for (const [name, value] of Object.entries(defaults)) {
   if (process.env[name] === undefined || process.env[name] === "") process.env[name] = value
 }
+
+// Off whatever `.env` says: `.env.example` turns the limits on for `pnpm dev`, and every spec signs its
+// people in from one address, so the login budget runs out and the rest of the run is a 401. The
+// throttling specs drive the storage directly.
+process.env.THROTTLE_ENABLED = "false"
 
 // Specs get their own Redis database. A `pnpm dev` API on the same Redis is
 // another worker on the same queues, and would take the mail jobs a spec is
