@@ -480,4 +480,5 @@ lockfile and CI cannot disagree about which pnpm produced them.
   `0000-template.md`. **The Context, Options, Decision and Consequences sections are never edited after
   acceptance** — a changed mind is a new ADR. The Status line *is* updated, to record supersession, and
   `decisions/README.md` is updated in the same PR.
+- `docs/README.md` is the documentation hub. A new document gets its row there, in the table for the question it answers, in the same PR.
 - The root `README.md` is portfolio-facing: what it is, screenshots, architecture diagram, "why these decisions" linking to ADRs, how to run locally. It is written in the final milestone but kept honest as features land.

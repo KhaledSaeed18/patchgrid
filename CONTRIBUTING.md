@@ -7,14 +7,15 @@ and they are worth knowing if you are reading the code or running it.
 ## Running it
 
 ```bash
-cp .env.example .env            # ports are overridable; 5432 is often already taken
 pnpm install
-docker compose up -d            # postgres, redis, minio, mailpit
-pnpm db:bootstrap               # roles, grants, default privileges, extensions
-pnpm db:generate                # Prisma client
-pnpm db:doctor                  # asserts the above actually took effect
+pnpm local:up                   # .env, containers, roles, migrations, db:doctor, the demo seed
 pnpm dev                        # www :3000, app :3001, api :4000
 ```
+
+`pnpm local:up` is safe to run again. It copies `.env.example` to `.env` if there is none; ports are
+overridable there, and 5432 is often already taken. Step by step, it is `docker compose up -d`, the MinIO
+bucket, `pnpm db:bootstrap` (roles, grants, default privileges), `pnpm db:migrate`, `pnpm db:generate`,
+`pnpm db:doctor` (asserts the roles took effect) and `pnpm db:seed`.
 
 `docs/ENGINEERING.md` §Local development has the detail, including the three
 local-hostname tiers and why `db:reset` runs the bootstrap _after_ the reset.
@@ -33,6 +34,7 @@ The documentation is the specification, not a description written afterwards:
 | How do we write and ship code?                          | `docs/ENGINEERING.md`  |
 | What are we building next?                              | `docs/FEATURES.md`     |
 | _Why_ is any of it this way?                            | `docs/decisions/`      |
+| Where is everything else?                               | `docs/README.md`       |
 
 If code and a document disagree, one of them is wrong — fix it, do not work around
 it. A change to a rule ships in the same PR as the code that changes it.
