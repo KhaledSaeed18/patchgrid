@@ -1,25 +1,170 @@
+<div align="center">
+
 # Patchgrid
 
+**Multi-tenant IT service management, built the way a production SaaS has to be.**
+
+Incidents, service requests, problems and changes for IT and security teams, with every company on
+its own subdomain and its data isolated by the database itself.
+
 [![CI](https://github.com/KhaledSaeed18/patchgrid/actions/workflows/ci.yml/badge.svg)](https://github.com/KhaledSaeed18/patchgrid/actions/workflows/ci.yml)
+[![AWS rehearsal](https://github.com/KhaledSaeed18/patchgrid/actions/workflows/aws.yml/badge.svg)](https://github.com/KhaledSaeed18/patchgrid/actions/workflows/aws.yml)
 [![CodeQL](https://github.com/KhaledSaeed18/patchgrid/actions/workflows/codeql.yml/badge.svg)](https://github.com/KhaledSaeed18/patchgrid/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-24-339933?logo=node.js&logoColor=white)](.nvmrc)
 
-A **multi-tenant IT service management platform** — ticketing and operations for IT
-and security teams, built as a production-grade reference rather than a tutorial.
+[The demo](#try-it-in-five-minutes) · [Architecture](#architecture-in-one-picture) ·
+[Engineering highlights](#engineering-highlights) · [Documentation](docs/README.md) ·
+[Decisions](docs/decisions/README.md)
 
-Incidents, service requests, problems and changes are four different things with four
-different lifecycles. Priority is computed from impact × urgency, never typed into a
-dropdown. Each company gets its own subdomain, and its data is isolated at the
-**database** level — not by remembering to add a `WHERE` clause.
+![An agent's queue: computed priorities, deadlines counting down, the overdue ones marked](docs/images/queue.png)
 
+</div>
+
+---
+
+## What it is
+
+Patchgrid is a ticketing and operations platform for internal IT desks: a scoped-down Freshservice or
+Jira Service Management. It is a portfolio and learning project, but it is built as if it were going
+to production. There are three deployables and a tenant per subdomain. Isolation is enforced in the
+schema, the application and Postgres row-level security. The design behind it is written down in
+59 architecture decision records.
+
+Three ideas run through the whole system:
+
+- **An incident is not a change.** Patchgrid models four ITIL record types, each with its own
+  lifecycle, instead of one generic "ticket" with a status dropdown.
+- **Nobody types a priority.** Priority is computed from impact × urgency, and the SLA deadlines follow
+  from it. A client that sends one gets a `400`.
+- **Isolation is a property of the schema, not a habit.** A cross-tenant reference cannot be written,
+  and the application's database role cannot bypass row-level security.
+
+|                   |                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| **Record types**  | Incident · Service request · Problem · Change, each with its own state machine                            |
+| **Deployables**   | `www` (Next.js marketing) · `app` (Next.js workspace) · `api` (NestJS, API and workers)                   |
+| **Isolation**     | 5 layers, from composite foreign keys to `FORCE ROW LEVEL SECURITY`, gated by a dedicated suite           |
+| **Authorization** | 4 cumulative roles, team leads as a scoped capability, a 400-test authorization suite in CI               |
+| **Tests**         | 2,300+ automated: unit, integration on real Postgres and Redis, tenancy, authz, browser                   |
+| **Deployment**    | A production rehearsal on emulated AWS (ECS, ALB, RDS, ElastiCache, S3, SES), deployed from nothing in CI |
+| **Decisions**     | [59 ADRs](docs/decisions/README.md), each with the alternatives it beat                                   |
+
+## A tour
+
+|                                                                                                                  |                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| ![The marketing site, with the impact × urgency matrix](docs/images/www.png)                                     | ![An incident: its lifecycle actions, an internal note, linked assets and tickets](docs/images/incident.png) |
+| **The marketing site.** Signup provisions a workspace on its own subdomain.                                      | **An incident.** Only the transitions its state allows are offered; internal notes are visibly apart.        |
+| ![A requester's portal: everything they raised, including tickets that arrived by email](docs/images/portal.png) | ![A change awaiting the team lead's approval, with its plan and rollback](docs/images/change.png)            |
+| **The requester portal.** Tickets raised on the web or by email, priority computed for them.                     | **A change.** A plan, a risk, and an approval by someone other than its author.                              |
+| ![Reports: SLA compliance by priority, and the open backlog by age](docs/images/reports.png)                     | ![The knowledge base: published answers, internal runbooks and drafts](docs/images/knowledge.png)            |
+| **Reports.** SLA compliance, time to resolve, backlog by age, read from a model of their own.                    | **The knowledge base.** Drafts, internal runbooks and published answers, suggested as a requester types.     |
+
+## Try it in five minutes
+
+You need **Node 24**, **pnpm 10** and **Docker**.
+
+```bash
+git clone https://github.com/KhaledSaeed18/patchgrid.git && cd patchgrid
+pnpm install
+pnpm local:up   # .env, containers, database roles, migrations, isolation checks (6/6), demo seed
+pnpm dev        # www :3000 · app :3001 · api :4000
 ```
-patchgrid.xyz           marketing            apps/www    Next.js
-<slug>.patchgrid.xyz    tenant workspace     apps/app    Next.js
-api.patchgrid.xyz       everything else      apps/api    NestJS
-```
 
-## Architecture
+Then sign in at **http://app.lvh.me:3001**. Every password is `patchgrid-demo`.
+
+| Account                | Who they are                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `rita@patchgrid.test`  | Requester at Acme: the portal                                                            |
+| `sam@patchgrid.test`   | Agent at Acme, lead of the Network team: the queues and change approvals                 |
+| `alice@patchgrid.test` | Owner of Acme: settings, reports, members, SSO                                           |
+| `dana@patchgrid.test`  | Admin at Acme **and** agent at Globex; also the platform operator at `admin.lvh.me:3001` |
+| `gus@patchgrid.test`   | Owner of Globex                                                                          |
+
+`lvh.me` and every subdomain of it resolve to `127.0.0.1`, so tenant subdomains work locally with no
+`/etc/hosts` changes.
+
+### A guided demo
+
+1. **Raise a ticket as Rita.** She says what it affects and how urgent it is. The priority and both
+   SLA deadlines are computed for her.
+2. **Pick it up as Sam** in a second browser profile. His queue refreshes itself over Server-Sent
+   Events, and assigning it to him raises an "assigned to you" toast. Reply, then add an internal note:
+   Rita sees the reply and never the note.
+3. **Mail a ticket in.** The script signs the message as a receiving mail server would. Add
+   `--dmarc fail` to watch a forged sender get refused:
+   ```bash
+   pnpm --filter @patchgrid/api run inbound:send -- --from rita@patchgrid.test --to acme --subject "Printer jammed"
+   ```
+   Outgoing notifications land in Mailpit at http://localhost:8025.
+4. **Walk a change through approval.** As lead of Network, Sam finds changes waiting under "Awaiting my
+   approval". A change's author is never offered its approval, so someone else has to decide.
+5. **Look at it as the owner.** As Alice: reports, the audit log, webhooks with their delivery log,
+   API tokens, SLA targets and single sign-on, all under Settings.
+6. **Be two companies at once.** Dana sees a workspace picker. Open Acme in one tab and Globex in the
+   other; each tab keeps its own session, and neither list ever shows the other's tickets.
+7. **Try to cross the line.** Signed in only to Acme, open `http://globex.lvh.me:3001`. You are sent
+   away, and the API answers `401` to Acme's cookies asked as Globex. An agent opening an admin page
+   gets "Nothing here", and promoting anyone, themselves included, is a `403`.
+
+Optional profiles add more of the system: `--profile sso` (Keycloak as Acme's identity provider),
+`--profile observability` (traces and a per-tenant Grafana dashboard) and `--profile dns` (CoreDNS for
+the domain proof). Their setup is in [`docs/HANDOFF.md`](docs/HANDOFF.md#running-it).
+
+## What it does
+
+**Service desk**
+
+- **Four record types, four lifecycles.** Incidents, service requests, problems (root cause,
+  workaround, known errors) and changes (plan, risk, independent approval, recorded outcome). Tickets
+  link to each other as caused by, resolves, duplicate of or relates to.
+- **Computed priority and SLA clocks.** Response and resolution targets that run 24×7 and pause while
+  waiting on the requester. A per-tenant sweep flags warnings and breaches once each, and resolved
+  tickets close themselves after seven days.
+- **Queues, saved views and bulk actions** for up to two hundred tickets, each ticket answering for
+  itself. Per-org numbering (`INC-000042`), routing by category, and full-text search.
+- **Email intake.** Mail to `<slug>@inbound.<domain>` becomes a ticket, and replies thread onto it,
+  but only from senders who pass DMARC. External requesters are supported as an opt-in.
+- **Context.** Attachments uploaded straight to object storage and checked by their bytes, an asset
+  register (laptops to licences), and a knowledge base with versioned articles.
+- **Reports.** SLA compliance by priority, type, team, category or assignee, median and p90 time to
+  resolve, backlog by age and workload, with CSV export.
+
+**People and identity**
+
+- **Workspaces and roles.** Self-service signup and provisioning, invitations, roles on the membership
+  (`REQUESTER ⊂ AGENT ⊂ ADMIN ⊂ OWNER`), agents in several teams, team leads, and one person in many
+  workspaces through a picker.
+- **Strong authentication.** TOTP and passkeys, a workspace-wide "require MFA" switch, and a fresh
+  proof (step-up) before anything irreversible.
+- **Per-tenant single sign-on.** A workspace proves its email domain by DNS and connects its own
+  OpenID Connect provider. Members are provisioned on first sign-in, and an SSO session opens that
+  workspace and no other.
+
+**Integration and operations**
+
+- **Live notifications**: an inbox, a bell, live updates over SSE, and email with per-member
+  preferences, delivered at least once from a transactional outbox.
+- **Webhooks**: Standard Webhooks signatures, retries with backoff, a circuit breaker, a replayable
+  delivery log, and SSRF checks at connection time.
+- **Scoped API tokens**, each its own service account, whose scopes can never exceed its role.
+- **Observability**: OpenTelemetry traces and metrics that say which tenant is slow, with a bounded
+  tenant label.
+
+**The platform layer**
+
+- **An operator back-office** at `admin.` with its own login and TOTP. It sees workspace metadata,
+  never content.
+- **Support access only by consent.** An owner grants it for a few hours, it is read-only, and every
+  page it opens is written to the customer's own audit log. There is no impersonation, ever.
+- **Data protection**: a streamed workspace export, self-service account erasure, retention sweeps,
+  and workspace deletion with a 30-day grace period followed by a purge.
+
+The full scope, milestone by milestone, is in [`docs/FEATURES.md`](docs/FEATURES.md). What it
+deliberately does not do is in [`docs/PROJECT.md`](docs/PROJECT.md#explicit-non-goals).
+
+## Architecture in one picture
 
 ```mermaid
 flowchart LR
@@ -34,7 +179,7 @@ flowchart LR
   pg[("Postgres 17<br/>RLS on every tenant table")]
   redis[("Redis<br/>queues, throttles, caches")]
   s3[("Object storage<br/>its own registrable domain")]
-  smtp[SMTP]
+  smtp[SMTP / SES]
 
   browser -->|patchgrid.xyz| www
   browser -->|"slug. · app. · admin."| app
@@ -49,283 +194,172 @@ flowchart LR
   worker -->|mail| smtp
 ```
 
-The application connects as `patchgrid_app`, a role with no `BYPASSRLS`, and sets the tenant with a
-transaction-local `set_config` before every query. Jobs carry their `orgId` and run inside that tenant.
-Images and the production topology: [`ARCHITECTURE.md`](docs/ARCHITECTURE.md#production-images-and-the-deployment-shape).
+| Host                   | App        | What it is                                          |
+| ---------------------- | ---------- | --------------------------------------------------- |
+| `patchgrid.xyz`        | `apps/www` | Landing, pricing, docs, blog, signup                |
+| `<slug>.patchgrid.xyz` | `apps/app` | A tenant's workspace: the product                   |
+| `app.patchgrid.xyz`    | `apps/app` | Tenant-less: login, workspace picker, new workspace |
+| `admin.patchgrid.xyz`  | `apps/app` | The operators' back-office                          |
+| `api.patchgrid.xyz`    | `apps/api` | NestJS: all business logic and data access          |
 
-|                                                                                                   |                                                                                                      |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| ![The marketing site](docs/images/www.png)                                                        | ![An agent's queue, with deadlines counting down and the overdue ones marked](docs/images/queue.png) |
-| ![A change awaiting the team lead's approval, with its plan and rollback](docs/images/change.png) | ![The knowledge base: published answers, internal runbooks and drafts](docs/images/knowledge.png)    |
+- **The frontends hold no data access.** Server components call the API over HTTP like any other
+  client, so tenancy, authorization, SLA math and auditing live in exactly one place.
+- **The API is layered** Controller → Service → Repository, and lint enforces it: only repositories
+  import Prisma, and only four modules may touch the request context.
+- **One image, two roles.** The same API image serves HTTP or runs the BullMQ workers, chosen by
+  `WORKER_MODE`.
+- **Contracts are shared, not generated.** Zod schemas in `packages/contracts` define every wire shape
+  once, for all three apps.
 
-## Isolation, in five layers
+The request pipeline, data model, background jobs and integration boundaries are in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-The thing this project is actually about:
+## Engineering highlights
 
-0. **Schema shape** — composite `(orgId, id)` foreign keys, so a cross-tenant
-   reference is _unrepresentable_. PostgreSQL runs referential-integrity checks with
-   row security off, so this is the layer the other four cannot provide.
-1. **Request context** — the tenant comes from the credential, never the host
-2. **Repository arguments** — every method takes an explicit `orgId`
-3. **Prisma client extension** — transaction-local `set_config`, throws without context
-4. **Postgres RLS** — `FORCE ROW LEVEL SECURITY`, and an app role that holds no `BYPASSRLS`
+### Tenant isolation, in five layers
 
-The same discipline reaches everything that runs without a request. Background jobs
-carry their `orgId` and run inside that tenant. Sweeps go dispatcher → one job per
-tenant, never one global scan. The live notification stream listens on
-`org:<orgId>` for the credential's org only, and sends a ticket event only to
-members who could open that ticket — a CI test holds that decision equal to the one
-`GET /tickets/:id` makes. A tenancy suite of numbered assertions gates every merge.
+This is what the project is really about. Each layer would catch a mistake the others let through:
 
-## What works today
+| #   | Layer                    | What it does                                                                                                                                                                                                                                                                           |
+| --- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | **Schema shape**         | Foreign keys between tenant tables are composite on `(orgId, id)`. Postgres checks foreign keys with row security _off_, so this is the only layer that makes a cross-tenant reference unrepresentable ([ADR-0023](docs/decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md)) |
+| 1   | **Request context**      | The tenant comes from the credential, never from the `Host` or a request field. The origin is only a cross-check ([ADR-0024](docs/decisions/0024-per-tenant-cookies-and-api-tenant-resolution.md))                                                                                     |
+| 2   | **Repository arguments** | Every repository method takes an explicit `orgId` and filters on it                                                                                                                                                                                                                    |
+| 3   | **Prisma extension**     | A transaction-local `set_config` before every query, and an error without a tenant context                                                                                                                                                                                             |
+| 4   | **Postgres RLS**         | A policy on every tenant table, and an app role with no `BYPASSRLS`, asserted by `db:doctor` to be no member of the table owner ([ADR-0015](docs/decisions/0015-tenant-isolation-rls.md), [ADR-0059](docs/decisions/0059-rds-compatible-database-roles.md))                            |
 
-- **Workspaces and people** — signup and provisioning, invitations, roles on the
-  membership (`REQUESTER ⊂ AGENT ⊂ ADMIN ⊂ OWNER`), multi-team agents, team leads,
-  per-tenant sessions, an org picker for people in several workspaces, audit log.
-- **Incidents end to end** — a portal for requesters and a console for agents:
-  - computed priority and per-org numbers (`INC-000042`), routing by category;
-  - a transition table with required notes, and stale-write `409`s;
-  - public replies and internal notes, watchers, and full-text search.
-- **Four record types, four lifecycles** — service requests; problems with root
-  cause, workaround and known errors; changes with a plan, a risk, an approval by
-  someone other than their author, and a recorded outcome. Tickets link to each
-  other (caused by, resolves, duplicate of, relates to), read from either end.
-- **Files** — attachments on tickets and replies, uploaded straight to object storage
-  with a presigned URL, checked by their bytes rather than their name, and served
-  from a domain that shares nothing with the app. Each workspace has a storage quota.
-- **Assets** — a register of laptops, phones, printers, network kit and licences:
-  who has each, its warranty, and every ticket raised about it. Requesters see
-  their own and name them when they raise a ticket.
-- **Email intake** — mail to `<slug>@inbound.<domain>` becomes a ticket, and a reply to a
-  ticket email lands on its ticket. That only happens when the sender passes DMARC and is a
-  member — or, when a workspace opts in, someone outside it, who becomes an external requester:
-  a membership with no account, badged as such, who hears back by email. Everything else is
-  recorded in an admin's inbound log and left at that: forged senders, strangers,
-  autoresponders and floods.
-- **Knowledge base** — markdown articles that are drafts, internal runbooks or
-  published to the workspace. Full-text search; versioned edits; suggestions under
-  a new ticket's title while a requester types.
-- **SLA clocks** — response and resolution targets with pause on pending. A
-  per-tenant scan flags warnings and breaches once each and audits them. Resolved
-  tickets auto-close after seven days.
-- **Hardening** — a second factor for members, required per workspace if an owner says so,
-  with a fresh proof before deleting the workspace, making an owner, granting support access
-  or minting a token; traces and metrics that say which tenant is slow; a browser suite that
-  proves one workspace's session reaches nothing of another's.
-- **Passkeys and single sign-on** — a passkey signs in with nothing typed, completes a password
-  login's second step, and proves a step-up; it counts only on the workspace hosts. A workspace can
-  prove its email domain by DNS and connect its own OpenID Connect provider (PKCE, the token's
-  signature checked, every request to the provider SSRF-guarded): people at the domain sign in through
-  it and are added on first sign-in at a default role. That session opens that workspace and no other,
-  and "SSO required" always leaves the owners their own way in. Without a provider, an owner can let
-  anyone with a verified address at the proved domain join on their own.
-- **Notifications** —
-  - a bell and inbox, with a burst on one ticket folded into one row;
-  - live updates over Server-Sent Events, including an "assigned to you" toast and
-    queues and ticket pages that refresh themselves;
-  - email for assignments, replies, status changes, SLA events and plan limits reached, with
-    preferences per membership and a workspace-wide off switch — queued with the event it
-    reports, so at least once.
-- **Reports** — SLA compliance by priority, type, team, category or assignee, time to resolve
-  (median and p90), the open backlog by age, and who holds the work, with a CSV download.
-- **Saved views and bulk actions** — a queue's filters saved for oneself or a team, and up to two
-  hundred tickets assigned or moved at once, each ticket answering for itself.
-- **Webhooks** — an admin subscribes an https endpoint to ticket events. Requests are signed
-  (Standard Webhooks), carry ids and states but never a ticket's words, are retried with growing
-  waits, pause a failing endpoint behind a circuit breaker, and can be replayed from a delivery log.
-  An address that resolves anywhere private is refused at the moment of connecting. An event any
-  consumer gave up on can be replayed by an admin.
-- **Housekeeping jobs** — audit-log partitions kept a month ahead and archived past
-  seven years (two on the free plan), a nightly repair of the org picker's projection, a
-  nightly recount of every plan counter from its rows, and a sweep that clears uploads
-  nobody finished and gives their quota back.
-- **The platform layer** —
-  - an operator back-office at `admin.<domain>`, behind its own login and a TOTP second
-    factor, that sees workspace metadata and never their content;
-  - support access an owner grants for a few hours: read-only, through the workspace's own
-    routes, every page it opens written to the workspace's audit log;
-  - scoped API tokens, each its own service account, so a monitoring system can raise
-    incidents and can never manage members, settings or other tokens;
-  - deleting a workspace: thirty days to change your mind, then a purge that leaves only
-    a nameless record, so its address is never reused;
-  - a workspace export streamed as a zip, self-service account erasure that keeps what
-    you wrote under "Former member", and retention sweeps.
+The same rule holds for work outside a request. Background jobs carry their `orgId` and run inside
+that tenant. Sweeps fan out one job per tenant rather than doing one global scan. The live stream
+sends a ticket event only to members who could open that ticket, and a test holds that decision equal
+to the one `GET /tickets/:id` makes. Full model: [`docs/TENANCY.md`](docs/TENANCY.md).
 
-## Why it is built this way
+### Decisions worth reading
 
-Every choice here has a decision record with the alternatives it beat. The ones that shape the most:
+Every choice has an ADR that records the context, the options and why one won. These shape the
+system the most:
 
-- **Shared schema, row-level security, and composite foreign keys** — not a schema or database per
-  tenant, and not RLS alone: PostgreSQL checks foreign keys with row security off, so `(orgId, id)` keys
-  make a cross-tenant reference impossible to write.
-  [ADR-0015](docs/decisions/0015-tenant-isolation-rls.md) ·
-  [ADR-0023](docs/decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md) ·
-  [post](apps/www/content/blog/foreign-keys-that-leak.mdx)
-- **The tenant comes from the credential**, never from the `Host` or a request field; the origin is a
-  cross-check. [ADR-0024](docs/decisions/0024-per-tenant-cookies-and-api-tenant-resolution.md) ·
-  [post](apps/www/content/blog/the-tenant-comes-from-the-credential.mdx)
-- **Priority is computed** from impact and urgency, and a client that sends one gets a `400`; SLA clocks
-  run 24×7 and pause only while waiting on the requester.
-  [ADR-0003](docs/decisions/0003-sla-24x7-with-pending-pause.md) · [post](apps/www/content/blog/priority-is-computed.mdx)
-- **Four lifecycles, one transition endpoint** — per-type state machines and extension tables, and
-  status changes only through `POST /tickets/:id/transitions`.
-  [ADR-0002](docs/decisions/0002-per-type-state-machines-and-extension-tables.md) ·
-  [ADR-0006](docs/decisions/0006-explicit-transition-endpoint.md)
-- **Authorization in the service, on a resolved subject**, deny by default, with visibility as a list
-  of query branches rather than one `where`. Reads you may not see are `404`, actions you may not take
-  `403`. [ADR-0019](docs/decisions/0019-rbac-model-and-enforcement.md)
-- **Background work is per tenant** — a dispatcher fans out one job per workspace, never one global
-  scan. [ADR-0018](docs/decisions/0018-tenant-aware-jobs-and-events.md)
-- **A transactional outbox, read as a log** — what follows a change is written in the change's own
-  transaction and read in transaction-id order below the snapshot horizon, so nothing is lost, repeated
-  or skipped; each consumer keeps its own cursor.
-  [ADR-0049](docs/decisions/0049-transactional-outbox-as-a-tenant-log.md)
-- **Reports from a read model of their own** — a fact row per ticket, refreshed from the log and
-  checked nightly against the tickets, so reports never compete with the queues.
-  [ADR-0051](docs/decisions/0051-reporting-read-side.md)
-- **Webhooks nobody else pays for** — thin signed events, at least once, a circuit with one probe, a
-  per-tenant in-flight cap, and SSRF checked in the connection's own `lookup`.
-  [ADR-0050](docs/decisions/0050-outbound-webhooks.md)
-- **API tokens are actors, not bypasses**: each is a service account whose scopes intersect its role.
-  [ADR-0021](docs/decisions/0021-api-tokens-as-service-accounts.md)
-- **No impersonation**: operators read a workspace only in an owner-granted, read-only, audited support
-  session. [ADR-0020](docs/decisions/0020-consent-based-support-access.md)
-- **Files never share a site with the app** — served from their own registrable domain, landing in a
-  staging prefix until they are confirmed.
-  [ADR-0037](docs/decisions/0037-attachments-on-their-own-registrable-domain.md) ·
-  [ADR-0038](docs/decisions/0038-uploads-land-in-staging.md)
-- **Mail is trusted on its verdict**, not its `From:` line: only DMARC-passing members raise tickets.
-  [ADR-0039](docs/decisions/0039-inbound-mail-feed-and-verdict.md)
-- **Step-up before the irreversible** — a fresh second-factor proof to delete a workspace, make an owner,
-  grant support access or mint a token. [ADR-0045](docs/decisions/0045-member-mfa-as-built.md)
-- **Traces that know the tenant**, with the metrics label bounded so one noisy workspace cannot blow
-  up the series count. [ADR-0046](docs/decisions/0046-observability-as-built.md)
+| Decision                                            | Why                                                                                                                               | Record                                                                                                                                    |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared schema + RLS + composite keys                | Not a database per tenant, and not RLS alone                                                                                      | [0015](docs/decisions/0015-tenant-isolation-rls.md) · [0023](docs/decisions/0023-identity-keys-and-tenant-safe-foreign-keys.md)           |
+| Authorization in the service, on a resolved subject | A pure `can()`, deny by default; reads you may not see are `404`, actions you may not take `403`                                  | [0019](docs/decisions/0019-rbac-model-and-enforcement.md)                                                                                 |
+| Per-type state machines, one transition endpoint    | Status changes only through `POST /tickets/:id/transitions`                                                                       | [0002](docs/decisions/0002-per-type-state-machines-and-extension-tables.md) · [0006](docs/decisions/0006-explicit-transition-endpoint.md) |
+| A transactional outbox, read as a per-tenant log    | Side effects written in the change's own transaction and read below the snapshot horizon, so nothing is lost, repeated or skipped | [0049](docs/decisions/0049-transactional-outbox-as-a-tenant-log.md)                                                                       |
+| Reports from a read model of their own              | One fact row per ticket, refreshed from the log and reconciled nightly                                                            | [0051](docs/decisions/0051-reporting-read-side.md)                                                                                        |
+| Webhooks nobody else pays for                       | Thin signed events, a circuit with one probe, a per-tenant in-flight cap                                                          | [0050](docs/decisions/0050-outbound-webhooks.md)                                                                                          |
+| Files on their own registrable domain               | User content never shares a site, or cookies, with the app                                                                        | [0037](docs/decisions/0037-attachments-on-their-own-registrable-domain.md) · [0038](docs/decisions/0038-uploads-land-in-staging.md)       |
+| Mail trusted on its verdict                         | Only DMARC-passing senders raise tickets, not whoever the `From:` line names                                                      | [0039](docs/decisions/0039-inbound-mail-feed-and-verdict.md)                                                                              |
+| No impersonation                                    | Operators read a workspace only in an owner-granted, read-only, audited session                                                   | [0020](docs/decisions/0020-consent-based-support-access.md)                                                                               |
+| Passkeys and per-tenant SSO                         | An identity provider vouches for its own workspace only                                                                           | [0053](docs/decisions/0053-passkeys.md) · [0054](docs/decisions/0054-per-tenant-oidc-sso.md)                                              |
 
-The [threat model](docs/THREAT-MODEL.md) records what a three-way security review found and how each
-finding was fixed ([post](apps/www/content/blog/what-a-security-review-found.mdx)).
+All 59, with a suggested reading order: [`docs/decisions/`](docs/decisions/README.md). Four longer
+write-ups are on the marketing site's blog:
+[foreign keys that leak](apps/www/content/blog/foreign-keys-that-leak.mdx),
+[the tenant comes from the credential](apps/www/content/blog/the-tenant-comes-from-the-credential.mdx),
+[priority is computed](apps/www/content/blog/priority-is-computed.mdx) and
+[what a security review found](apps/www/content/blog/what-a-security-review-found.mdx).
 
-## Running it
+### Security
 
-You need Node 24, pnpm 10 and Docker. From a fresh clone:
+A threat model with thirteen trust boundaries and STRIDE per boundary, plus five security reviews
+(M9 and M11–M14). Each finding is recorded with its fix or the reason it was
+accepted: [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md). To report a vulnerability, see
+[`SECURITY.md`](SECURITY.md).
+
+### Quality gates
+
+| Suite                 | What it proves                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `pnpm test`           | 1,550+ unit tests: transitions, priority, SLA math, permissions, quotas, contracts                    |
+| `pnpm test:tenancy`   | The schema catalog (every tenant table has its policy, keys and indexes) and the isolation suite      |
+| `pnpm test:authz`     | The permission matrix cell by cell, and that every route asserts a permission or is explicitly public |
+| `test:integration`    | 300+ specs against real Postgres, Redis, MinIO and queues                                             |
+| `test:e2e`            | A Playwright suite across two tenants, built around the negative cases                                |
+| `pnpm aws:run verify` | The isolation suite again, from inside the VPC, through PgBouncer                                     |
+
+CI also enforces lint with zero warnings and the architectural import boundaries, checks for schema
+drift, asserts the database roles (`db:doctor`), scans the full history for secrets, runs CodeQL,
+builds all three images, and smoke-tests the whole stack. Time is injected through a `Clock`, so no
+test sleeps. Details: [`docs/ENGINEERING.md`](docs/ENGINEERING.md).
+
+### Production rehearsal on emulated AWS
+
+Patchgrid is deliberately not hosted publicly
+([ADR-0047](docs/decisions/0047-no-public-deployment.md)). Instead, the production deployment is
+rehearsed for real on [Floci](https://floci.io/floci/), an AWS emulator, and provisioned by OpenTofu
+from modules written for real AWS
+([ADR-0058](docs/decisions/0058-production-rehearsal-on-emulated-aws.md)):
 
 ```bash
-pnpm install
-pnpm local:up   # .env, containers, roles, migrations, the isolation checks (6/6), the demo seed
-pnpm dev
-```
-
-`pnpm local:up` is safe to run again; `pnpm db:reset` starts the database over.
-
-`www` on `lvh.me:3000`, `app` on `<slug>.lvh.me:3001`, `api` on `api.lvh.me:4000`.
-Outgoing mail lands in Mailpit at `localhost:8025`. To mail a ticket in, run
-`pnpm --filter @patchgrid/api run inbound:send -- --from rita@patchgrid.test --to acme`.
-It signs the message as the receiving server would; add `--dmarc fail` to see a forged one
-refused. Attachments are served by MinIO
-at `localhost:9000` — a different site from `lvh.me`, as files must be (ADR-0037).
-
-To see which tenant is slow, start the observability profile and point the API at it
-(ADR-0030, ADR-0046): `docker compose --profile observability up -d`, then set
-`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` in `.env` and restart `pnpm dev`. Grafana is at
-`localhost:3100` with the dashboard "Patchgrid — which tenant is slow"; traces in Tempo carry the
-tenant, and a 5xx's `correlationId` is the trace id.
-
-Sign in at `app.lvh.me:3001` with password `patchgrid-demo`:
-
-| Account               | Who they are                                                                                                                                                |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dana@patchgrid.test` | Admin at Acme and agent at Globex — sees the workspace picker; also the platform operator at `admin.lvh.me:3001`, who enrols a TOTP factor on first sign-in |
-| `sam@patchgrid.test`  | Agent at Acme                                                                                                                                               |
-| `rita@patchgrid.test` | Requester at Acme                                                                                                                                           |
-
-### On emulated AWS
-
-The production rehearsal (ADR-0058) needs OpenTofu (`brew install opentofu`) and about 20 GB free:
-
-```bash
-pnpm aws:up            # Floci, the platform, then build → push → migrate → roll → healthy
+pnpm aws:up            # Floci, the platform, then build → push to ECR → migrate → roll → healthy
 pnpm aws:run verify    # the tenancy suite inside the VPC, through PgBouncer
-pnpm aws:e2e           # the browser suite through the load balancer on https://*.patchgrid.test
+pnpm aws:e2e           # the browser suite through the HTTPS load balancer, passkeys included
 pnpm aws:down
 ```
 
-`infra/README.md` says how to open it in a browser, and where Floci differs from AWS.
+That covers ECS services behind an ALB with an ACM wildcard certificate, RDS PostgreSQL 17 with roles
+RDS itself could create, ElastiCache with TLS and AUTH, S3, SES, and Secrets Manager under KMS. CI
+deploys all of it from nothing on every change to `main`. The runbook, and every place Floci differs
+from AWS, is in [`infra/README.md`](infra/README.md).
 
-### Tests
+## Tech stack
 
-```bash
-pnpm turbo lint typecheck test build
-pnpm test:tenancy                                      # schema catalog + isolation suite
-pnpm test:authz                                        # permission matrix + route coverage
-pnpm --filter @patchgrid/api run test:integration      # real Postgres, Redis and queues
-pnpm --filter @patchgrid/database run test:integration
+| Concern              | Choice                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| Language and tooling | TypeScript (strict, no `any`) · Node 24 · pnpm 10 · Turborepo                                     |
+| Frontends            | Next.js 16 (App Router) · React 19 · Tailwind CSS 4 · shadcn/ui                                   |
+| Backend              | NestJS 11 · Zod 4 contracts shared through `packages/contracts`                                   |
+| Data                 | PostgreSQL 17 with row-level security · Prisma 7 · Redis 7 + BullMQ                               |
+| Files and mail       | S3 (MinIO locally) · SMTP (Mailpit locally) or SES                                                |
+| Identity             | Argon2id · JWT access + rotating refresh in per-tenant cookies · TOTP · WebAuthn · OpenID Connect |
+| Observability        | OpenTelemetry · Tempo · Prometheus · Grafana · pino                                               |
+| Testing              | Vitest · Playwright · real Postgres for integration                                               |
+| Infrastructure       | Docker · OpenTofu · Floci (ECS, ALB, RDS, ElastiCache, S3, SES, KMS) · GitHub Actions             |
+
+## Repository layout
+
 ```
-
-Time is injected, so SLA and worker tests run on fake timers and nothing sleeps.
+apps/
+  www/              Marketing site, docs and blog (Next.js)
+  app/              The tenant workspace, the tenant-less entry and the back-office (Next.js)
+  api/              NestJS: HTTP API, background workers, mail, webhooks
+packages/
+  database/         Prisma schema, migrations, hand-written RLS policies, the role bootstrap, the seed
+  contracts/        Zod schemas for every request and response, the permission catalog, limits
+  ui/               Shared shadcn components and design tokens
+  eslint-config/    Lint rules, including the architectural import zones
+  typescript-config/
+infra/              OpenTofu modules and roots for the AWS rehearsal, and its runbook
+docker/             Local service configuration: MinIO, Keycloak, CoreDNS, observability
+docs/               The specification, the threat model and the decision records
+scripts/            local:up and the aws:* commands
+```
 
 ## Documentation
 
-The docs are the specification, not a description written afterwards.
+The documentation is the specification. It was written before the code and is kept true as the code
+changes. The documentation hub, [`docs/README.md`](docs/README.md), groups every document by the
+question it answers and suggests reading paths. The main entry points:
 
-|                                                                                     |                                                               |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| [`docs/HANDOFF.md`](docs/HANDOFF.md)                                                | **Start here** — what is built, what is not, what comes next  |
-| [`docs/PROJECT.md`](docs/PROJECT.md)                                                | What this is, and what it deliberately is not                 |
-| [`docs/TENANCY.md`](docs/TENANCY.md) · [`docs/RBAC.md`](docs/RBAC.md)               | Isolation between tenants; authorization within one           |
-| [`docs/DOMAIN.md`](docs/DOMAIN.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | ITSM rules; stack, pipeline and data model                    |
-| [`docs/ENGINEERING.md`](docs/ENGINEERING.md) · [`docs/DNS.md`](docs/DNS.md)         | How we work; hostnames, TLS and mail                          |
-| [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md)                                      | Assets, actors, trust boundaries, STRIDE — and accepted risks |
-| [`docs/FEATURES.md`](docs/FEATURES.md)                                              | The backlog, milestone by milestone                           |
-| [`docs/decisions/`](docs/decisions/)                                                | 52 ADRs — _why_ any of it is this way                         |
+| Start with                                                            | For                                                               |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md)                                  | Where the project stands: what is built, what is not, the gotchas |
+| [`docs/PROJECT.md`](docs/PROJECT.md)                                  | What Patchgrid is, and what it deliberately is not                |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                        | The stack, the request pipeline, the data model, the deployment   |
+| [`docs/TENANCY.md`](docs/TENANCY.md) · [`docs/RBAC.md`](docs/RBAC.md) | Isolation between tenants; authorization within one               |
+| [`docs/decisions/`](docs/decisions/README.md)                         | Why any of it is this way                                         |
 
 ## Status
 
-**M0 (foundation) through M6, and M8 to M11, are complete:**
+**Complete.** All fourteen planned milestones are built and verified, M0–M6 and M8–M14. M7, machine
+learning and an automation rule engine, was dropped on purpose
+([ADR-0056](docs/decisions/0056-m7-dropped.md)). What each milestone delivered is in
+[`docs/FEATURES.md`](docs/FEATURES.md). The current state, and what a real deployment would still
+need, is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
-- tenancy and identity;
-- the incident lifecycle;
-- SLA sweeps and notifications;
-- service requests, problems and changes;
-- attachments, assets and the knowledge base;
-- tickets raised and answered by email;
-- the platform layer: back-office, support access, API tokens, deletion and data protection;
-- hardening: a second factor for members with step-up before irreversible actions, a browser
-  suite across two tenants with the negative cases, OpenTelemetry with per-tenant metrics and a
-  Grafana dashboard, a security review of every trust boundary (`docs/THREAT-MODEL.md` §7), OpenAPI
-  at `/api/docs`, and a load check at a hundred thousand tickets;
-- shipping, locally (ADR-0047);
-- reliable delivery: the outbox, webhooks and their retention;
-- insight: reports from a read side, saved views and bulk actions;
-- identity: passkeys, and per-tenant single sign-on through each workspace's own identity provider.
+## Contributing, security and license
 
-**M10, ship, is complete**: the demo seed across every type and status, the marketing site with its
-docs and blog, production images and `docker-compose.prod.yml`, and this README. Patchgrid is not
-deployed publicly ([ADR-0047](docs/decisions/0047-no-public-deployment.md)) — it is a learning project
-that runs on a laptop, and the wildcard DNS, TLS and mail design in `docs/DNS.md` stays a design.
+This is a personal portfolio project and is not looking for feature contributions.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) explains the conventions the repository enforces, which are
+worth knowing if you read or run the code. Vulnerabilities go through [`SECURITY.md`](SECURITY.md).
 
-**M11, reliable delivery, is complete**: a transactional outbox read as a per-tenant log, ticket
-notifications on it, outbound webhooks as its second consumer, retention, and a review of all three
-(`docs/THREAT-MODEL.md` §8).
-
-**M12, insight, is complete**: SLA, backlog and workload reports from a read model of their own, every
-one under 25 ms at a hundred thousand tickets; saved views; and bulk actions that are the single action
-per ticket (`docs/THREAT-MODEL.md` §9).
-
-**M13, identity, is complete**: passkeys that sign in alone and prove a step-up
-([ADR-0053](docs/decisions/0053-passkeys.md)), and per-tenant OpenID Connect single sign-on routed by a
-DNS-proved domain, with people provisioned on first sign-in. A session an identity provider starts
-opens that workspace and nothing else, and owners keep their own way in
-([ADR-0054](docs/decisions/0054-per-tenant-oidc-sso.md), `docs/THREAT-MODEL.md` §10).
-`docker compose --profile sso up -d` runs the Keycloak the seed points Acme at.
-
-**M14, the production rehearsal, is complete**: the production images on ECS behind an HTTPS load
-balancer on emulated AWS ([Floci](https://floci.io/floci/)), provisioned by OpenTofu from `infra/`, with
-RDS through PgBouncer, ElastiCache, S3, SES, and Secrets Manager under KMS
-([ADR-0058](docs/decisions/0058-production-rehearsal-on-emulated-aws.md)). The tenancy suite passes
-inside the VPC and the browser suite through the load balancer, passkeys included; CI deploys it from
-nothing (`infra/README.md`, `docs/THREAT-MODEL.md` §11).
-
-Every planned milestone is done. M7, the models and the automation rule engine, was dropped
-([ADR-0056](docs/decisions/0056-m7-dropped.md)).
-`docs/HANDOFF.md` has the detail.
-
-MIT licensed — the value of this repository is that people read it.
+[MIT](LICENSE). The value of this repository is that people read it.
