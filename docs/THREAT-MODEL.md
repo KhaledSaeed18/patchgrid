@@ -49,6 +49,7 @@ modelled anyway, so the code written now does not foreclose the fix.
  Browser ◀──── redirects ────▶ tenant identity provider ◀──TB12 (M13)─────┤
  Operator ──TB9 (admin., M8)─────────────────────────────────────────────┘
  Repo ──TB10──▶ CI ──▶ images, DNS, ACME
+ Deployer ──TB13 (M14)──▶ OpenTofu state · Secrets Manager · ECS (on Floci, the Docker socket)
 ```
 
 The boundary that matters most is not drawn as an arrow: **tenant ↔ tenant inside one database**
@@ -251,6 +252,22 @@ signs. Both are bounded (ADR-0054).
   requirement, which is the way back in when the provider is down or hostile, and they never step up
   at the provider: an owner's irreversible actions take the owner's own credentials (§10).
 
+### TB13 · The deployment: the emulator, the state, the pipeline (M14)
+
+The production rehearsal (ADR-0058) adds three things that hold more than any one tenant's data.
+
+- **Floci holds the Docker socket**, which is root on the machine that runs it: it starts the tasks, the
+  database and the cache as containers. Acceptable for a local tool that serves only `127.0.0.1` and a
+  throwaway CI runner. Never run it on a shared host.
+- **The OpenTofu state holds every secret** the platform generates: the database roles' passwords, the
+  cache's AUTH token, the signing and sealing keys. Whoever reads the state bucket has all of them, so it
+  is versioned, encrypted, blocked from public access and locked through DynamoDB. On a real account
+  only the deploying role reads it, under its own KMS key.
+- **Tasks get secrets by reference.** Task definitions name Secrets Manager keys, and the execution role
+  may read only the platform's secrets and decrypt only with its key. Nothing secret is in a task's
+  plain environment, the image, or the script's output. The task roles are per need: api, worker and the
+  jobs get the files bucket and SES; app, www and PgBouncer get a role with no policy at all.
+
 ---
 
 ## 7. The M9 security review (2026-10-16)
@@ -402,3 +419,48 @@ Checked and left as they are, with the reason:
   "SSO required" gates the next authentication of a person (ADR-0042, ADR-0054).
 - **Deprovisioning at the provider ends nothing in Patchgrid** (R-10), and **a domain's owner controls
   password reset for addresses on it** (R-11).
+
+## 11. The M14 review (2026-10-26)
+
+A read of `infra/` against TB13, then three read-only reviews: the modules, the deploy script with its
+CI job and browser harness, and the application's AWS changes (#80, #81). Running the deploy, the tenancy
+suite and the browser suite on Floci found more. No path from one tenant to another's data was found.
+The findings were about **the infrastructure being weaker than the application it carries**, about
+**teardowns that keep nothing**, and about what the emulator hides.
+
+| # | Area | Finding | Resolution |
+| --- | --- | --- | --- |
+| 1 | TB13 | ElastiCache took plain connections with no AUTH, while RDS takes only TLS; Redis carries queue payloads, step-up challenges and the throttle's counters | Transit encryption and a 64-character AUTH token by default, the URL injected from Secrets Manager. Floci has no TLS on its cache proxy, so the local root turns both off |
+| 2 | TB13 | The execution role could read layers from any repository in the account | Layer and image reads are scoped to the product's repositories; the registry token stays account-wide, as AWS requires |
+| 3 | TB13 | The platform's `secrets` output named the API's keys and the app role's database secret both `app`, and the second won | The keys are `keys`; api and worker could not start until then, so nothing ran with the wrong secret |
+| 4 | ADR-0058 | Behind TLS that ends at the load balancer the app built an `http` way back after login, because Floci sends no `X-Forwarded-Proto` | The app falls back to its configured protocol (ADR-0058 erratum) |
+| 5 | ADR-0058 | Every client reaches the API from one address on Floci, so the per-IP limits ration the whole stack | The browser suite rolls the limits off for its run and back on however it ends. They stay on by default; per-IP limits are not tested here, and the runbook names the `X-Forwarded-For` check a real account needs |
+| 6 | TB4 | The pooled `DATABASE_URL` crossed the VPC in the clear: every tenant's rows between the API and PgBouncer | PgBouncer requires TLS from its clients, with a certificate OpenTofu generates and hands it as a secret. Clients encrypt without verifying; a VPC has no ARP to spoof, so this closes the passive read |
+| 7 | TB13 | The modules deleted everything a destroy touched: a 7-day key window (and with the key, the final snapshot), secrets with no recovery, no final snapshot once deletion protection was lifted, repositories with images in them | The modules keep everything by default: 30 days for the key and the secrets, a final snapshot and the backups, no forced repository deletion. Only a root that declares itself `disposable` (the local one) opts out |
+| 8 | TB13 | Provisioning, migrations and the seed ran with the backend role: the files bucket and SES, from the image that holds the owner's credentials | They run with the role that has no policy; only `verify`, which runs the API, keeps the backend role |
+| 9 | TB13 | An interrupted `verify` left the worker at zero, a second run "restored" it to zero, and `status` called that settled; a circuit-breaker rollback also looked settled | Ctrl-C restores before exiting, the worker comes back as configured, and a service at zero, a failed rollout or the wrong revision is not settled |
+| 10 | TB2 | `x-forwarded-proto` was trusted whole: an appended chain made `https,http://host` the origin | The first value, and only `http` or `https` |
+| 11 | ADR-0058 | `DATABASE_LISTEN_URL`'s same-role check read the URL's user, which a `?user=` parameter overrides | The check reads the user the driver will use |
+| 12 | M11 | The SES provider had no timeouts, unlike SMTP's, and the SDK's retries multiplied BullMQ's | Connection and request timeouts as SMTP's; BullMQ owns the retries |
+
+Checked and left as they are, with the reason:
+
+- **Egress is open for every task group.** api and worker reach SES, ECR, Secrets Manager and tenants'
+  webhook receivers, and the SSRF guard decides what a webhook may reach (ADR-0050), not the network.
+  The frontends could be narrowed to the load balancer, but they reach it at its public address through
+  the NAT, which no group rule names.
+- **Floci stores RDS parameters without applying them**: `idle_in_transaction_session_timeout` and the
+  slow-query log are not in force locally, and every plan shows the group as changing. RDS applies
+  them, and the database's own tests do not depend on them.
+- **The `verify` and `seed` jobs reach the database as its owner**, from the jobs security group. The
+  tenancy suite needs the owner to set up its fixtures, and the seed exists only for the demo: it must
+  never run on a real account (ADR-0047's demo mode).
+- **The CI rehearsal deploys with fixed emulator credentials** (`test`/`test`) to a runner that is gone
+  when the job ends. A real account would take credentials from OIDC federation, with no static keys.
+- **One execution role injects every secret into any task definition.** Which secrets a task gets is
+  decided by its definition, and registering one with this role takes the deployer's rights, which
+  already read the state and every secret in it (TB13). Per-tier execution roles are a real account's
+  hardening, not a boundary this one lacks.
+- **The rest of a real account's hardening** is in the runbook's list: load balancer access logs and a
+  WAF, VPC flow logs, RDS log exports, cache snapshots, DMARC past `p=none`, and read-only, non-root
+  containers.

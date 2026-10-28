@@ -15,8 +15,9 @@ output "database_secret_arns" {
   }
 }
 
-output "redis_url" {
-  value = "redis://${aws_elasticache_replication_group.this.primary_endpoint_address}:${aws_elasticache_replication_group.this.port}"
+output "cache_secret_arn" {
+  description = "REDIS_URL, with its AUTH token when transit encryption is on."
+  value       = aws_secretsmanager_secret.cache.arn
 }
 
 output "files_bucket" {

@@ -9,7 +9,6 @@ locals {
     # Origins carry no port behind TLS; the schema insists.
     WEB_ORIGIN_PORTS = ""
     COOKIE_DOMAIN    = ".${local.platform.root_domain}"
-    REDIS_URL        = local.platform.redis_url
 
     AWS_REGION = local.platform.region
     # Floci, for every AWS client in the application. Unset on AWS, where the
@@ -19,7 +18,10 @@ locals {
     S3_BUCKET           = local.platform.files_bucket
     S3_FORCE_PATH_STYLE = "true"
     # Where browsers PUT and GET: S3's own origin, another registrable domain
-    # than the product's (ADR-0037). On AWS: https://<bucket>.s3.<region>.amazonaws.com.
+    # than the product's (ADR-0037). The signer adds the bucket itself, so on
+    # AWS this is https://s3.<region>.amazonaws.com with S3_FORCE_PATH_STYLE
+    # false, and the URLs come out as https://<bucket>.s3.<region>.amazonaws.com,
+    # a site of its own (the bucket host is under a public suffix).
     FILES_PUBLIC_ORIGIN = "https://localhost:4566"
 
     MAIL_TRANSPORT      = "ses"
@@ -30,10 +32,14 @@ locals {
   }
 
   app_secret = local.platform.secrets.keys
-  backend_secrets = {
-    for name in ["JWT_SECRET", "MFA_ENCRYPTION_KEY", "WEBHOOK_SECRETS_KEY", "SSO_SECRETS_KEY", "INBOUND_WEBHOOK_SECRET"] :
-    name => "${local.app_secret}:${name}::"
-  }
+  backend_secrets = merge(
+    {
+      for name in ["JWT_SECRET", "MFA_ENCRYPTION_KEY", "WEBHOOK_SECRETS_KEY", "SSO_SECRETS_KEY", "INBOUND_WEBHOOK_SECRET"] :
+      name => "${local.app_secret}:${name}::"
+    },
+    # The cache's URL carries its AUTH token.
+    { REDIS_URL = "${local.platform.secrets.cache}:REDIS_URL::" },
+  )
 
   image = { for name, url in local.platform.repositories : name => "${url}:${var.image_tag}" }
 }

@@ -43,9 +43,11 @@ module "pgbouncer" {
     # Protocol-level prepared statements, tracked per client (PgBouncer 1.21+).
     MAX_PREPARED_STATEMENTS   = "200"
     IGNORE_STARTUP_PARAMETERS = "extra_float_digits"
+    # Clients must use TLS; the image writes the certificate out at start.
+    CLIENT_TLS_SSLMODE = "require"
   }
   secrets = {
-    for name in ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD"] :
+    for name in ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "TLS_KEY", "TLS_CERT"] :
     name => "${local.platform.secrets.pooler}:${name}::"
   }
   execution_role_arn = local.cluster.execution_role_arn
@@ -139,6 +141,15 @@ module "frontend" {
 # What is running, so a later apply can change one setting and keep the release.
 output "release" {
   value = { image_tag = var.image_tag, cpu_architecture = var.cpu_architecture }
+}
+
+# What each service should be running once a rollout settles: a rollback by
+# the circuit breaker leaves it on the previous revision instead.
+output "task_definitions" {
+  value = merge(
+    { pgbouncer = module.pgbouncer.task_definition_arn, api = module.api.task_definition_arn, worker = module.worker.task_definition_arn },
+    { for name, frontend in module.frontend : name => frontend.task_definition_arn },
+  )
 }
 
 output "services" {

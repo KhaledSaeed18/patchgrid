@@ -12,13 +12,19 @@ import { decideRoute, PATH_HEADER, SLUG_HEADER } from "@/lib/routing"
  * Not an authorization layer: the API decides every request on its own. This
  * decides where to send a browser.
  */
+/** The first hop's protocol, and only `http` or `https`: an appending chain sends `https,http`. */
+function forwardedProto(header: string | null): string | undefined {
+  const first = header?.split(",")[0]?.trim().toLowerCase()
+  return first === "http" || first === "https" ? first : undefined
+}
+
 export function proxy(request: NextRequest): NextResponse {
   const decision = decideRoute({
     host: request.headers.get("host"),
     // The Host the browser used, not nextUrl's: in development that is normalised to localhost.
     // The protocol is the configured one unless a proxy says otherwise: TLS ends
     // before this server, which sees plain http (ADR-0058).
-    origin: `${request.headers.get("x-forwarded-proto") ?? PROTOCOL}://${request.headers.get("host") ?? request.nextUrl.host}`,
+    origin: `${forwardedProto(request.headers.get("x-forwarded-proto")) ?? PROTOCOL}://${request.headers.get("host") ?? request.nextUrl.host}`,
     pathname: request.nextUrl.pathname,
     search: request.nextUrl.search,
     cookies: (name) => request.cookies.get(name)?.value,

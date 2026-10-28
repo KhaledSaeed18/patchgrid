@@ -2,6 +2,12 @@ variable "name" {
   type = string
 }
 
+variable "disposable" {
+  description = "An environment thrown away whole (Floci): deletions are immediate and keep nothing. Off by default, which keeps everything."
+  type        = bool
+  default     = false
+}
+
 variable "kms_key_arn" {
   type = string
 }
@@ -72,4 +78,10 @@ variable "cache_replicas" {
 variable "web_origins" {
   description = "Origins a browser may upload from and download to (CORS)."
   type        = list(string)
+}
+
+variable "cache_transit_encryption" {
+  description = "TLS to ElastiCache, and with it the AUTH token; off only where the emulator cannot terminate TLS"
+  type        = bool
+  default     = true
 }

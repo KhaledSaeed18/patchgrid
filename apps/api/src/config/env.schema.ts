@@ -257,8 +257,13 @@ export const envSchema = z
       })
     }
 
-    // The wake listens as the application, never as anyone above it.
-    if (env.DATABASE_LISTEN_URL !== undefined && new URL(env.DATABASE_LISTEN_URL).username !== new URL(env.DATABASE_URL).username) {
+    // The wake listens as the application, never as anyone above it. A `user`
+    // parameter overrides the URL's user in the driver, so it is the one read.
+    const roleOf = (raw: string): string => {
+      const url = new URL(raw)
+      return url.searchParams.get("user") ?? decodeURIComponent(url.username)
+    }
+    if (env.DATABASE_LISTEN_URL !== undefined && roleOf(env.DATABASE_LISTEN_URL) !== roleOf(env.DATABASE_URL)) {
       ctx.addIssue({
         code: "custom",
         path: ["DATABASE_LISTEN_URL"],

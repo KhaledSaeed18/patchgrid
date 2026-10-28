@@ -1,7 +1,7 @@
 import { SESv2Client } from "@aws-sdk/client-sesv2"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { SesMailProvider } from "./ses-mail.provider"
+import { SES_CLIENT_OPTIONS, SesMailProvider } from "./ses-mail.provider"
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -28,6 +28,12 @@ describe("SesMailProvider", () => {
     expect(raw).toMatch(/^Auto-Submitted: auto-generated\r?$/m)
     expect(raw).toMatch(/^Subject: \[INC-000042\] Printer on fire\r?$/m)
     expect(result.providerMessageId).toContain("ses-0001")
+  })
+
+  it("bounds every call and leaves the retries to the mail job", async () => {
+    expect(SES_CLIENT_OPTIONS).toEqual({ maxAttempts: 1, requestHandler: { connectionTimeout: 5_000, requestTimeout: 10_000 } })
+    const client = new SESv2Client(SES_CLIENT_OPTIONS)
+    expect(await client.config.maxAttempts()).toBe(1)
   })
 
   it("lets SES's refusal propagate, so the mail job retries", async () => {
