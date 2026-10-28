@@ -533,8 +533,8 @@ importers:
         specifier: ^9
         version: 9.39.5
       '@next/eslint-plugin-next':
-        specifier: ^16.4.2
-        version: 16.4.2(eslint@9.39.4(jiti@2.7.0))
+        specifier: ^16.4.3
+        version: 16.4.3(eslint@9.39.4(jiti@2.7.0))
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.72.0
         version: 8.72.0(@typescript-eslint/parser@8.72.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
@@ -557,8 +557,8 @@ importers:
         specifier: ^7.1.1
         version: 7.1.1(eslint@9.39.4(jiti@2.7.0))
       eslint-plugin-turbo:
-        specifier: ^2.11.9
-        version: 2.11.9(eslint@9.39.4(jiti@2.7.0))(turbo@2.11.9)
+        specifier: ^2.11.10
+        version: 2.11.10(eslint@9.39.4(jiti@2.7.0))(turbo@2.11.9)
       globals:
         specifier: ^17.13.0
         version: 17.13.0
@@ -2165,8 +2165,8 @@ packages:
   '@next/env@16.4.3':
     resolution: {integrity: sha512-a7tz1QCcWWkwC/rPJcPMJk/UNRu9CFhDd3OHYE5hddbJrs8BqRTalxI6GlKCWEGzRLHN+S/B7a4PAHCtm25aBQ==}
 
-  '@next/eslint-plugin-next@16.4.2':
-    resolution: {integrity: sha512-gCTWlw0e+Y6kajpFyKKgA195jUJCRhlzJE0lV7ufe8a+ghIsANWZ0/FiJwg6DuOG1+OvRbcZDcFBoRh3mNJx0g==}
+  '@next/eslint-plugin-next@16.4.3':
+    resolution: {integrity: sha512-oxuC06wt/71h6ACYCV9GbKOfnf5a7VlRe/p80YHTut15TNgDEmynDnaq8t/xhy5rlvk7dhItIPs6H3rvIM4kyw==}
 
   '@next/mdx@16.4.2':
     resolution: {integrity: sha512-elDnhfH37V+dBiOTmhW8VFcAm6wrXU0LI+NYk5oGVBtrdfRk9FMLpAofTi9sgTazohoThiDVFJQpzKRgbB8SEg==}
@@ -4774,8 +4774,8 @@ packages:
     peerDependencies:
       eslint: ^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7
 
-  eslint-plugin-turbo@2.11.9:
-    resolution: {integrity: sha512-nuaiyetSxQmAykZqeW1ywrZ4cEuW4X36ZSGzwxVIa6aq+AwRGMADI+H8kRtGodxaPKHGqztXLO91lkzKHA21jQ==}
+  eslint-plugin-turbo@2.11.10:
+    resolution: {integrity: sha512-he4kQi41ZX8KM9fxCCl9cmhbk37bNnXR0EVGP6xc12KvxfoosfHmMVsdo7zX2a1G/iPhbLaXSATZorXAA5eXOw==}
     peerDependencies:
       eslint: '>6.6.0'
       turbo: '>2.0.0'
@@ -9848,7 +9848,7 @@ snapshots:
 
   '@next/env@16.4.3': {}
 
-  '@next/eslint-plugin-next@16.4.2(eslint@9.39.4(jiti@2.7.0))':
+  '@next/eslint-plugin-next@16.4.3(eslint@9.39.4(jiti@2.7.0))':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.7.0))
       fast-glob: 3.3.1
@@ -12614,7 +12614,7 @@ snapshots:
       string.prototype.matchall: 4.0.12
       string.prototype.repeat: 1.0.0
 
-  eslint-plugin-turbo@2.11.9(eslint@9.39.4(jiti@2.7.0))(turbo@2.11.9):
+  eslint-plugin-turbo@2.11.10(eslint@9.39.4(jiti@2.7.0))(turbo@2.11.9):
     dependencies:
       dotenv: 16.0.3
       eslint: 9.39.4(jiti@2.7.0)
