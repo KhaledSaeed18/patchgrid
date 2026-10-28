@@ -1,8 +1,8 @@
-# Handoff — M13 complete, its open items cleared, M14 next
+# Handoff — M14 complete: every planned milestone is done
 
-Written 2026-10-23, after the pass that cleared the M13 boundary's open items. **This file is regenerated, not appended to.** It is rewritten at every milestone boundary, and
-whenever enough has landed that the previous version would mislead. If it disagrees with `FEATURES.md` or
-an ADR, they are right and this is stale.
+Written 2026-10-26, at the M14 boundary. **This file is regenerated, not appended to.** It is rewritten at
+every milestone boundary, and whenever enough has landed that the previous version would mislead. If it
+disagrees with `FEATURES.md` or an ADR, they are right and this is stale.
 
 Read this first, then `CLAUDE.md`, then the documents it points at.
 
@@ -32,74 +32,67 @@ Locally: `lvh.me:3000`, `<slug>.lvh.me:3001`, `app.lvh.me:3001`, `admin.lvh.me:3
 
 ## Where we are
 
-**M0–M6 and M8–M13 are complete. M14 (production rehearsal on emulated AWS, ADR-0058) is next, and last**: M7, the
-models and the automation rule engine, is dropped (ADR-0056). Milestone numbers did not change.
+**M0–M6 and M8–M14 are complete. There is no next planned milestone.** M7, the models and the automation
+rule engine, is dropped (ADR-0056). Milestone numbers did not change.
 
-**M13 (Identity): complete 2026-10-23.** Its exit holds: a member signs in with a passkey and uses it
-for step-up; a workspace with SSO configured sends its members to their identity provider, and a new
-member is provisioned on first sign-in. Passkeys landed as #61; per-tenant SSO, the review and this
-handoff as the PR after it. A review closed it (`THREAT-MODEL.md` §10).
+**M14 (production rehearsal on emulated AWS): complete 2026-10-26.** Its exit holds, on a laptop and in
+CI from nothing: the production images, pushed to ECR, run as ECS services behind an HTTPS ALB on
+`*.patchgrid.test`; migrations run first as a one-off task; the database's roles are ones RDS itself could
+create; the tenancy suite passes inside the VPC through PgBouncer, and the browser suite passes through
+the ALB, passkeys included. A review closed it (`THREAT-MODEL.md` §11, TB13).
 
-What M13 built:
+What M14 built:
 
-- **Passkeys** (ADR-0053). `UserPasskey`, platform-class beside the TOTP factor: one relying party,
-  the root domain, with the origin partitioned by `classifyOrigin` so `admin.` and `www.` never count.
-  UV required, discoverable credentials, challenges in Redis under a purpose and spent with `GETDEL`. A
-  passkey signs in alone, completes the second step of a password login, and proves a step-up. "Has a
-  factor" now means TOTP or a passkey everywhere it is asked, and recovery codes belong to the person's
-  factors, not to one kind. Adding one takes a fresh proof, never a recovery code (erratum).
-- **The domain proof** (ADR-0054). An owner claims `Organization.domain` and publishes one TXT record,
-  `_patchgrid-verify.<domain>`. First verified wins by the partial unique index; free-mail domains are
-  refused in the contracts.
-- **Per-tenant OIDC** (ADR-0054). `SsoConnection` and `SsoIdentity`, tenant-owned. Authorization code
-  with PKCE through `openid-client`, every request to the provider through the guarded fetch webhooks
-  use, the ID token's signature checked against its keys. The callback holds the state to the browser's
-  `pg_sso` cookie and the address to the proved domain, links an existing member or provisions one at
-  the default role (never above agent), and never revives a removed one.
-- **The scope of an SSO session.** `RefreshToken.ssoOrgId` and an `sso` claim on the access token: the
-  session opens its workspace and no other, satisfies that workspace's `requireMfa`, and every
-  tenant-less route refuses it unless it admits it (only "who am I" and "open my workspace"). Step-up is
-  at the provider, never for an owner. "SSO required" spares owners, who are the way back in when the
-  provider is down. Withdrawing the connection ends what it started.
-- **Keycloak** under `docker compose --profile sso`, with an `acme` realm the seed points Acme at; an
-  in-process OpenID provider for the integration specs; an SSO scenario in the browser suite, which CI
-  runs against Keycloak.
+- **RDS-compatible roles** (ADR-0059, #80). The bootstrap runs as a `CREATEROLE`/`CREATEDB` admin, never
+  a superuser, in Compose and CI too. The owner holds no `BYPASSRLS`: ownership is what exempts it from
+  the policies, and `FORCE` is gone. The app role is asserted to be no member of the owner.
+- **The application ready for AWS** (#81). S3 and SES clients take the SDK's default credential chain
+  and an endpoint override; SES is a second `MailProvider`; the outbox wake's `LISTEN` has its own URL,
+  so it reaches the database past a transaction-mode pooler; HSTS at its first stage whenever served
+  over https; the API boots without the owner's credentials.
+- **The infrastructure** (`infra/`, #84). Modules written for real AWS: network (three tiers, a security
+  group per role), secrets (KMS, Secrets Manager), data (RDS 17 with `force_ssl`, ElastiCache with TLS
+  and an AUTH token, S3 with a TLS-only policy), registry (immutable tags, scan on push), edge (ALB with
+  TLS 1.3/1.2, ACM wildcard, public and private Route 53 zones), mail (SES with DKIM, SPF, DMARC), cluster
+  (ECS, Cloud Map, per-need task roles), ecs-service. Four roots per environment, split by lifetime:
+  `bootstrap`, `platform`, `jobs`, `services` (ADR-0058 erratum).
+- **One command** (`scripts/aws.mjs`). `pnpm aws:up | deploy | run <job> | status | e2e | down`. A deploy
+  builds the production images once per commit, adds the environment's CA as one layer, pushes, runs
+  `provision` and `migrate` as tasks, rolls the services and waits until they have settled: one
+  deployment each, every task running, exactly that many healthy targets.
+- **Verification** (#85). `aws:run verify` runs the tenancy suite as an ECS task with the worker out of
+  service (it must be the only consumer of its outbox). `aws:e2e` runs the browser suite through the ALB
+  with nothing changed on the machine: Chromium and the suite resolve the root domain to the ALB and
+  trust Floci's CA by its key hash. `.github/workflows/aws.yml` does `aws:up`, `verify` and `aws:e2e` from
+  nothing on `main` and on infrastructure PRs. `docker-compose.prod.yml` is retired (#86).
+- **The runbook** (`infra/README.md`): the commands, the browser setup, every place Floci differs from
+  AWS and what covers it, and what a real account still needs.
 
-**The open items, cleared (2026-10-23, #63–#70).** Every item the M13 handoff left open was built,
-settled or re-filed as out of scope before starting M14:
+**Where Floci differs, and what covers it** (the detail is in the runbook and ADR-0058's errata):
 
-- **Reliability.** Notification email is at least once, queued with the `notify` cursor (ADR-0049
-  erratum). Parked events can be replayed by an admin (`org:manage_events`, Settings → Event
-  delivery). A webhook turned off for failing emails the workspace's admins. Raw SQL on tenant tables
-  goes through `PrismaService.tx`, and locks on platform rows through `lockTx`; both throw outside a
-  transaction. A transaction's statements reach its connection one at a time (`SerialPrismaPg`), which
-  removes the `pg` "query while executing" warning.
-- **Plans.** A nightly `usage-reconcile` recounts the counters from their rows. A FREE workspace's audit
-  log is kept two years. A limit reached tells the admins and owners (`PLAN_LIMIT_REACHED`). API tokens
-  are a plan limit. `org:manage_plan` left the catalogue (plans are the back-office's).
-- **People.** Keep watching on reassignment; starter knowledge-base articles; per-member capabilities on
-  the members page; erasure by a link for accounts with no password (ADR-0044 erratum); joining by
-  verified domain (TENANCY §5); external requesters as memberships without an account (ADR-0055).
-- **Rules.** Rule 3 can no longer be engineered: an owner self-approves only when they alone can decide,
-  and an undecidable change is refused at `submit` (DOMAIN §2.3). Google's `hd` is checked (ADR-0054
-  erratum). Comments honour `Idempotency-Key`, keyed to the path. The cookie pairs are pruned to five.
-- **Operations.** Exports list files a page at a time; the API image is 778 MB, down from 1.11 GB;
-  CoreDNS makes the domain proof walkable; the SLA browser spec moves its deadline instead of waiting;
-  the marketing page no longer inlines its stylesheet four times. Prettier formats the whole repository
-  (the backend at 140 columns), so commits run the format hook again.
+| Gap | Covered by |
+| --- | --- |
+| No `X-Forwarded-For` / `-Proto` | The app falls back to its configured protocol; the browser suite rolls the rate limits off for its run |
+| A stopped task's target stays registered | Each rollout deregisters targets that are not a running task |
+| The private-zone wildcard matches only a literal `*` | `api.`, `app.`, `admin.` have their own records |
+| No TLS on the cache proxy | The local root turns cache TLS and its token off; on by default |
+| RDS parameters stored, not applied | Recorded; RDS applies them |
+| The RDS master is a superuser | The provisioning never relies on it (ADR-0059) |
 
-**CI is green on `main`** through #68; #69 (external requesters) and #70 (the format pass) are the
-check for the rest.
+**CI is green on `main`.** The AWS rehearsal takes most of an hour, so it runs on `main` and on pull
+requests that touch the infrastructure, not on every PR.
 
 ## Earlier milestones, in brief
 
+- **M13** gave identity: passkeys that sign in alone and prove a step-up (ADR-0053), per-tenant OIDC
+  routed by a DNS-proved domain with sessions scoped to their workspace (ADR-0054), and Keycloak under
+  `--profile sso`. The open items after it were cleared in #63–#70 (external requesters, ADR-0055).
 - **M12** gave insight: reports from a fact row per ticket refreshed by a consumer of the log and checked
-  by a nightly reconcile (ADR-0051), saved views and bulk actions (ADR-0052), §9 of the threat model.
+  by a nightly reconcile (ADR-0051), saved views and bulk actions (ADR-0052).
 - **M11** gave reliable delivery: the transactional outbox read as a per-tenant log below the snapshot
-  horizon (ADR-0049), ticket notifications on it, outbound webhooks as its second consumer (ADR-0050),
-  retention, and the event-age dashboard (`THREAT-MODEL.md` §8).
+  horizon (ADR-0049), ticket notifications on it, outbound webhooks as its second consumer (ADR-0050).
 - **M10** shipped without a public deployment (ADR-0047): the demo seed, the marketing site and docs,
-  production images and `docker-compose.prod.yml`, `pnpm local:up`, and the README.
+  production images, `pnpm local:up`, and the README.
 - **M9** gave hardening: member MFA with step-up (ADR-0045), the browser suite, OpenTelemetry per tenant
   (ADR-0046), the security review (`THREAT-MODEL.md` §7), OpenAPI and the 100k load check.
 - **M8** gave the platform layer: the back-office, support sessions, API tokens, deletion and data
@@ -114,75 +107,65 @@ The detail is in the git history of this file, at those boundaries.
 | Suite | Count |
 | --- | --- |
 | `apps/api` unit | 1232 |
-| `apps/api` integration | 278 |
-| `pnpm test:tenancy` | 13 catalog + 38 (3 pointers skipped) |
-| `pnpm test:authz` | 410 |
-| `packages/database` unit / catalog / integration | 11 / 13 / 24 |
-| `packages/contracts` | 228 |
+| `apps/api` integration | 278 (1 skipped) |
+| `pnpm test:tenancy` | 14 catalog + 38 (3 pointers skipped) |
+| `pnpm test:authz` | 402 |
+| `packages/database` unit / integration | 11 / 26 |
+| `packages/contracts` | 226 |
 | `apps/app` unit | 69 |
 | `apps/www` | 19 |
-| `apps/app` browser suite | 12 scenarios (`passkeys` and `sso` are M13's) |
+| `apps/app` browser suite | 12 scenarios on the development stack; 9 through the ALB (`sso` stays on the development stack) |
+| `pnpm aws:run verify` | the 38 above, as an ECS task through PgBouncer |
 
-## Decisions made in M13
-
-| Decision | Where |
-| --- | --- |
-| A passkey is a credential that signs in alone and a factor; one RP across the workspace hosts, the origin partitioned; recovery codes belong to the person | ADR-0053 (errata: as built; the review's settlements) |
-| Per-tenant OIDC routed by a DNS-proved domain; a session an IdP starts is scoped to its workspace; owners exempt from "SSO required" and never step up at the IdP | ADR-0054 (erratum: the review's settlements) |
-| The identity provider as trust boundary TB12 | `THREAT-MODEL.md` §6, §10 |
-
-## Decisions made clearing the open items
+## Decisions made in M14
 
 | Decision | Where |
 | --- | --- |
-| External requesters are memberships of kind `EXTERNAL`, with no account; an `external` actor built by the intake alone | ADR-0055; erratum on ADR-0039 |
-| Notification email is queued in the cursor's transaction: at least once | ADR-0049 erratum |
-| A disabled webhook emails its admins | ADR-0050 erratum |
-| Google's `hd` must name the proved domain | ADR-0054 erratum |
-| Erasure by a single-use link to the address | ADR-0044 erratum |
-| FREE's two-year audit window is a per-tenant delete; the archival keeps seven | ADR-0028 erratum |
-| `db_transactions_per_request` counts the extension's own transactions | ADR-0046 erratum |
-| `org:manage_plan` is not a permission | Errata on ADR-0029, ADR-0045 |
-| The crossing helpers take a `crossing` | ADR-0022 erratum |
+| M14 is a production rehearsal on Floci, provisioned by OpenTofu in plain HCL; the infrastructure is written for real AWS | ADR-0058 |
+| Four roots per environment, split by lifetime | ADR-0058 erratum |
+| The forwarded protocol decides the app's links; the app falls back to its configured one | ADR-0058 erratum |
+| Database roles RDS could create: no superuser, no `BYPASSRLS`, no `FORCE` | ADR-0059 |
+| The cache takes TLS and an AUTH token by default; its URL is a secret | `THREAT-MODEL.md` §11 |
+| The deployment as trust boundary TB13: the Docker socket, the state, secrets by reference | `THREAT-MODEL.md` §3, §11 |
 
 ---
 
-## Recommended next steps — M14
+## Recommended next steps
 
-M14 was re-planned on 2026-10-24 as a **production rehearsal on emulated AWS** (ADR-0058): Floci
-emulates ECR, ECS, the ALB, ACM, Route 53, RDS, ElastiCache, S3, SES, Secrets Manager, KMS and
-CloudWatch, and OpenTofu provisions them. HashiCorp's downloads are geo-blocked here, so the CLI is
-OpenTofu and the code is plain HCL. The spike, the gaps it found in Floci and the decision taken for
-each are in ADR-0058. The first build item is ADR-0059: database roles RDS could create. The full list
-is in `FEATURES.md` §M14.
+Every planned milestone is done. What remains is a list to choose from, not a plan; any of it is a real
+decision and wants an ADR first.
 
-M14 is the last planned milestone (ADR-0056).
+- **SSO through the ALB.** The browser suite's SSO spec needs an identity provider a task can reach and
+  that production accepts: Keycloak as an ECS service behind the ALB with the environment's CA.
+- **Floci upstream.** Three gaps are bugs worth reporting with a reproduction: the wildcard record, the
+  stopped task's target, the parameter group read-back.
+- **Move off the nightly.** Floci is pinned to `nightly-10222026` for ALB TLS termination; pin the first
+  release that carries it.
 
 ## Still open
 
 | Item | Needed by | Notes |
 | --- | --- | --- |
-| Passkeys need a secure context; locally that is Chrome with a flag until M14's HTTPS | M14 | ADR-0053 |
 | SAML, SCIM and IdP-initiated sign-in | out of scope | ADR-0048; deprovisioning at the provider ends nothing here (R-10) |
+| Per-IP rate limits are not exercised on Floci | a real account | The runbook names the `X-Forwarded-For` check |
 
 ## If it is ever deployed
 
-Dropped by ADR-0047, kept so that reversing it starts from a list rather than from memory.
+Dropped by ADR-0047, kept so that reversing it starts from a list rather than from memory. `infra/` now
+covers most of the shape; `infra/README.md` §"What a real account still needs" is the account-side list.
 
 | Item | Notes |
 | --- | --- |
 | Three registered domains: the product, attachments on their own registrable domain, an ops zone | ADR-0026, ADR-0037 |
-| Wildcard certificate by DNS-01 through the delegated `_acme-challenge`; CAA; the renewal canary | `DNS.md` §3 |
-| SPF, DKIM and DMARC progressed on evidence; MX for `inbound.` | `DNS.md` §4, ADR-0027 |
-| SMTP has no credentials or TLS setting | `SMTP_HOST`/`SMTP_PORT` only; every real provider needs both |
+| A public hosted zone, the ACM certificate validated through it; CAA | `DNS.md` §3; the edge module validates by DNS already |
+| SES out of the sandbox; DMARC progressed on evidence; MX for `inbound.` | `DNS.md` §4, ADR-0027; the mail module publishes DKIM, SPF and DMARC |
 | A production inbound adapter | Verify the provider's signature, re-sign in ADR-0039's shape |
-| `MFA_ENCRYPTION_KEY`, `WEBHOOK_SECRETS_KEY` and `SSO_SECRETS_KEY` kept apart from the database and its backups | A dump without them yields no second factors, signs no webhooks and authenticates to no identity provider (ADR-0040, ADR-0050, ADR-0054) |
-| `SSO_ALLOW_PRIVATE_ISSUERS` off (boot refuses it in production) and `DNS_RESOLVERS` unset or trusted | ADR-0054 |
-| `TRUST_PROXY_HOPS` set to the real hop count | Default 1; with a CDN in front it is 2, and a wrong value makes every per-IP limit attacker-chosen (THREAT-MODEL §7) |
-| Production storage needs the `staging/` lifecycle rule and the edge headers ADR-0037 names | Local MinIO sets the rule in `docker/minio/init.sh` |
-| A public demo needs a demo mode first (an ADR) | The seed shares one password: anyone could sign in as an owner, enrol a factor, request deletion or send invitations |
+| `MFA_ENCRYPTION_KEY`, `WEBHOOK_SECRETS_KEY` and `SSO_SECRETS_KEY` kept apart from the database and its backups | In Secrets Manager under KMS; keep them out of the database's backup path (ADR-0040, ADR-0050, ADR-0054) |
+| The state bucket read only by the deploying role, under its own KMS key; CI by OIDC, no static keys | TB13 |
+| `TRUST_PROXY_HOPS` set to the real hop count, and `X-Forwarded-For` confirmed at the API | Default 1 (the ALB); a CDN in front makes it 2 (THREAT-MODEL §7) |
+| RDS backups, Multi-AZ and deletion protection on | The local root turns deletion protection off |
+| A public demo needs a demo mode first (an ADR) | The seed shares one password: anyone could sign in as an owner |
 | HSTS with a short max-age first, `preload` last | `DNS.md` §3 |
-
 
 ## Running it
 
@@ -205,6 +188,8 @@ docker compose --profile observability up -d           # collector, Tempo, Prome
 docker compose --profile sso up -d                     # Keycloak :8180, Acme's identity provider (ADR-0054)
 docker compose --profile dns up -d                     # CoreDNS :5354 for the domain proof; DNS_RESOLVERS=127.0.0.1:5354
 pnpm --filter @patchgrid/api run inbound:send -- --from carla@contractor.test --to acme --subject "…" --text "…"
+pnpm aws:up && pnpm aws:run verify && pnpm aws:e2e     # the production rehearsal on Floci (infra/README.md)
+pnpm aws:down
 ```
 
 To see traces and the tenant dashboard, set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` in
@@ -218,8 +203,9 @@ files are served by MinIO at `http://localhost:9000`, a different site from `lvh
 With `--profile sso` up, "Sign in with SSO" on the login page takes `kim@acme.test` or `lee@acme.test`
 (password `patchgrid-demo`) through Keycloak into Acme, provisioned as requesters on first sign-in.
 `nora@acme.test` is unverified at the provider and is refused. Alice (Acme's owner) manages it under
-Settings → Single sign-on. Passkeys need a secure context: start Chrome with
-`--unsafely-treat-insecure-origin-as-secure=http://app.lvh.me:3001,http://acme.lvh.me:3001` until M14.
+Settings → Single sign-on. Passkeys need a secure context: on plain-http `lvh.me`, start Chrome with
+`--unsafely-treat-insecure-origin-as-secure=http://app.lvh.me:3001,http://acme.lvh.me:3001`, or use the
+AWS rehearsal, which is https.
 
 To prove a domain locally, claim `globex.test` as Gus under Settings → Single sign-on, add the TXT line the
 page shows to `docker/coredns/zones/db.globex.test` (raise the serial, save the file whole), and check
@@ -229,6 +215,28 @@ address no member has with `inbound:send`.
 
 Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session cookies are scoped to
 `.lvh.me`, so a `localhost` cookie jar stays empty and every call is a `401`.
+
+## Gotchas paid for in M14
+
+- **HashiCorp is geo-blocked here** (`x-amzn-waf-reason: geo`): the CLI is OpenTofu, the registry
+  `registry.opentofu.org`. The code stays plain HCL.
+- **A full image build takes about 10 GB.** Check `df` first; `docker builder prune` after. The first one
+  filled the disk and Docker's VM stopped booting.
+- **gitleaks in CI scans every pushed branch, not only the PR's.** A false positive on another branch
+  fails every PR; mark it inline (`# gitleaks:allow`) and rewrite that branch. A rerun keeps the old merge
+  SHA, so rebase a PR onto a fixed `main` instead of rerunning it.
+- **`merge()` keeps the last key.** Two secrets maps that both had `app` lost the API's keys silently.
+- **`COPY --chmod` applies to the directories it creates.** A 0444 `/etc/ssl` left Node unable to open
+  `openssl.cnf`, exit 13. Copy into a directory that exists.
+- **Healthy is not settled.** Mid-rollout the old tasks are healthy too, and still serving the old
+  settings. Wait for one deployment, running = desired, and exactly that many targets.
+- **A live worker on the same database drains a suite's outbox.** The same rule as a dev API beside
+  `test:integration`, now in an ECS service.
+- **Playwright's `request` resolves through Node, not Chromium**, and through `dns.promises.lookup` per
+  family; `--host-resolver-rules` does nothing for it.
+- **WebAuthn refuses a page with a certificate error**, so `ignoreHTTPSErrors` is not enough for
+  passkeys; trust the CA (`--ignore-certificate-errors-spki-list`).
+- **AWS takes an ElastiCache AUTH token only with TLS.** Floci accepts it without; the AWS rule decides.
 
 ## Gotchas paid for clearing the open items
 
@@ -263,40 +271,5 @@ Scripting the API with curl, use `api.lvh.me:4000`, not `localhost`. The session
   the proof for a two-request flow.
 - **Killing `nest start --watch` stops `pnpm --filter … dev` too, and the app dev server can go with
   it.** Check both ports before a browser run; eight connection refusals are not eight bugs.
-
-## Gotchas paid for in M12
-
-- **`FULL JOIN` needs an equality Postgres can hash.** `IS NOT DISTINCT FROM` is refused; join on
-  `COALESCE(key, '')`.
-- **A void function cannot be read by `$queryRaw`.** `pg_advisory_xact_lock` goes through `$executeRaw`.
-- **`crypto.randomUUID()` exists only in secure contexts**, and development is plain http on `lvh.me`.
-  `lib/idempotency.ts` builds ids from `getRandomValues`.
-- **A component that owns a dialog unmounts with its parent's state.** Clear a selection after its
-  results are read, not when they arrive.
-- **The React compiler's lint refuses `setState` in an effect.** Derive what can be derived during render.
-- **A base64url secret can contain `_`.** Split a token by its pattern, never by the separator; it failed
-  one run in eight, twice, in two specs.
-- **commitlint wants a lowercase subject** (`SLA` fails). Chain a push after `&&`, never `;`, or a
-  rejected commit still pushes a partial series.
-
-## Gotchas paid for in M11
-
-- **Ids are assigned at insert, rows appear at commit.** An id-ordered cursor skips an event whose
-  transaction commits after a later one's; read in transaction-id order below `pg_snapshot_xmin`.
-- **A transaction that writes holds an id, and its own id is a horizon.** Take the drain's lock with an
-  advisory lock (no id) and read before writing.
-- **BullMQ deduplicates a job id until the job completes**, which drops exactly the wake that arrives
-  mid-drain. Clear a pending flag when the work starts, not when it ends.
-- **Raw SQL outside a transaction runs with no tenant and RLS answers "nothing"**, not an error. Use
-  `PrismaService.tx`.
-- **`pg_advisory_xact_lock` returns `void`**, which `$queryRaw` cannot decode; use `$executeRaw`.
-- **A dev API is a second worker on the same database.** Its listener drains test events. `nest start
-  --watch` respawns a killed server: stop the `pnpm … dev` process.
-- **gitleaks fingerprints carry the commit SHA**, and a rebase-merge rewrites it. Use values no scanner
-  flags (the webhook dev key is all zero bytes) or `// gitleaks:allow` on a public test vector.
-- **CI's integration job does not read `.env.example`.** A spec that needs a non-default setting sets
-  `process.env` itself.
-- **A delayed job's id is a promise to BullMQ**: a failed job with the same id is kept and silently blocks
-  a later add. Name jobs by what they are for (the scheduled time) and do not keep failed ones.
 
 Older gotchas are in the previous handoffs in git history, and in the module headers where they bite.
