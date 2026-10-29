@@ -26,6 +26,7 @@
     "aws:status": "node scripts/aws.mjs status",
     "aws:down": "node scripts/aws.mjs down",
     "aws:e2e": "node scripts/aws.mjs e2e",
+    "screenshots": "pnpm --filter @patchgrid/app screenshots",
     "platform:grant": "pnpm --filter @patchgrid/database run platform grant",
     "platform:revoke": "pnpm --filter @patchgrid/database run platform revoke"
   },
@@ -68,7 +69,8 @@
       "sharp": "^0.35.5",
       "source-map-js": "^1.2.2",
       "http-cache-semantics": "^4.3.0",
-      "@modelcontextprotocol/sdk": "^1.31.0"
+      "@modelcontextprotocol/sdk": "^1.31.0",
+      "systeminformation@5": "^5.33.16"
     },
     "auditConfig": {
       "ignoreGhsas": [

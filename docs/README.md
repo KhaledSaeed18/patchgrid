@@ -102,4 +102,5 @@ section of [`ARCHITECTURE.md`](ARCHITECTURE.md#background-jobs-bullmq-inside-app
   **Erratum** block under the Status line. The process is in [`decisions/README.md`](decisions/README.md).
 - **The handoff is regenerated, not appended.** [`HANDOFF.md`](HANDOFF.md) is rewritten at each
   milestone boundary. Earlier states are in its git history.
-- **Screenshots** in [`images/`](images/) are taken from the seeded demo data at 1440 × 900, scale 2.
+- **Screenshots** in [`screenshots/`](screenshots/) are generated, never edited by hand: `pnpm screenshots`
+  takes every one from the seeded demo at 1440 × 900, scale 2, in light and dark.
