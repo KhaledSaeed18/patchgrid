@@ -26,6 +26,7 @@
     "aws:status": "node scripts/aws.mjs status",
     "aws:down": "node scripts/aws.mjs down",
     "aws:e2e": "node scripts/aws.mjs e2e",
+    "screenshots": "pnpm --filter @patchgrid/app screenshots",
     "platform:grant": "pnpm --filter @patchgrid/database run platform grant",
     "platform:revoke": "pnpm --filter @patchgrid/database run platform revoke"
   },
