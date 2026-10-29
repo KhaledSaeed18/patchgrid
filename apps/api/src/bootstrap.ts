@@ -36,7 +36,16 @@ export async function bootstrap(): Promise<void> {
       // one there is — nothing may load, nothing may frame it — so a response
       // that is ever rendered as a document by mistake stays inert. The
       // headers that matter for an API are the rest of the set.
-      contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+      // Helmet merges its defaults in, `upgrade-insecure-requests` among them;
+      // over plain-HTTP development that sends the API reference's own scripts
+      // to an https:// that is not there, so it is a production-only directive.
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          upgradeInsecureRequests: config.isProduction ? [] : null,
+        },
+      },
       // CORP would block the cross-origin reads that the tenant subdomains make
       // on purpose; CORS is the mechanism that governs those (below).
       crossOriginResourcePolicy: false,
