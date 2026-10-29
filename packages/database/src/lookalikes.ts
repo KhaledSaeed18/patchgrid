@@ -438,8 +438,10 @@ export async function seedLookalikes(db: PrismaClient, options: LookalikeOptions
       select: { id: true },
     })
     await db.eventConsumer.create({ data: { orgId: org.id, consumer: "lookalike" } })
+    // Parked under a real consumer: the API reads the name through its contract, and the demo's
+    // Event delivery page lists it. Replaying it is a no-op, since no consumer reads its type.
     await db.eventDeadLetter.create({
-      data: { orgId: org.id, consumer: "lookalike", eventId: event.id, failures: 3, error: "Lookalike failure" },
+      data: { orgId: org.id, consumer: "notify", eventId: event.id, failures: 3, error: "Lookalike failure" },
     })
 
     // A saved view, so isolation has a row on each side (ADR-0052).
