@@ -58,7 +58,7 @@ services:
     # healthcheck and the init script use. It runs as a non-root user, which is
     # why the volume was renamed: one created by the old root image is not
     # writable by it.
-    image: cgr.dev/chainguard/minio:latest-dev@sha256:07c9af246c5900123b442508b7831afe389e93fb133a53d19e04816a1367701d
+    image: cgr.dev/chainguard/minio:latest-dev@sha256:7037aec11fc0069d877e70bfb2387cf23f20fe0d14d9cf86cacf9b8440395416
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -83,7 +83,7 @@ services:
   # One-shot: create the bucket and set CORS so the browser can PUT directly to
   # storage with a presigned URL (ADR-0005). Exits 0 and stays exited.
   minio-init:
-    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:e505a9bf01fe246c1beb7724d9b0b6d25159a027a1d840dade492042b239aad4
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:20d1b2a39ca3b69ce970235e5940c99d0e1c840d2769c16ca1df540f5e17e956
     depends_on:
       minio:
         condition: service_healthy
@@ -117,7 +117,7 @@ services:
   # Prometheus; Grafana is provisioned with both and the tenant dashboard.
   # Off by default so the everyday stack stays light.
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.163.2
+    image: otel/opentelemetry-collector-contrib:0.164.0-386
     profiles: ["observability"]
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yaml"]
@@ -139,7 +139,7 @@ services:
       - tempo-data:/var/tempo
 
   prometheus:
-    image: prom/prometheus:v3.15.1
+    image: prom/prometheus:v3.16.0
     profiles: ["observability"]
     restart: unless-stopped
     volumes:
@@ -189,7 +189,7 @@ services:
   # API allows that private, plain-http issuer only because .env sets
   # SSO_ALLOW_PRIVATE_ISSUERS. Admin console: http://localhost:8180/admin.
   keycloak:
-    image: quay.io/keycloak/keycloak:26.8@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+    image: quay.io/keycloak/keycloak:26.8@sha256:723b1d6e254c0fc96d5cffec860c7e0744d6a3277822b865bb538cf891575e41
     profiles: ["sso"]
     restart: unless-stopped
     command: ["start-dev", "--import-realm", "--http-port=8180"]
