@@ -23,7 +23,7 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "next": "16.4.3"
+    "next": "16.4.5"
   },
   "devDependencies": {
     "@patchgrid/eslint-config": "workspace:*",
@@ -34,7 +34,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "next": "16.4.3",
+    "next": "16.4.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
